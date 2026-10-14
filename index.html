@@ -4155,14 +4155,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     document.body.appendChild(d); POOL.push(d);
   }
   var btn = $("btn-click");
-  if (btn) btn.addEventListener("click", function (ev) {
-    if (!canFx() || !ev.isTrusted) return;
+  function spawnFloat(x, y) {
+    if (!canFx()) return;
     var now = performance.now();
     if (now - lastFloat < 70) return;           // max ~14 / s
     lastFloat = now;
-    var r = btn.getBoundingClientRect();
-    var x = ev.detail > 0 ? ev.clientX : r.left + r.width / 2;
-    var y = ev.detail > 0 ? ev.clientY : r.top + r.height / 2;
     var cv = $("click-val");
     var el = POOL[poolIdx++ % POOL.length];
     el.textContent = "+" + (cv ? cv.textContent.trim() : "1");
@@ -4170,6 +4167,12 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     el.style.setProperty("--fx-y", (y - 24) + "px");
     el.style.setProperty("--fx-dx", (Math.random() * 40 - 20).toFixed(0) + "px");
     el.classList.remove("go"); void el.offsetWidth; el.classList.add("go");
+  }
+  window.__fxTap = spawnFloat;                   // mobil: dotykové ťuknutí (mobile.html)
+  if (btn) btn.addEventListener("click", function (ev) {
+    if (!ev.isTrusted) return;
+    var r = btn.getBoundingClientRect();
+    spawnFloat(ev.detail > 0 ? ev.clientX : r.left + r.width / 2, ev.detail > 0 ? ev.clientY : r.top + r.height / 2);
   });
 
   // ---------- poskočení čísel (jen coins/scrap/click/mult, max 1x za 600 ms) ----------
@@ -4321,7 +4324,11 @@ html.m body[data-mtab="play"] .grid-columns { flex: 1 1 auto; min-height: 0; }
 html.m body[data-mtab="play"] [data-tab="play"] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 html.m [data-tab="play"] .click-btn-wrap { flex: 1 1 auto; display: flex; min-height: 130px; }
 html.m [data-tab="play"] #btn-click { flex: 1; height: auto; font-size: 20px; line-height: 1.3; border-radius: 10px; }
-html.m [data-tab="play"] #btn-click:active { transform: scale(.985); }
+html.m [data-tab="play"] #btn-click:active, html.m [data-tab="play"] #btn-click.pressed { transform: scale(.985); }
+/* na mobilu se nic neoznačuje (dvojklik / podržení), kromě polí pro psaní */
+html.m body, html.m body * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.m input, html.m textarea, html.m select, html.m [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+html.m #btn-click { touch-action: none; }
 
 html.m #m-tabs {
   flex: none; display: flex; background: #0a0e16; border-top: 1px solid var(--border-subtle);
@@ -4457,6 +4464,26 @@ html.m body[data-mtab="more"] #m-settings { display: block; }
   // ---------- nastavení ----------
   $("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/.test(t.textContent)) ? "✨ EFFECTS: OFF" : "✨ EFFECTS: ON"; });
   $("m-logout").addEventListener("click", function () { var t = $("ir-logout"); if (t) t.click(); });
+
+  // ---------- rychlé ťukání: tlačítko reaguje hned na dotyk, každý prst = 1 klik ----------
+  var cbtn = $("btn-click");
+  if (cbtn && "ontouchstart" in window) {
+    cbtn.addEventListener("touchstart", function (e) {
+      e.preventDefault();                      // žádný zpožděný click, dvojklik-zoom ani označení textu
+      cbtn.classList.add("pressed");
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (typeof handleManualClick === "function") handleManualClick(e);
+        if (window.__fxTap) window.__fxTap(t.clientX, t.clientY);
+      }
+    }, { passive: false });
+    var unpress = function () { cbtn.classList.remove("pressed"); };
+    cbtn.addEventListener("touchend", unpress); cbtn.addEventListener("touchcancel", unpress);
+  }
+  function isField(t) { return t && t.closest && t.closest("input,textarea,select,[contenteditable]"); }
+  document.addEventListener("selectstart", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+  document.addEventListener("dblclick", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+  document.addEventListener("contextmenu", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
 
   // zákaz pinch-zoomu a přetahování stránky na záložce HRA
   document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
