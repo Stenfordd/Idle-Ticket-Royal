@@ -1,0 +1,4409 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07090e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Idle Ticket Royale</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <script>
+    /* ===== NASTAVENÍ (jediné místo, které musíš upravit) ===== */
+    window.IR_CONFIG = { API_URL: "https://script.google.com/macros/s/AKfycbzof6xaHiWtrDrnwAoqW4VPgiJdmHQUzG-sSvEp9MOfNqfdu_hQMpx-IFPzYq61uTmp7A/exec", NAME: "Idle Royale" };
+  </script>
+  <style>
+/* ==========================================================================
+   TICKET TYCOON // CASINO ROYALE v5.2 - OBSIDIAN & CRIMSON MODULAR UI
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+
+:root {
+  --bg-core: #07090e;
+  --bg-panel: #0d111a;
+  --bg-panel-elevated: #131926;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(255, 23, 68, 0.4);
+  
+  --crimson: #ff1744;
+  --crimson-glow: 0 0 14px rgba(255, 23, 68, 0.6);
+  --cyan: #00f0ff;
+  --cyan-glow: 0 0 10px rgba(0, 240, 255, 0.4);
+  --amber: #ffb800;
+  --emerald: #00ff88;
+  --text-main: #f0f4f8;
+  --text-dim: #7a889b;
+  --text-muted: #485465;
+
+  --rarity-t0: #64748b;
+  --rarity-t1: #a0aec0;
+  --rarity-t2: #2563eb;
+  --rarity-t3: #a855f7;
+  --rarity-t4: #fbbf24;
+  --rarity-t5: #f43f5e;
+  --rarity-t6: #00ffcc;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  background-color: var(--bg-core);
+  color: var(--text-main);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(255, 23, 68, 0.12) 0%, transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(0, 240, 255, 0.04) 0%, transparent 40%);
+  min-height: 100vh;
+}
+
+/* TOP STATUS BAR */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 18px;
+  background: rgba(13, 17, 26, 0.95);
+  border-bottom: 1px solid var(--border-subtle);
+  backdrop-filter: blur(10px);
+}
+.brand-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--crimson);
+  text-shadow: var(--crimson-glow);
+}
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  color: var(--emerald);
+  font-weight: 600;
+  font-size: 11px;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--emerald);
+  box-shadow: 0 0 6px var(--emerald);
+}
+
+/* 3-COLUMN FLEX LAYOUT */
+.main-wrapper {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.grid-columns {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+}
+.column {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* PANELS */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+.panel-header {
+  font-family: 'Orbitron', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--crimson);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 6px;
+}
+
+/* STATS HUD */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.stat-box {
+  background: var(--bg-panel-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+.stat-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.stat-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 2px;
+}
+.stat-val.gold { color: var(--amber); text-shadow: 0 0 8px rgba(255, 184, 0, 0.4); }
+.stat-val.cyan { color: var(--cyan); text-shadow: var(--cyan-glow); }
+.stat-val.crimson { color: var(--crimson); text-shadow: var(--crimson-glow); }
+.stat-val.emerald { color: var(--emerald); text-shadow: 0 0 8px rgba(0, 255, 136, 0.4); }
+
+/* CLICK BUTTON */
+.click-btn-wrap {
+  text-align: center;
+  margin: 10px 0;
+}
+.btn-primary-action {
+  width: 100%;
+  padding: 16px 12px;
+  font-family: 'Orbitron', monospace;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  background: linear-gradient(135deg, #ff1744 0%, #b70028 100%);
+  border: 1px solid #ff4569;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(255, 23, 68, 0.35);
+  transition: all 0.15s ease;
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255, 23, 68, 0.55);
+}
+.btn-primary-action:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* BUTTONS */
+.btn {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 7px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  background: var(--bg-panel-elevated);
+  color: var(--text-main);
+}
+.btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-cyan {
+  background: rgba(0, 240, 255, 0.12);
+  border-color: rgba(0, 240, 255, 0.4);
+  color: var(--cyan);
+}
+.btn-cyan:hover:not(:disabled) {
+  background: rgba(0, 240, 255, 0.25);
+  box-shadow: var(--cyan-glow);
+}
+.btn-crimson {
+  background: rgba(255, 23, 68, 0.15);
+  border-color: rgba(255, 23, 68, 0.5);
+  color: var(--crimson);
+}
+.btn-crimson:hover:not(:disabled) {
+  background: rgba(255, 23, 68, 0.3);
+  box-shadow: var(--crimson-glow);
+}
+.btn-gold {
+  background: rgba(255, 184, 0, 0.12);
+  border-color: rgba(255, 184, 0, 0.4);
+  color: var(--amber);
+}
+.btn-gold:hover:not(:disabled) {
+  background: rgba(255, 184, 0, 0.25);
+}
+
+/* COMPANY CHEST & LIVE ODDS DISPLAY */
+.chest-box {
+  background: var(--bg-panel-elevated);
+  border: 1px solid rgba(255, 23, 68, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.chest-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.chest-lvl-tag {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--amber);
+  text-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
+}
+.odds-table {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 10px 0;
+}
+.odds-cell {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.odds-name {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.odds-val {
+  font-family: 'Orbitron', monospace;
+  font-weight: 700;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* SMART MERGE STATION */
+.merge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+.merge-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--bg-panel-elevated);
+  border-radius: 4px;
+  border-left: 3px solid var(--cyan);
+}
+.merge-card-info {
+  display: flex;
+  flex-direction: column;
+}
+.merge-card-title {
+  font-weight: 700;
+  font-size: 12px;
+}
+.merge-card-count {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* INVENTORY & LOADOUT */
+.loadout-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.loadout-slot {
+  background: var(--bg-panel-elevated);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 8px;
+  min-height: 70px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  cursor: pointer;
+}
+.loadout-slot.filled {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(19, 25, 38, 0.9);
+}
+.loadout-slot-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.backpack-container {
+  height: 520px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  align-content: flex-start;
+  gap: 6px;
+}
+.item-card {
+  background: var(--bg-panel-elevated);
+  border-radius: 4px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--rarity-t1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  transition: transform 0.1s;
+}
+.item-card:hover {
+  transform: translateY(-1px);
+}
+.item-card.t1 { border-left-color: var(--rarity-t1); }
+.item-card.t2 { border-left-color: var(--rarity-t2); }
+.item-card.t3 { border-left-color: var(--rarity-t3); }
+.item-card.t4 { border-left-color: var(--rarity-t4); }
+.item-card.t5 { border-left-color: var(--rarity-t5); }
+.item-card.t6 { border-left-color: var(--rarity-t6); }
+
+.item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.item-name {
+  font-weight: 700;
+  font-size: 11px;
+}
+.item-count-badge {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: 'Orbitron', monospace;
+  color: var(--amber);
+}
+.item-stats {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.item-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+.item-actions button {
+  flex: 1;
+  padding: 3px 0;
+  font-size: 10px;
+}
+
+/* CASINO ROYALE TABS */
+.tab-row {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+.casino-tab-btn {
+  flex: 1;
+  padding: 6px 4px;
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--bg-panel-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.casino-tab-btn.active {
+  background: rgba(255, 23, 68, 0.15);
+  border-color: var(--crimson);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 23, 68, 0.3);
+}
+
+/* ROULETTE */
+.ticker-wrap {
+  width: 100%;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 4px 0;
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+.ticker-wrap:hover .ticker-move {
+  animation-play-state: paused;
+}
+.ticker-move {
+  display: inline-block;
+  white-space: nowrap;
+  animation: tickerScroll 25s linear infinite;
+  font-size: 11px;
+}
+@keyframes tickerScroll {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+.roulette-viewport {
+  width: 100%;
+  height: 60px;
+  background: #000;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 10px;
+}
+.roulette-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 8px #fff;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+.roulette-track {
+  display: flex;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.r-slot {
+  width: 48px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Orbitron', monospace;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.r-slot.red { background: #b70028; border: 1px solid #ff1744; }
+.r-slot.black { background: #1a1e28; border: 1px solid #2a3245; }
+.r-slot.zero { background: #008744; border: 1px solid #00ff88; }
+
+.bet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* SLOTS */
+.slots-window {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  background: #05070b;
+  border: 2px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 16px 12px;
+  margin-bottom: 10px;
+}
+.slot-reel {
+  width: 70px;
+  height: 70px;
+  background: var(--bg-panel-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+}
+.slot-reel.spinning {
+  animation: reelSpin 0.12s linear infinite;
+}
+.slot-reel.winner {
+  border-color: #ffb800 !important;
+  box-shadow: 0 0 18px rgba(255, 184, 0, 0.8), inset 0 0 12px rgba(255, 184, 0, 0.4) !important;
+  animation: slotWinPulse 0.5s ease-in-out infinite alternate !important;
+}
+@keyframes slotWinPulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  100% { transform: scale(1.08); filter: brightness(1.3); }
+}
+.slots-banner {
+  text-align: center;
+  font-family: 'Orbitron', monospace;
+  font-weight: 900;
+  font-size: 13px;
+  color: var(--amber);
+  text-shadow: 0 0 10px rgba(255, 184, 0, 0.7);
+  min-height: 20px;
+  margin-top: 4px;
+}
+@keyframes reelSpin {
+  0% { transform: translateY(-4px); filter: blur(1px); }
+  50% { transform: translateY(4px); filter: blur(1px); }
+  100% { transform: translateY(-4px); filter: blur(1px); }
+}
+
+/* BLACKJACK */
+.bj-table {
+  background: #092015;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.bj-area {
+  margin-bottom: 8px;
+}
+.bj-label {
+  font-size: 10px;
+  color: var(--emerald);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.bj-cards {
+  display: flex;
+  gap: 6px;
+  min-height: 44px;
+}
+.bj-card {
+  width: 32px;
+  height: 44px;
+  background: #fff;
+  color: #111;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.bj-card.red { color: #d00; }
+
+/* CONSULT MODE PROTOCOL */
+.consult-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 10px 0;
+}
+.consult-zone-card {
+  background: var(--bg-panel-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  transition: all 0.2s;
+  position: relative;
+}
+.consult-zone-card.selected {
+  border-color: var(--cyan);
+  box-shadow: var(--cyan-glow);
+  background: rgba(0, 240, 255, 0.08);
+}
+.consult-zone-card.flicker {
+  border-color: var(--amber);
+  box-shadow: 0 0 12px rgba(255, 184, 0, 0.5);
+}
+.zone-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+}
+.zone-odds {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.scanner-display {
+  background: #000;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 12px;
+  text-align: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  margin: 10px 0;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyan);
+}
+.bug-chamber {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.bug-card {
+  background: rgba(255, 23, 68, 0.08);
+  border: 1px dashed rgba(255, 23, 68, 0.3);
+  border-radius: 4px;
+  padding: 10px;
+  text-align: center;
+}
+.bug-card.highlight {
+  border: 2px solid var(--crimson);
+  background: rgba(255, 23, 68, 0.25);
+  box-shadow: var(--crimson-glow);
+}
+
+/* SYSTEM LOG & CHAT */
+.log-container {
+  height: 140px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-family: 'Rajdhani', monospace;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+}
+.log-entry {
+  color: #8b9bb4;
+  line-height: 1.25;
+}
+.log-entry.success { color: var(--emerald); }
+.log-entry.warning { color: var(--amber); }
+.log-entry.error { color: var(--crimson); }
+.log-entry.special { color: var(--cyan); }
+
+.chat-container {
+  height: 140px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.chat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  word-break: break-word;
+  line-height: 1.3;
+}
+.chat-time {
+  color: #556;
+  font-size: 10px;
+  font-family: 'Orbitron', monospace;
+  flex-shrink: 0;
+}
+.chat-author {
+  color: var(--cyan);
+  font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.chat-author.is-me {
+  color: #ffb800;
+}
+.chat-text {
+  color: #d8e2ec;
+}
+.chat-empty {
+  color: #667;
+  font-style: italic;
+  font-size: 11px;
+  text-align: center;
+  margin-top: 50px;
+}
+.chat-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chat-input-row input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: #fff;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  outline: none;
+}
+.chat-input-row input:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.2);
+}
+
+/* LEADERBOARD TABLE */
+.lb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.lb-table th {
+  text-align: left;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 4px 6px;
+}
+.lb-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+.lb-table tr.me td {
+  color: var(--amber);
+  font-weight: 700;
+}
+</style>
+  <style>
+    /* ===== v6.1 patch (style.html zůstává beze změny) ===== */
+    input, textarea, select { user-select: text; -webkit-user-select: text; }
+    .top-bar { backdrop-filter: none; }
+    .stat-val.gold, .stat-val.cyan, .stat-val.crimson, .stat-val.emerald { text-shadow: none; }
+    .btn-help { padding: 3px 9px; font-size: 11px; }
+    .adv-select { background: #000; border: 1px solid var(--border-subtle); color: var(--amber); padding: 6px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; }
+
+    /* HUD chips */
+    .buff-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; min-height: 22px; }
+    .buff-chip { font-family: 'Orbitron', monospace; font-size: 9px; padding: 3px 7px; border-radius: 10px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: var(--text-dim); white-space: nowrap; }
+    .buff-chip.on { color: var(--emerald); border-color: rgba(0,255,136,0.4); background: rgba(0,255,136,0.08); }
+    .buff-chip.lp { color: var(--amber); border-color: rgba(255,184,0,0.35); }
+    .buff-chip.bad { color: var(--crimson); border-color: rgba(255,23,68,0.4); background: rgba(255,23,68,0.1); }
+
+    /* Autoclicker */
+    .ac-box { margin-top: 8px; background: var(--bg-panel-elevated); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,184,0,0.2); }
+    .ac-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+    .ac-bar { width: 100%; height: 8px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid var(--border-subtle); margin-bottom: 6px; }
+    .ac-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--amber), var(--emerald)); }
+    .ac-bar-next { height: 4px; width: 100%; background: #000; border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
+    .ac-bar-next-fill { height: 100%; width: 0%; background: var(--cyan); }
+
+    /* Legacy shop */
+    .lp-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
+    .lp-desc { font-size: 10px; color: var(--text-dim); }
+    .lp-lvl { font-size: 10px; color: var(--amber); font-family: 'Orbitron', monospace; }
+
+    /* Backpack */
+    .bp-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; font-size: 11px; color: var(--text-dim); }
+    .bp-controls label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .bp-empty { color: var(--text-muted); font-size: 11px; text-align: center; grid-column: span 2; padding: 30px; }
+    .backpack-container { height: 640px; }
+    .slot-stats { font-size: 9px; color: var(--text-dim); font-weight: 400; }
+    .chest-result { font-size: 11px; color: var(--text-dim); min-height: 16px; margin-bottom: 8px; }
+
+    /* Modals */
+    .tt-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 12px; }
+    .tt-overlay.open { display: flex; }
+    .tt-modal { width: 100%; max-width: 560px; background: var(--bg-panel); border: 1px solid var(--crimson); border-radius: 8px; padding: 18px; }
+    .tt-modal h2 { font-family: 'Orbitron', monospace; font-size: 15px; color: var(--crimson); margin-bottom: 10px; letter-spacing: 1px; }
+    .tt-modal .tt-body { font-size: 14px; line-height: 1.5; min-height: 150px; color: var(--text-main); }
+    .tt-modal .tt-body ul { margin: 8px 0 0 18px; }
+    .tt-modal .tt-body b { color: var(--amber); }
+    .tt-modal .tt-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 8px; }
+    .tt-dots { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; flex: 1; }
+    .tt-dot { width: 7px; height: 7px; border-radius: 50%; background: #2a3245; }
+    .tt-dot.on { background: var(--cyan); }
+    .token-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+
+    /* Update banner + tab block */
+    .update-banner { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 9998; display: none; background: #0d111a; border: 1px solid var(--amber); color: var(--amber); padding: 8px 16px; border-radius: 6px; font-size: 12px; font-family: 'Orbitron', monospace; }
+    .update-banner.open { display: block; }
+
+    /* Roulette bet row */
+    .wager-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+    .wager-row input { width: 110px; background: #000; border: 1px solid var(--border-subtle); color: #fff; padding: 5px 8px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; }
+    .wager-row .btn { padding: 4px 8px; font-size: 10px; }
+    .bal-line { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--amber); text-align: right; margin-bottom: 4px; }
+    .roulette-result, .slots-banner { font-family: 'Orbitron', monospace; font-size: 12px; text-align: center; min-height: 18px; margin-bottom: 6px; }
+
+    /* Blackjack - široký stůl */
+    .bj-table { padding: 14px 10px; }
+    .bj-area { margin-bottom: 12px; text-align: center; }
+    .bj-label { font-size: 12px; margin-bottom: 6px; }
+    .bj-cards { justify-content: center; flex-wrap: wrap; min-height: 84px; gap: 8px; }
+    .bj-card { width: 56px; height: 80px; flex-direction: column; font-size: 20px; line-height: 1.1; border-radius: 6px; }
+    .bj-card.back { background: #1e293b; color: #fff; justify-content: center; }
+    .bj-result { text-align: center; font-family: 'Orbitron', monospace; font-size: 13px; min-height: 30px; padding: 6px; border-radius: 4px; margin-bottom: 8px; background: rgba(255,255,255,0.05); }
+    .bj-result.win { background: rgba(0,255,136,0.15); color: var(--emerald); }
+    .bj-result.loss { background: rgba(255,23,68,0.15); color: var(--crimson); }
+    .bj-result.push { background: rgba(255,184,0,0.15); color: var(--amber); }
+
+    @media (max-width: 1000px) {
+      .grid-columns { flex-direction: column; }
+      .column { width: 100%; flex: none; }
+      .top-bar { flex-direction: column; gap: 6px; }
+    }
+  </style>
+  <script>window.CLIENT_VERSION = "";</script>
+</head>
+<body>
+
+  <!-- TOP HEADER -->
+  <div class="top-bar">
+    <div class="brand-title">IDLE ROYALE // HOME</div>
+    <div class="user-badge">
+      <span>AGENT: <strong id="user-display" style="color:var(--cyan);">CONNECTING...</strong></span>
+      <span>SEASON: <strong id="season-display" style="color:var(--amber);">1</strong></span>
+      <button class="btn btn-cyan btn-help" onclick="openTutorial()">? HOW TO PLAY</button>
+      <span class="status-pill"><span class="status-dot"></span> LIVE LINK</span>
+    </div>
+  </div>
+
+  <div class="main-wrapper">
+    <div class="grid-columns">
+
+      <!-- COLUMN 1 -->
+      <div class="column">
+
+        <div class="panel">
+          <div class="panel-header">
+            <span>OPERATOR WORKSTATION</span>
+            <span id="multiplier-badge" style="color:var(--amber); font-size:10px;">MULT: 1.00×</span>
+          </div>
+
+          <div class="click-btn-wrap">
+            <button class="btn-primary-action" id="btn-click" onclick="handleManualClick(event)">
+              RESOLVE TICKET (+<span id="click-val">1</span>)
+            </button>
+          </div>
+
+          <div class="buff-row" id="buff-row"></div>
+
+          <div class="ac-box">
+            <div class="ac-row">
+              <span>🔋 AUTOCLICKER BATTERY</span>
+              <strong id="ac-charge" style="color:var(--amber);">0s</strong>
+            </div>
+            <div class="ac-bar"><div class="ac-bar-fill" id="ac-bar-fill"></div></div>
+            <div class="ac-row" style="font-size:10px; color:var(--text-dim);">
+              <span>Next +1s in: <strong id="ac-next" style="color:var(--cyan);">50 clicks</strong></span>
+              <span>Saved avg CPS: <strong id="ac-avg" style="color:var(--emerald);">0.0</strong></span>
+            </div>
+            <div class="ac-bar-next"><div class="ac-bar-next-fill" id="ac-next-fill"></div></div>
+            <button class="btn btn-gold" id="btn-autoclick" style="width:100%;" onclick="toggleAutoclicker()">START AUTOCLICKER</button>
+          </div>
+
+          <div style="margin-top:8px; background:var(--bg-panel-elevated); padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+            <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+              <span>45M FOCUS AUTOGEN</span>
+              <strong id="autogen-timer" style="color:var(--cyan);">IDLE / READY</strong>
+            </div>
+            <button class="btn btn-cyan" id="btn-autogen" style="width:100%;" onclick="toggleFocusAutogen()">START 45M AUTOGEN</button>
+          </div>
+
+          <div style="margin-top:8px; border-top:1px solid var(--border-subtle); padding-top:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+              <span>PRESTIGE: <strong id="prestige-lvl" style="color:var(--crimson);">0</strong></span>
+              <span>AUTO BOOST: <strong id="prestige-bonus" style="color:var(--amber);">1.0×</strong></span>
+              <span>LP: <strong id="lp-count" style="color:var(--amber);">0</strong></span>
+            </div>
+            <button class="btn btn-crimson" id="btn-prestige" style="width:100%;" onclick="performPrestige()">ASCEND PRESTIGE</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">TELEMETRY & HUD</div>
+          <div class="stats-grid">
+            <div class="stat-box"><div class="stat-label">Tickets Resolved</div><div class="stat-val cyan" id="stat-tickets">0</div></div>
+            <div class="stat-box"><div class="stat-label">Google Coins (GC)</div><div class="stat-val gold" id="stat-coins">0</div></div>
+            <div class="stat-box"><div class="stat-label">Scrap Metal</div><div class="stat-val" id="stat-scrap">0</div></div>
+            <div class="stat-box"><div class="stat-label">Click Power</div><div class="stat-val emerald" id="stat-click">1</div></div>
+            <div class="stat-box"><div class="stat-label">Auto GC / Sec</div><div class="stat-val gold" id="stat-gc-sec">0.0</div></div>
+            <div class="stat-box"><div class="stat-label">Net Multiplier</div><div class="stat-val cyan" id="stat-mult">1.00×</div></div>
+            <div class="stat-box"><div class="stat-label">Live CPS</div><div class="stat-val crimson" id="stat-cps">0.0</div></div>
+            <div class="stat-box"><div class="stat-label">Peak CPS</div><div class="stat-val crimson" id="stat-peak-cps">0.0</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span>SMART MERGE STATION (3×)</span>
+            <span style="font-size:9px; color:var(--text-dim);">+60% BASE STATS / LVL</span>
+          </div>
+          <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;">
+            Merges 3 identical items into +1 level (10% crit +2, 5% fail = half the scrap back).
+          </div>
+          <div class="merge-list" id="merge-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="tab-row">
+            <button class="casino-tab-btn active" id="tab-btn-log" onclick="switchBottomLeftTab('log')">📋 SYSTEM LOG</button>
+            <button class="casino-tab-btn" id="tab-btn-chat" onclick="switchBottomLeftTab('chat')">💬 CHAT</button>
+          </div>
+          <div id="view-system-log"><div id="log" class="log-container"></div></div>
+          <div id="view-office-chat" style="display:none;">
+            <div id="chat-messages" class="chat-container"><div class="chat-empty">Loading chat...</div></div>
+            <div class="chat-input-row">
+              <input type="text" id="chat-input" placeholder="Napiš zprávu..." maxlength="180" onkeydown="if(event.key==='Enter') sendChat();">
+              <button class="btn btn-cyan" onclick="sendChat()" style="padding:6px 12px;">SEND</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COLUMN 2 -->
+      <div class="column">
+
+        <div class="panel">
+          <div class="panel-header">
+            <span>SCRAP FABRICATION</span>
+            <span style="font-size:10px; color:var(--amber);">10 TICKETS = 1 SCRAP</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-cyan" style="flex:1; padding:8px 4px;" onclick="buyScrap(100)">+100 SCRAP (1K T)</button>
+            <button class="btn btn-cyan" style="flex:1; padding:8px 4px;" onclick="buyScrap(1000)">+1,000 SCRAP (10K T)</button>
+            <button class="btn btn-gold" style="flex:1; padding:8px 4px;" onclick="buyMaxScrap()">BUY MAX</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span>LEGACY SHOP</span>
+            <span style="font-size:10px; color:var(--amber);">LEGACY POINTS: <span id="lp-count2"></span></span>
+          </div>
+          <div id="lp-shop"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">CYBERNETIC LOADOUT (EQUIPPED)</div>
+          <div class="loadout-grid">
+            <div class="loadout-slot" id="slot-HEAD"><div class="loadout-slot-label">HEAD</div><div id="slot-HEAD-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+            <div class="loadout-slot" id="slot-RIG"><div class="loadout-slot-label">RIG</div><div id="slot-RIG-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+            <div class="loadout-slot" id="slot-TOOL"><div class="loadout-slot-label">TOOL</div><div id="slot-TOOL-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+            <div class="loadout-slot" id="slot-AUGMENT"><div class="loadout-slot-label">AUGMENT</div><div id="slot-AUGMENT-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+            <div class="loadout-slot" id="slot-OS"><div class="loadout-slot-label">OS</div><div id="slot-OS-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+            <div class="loadout-slot" id="slot-RELIC"><div class="loadout-slot-label">RELIC</div><div id="slot-RELIC-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span>BACKPACK STORAGE</span>
+            <span style="font-size:10px; color:var(--text-dim);" id="bp-count">0 / 400</span>
+          </div>
+
+          <div class="bp-controls">
+            <select id="bp-filter" class="adv-select" onchange="setBackpackFilter(this.value)">
+              <option value="ALL">All slots</option>
+              <option value="HEAD">🧠 HEAD</option><option value="RIG">🦾 RIG</option>
+              <option value="TOOL">🔧 TOOL</option><option value="AUGMENT">💉 AUGMENT</option>
+              <option value="OS">💾 OS</option><option value="RELIC">🔮 RELIC</option>
+            </select>
+            <label><input type="checkbox" id="chk-upgrades" onchange="setUpgradesOnly(this.checked)"> Upgrades only</label>
+            <span style="margin-left:auto;">Autosell:
+              <select id="sel-autosell" class="adv-select" onchange="setAutosellTier(this.value)">
+                <option value="0">Off</option><option value="1">≤ T1</option><option value="2">≤ T2</option><option value="3">≤ T3</option>
+              </select>
+            </span>
+          </div>
+
+          <div class="bp-controls" style="background:var(--bg-panel-elevated); padding:6px; border-radius:4px;">
+            <span>Scrap up to</span>
+            <select id="scrap-tier" class="adv-select" onchange="refreshScrapButton()">
+              <option value="1">T1 Common</option><option value="2" selected>T2 Rare</option><option value="3">T3 Epic</option>
+              <option value="4">T4 Legendary</option><option value="5">T5 Mythic</option>
+            </select>
+            <label><input type="checkbox" id="scrap-keep-merged" checked onchange="refreshScrapButton()"> keep merged</label>
+            <label><input type="checkbox" id="scrap-keep-upgrades" checked onchange="refreshScrapButton()"> keep upgrades</label>
+            <button class="btn btn-crimson" id="btn-scrap-tier" style="width:100%;" onclick="scrapByTier()">SCRAP</button>
+          </div>
+
+          <div class="backpack-container" id="backpack-grid"></div>
+        </div>
+
+      </div>
+
+      <!-- COLUMN 3 -->
+      <div class="column">
+
+        <div class="panel">
+          <div class="panel-header">
+            <span>COMPANY CHEST</span>
+            <span class="chest-lvl-tag">LVL <span id="chest-lvl">1</span></span>
+          </div>
+
+          <div class="odds-table">
+            <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t0);">🗑️ Empty</div><div class="odds-val" id="odd-trash" style="color:var(--rarity-t0);">45.0%</div></div>
+            <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t1);">⚪ Common T1</div><div class="odds-val" id="odd-t1" style="color:var(--rarity-t1);">45.0%</div></div>
+            <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t2);">🔵 Rare T2</div><div class="odds-val" id="odd-t2" style="color:var(--rarity-t2);">9.8%</div></div>
+            <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t3);">🟣 Epic T3</div><div class="odds-val" id="odd-t3" style="color:var(--rarity-t3);">0.20%</div></div>
+            <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t4);">🟡 Legendary T4</div><div class="odds-val" id="odd-t4" style="color:var(--rarity-t4);">0.01%</div></div>
+            <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t5);">🔴 Mythic+ T5/T6</div><div class="odds-val" id="odd-t5" style="color:var(--rarity-t5);">0.001%</div></div>
+          </div>
+
+          <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;" id="chest-next-info"></div>
+          <div class="chest-result" id="chest-result"></div>
+
+          <div style="display:flex; gap:6px; margin-bottom:6px;">
+            <button class="btn btn-crimson" id="btn-open-chest" style="flex:1; padding:10px 6px;" onclick="openCompanyChest(1)">OPEN ×1</button>
+            <button class="btn btn-crimson" id="btn-open-chest10" style="flex:1; padding:10px 6px;" onclick="openCompanyChest(10)">OPEN ×10</button>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-gold" id="btn-upgrade-chest" style="flex:1; padding:8px 6px;" onclick="upgradeCompanyChest()">UPGRADE (<span id="chest-upgrade-cost">100</span> GC)</button>
+            <button class="btn btn-cyan" id="btn-token" style="flex:1; padding:8px 6px;" disabled onclick="openTokenPicker(event)">🎟 USE SLOT TOKEN (0)</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span>CASINO ROYALE</span>
+            <span style="font-size:10px; color:var(--amber);">GOOGLE COINS GAMBLING</span>
+          </div>
+
+          <div class="tab-row">
+            <button class="casino-tab-btn active" id="tab-btn-roulette" onclick="switchCasinoTab('roulette')">🎰 ROULETTE</button>
+            <button class="casino-tab-btn" id="tab-btn-slots" onclick="switchCasinoTab('slots')">🍒 SLOTS</button>
+            <button class="casino-tab-btn" id="tab-btn-blackjack" onclick="switchCasinoTab('blackjack')">♠️ BLACKJACK</button>
+          </div>
+
+          <!-- ROULETTE -->
+          <div id="view-roulette">
+            <div class="ticker-wrap"><div class="ticker-move" id="ticker-recent"><span>Recent Rolls: Loading live feed...</span></div></div>
+            <div class="ticker-wrap" style="border-color:rgba(255,184,0,0.25);"><div class="ticker-move" id="ticker-top" style="color:var(--amber);"><span>Top Jackpots: Loading...</span></div></div>
+
+            <div class="roulette-viewport">
+              <div class="roulette-marker"></div>
+              <div class="roulette-track" id="roulette-track"></div>
+            </div>
+            <div class="roulette-result" id="roulette-result"></div>
+
+            <div class="bal-line">Balance: <span id="bal-roulette">0 GC</span> · <span id="roulette-cd" style="color:var(--cyan);">READY</span></div>
+            <div class="wager-row">
+              <span style="font-size:11px;">BET:</span>
+              <input type="number" id="wager-input" min="10" step="10" value="100">
+              <button class="btn" onclick="wagerMul(0.5)">½</button>
+              <button class="btn" onclick="wagerMul(2)">2×</button>
+              <button class="btn" onclick="wagerPct(0.1)">10%</button>
+              <button class="btn" onclick="wagerPct(0.25)">25%</button>
+              <button class="btn" onclick="wagerPct(0.5)">50%</button>
+              <button class="btn btn-gold" onclick="wagerPct(1)">MAX</button>
+            </div>
+
+            <div class="bet-grid">
+              <button class="btn btn-crimson" onclick="placeRouletteBet('red')">RED (2×)</button>
+              <button class="btn" style="background:#1a1e28; border-color:#2a3245;" onclick="placeRouletteBet('black')">BLACK (2×)</button>
+              <button class="btn" style="background:#008744; border-color:#00ff88; color:#fff;" onclick="placeRouletteBet('zero')">ZERO (36×)</button>
+              <button class="btn btn-cyan" onclick="placeRouletteBet('low')">1-18 (2×)</button>
+              <button class="btn btn-gold" style="grid-column:span 2;" onclick="placeRouletteBet('high')">19-36 (2×)</button>
+            </div>
+          </div>
+
+          <!-- SLOTS -->
+          <div id="view-slots" style="display:none;">
+            <div class="bal-line">Balance: <span id="bal-slots">0 GC</span></div>
+            <div class="slots-window">
+              <div class="slot-reel" id="reel-1">🍒</div>
+              <div class="slot-reel" id="reel-2">🔔</div>
+              <div class="slot-reel" id="reel-3">💎</div>
+            </div>
+            <div class="slots-banner" id="slots-banner"></div>
+            <div style="display:flex; justify-content:space-around; font-size:10px; color:var(--text-dim); margin-bottom:8px;">
+              <span>🍒 3× = 5×</span><span>🔔 3× = 15×</span><span>7️⃣ 3× = 50×</span><span style="color:var(--amber);">💎 3× = 500×</span>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <input type="number" id="slots-bet" min="10" step="10" value="50" style="width:90px; background:#000; border:1px solid var(--border-subtle); color:#fff; padding:6px; border-radius:4px; font-family:'Orbitron'; font-size:11px;">
+              <button class="btn btn-crimson" id="btn-slots-spin" style="flex:1; padding:8px 0;" onclick="spinSlots()">PULL LEVER (SPIN)</button>
+            </div>
+          </div>
+
+          <!-- BLACKJACK -->
+          <div id="view-blackjack" style="display:none;">
+            <div class="bal-line">Balance: <span id="bal-bj">0 GC</span></div>
+            <div class="bj-table">
+              <div class="bj-area">
+                <div class="bj-label">DEALER: <span id="bj-dealer-score" style="color:#fff; font-size:16px;">0</span></div>
+                <div class="bj-cards" id="bj-dealer-cards"></div>
+              </div>
+              <div class="bj-area">
+                <div class="bj-label">YOU: <span id="bj-player-score" style="color:#fff; font-size:16px;">0</span></div>
+                <div class="bj-cards" id="bj-player-cards"></div>
+              </div>
+            </div>
+            <div class="bj-result idle" id="bj-result">Place a bet and deal.</div>
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+              <span style="font-size:11px;">BET:</span>
+              <input type="number" id="bj-bet" min="10" step="10" value="100" style="width:100px; background:#000; border:1px solid var(--border-subtle); color:#fff; padding:5px; border-radius:4px; font-family:'Orbitron'; font-size:11px;">
+              <button class="btn btn-gold" id="btn-bj-deal" style="flex:1; padding:8px;" onclick="startBlackjackGame()">DEAL</button>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-cyan" id="btn-bj-hit" style="flex:1; padding:8px;" disabled onclick="bjHit()">HIT</button>
+              <button class="btn btn-crimson" id="btn-bj-stand" style="flex:1; padding:8px;" disabled onclick="bjStand()">STAND</button>
+              <button class="btn" id="btn-bj-double" style="flex:1; padding:8px;" disabled onclick="bjDouble()">DOUBLE</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="adv-minigames-mount"></div>
+
+        <div class="panel">
+          <div class="panel-header">SEASON TOP 10 TYCOONS</div>
+          <table class="lb-table">
+            <thead><tr><th>#</th><th>TYCOON</th><th>PRES</th><th>CHEST</th><th>SCORE</th><th>GAMBLE</th></tr></thead>
+            <tbody id="lb-body"><tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Syncing database...</td></tr></tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- CONSULT -->
+    <div class="panel" style="border-color:rgba(0,240,255,0.25);">
+      <div class="panel-header">
+        <span>T2 / SME CONSULT ESCALATION PROTOCOL</span>
+        <span style="color:var(--cyan); font-size:10px;">HIGH-STAKES DISPATCH SYSTEM</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div style="font-size:11px; color:var(--text-dim); max-width:760px;">
+          Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose 1-10 min of Auto GC. <b>BUG</b> (10%): 50/50 chamber = ×5-10 click power or -50% for 60 s.
+        </div>
+        <button class="btn btn-cyan" id="btn-consult-launch" onclick="launchConsultEscalation()">DISPATCH CONSULT (5,000 SCRAP)</button>
+      </div>
+      <div class="consult-grid">
+        <div class="consult-zone-card" id="zone-emea"><div class="zone-name" style="color:var(--cyan);">EMEA NODE</div><div class="zone-odds">Selection: 25% | Win: 55% | Loss: 35% | BUG: 10%</div></div>
+        <div class="consult-zone-card" id="zone-apac"><div class="zone-name" style="color:var(--amber);">APAC NODE</div><div class="zone-odds">Selection: 35% | Win: 45% | Loss: 45% | BUG: 10%</div></div>
+        <div class="consult-zone-card" id="zone-hindi"><div class="zone-name" style="color:var(--crimson);">HINDI NODE</div><div class="zone-odds">Selection: 40% | Win: 35% | Loss: 55% | BUG: 10%</div></div>
+      </div>
+      <div class="scanner-display" id="consult-display">SYSTEM READY // AWAITING CONSULT DISPATCH ORDER</div>
+      <div class="bug-chamber" id="consult-bug-box" style="display:none;">
+        <div class="bug-card" id="bug-card-win"><div style="font-family:'Orbitron'; font-weight:700; color:var(--emerald);">PROTOCOL OVERDRIVE</div><div style="font-size:11px; margin-top:2px;">×5 to ×10 Click Power for 60 Seconds</div></div>
+        <div class="bug-card" id="bug-card-loss"><div style="font-family:'Orbitron'; font-weight:700; color:var(--crimson);">SYSTEM CRASH</div><div style="font-size:11px; margin-top:2px;">-50% Auto GC & -50% Click Power for 60 Seconds</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TUTORIAL -->
+  <div class="tt-overlay" id="tt-overlay">
+    <div class="tt-modal">
+      <h2 id="tt-title">WELCOME</h2>
+      <div class="tt-body" id="tt-body"></div>
+      <div class="tt-nav">
+        <button class="btn" id="tt-prev" onclick="tutorialStep(-1)">◀ BACK</button>
+        <div class="tt-dots" id="tt-dots"></div>
+        <button class="btn btn-cyan" id="tt-next" onclick="tutorialStep(1)">NEXT ▶</button>
+      </div>
+      <div style="text-align:right; margin-top:8px;"><button class="btn" style="font-size:10px;" onclick="closeTutorial()">CLOSE</button></div>
+    </div>
+  </div>
+
+  <!-- SLOT TOKEN PICKER -->
+  <div class="tt-overlay" id="token-overlay">
+    <div class="tt-modal">
+      <h2>🎟 SLOT TOKEN</h2>
+      <div style="font-size:13px; color:var(--text-dim);">Pick the body slot. Then the rarity is rolled (at least Rare). Use the mouse - the keyboard is disabled here.</div>
+      <div class="token-grid" id="token-slots"></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-gold" id="token-confirm" style="flex:1; padding:10px;" disabled onclick="confirmTokenRoll(event)">PICK A SLOT FIRST</button>
+        <button class="btn" onclick="closeTokenPicker(event)">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OTHER TAB OPEN -->
+  <div class="tt-overlay" id="tab-block">
+    <div class="tt-modal" style="text-align:center;">
+      <h2>GAME ALREADY OPEN</h2>
+      <div class="tt-body" style="min-height:60px;">Idle Royale is open in another tab. Two tabs would overwrite each other's progress.</div>
+      <button class="btn btn-gold" style="padding:10px 18px;" onclick="takeOverTab()">USE THIS TAB</button>
+    </div>
+  </div>
+
+  <div class="update-banner" id="update-banner"><span id="update-banner-text">New version available</span></div>
+
+  <style>
+#ir-login {
+  position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 20%, #1a0a14 0%, var(--bg-core) 60%); padding: 16px;
+}
+#ir-login.open { display: flex; }
+.ir-card {
+  width: 100%; max-width: 380px; background: var(--bg-panel); border: 1px solid var(--border-glow);
+  border-radius: 10px; padding: 22px 20px; box-shadow: 0 0 40px rgba(255,23,68,.15);
+}
+.ir-title { font: 900 22px 'Orbitron', monospace; letter-spacing: 3px; color: var(--crimson); text-shadow: var(--crimson-glow); text-align: center; }
+.ir-sub { text-align: center; font-size: 12px; color: var(--text-dim); margin: 6px 0 18px; }
+.ir-card label { display: block; font: 700 10px 'Orbitron', monospace; letter-spacing: 1px; color: var(--text-dim); margin: 12px 0 5px; }
+.ir-card input {
+  width: 100%; box-sizing: border-box; padding: 11px 12px; font-size: 16px; /* 16px = iOS nezoomuje */
+  background: #05070b; color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: 6px;
+}
+.ir-card input:focus { outline: none; border-color: var(--cyan); box-shadow: var(--cyan-glow); }
+.ir-btn { width: 100%; margin-top: 18px; padding: 12px; font-size: 13px; }
+.ir-msg { min-height: 18px; margin-top: 12px; font-size: 12px; text-align: center; color: var(--crimson); }
+.ir-msg.ok { color: var(--emerald); }
+.ir-switch { text-align: center; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
+.ir-switch a { color: var(--cyan); cursor: pointer; text-decoration: underline; }
+#ir-invite-wrap { display: none; }
+#ir-logout {
+  position: fixed; left: 92px; bottom: 10px; z-index: 50; display: none;
+  font: 700 10px 'Orbitron', monospace; letter-spacing: .5px; padding: 5px 9px; border-radius: 4px; cursor: pointer;
+  background: rgba(13,17,26,.85); color: var(--text-dim); border: 1px solid var(--border-subtle);
+}
+#ir-logout:hover { color: var(--crimson); border-color: var(--crimson); }
+</style>
+
+<div id="ir-login">
+  <form class="ir-card" id="ir-form" autocomplete="on">
+    <div class="ir-title" id="ir-name">IDLE ROYALE</div>
+    <div class="ir-sub" id="ir-sub">Přihlas se přezdívkou a PINem</div>
+    <label for="ir-nick">PŘEZDÍVKA</label>
+    <input id="ir-nick" name="username" type="text" maxlength="16" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label for="ir-pin">PIN (min. 4 znaky)</label>
+    <input id="ir-pin" name="password" type="password" maxlength="32" autocomplete="current-password" inputmode="text">
+    <div id="ir-invite-wrap">
+      <label for="ir-invite">POZVÁNKOVÝ KÓD</label>
+      <input id="ir-invite" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <button class="btn btn-crimson ir-btn" id="ir-submit" type="submit">PŘIHLÁSIT</button>
+    <div class="ir-msg" id="ir-msg"></div>
+    <div class="ir-switch" id="ir-switch"></div>
+  </form>
+</div>
+<button id="ir-logout" type="button">ODHLÁSIT</button>
+
+<script>
+(function () {
+  "use strict";
+  var CFG = window.IR_CONFIG || {};
+  var API = CFG.API_URL || "";
+  var $ = function (id) { return document.getElementById(id); };
+  var auth = null;          // { nick, h }
+  var mode = "login";
+
+  // ---------- SHA-256 (záloha pro případ, že crypto.subtle není dostupné) ----------
+  function sha256Fallback(msg) {
+    function rr(n, x) { return (x >>> n) | (x << (32 - n)); }
+    var K = [], H = [], p = 0, c = {}, i, j;
+    for (var cand = 2; p < 64; cand++) {
+      if (!c[cand]) { for (i = cand * cand; i < 313; i += cand) c[i] = 1; H[p] = (Math.pow(cand, .5) * 4294967296) | 0; K[p++] = (Math.pow(cand, 1 / 3) * 4294967296) | 0; }
+    }
+    H = H.slice(0, 8);
+    var bytes = unescape(encodeURIComponent(msg)), words = [], l = bytes.length;
+    for (i = 0; i < l; i++) words[i >> 2] |= bytes.charCodeAt(i) << ((3 - i) % 4) * 8;
+    words[l >> 2] |= 0x80 << ((3 - l) % 4) * 8;
+    words[(((l + 8) >> 6) << 4) + 15] = l * 8;
+    for (j = 0; j < words.length;) {
+      var w = words.slice(j, j += 16), old = H.slice(0), a, e;
+      for (i = 0; i < 64; i++) {
+        var w15 = w[i - 15], w2 = w[i - 2];
+        a = H[0]; e = H[4];
+        var t1 = H[7] + (rr(6, e) ^ rr(11, e) ^ rr(25, e)) + ((e & H[5]) ^ (~e & H[6])) + K[i] +
+          (w[i] = i < 16 ? (w[i] | 0) : (w[i - 16] + (rr(7, w15) ^ rr(18, w15) ^ (w15 >>> 3)) + w[i - 7] + (rr(17, w2) ^ rr(19, w2) ^ (w2 >>> 10))) | 0);
+        var t2 = (rr(2, a) ^ rr(13, a) ^ rr(22, a)) + ((a & H[1]) ^ (a & H[2]) ^ (H[1] & H[2]));
+        H = [(t1 + t2) | 0].concat(H); H[4] = (H[4] + t1) | 0; H.length = 8;
+      }
+      for (i = 0; i < 8; i++) H[i] = (H[i] + old[i]) | 0;
+    }
+    var out = "";
+    for (i = 0; i < 8; i++) for (j = 3; j + 1; j--) { var b = (H[i] >> (j * 8)) & 255; out += (b < 16 ? "0" : "") + b.toString(16); }
+    return out;
+  }
+  function sha256(msg) {
+    try {
+      if (window.crypto && crypto.subtle && window.TextEncoder) {
+        return crypto.subtle.digest("SHA-256", new TextEncoder().encode(msg)).then(function (buf) {
+          return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+        });
+      }
+    } catch (e) {}
+    return Promise.resolve(sha256Fallback(msg));
+  }
+  window.__irSha256Fallback = sha256Fallback;   // pro testy
+
+  // ---------- volání API ----------
+  function call(fn, args, withAuth) {
+    if (!API || /PASTE|^$/.test(API)) return Promise.reject(new Error("Není nastavená adresa API (IR_CONFIG.API_URL v index.html)."));
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : 0;
+    return fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },     // "simple request" = bez CORS preflightu
+      body: JSON.stringify({ fn: fn, args: args || [], auth: withAuth === false ? null : auth }),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function (r) {
+      if (timer) clearTimeout(timer);
+      return r.json();
+    }).then(function (j) {
+      if (!j || !j.ok) throw new Error((j && j.error) || "Chyba serveru");
+      return j.data;
+    }).catch(function (e) {
+      if (timer) clearTimeout(timer);
+      if (e && e.name === "AbortError") throw new Error("Server neodpověděl včas.");
+      throw e;
+    });
+  }
+  window.__irCall = call;
+
+  // ---------- náhrada google.script.run ----------
+  function builder(ok, fail) {
+    return new Proxy({}, {
+      get: function (_, name) {
+        if (name === "withSuccessHandler") return function (f) { return builder(f, fail); };
+        if (name === "withFailureHandler") return function (f) { return builder(ok, f); };
+        if (name === "withUserObject") return function () { return builder(ok, fail); };
+        return function () {
+          var args = Array.prototype.slice.call(arguments);
+          if (name === "getUserLdap") { setTimeout(function () { if (ok) ok(auth ? auth.nick : ""); }, 0); return; }
+          call(String(name), args).then(
+            function (d) { try { if (ok) ok(d); } catch (e) { console.error(e); } },
+            function (e) { if (fail) { try { fail(e); } catch (e2) { console.error(e2); } } else console.error(e); }
+          );
+        };
+      }
+    });
+  }
+  window.google = { script: { run: builder(null, null) } };
+
+  // ---------- přihlašovací obrazovka ----------
+  function setMsg(t, ok) { var m = $("ir-msg"); m.textContent = t || ""; m.className = "ir-msg" + (ok ? " ok" : ""); }
+  function setMode(m) {
+    mode = m;
+    $("ir-invite-wrap").style.display = m === "register" ? "block" : "none";
+    $("ir-submit").textContent = m === "register" ? "VYTVOŘIT ÚČET" : "PŘIHLÁSIT";
+    $("ir-sub").textContent = m === "register" ? "Nový účet (potřebuješ pozvánkový kód)" : "Přihlas se přezdívkou a PINem";
+    $("ir-pin").autocomplete = m === "register" ? "new-password" : "current-password";
+    $("ir-switch").innerHTML = m === "register"
+      ? 'Už máš účet? <a id="ir-sw">Přihlásit se</a>'
+      : 'Nemáš účet? <a id="ir-sw">Registrace</a>';
+    $("ir-sw").onclick = function () { setMsg(""); setMode(m === "register" ? "login" : "register"); };
+  }
+  function showLogin() { $("ir-login").classList.add("open"); setMode(mode); setTimeout(function () { $("ir-nick").focus(); }, 50); }
+  function hideLogin() { $("ir-login").classList.remove("open"); }
+
+  function keyFor(nick, pin) { return sha256(nick.toLowerCase() + ":" + pin + ":idleroyale"); }
+
+  function saveAuth() { try { localStorage.setItem("ir_auth", JSON.stringify(auth)); } catch (e) {} }
+  function clearAuth() { try { localStorage.removeItem("ir_auth"); } catch (e) {} }
+
+  function boot() {
+    setMsg("Načítám...", true);
+    call("getAppVersion", [], false).then(function (v) {
+      window.CLIENT_VERSION = String(v);
+      hideLogin();
+      $("ir-logout").style.display = "block";
+      if (typeof window.__startGame === "function") window.__startGame();
+    }).catch(function (e) {
+      showLogin();
+      setMsg("Server není dostupný: " + e.message);
+    });
+  }
+
+  $("ir-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var nick = $("ir-nick").value.trim(), pin = $("ir-pin").value;
+    if (!/^[A-Za-z0-9_\-]{3,16}$/.test(nick)) { setMsg("Přezdívka: 3-16 znaků, jen písmena, čísla, _ a -"); return; }
+    if (pin.length < 4) { setMsg("PIN musí mít aspoň 4 znaky."); return; }
+    $("ir-submit").disabled = true; setMsg("Pracuji...", true);
+    keyFor(nick, pin).then(function (h) {
+      var args = mode === "register" ? [nick, h, $("ir-invite").value] : [nick, h];
+      return call(mode, args, false).then(function (res) {
+        auth = { nick: res.nick, h: h };
+        saveAuth();
+        boot();
+      });
+    }).catch(function (e) { setMsg(e.message); }).then(function () { $("ir-submit").disabled = false; });
+  });
+
+  $("ir-logout").addEventListener("click", function () {
+    if (!confirm("Odhlásit se? (hra se předtím uloží)")) return;
+    var go = function () { clearAuth(); location.reload(); };
+    try { if (typeof saveGame === "function") { saveGame(go); setTimeout(go, 4000); return; } } catch (e) {}
+    go();
+  });
+
+  if (CFG.NAME) { $("ir-name").textContent = CFG.NAME.toUpperCase(); document.title = CFG.NAME; }
+
+  // ---------- start ----------
+  function start() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem("ir_auth") || "null"); } catch (e) {}
+    if (saved && saved.nick && saved.h) {
+      auth = saved;
+      call("login", [saved.nick, saved.h], false).then(function () { boot(); }).catch(function (e) {
+        if (/Špatná|PIN|přezdívka/i.test(e.message)) { clearAuth(); auth = null; }
+        showLogin(); setMsg(e.message);
+      });
+    } else {
+      showLogin();
+    }
+  }
+  try { if ("serviceWorker" in navigator && /^https?:/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(function () {}); } catch (e) {}
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+})();
+</script>
+
+  <script>
+/**
+ * IDLE ROYALE - CORE  (soubor "script")
+ * Stav hry, TT API, klikání + CPS, autoclicker, prestiž + Legacy Points, bedna, inventář (stacky), merge, HUD.
+ * Ostatní soubory: casino (ruleta/sloty/blackjack/consult), sync (tutorial/leaderboard/save/načtení/verze), advanced_minigames.
+ */
+
+// ==========================================================================
+// 1. KONSTANTY + STAV
+// ==========================================================================
+const SLOTS = ["HEAD", "RIG", "TOOL", "AUGMENT", "OS", "RELIC"];
+const SLOT_ICONS = { HEAD: "🧠", RIG: "🦾", TOOL: "🔧", AUGMENT: "💉", OS: "💾", RELIC: "🔮" };
+const RARITIES = [
+  { tier: 1, name: "Common", scrap: 15 },
+  { tier: 2, name: "Rare", scrap: 45 },
+  { tier: 3, name: "Epic", scrap: 150 },
+  { tier: 4, name: "Legendary", scrap: 500 },
+  { tier: 5, name: "Mythic", scrap: 1800 },
+  { tier: 6, name: "Quantum", scrap: 6000 }
+];
+// Jedno jméno na slot x tier (36 typů) -> itemy se dají skládat do stacků a merge funguje
+const ITEM_TYPES = {
+  HEAD: ["Helpdesk Headset", "Cortex Cap", "Tactical HUD", "Neural Visor", "Overseer Crown", "Singularity Halo"],
+  RIG: ["Heavy Duty Chassis", "Ergonomic Mesh Chair", "Carbon Fiber Rig", "Titan Exo-Suit", "Aegis Frame", "Void Exoskeleton"],
+  TOOL: ["Thermal Solder", "Data Probe", "Laser Splicer", "Pulse Welder", "Plasma Forge", "Quantum Spanner"],
+  AUGMENT: ["Coffee Pod IV", "Bionic Tendon", "Synapse Accelerator", "Reflex Core", "Neuro Overdrive", "Time Dilator"],
+  OS: ["Krypton OS", "Valkyrie Kernel", "Apex Daemon", "Ghost Protocol", "Root Sovereign", "Omega Kernel"],
+  RELIC: ["Ancient CPU", "Cosmic Capacitor", "Root Access Key", "Overclock Prism", "Eternal Core", "Genesis Shard"]
+};
+
+const INV_MAX_STACKS = 400;
+const MERGE_COUNT = 3;          // kolik stejných itemů se mergne
+const MERGE_MAX_LVL = 10;
+const MERGE_STAT_STEP = 0.6;    // +60 % základních statů za level (aditivně, ne složeně)
+const TOKEN_CHANCE = 0.003;     // šance na Slot Token za každé otevření bedny
+
+const AC_CLICKS_PER_SEC = 50;   // 50 kliků = +1 s baterie
+const AC_MAX_CHARGE = 600;      // max 10 min
+const AC_IDLE_GAP = 1500;       // pauza delší než tohle přeruší sérii (rozpracovaných <50 kliků se zahodí)
+const AC_MIN_GAP = 35;          // kliky rychlejší než 35 ms se do nabíjení a CPS nepočítají
+const AC_MAX_CPS = 15;          // strop uloženého průměrného CPS
+const MAX_LOOP_DT = 120;        // max sekund, které se jedním tickem "doběhnou" (uspaný notebook = žádný offline farming)
+
+const LP_UPGRADES = [
+  { id: "click", name: "Click Mastery", desc: "+10% click power / level", max: 25, cost: l => 2 + l },
+  { id: "auto", name: "Auto Mastery", desc: "+10% Auto GC / level", max: 25, cost: l => 2 + l },
+  { id: "scrap", name: "Scrap Recycler", desc: "-3% scrap cost of chest / level", max: 10, cost: l => 2 + l },
+  { id: "start", name: "Head Start", desc: "+500 GC after each prestige / level", max: 10, cost: l => 1 + l },
+  { id: "heirloom", name: "Heirloom", desc: "Keep your best N equipped items on prestige", max: 6, cost: l => 5 * (l + 1) }
+];
+
+let gameState = {
+  ldap: "Agent",
+  season: 6,
+  tickets: 0,
+  lifetimeTickets: 0,
+  coins: 500,
+  scrap: 250,
+  prestige: 0,
+  chestLevel: 1,
+  maxChestLevel: 1,
+  peakCps: 0,
+  gambleNet: 0,
+  loadout: { HEAD: null, RIG: null, TOOL: null, AUGMENT: null, OS: null, RELIC: null },
+  inventory: [],                 // stacky: { slot, tier, lvl, n }
+  autosellTier: 0,               // 0 = vypnuto, 1..3 = auto-scrap do tieru (nikdy upgrady)
+  focusAutogenActive: false,
+  focusAutogenRemaining: 0,
+  tutorialDone: false,
+  slotTokens: 0,
+  lp: 0,
+  lpUp: { click: 0, auto: 0, scrap: 0, start: 0, heirloom: 0 },
+  autoclicker: { charge: 0, avgCps: 0, running: false, clicks: 0, activeMs: 0, lastClick: 0 },
+  pachinko: { "10": 0, "50": 0, "100": 0, "500": 0 },
+  pcPending: [],
+  consultBuff: { active: false, type: null, expiresAt: 0, clickMult: 1, gcMult: 1 }
+};
+
+let gameLoaded = false;
+let isRouletteSpinning = false, rouletteCooldownUntil = 0;
+let isSpinningSlots = false, isBjInProgress = false, isConsultActive = false;
+
+// ==========================================================================
+// 2. window.TT  (API pro casino / advanced_minigames / sync)
+// ==========================================================================
+const _loadedCallbacks = [];
+let _saveSoonTimer = null;
+
+window.TT = {
+  state: () => gameState,
+  coins: () => Math.floor(gameState.coins),
+  spend: function (amount) {
+    amount = Math.floor(Number(amount));
+    if (!isFinite(amount) || amount <= 0 || gameState.coins < amount) return false;
+    gameState.coins -= amount;
+    gameState.gambleNet = (gameState.gambleNet || 0) - amount;
+    updateHud();
+    TT.saveSoon();
+    return true;
+  },
+  win: function (amount) {
+    amount = Math.floor(Number(amount));
+    if (!isFinite(amount) || amount <= 0) return;
+    gameState.coins += amount;
+    gameState.gambleNet = (gameState.gambleNet || 0) + amount;
+    updateHud();
+    TT.saveSoon();
+  },
+  log: (msg, type) => log(msg, type || "normal"),
+  hud: () => updateHud(),
+  saveSoon: function () {
+    if (_saveSoonTimer) clearTimeout(_saveSoonTimer);
+    _saveSoonTimer = setTimeout(function () { _saveSoonTimer = null; saveGame(); }, 1500);
+  },
+  saveNow: () => saveGame(),
+  announce: function (label, kind, wager, payout) {
+    if (typeof google === "undefined" || !google.script || !google.script.run) return;
+    google.script.run.logRouletteSpin(JSON.stringify({
+      user: gameState.ldap, num: label, color: kind, wager: wager, payout: payout,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    }));
+  },
+  onLoaded: function (fn) {
+    if (gameLoaded) { try { fn(); } catch (e) { console.error(e); } }
+    else _loadedCallbacks.push(fn);
+  },
+  isBusy: function () {
+    return isRouletteSpinning || isSpinningSlots || isBjInProgress || isConsultActive ||
+      (window.AdvMini && AdvMini.isBusy && AdvMini.isBusy());
+  },
+  fmt: (n) => Math.floor(n).toLocaleString(),
+  cleanBet: function (value, min, max) {
+    let n = Math.floor(Number(value));
+    if (!isFinite(n)) n = min;
+    return Math.max(min, Math.min(max, n));
+  },
+  rnd: function () {
+    const a = new Uint32Array(1);
+    window.crypto.getRandomValues(a);
+    return a[0] / 4294967296;
+  }
+};
+
+/** Skutečné kliknutí myší/prstem (ne mezerník/Enter na fokusovaném tlačítku). */
+function isRealClick(ev) {
+  return !!(ev && ev.isTrusted && ev.detail > 0);
+}
+
+// ==========================================================================
+// 3. LOG + CHAT + POMOCNÉ
+// ==========================================================================
+function log(msg, type = "normal") {
+  const container = document.getElementById("log");
+  if (!container) return;
+  const entry = document.createElement("div");
+  entry.className = `log-entry ${type}`;
+  const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  entry.innerHTML = `<span style="color:#556;">[${time}]</span> ${msg}`;
+  container.prepend(entry);
+  while (container.childNodes.length > 50) container.removeChild(container.lastChild);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = (text === undefined || text === null) ? "" : String(text);
+  return div.innerHTML;
+}
+
+const _txt = {};
+function setTxt(id, v) {
+  v = String(v);
+  if (_txt["t" + id] === v) return;
+  _txt["t" + id] = v;
+  const e = document.getElementById(id);
+  if (e) e.innerText = v;
+}
+function setHtml(id, v) {
+  v = String(v);
+  if (_txt["h" + id] === v) return;
+  _txt["h" + id] = v;
+  const e = document.getElementById(id);
+  if (e) e.innerHTML = v;
+}
+
+function switchBottomLeftTab(tab) {
+  const isLog = tab === "log";
+  document.getElementById("view-system-log").style.display = isLog ? "block" : "none";
+  document.getElementById("view-office-chat").style.display = isLog ? "none" : "block";
+  document.getElementById("tab-btn-log").classList.toggle("active", isLog);
+  document.getElementById("tab-btn-chat").classList.toggle("active", !isLog);
+  if (!isLog) scrollChatToBottom();
+}
+
+function renderChatMessages(messages) {
+  if (!messages) return;
+  const container = document.getElementById("chat-messages");
+  if (!container) return;
+  if (messages.length === 0) {
+    container.innerHTML = '<div class="chat-empty">No office chat messages yet. Be the first to post!</div>';
+    return;
+  }
+  const atBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 30;
+  const me = gameState.ldap || "";
+  container.innerHTML = messages.map(m => `
+    <div class="chat-row">
+      <span class="chat-time">${escapeHtml(m.time || "")}</span>
+      <span class="chat-author ${m.user === me ? "is-me" : ""}">${escapeHtml(m.user)}:</span>
+      <span class="chat-text">${escapeHtml(m.text)}</span>
+    </div>`).join("");
+  if (atBottom) scrollChatToBottom();
+}
+
+function scrollChatToBottom() {
+  const c = document.getElementById("chat-messages");
+  if (c) c.scrollTop = c.scrollHeight;
+}
+
+function sendChat() {
+  const input = document.getElementById("chat-input");
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  if (typeof google !== "undefined" && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res && res.success && res.messages) renderChatMessages(res.messages);
+        else if (res && !res.success) log("Chat: " + escapeHtml(res.error || "failed"), "warning");
+      })
+      .withFailureHandler(err => log("Chat error: " + escapeHtml(String(err)), "error"))
+      .sendChatMessage(text);
+  }
+}
+
+// ==========================================================================
+// 4. ITEMY: staty, ratingy, inventář (stacky)
+// ==========================================================================
+function baseStats(slot, tier) {
+  const b = Math.floor(Math.pow(tier, 2.2) * 5);
+  return {
+    c: (slot === "TOOL" || slot === "AUGMENT") ? b : Math.floor(b * 0.4),
+    a: (slot === "HEAD" || slot === "RIG" || slot === "OS") ? b : Math.floor(b * 0.3),
+    m: tier >= 5 ? (tier === 5 ? 0.05 : 0.12) : 0
+  };
+}
+
+function itemStats(it) {
+  const b = baseStats(it.slot, it.tier);
+  const L = it.lvl || 0;
+  const f = 1 + MERGE_STAT_STEP * L;
+  return { c: Math.ceil(b.c * f), a: Math.ceil(b.a * f), m: Number((b.m * (1 + 0.25 * L)).toFixed(3)) };
+}
+
+function itemName(it) { return ITEM_TYPES[it.slot][it.tier - 1]; }
+function itemRating(it) { const s = itemStats(it); return s.c + s.a + 1000 * s.m; }
+function rarityOf(tier) { return RARITIES[tier - 1] || RARITIES[0]; }
+function itemScrapValue(it) { return rarityOf(it.tier).scrap + (it.lvl || 0) * 20; }
+function stackKey(s) { return s.slot + "|" + s.tier + "|" + (s.lvl || 0); }
+function invFind(slot, tier, lvl) { return gameState.inventory.find(s => s.slot === slot && s.tier === tier && (s.lvl || 0) === lvl); }
+function invByKey(key) { return gameState.inventory.find(s => stackKey(s) === key); }
+function invItems() { return gameState.inventory.reduce((a, s) => a + s.n, 0); }
+
+function invAdd(slot, tier, lvl, n) {
+  const s = invFind(slot, tier, lvl);
+  if (s) s.n += n;
+  else gameState.inventory.push({ slot: slot, tier: tier, lvl: lvl, n: n });
+}
+
+function invTake(key, n) {
+  const s = invByKey(key);
+  if (!s || s.n < n) return false;
+  s.n -= n;
+  if (s.n <= 0) gameState.inventory.splice(gameState.inventory.indexOf(s), 1);
+  return true;
+}
+
+function isUpgrade(it) {
+  const eq = gameState.loadout[it.slot];
+  return !eq || itemRating(it) > itemRating(eq);
+}
+
+// ==========================================================================
+// 5. KLIKÁNÍ, CPS, AUTOCLICKER
+// ==========================================================================
+let clickTimes = [];
+let lastCountedClickAt = 0;
+
+function addTickets(n) {
+  gameState.tickets += n;
+  gameState.lifetimeTickets += n;
+}
+
+function getLiveCps() {
+  const now = Date.now();
+  while (clickTimes.length && now - clickTimes[0] > 2000) clickTimes.shift();
+  const n = clickTimes.length;
+  if (n < 3) return 0;
+  const last = clickTimes[n - 1];
+  if (now - last > 1000) return 0;
+  const span = (last - clickTimes[0]) / 1000;
+  if (span < 0.3) return 0;
+  return (n - 1) / span;
+}
+
+function handleManualClick(ev) {
+  if (ev && ev.isTrusted === false) return;   // syntetické kliky ze skriptů se ignorují
+  const now = Date.now();
+  addTickets(calculateClickPower());
+
+  if (now - lastCountedClickAt >= AC_MIN_GAP) {
+    lastCountedClickAt = now;
+    clickTimes.push(now);
+    const cps = getLiveCps();
+    if (clickTimes.length >= 8 && cps > gameState.peakCps) gameState.peakCps = cps;
+    registerAutoclickerCharge(now);
+  }
+  updateHud();
+}
+
+function sanitizeAc() {
+  const ac = gameState.autoclicker;
+  const num = (v) => (typeof v === "number" && isFinite(v)) ? v : 0;
+  ac.charge = Math.min(AC_MAX_CHARGE, Math.max(0, num(ac.charge)));
+  ac.avgCps = Math.min(AC_MAX_CPS, Math.max(0, num(ac.avgCps)));
+  ac.clicks = Math.max(0, num(ac.clicks));
+  ac.activeMs = Math.max(0, num(ac.activeMs));
+  ac.lastClick = Math.max(0, num(ac.lastClick));
+}
+
+function registerAutoclickerCharge(now) {
+  const ac = gameState.autoclicker;
+  sanitizeAc();
+  if (ac.lastClick && now - ac.lastClick > AC_IDLE_GAP) {
+    ac.clicks = 0;               // série přerušena -> rozpracované kliky se zahodí
+    ac.activeMs = 0;
+  } else if (ac.lastClick) {
+    ac.activeMs += now - ac.lastClick;
+  }
+  ac.lastClick = now;
+  ac.clicks += 1;
+
+  if (ac.clicks >= AC_CLICKS_PER_SEC) {
+    const blocks = Math.floor(ac.clicks / AC_CLICKS_PER_SEC);
+    const secs = ac.activeMs / 1000;
+    if (secs >= 1) {
+      const sessionAvg = Math.min(AC_MAX_CPS, ac.clicks / secs);
+      const earned = Math.min(blocks, AC_MAX_CHARGE - ac.charge);
+      if (earned > 0) {
+        ac.avgCps = ((ac.avgCps * ac.charge) + sessionAvg * earned) / (ac.charge + earned);
+        ac.charge += earned;
+        if (ac.charge >= AC_MAX_CHARGE) log("Autoclicker battery FULL (" + AC_MAX_CHARGE + "s).", "special");
+      }
+    }
+    const total = ac.clicks;
+    const rest = total - blocks * AC_CLICKS_PER_SEC;
+    ac.activeMs = total > 0 ? ac.activeMs * (rest / total) : 0;
+    ac.clicks = rest;
+  }
+  sanitizeAc();
+}
+
+function toggleAutoclicker() {
+  const ac = gameState.autoclicker;
+  sanitizeAc();
+  if (ac.running) {
+    ac.running = false;
+    log("Autoclicker stopped. Remaining charge: " + Math.floor(ac.charge) + "s.");
+  } else {
+    if (ac.charge < 1 || ac.avgCps <= 0) {
+      log("Autoclicker battery is empty. Every " + AC_CLICKS_PER_SEC + " manual clicks = +1s charge.", "warning");
+      return;
+    }
+    ac.running = true;
+    log(`AUTOCLICKER ON: ${Math.floor(ac.charge)}s at ~${ac.avgCps.toFixed(1)} CPS.`, "special");
+  }
+  updateHud();
+  TT.saveSoon();
+}
+
+function autoclickerTick(dt) {
+  const ac = gameState.autoclicker;
+  if (!ac.running) return;
+  sanitizeAc();
+  if (ac.charge <= 0 || ac.avgCps <= 0) {
+    ac.running = false;
+    log("Autoclicker stopped (no charge).", "warning");
+    return;
+  }
+  const use = Math.min(dt, ac.charge);
+  ac.charge -= use;
+  addTickets(ac.avgCps * calculateClickPower() * use);
+  if (ac.charge <= 0.001) {
+    ac.charge = 0;
+    ac.running = false;
+    log("Autoclicker battery depleted.", "warning");
+  }
+}
+
+// ==========================================================================
+// 6. VÝPOČTY
+// ==========================================================================
+function buffActive() {
+  return gameState.consultBuff.active && Date.now() < gameState.consultBuff.expiresAt;
+}
+
+function calculateNetMultiplier() {
+  let m = 1.0 + gameState.prestige * 0.25;
+  for (const slot of SLOTS) {
+    const it = gameState.loadout[slot];
+    if (it) m += itemStats(it).m;
+  }
+  return m;
+}
+
+function calculateClickPower() {
+  let base = 1;
+  for (const slot of SLOTS) {
+    const it = gameState.loadout[slot];
+    if (it) base += itemStats(it).c;
+  }
+  let mult = calculateNetMultiplier() * (1 + 0.10 * gameState.lpUp.click);
+  if (buffActive()) mult *= gameState.consultBuff.clickMult;
+  return Math.max(1, Math.round(base * mult * 100) / 100);
+}
+
+function calculateAutoGcRate() {
+  let base = 0;
+  for (const slot of SLOTS) {
+    const it = gameState.loadout[slot];
+    if (it) base += itemStats(it).a;
+  }
+  let mult = calculateNetMultiplier() * (1 + 0.10 * gameState.lpUp.auto);
+  if (buffActive()) mult *= gameState.consultBuff.gcMult;
+  return base * 0.1 * mult * Math.pow(2, Math.floor(gameState.prestige / 5));
+}
+
+function toggleFocusAutogen() {
+  if (gameState.focusAutogenActive) return;
+  gameState.focusAutogenActive = true;
+  gameState.focusAutogenRemaining = 2700;
+  log("45M FOCUS AUTOGEN ACTIVATED: passive Google Coins accumulation started!", "special");
+  updateUI();
+  TT.saveSoon();
+}
+
+// ==========================================================================
+// 7. PRESTIŽ + LEGACY POINTS
+// ==========================================================================
+function getPrestigeCost(p) { return Math.floor(200000 * Math.pow(4.2, p)); }
+function lpGainFor(p) { return 1 + Math.floor(p / 3); }
+let prestigeArmedUntil = 0;
+
+function performPrestige() {
+  const cost = getPrestigeCost(gameState.prestige);
+  if (gameState.tickets < cost) {
+    log(`Cannot ascend prestige: requires ${cost.toLocaleString()} tickets.`, "warning");
+    return;
+  }
+  const now = Date.now();
+  if (now > prestigeArmedUntil) {          // dvoukrokové potvrzení (ochrana proti omylu / mezerníku)
+    prestigeArmedUntil = now + 4000;
+    updateHud();
+    return;
+  }
+  prestigeArmedUntil = 0;
+
+  // Heirloom: nejlepší N nasazených itemů přežije
+  const keep = [];
+  const n = gameState.lpUp.heirloom;
+  if (n > 0) {
+    SLOTS.map(s => gameState.loadout[s]).filter(Boolean)
+      .sort((a, b) => itemRating(b) - itemRating(a)).slice(0, n)
+      .forEach(it => keep.push(it));
+  }
+
+  gameState.prestige += 1;
+  const lpGain = lpGainFor(gameState.prestige);
+  gameState.lp += lpGain;
+  gameState.tickets = 0;
+  gameState.coins = 250 + 500 * gameState.lpUp.start;
+  gameState.scrap = 0;
+  gameState.chestLevel = 1;
+  gameState.inventory = [];
+  gameState.loadout = { HEAD: null, RIG: null, TOOL: null, AUGMENT: null, OS: null, RELIC: null };
+  keep.forEach(it => { gameState.loadout[it.slot] = it; });
+  gameState.focusAutogenActive = false;
+  gameState.focusAutogenRemaining = 0;
+
+  log(`ASCENDED TO PRESTIGE ${gameState.prestige}! +${lpGain} Legacy Points (total ${gameState.lp}). Start bonus: ${gameState.coins.toLocaleString()} GC.${keep.length ? " Heirloom kept " + keep.length + " item(s)." : ""}`, "special");
+  saveGame();
+  updateUI();
+}
+
+function lpLevel(id) { return gameState.lpUp[id] || 0; }
+
+function buyLp(id) {
+  const up = LP_UPGRADES.find(u => u.id === id);
+  if (!up) return;
+  const lvl = lpLevel(id);
+  if (lvl >= up.max) return;
+  const cost = up.cost(lvl);
+  if (gameState.lp < cost) { log(`Not enough Legacy Points (${cost} needed).`, "warning"); return; }
+  gameState.lp -= cost;
+  gameState.lpUp[id] = lvl + 1;
+  log(`LEGACY UPGRADE: ${up.name} -> level ${lvl + 1}.`, "special");
+  renderLpShop(true);
+  updateHud();
+  TT.saveSoon();
+}
+
+function renderLpShop(force) {
+  const sig = gameState.lp + "|" + LP_UPGRADES.map(u => lpLevel(u.id)).join(",");
+  if (!force && _txt.lpSig === sig) return;
+  _txt.lpSig = sig;
+  setTxt("lp-count", gameState.lp);
+  setTxt("lp-count2", gameState.lp);
+  const box = document.getElementById("lp-shop");
+  if (!box) return;
+  box.innerHTML = LP_UPGRADES.map(u => {
+    const l = lpLevel(u.id);
+    const maxed = l >= u.max;
+    const cost = u.cost(l);
+    return `<div class="lp-row">
+      <div><b>${u.name}</b> <span class="lp-lvl">Lv ${l}/${u.max}</span><div class="lp-desc">${u.desc}</div></div>
+      <button class="btn ${maxed ? "" : "btn-gold"}" ${maxed || gameState.lp < cost ? "disabled" : ""} onclick="buyLp('${u.id}')">${maxed ? "MAX" : cost + " LP"}</button>
+    </div>`;
+  }).join("");
+}
+
+// ==========================================================================
+// 8. SCRAP KONVERTOR
+// ==========================================================================
+function buyScrap(amount) {
+  const ticketCost = amount * 10;
+  if (gameState.tickets < ticketCost) {
+    log(`Cannot buy scrap: requires ${ticketCost.toLocaleString()} tickets.`, "warning");
+    return;
+  }
+  gameState.tickets -= ticketCost;
+  gameState.scrap += amount;
+  log(`Fabricated +${amount.toLocaleString()} Scrap for ${ticketCost.toLocaleString()} tickets.`, "success");
+  updateUI();
+}
+
+function buyMaxScrap() {
+  const maxScrap = Math.floor(gameState.tickets / 10);
+  if (maxScrap <= 0) { log("Need at least 10 tickets for 1 scrap.", "warning"); return; }
+  gameState.tickets -= maxScrap * 10;
+  gameState.scrap += maxScrap;
+  log(`Fabricated +${maxScrap.toLocaleString()} Scrap for ${(maxScrap * 10).toLocaleString()} tickets.`, "special");
+  updateUI();
+}
+
+// ==========================================================================
+// 9. FIREMNÍ BEDNA
+// ==========================================================================
+function getChestUpgradeCost(lvl) { return Math.floor(75 * Math.pow(lvl, 1.35)); }
+
+function getChestScrapCost() {
+  const base = 100 * Math.pow(1.2, gameState.prestige || 0) * (1 - 0.03 * gameState.lpUp.scrap);
+  return Math.max(10, Math.floor(base));
+}
+
+function getChestOdds(lvl) {
+  const l = Math.max(1, lvl);
+  const trash = Math.max(0, 45.0 - (l - 1) * 0.5);
+  const t2 = Math.min(50.0, 9.8 + (l - 1) * 0.8);
+  const t3 = Math.min(25.0, 0.20 + (l - 1) * 0.15);
+  const t4 = Math.min(10.0, 0.01 + (l - 1) * 0.03);
+  const t5 = Math.min(4.0, 0.001 + (l - 1) * 0.008);
+  const t6 = Math.min(1.0, 0.0001 + (l - 1) * 0.002);
+  const t1 = Math.max(0, 100.0 - (trash + t2 + t3 + t4 + t5 + t6));
+  return { trash, t1, t2, t3, t4, t5, t6 };
+}
+
+/** 0 = trash, 1..6 = tier */
+function rollTier(includeTrash) {
+  const o = getChestOdds(gameState.chestLevel);
+  const w = [includeTrash ? o.trash : 0, o.t1, o.t2, o.t3, o.t4, o.t5, o.t6];
+  const sum = w.reduce((a, b) => a + b, 0);
+  let r = Math.random() * sum;
+  for (let i = 0; i < w.length; i++) {
+    if (r < w[i]) return i;
+    r -= w[i];
+  }
+  return 6;
+}
+
+function upgradeCompanyChest() {
+  const cost = getChestUpgradeCost(gameState.chestLevel);
+  if (gameState.coins < cost) {
+    log(`Cannot upgrade chest: requires ${cost.toLocaleString()} GC.`, "warning");
+    return;
+  }
+  gameState.coins -= cost;
+  gameState.chestLevel += 1;
+  if (gameState.chestLevel > gameState.maxChestLevel) gameState.maxChestLevel = gameState.chestLevel;
+  log(`COMPANY CHEST UPGRADED TO LEVEL ${gameState.chestLevel}!`, "special");
+  updateUI();
+  saveGame();
+}
+
+function shouldAutosell(it) {
+  return gameState.autosellTier > 0 && it.tier <= gameState.autosellTier && !isUpgrade(it);
+}
+
+function tierLabel(t) { return "T" + t + " " + rarityOf(t).name; }
+
+function openCompanyChest(n) {
+  n = Math.max(1, n | 0);
+  const cost = getChestScrapCost();
+  let opened = 0, trash = 0, sold = 0, soldScrap = 0, tokens = 0, full = false;
+  const byTier = {};
+  let best = null;
+
+  for (let i = 0; i < n; i++) {
+    if (gameState.scrap < cost) break;
+    gameState.scrap -= cost;
+    opened++;
+
+    if (Math.random() < TOKEN_CHANCE) { gameState.slotTokens += 1; tokens++; }
+
+    const t = rollTier(true);
+    if (t === 0) { trash++; continue; }
+
+    const slot = SLOTS[Math.floor(Math.random() * SLOTS.length)];
+    const it = { slot: slot, tier: t, lvl: 0 };
+
+    if (shouldAutosell(it)) {
+      const v = rarityOf(t).scrap;
+      gameState.scrap += v; soldScrap += v; sold++;
+      continue;
+    }
+    if (!invFind(slot, t, 0) && gameState.inventory.length >= INV_MAX_STACKS) {
+      gameState.scrap += cost; opened--; full = true;   // vrátit scrap za neotevřenou bednu
+      break;
+    }
+    invAdd(slot, t, 0, 1);
+    byTier[t] = (byTier[t] || 0) + 1;
+    if (!best || t > best.tier) best = it;
+  }
+
+  if (opened === 0) {
+    log(full ? "Backpack has no free stack slots." : `Insufficient scrap: opening a chest costs ${cost.toLocaleString()} Scrap.`, "warning");
+    return;
+  }
+
+  const parts = [];
+  Object.keys(byTier).sort((a, b) => b - a).forEach(t => parts.push(`T${t}×${byTier[t]}`));
+  if (sold) parts.push(`${sold} auto-scrapped (+${soldScrap})`);
+  if (trash) parts.push(`${trash} empty`);
+  const summary = `Opened ${opened}: ${parts.join(", ") || "nothing"}${best ? " | best: " + itemName(best) : ""}`;
+  setHtml("chest-result", escapeHtml(summary) + (tokens ? ` <b style="color:var(--amber);">🎟 +${tokens} SLOT TOKEN!</b>` : "") + (full ? " (backpack full)" : ""));
+  log(`CHEST x${opened}: ${escapeHtml(parts.join(", ") || "nothing")}${best ? " | best " + escapeHtml(itemName(best)) + " (T" + best.tier + ")" : ""}`, best && best.tier >= 4 ? "special" : "success");
+  if (tokens) log(`🎟 SLOT TOKEN found! You now have ${gameState.slotTokens}.`, "special");
+  updateUI();
+}
+
+// ---------- Slot Token (vybereš část těla, losuje se rarita) ----------
+let tokenPick = { slot: null, armedAt: 0, open: false };
+
+function openTokenPicker(ev) {
+  if (!isRealClick(ev)) return;
+  if (gameState.slotTokens < 1) return;
+  tokenPick = { slot: null, armedAt: 0, open: true };
+  document.getElementById("token-overlay").classList.add("open");
+  renderTokenPicker();
+  if (ev.currentTarget && ev.currentTarget.blur) ev.currentTarget.blur();
+}
+
+function closeTokenPicker(ev) {
+  if (ev && !isRealClick(ev)) return;
+  tokenPick.open = false;
+  document.getElementById("token-overlay").classList.remove("open");
+}
+
+function pickTokenSlot(ev, slot) {
+  if (!isRealClick(ev)) return;
+  tokenPick.slot = slot;
+  tokenPick.armedAt = Date.now() + 1200;
+  renderTokenPicker();
+  setTimeout(renderTokenPicker, 1250);
+  if (ev.currentTarget && ev.currentTarget.blur) ev.currentTarget.blur();
+}
+
+function renderTokenPicker() {
+  if (!tokenPick.open) return;
+  const armed = tokenPick.slot && Date.now() >= tokenPick.armedAt;
+  document.getElementById("token-slots").innerHTML = SLOTS.map(s =>
+    `<button class="btn ${tokenPick.slot === s ? "btn-gold" : "btn-cyan"}" onclick="pickTokenSlot(event,'${s}')">${SLOT_ICONS[s]} ${s}</button>`).join("");
+  const btn = document.getElementById("token-confirm");
+  btn.disabled = !armed;
+  btn.innerText = !tokenPick.slot ? "PICK A SLOT FIRST" : (armed ? `ROLL RARITY FOR ${tokenPick.slot}` : "... get ready ...");
+}
+
+function confirmTokenRoll(ev) {
+  if (!isRealClick(ev)) return;
+  if (!tokenPick.slot || Date.now() < tokenPick.armedAt || gameState.slotTokens < 1) return;
+  const slot = tokenPick.slot;
+  let tier = Math.max(2, rollTier(false));          // token = minimálně Rare
+  if (!invFind(slot, tier, 0) && gameState.inventory.length >= INV_MAX_STACKS) {
+    log("Backpack has no free stack slots - token not used.", "warning");
+    return;
+  }
+  gameState.slotTokens -= 1;
+  invAdd(slot, tier, 0, 1);
+  log(`🎟 SLOT TOKEN: ${SLOT_ICONS[slot]} ${slot} -> ${tierLabel(tier)} ${itemName({ slot: slot, tier: tier })}!`, tier >= 4 ? "special" : "success");
+  closeTokenPicker();
+  updateUI();
+  TT.saveSoon();
+}
+
+document.addEventListener("keydown", function (e) {
+  if (tokenPick.open && (e.key === " " || e.key === "Enter")) { e.preventDefault(); e.stopPropagation(); }
+}, true);
+
+// ==========================================================================
+// 10. INVENTÁŘ: render, equip, scrap
+// ==========================================================================
+let backpackFilter = "ALL";
+let upgradesOnly = false;
+let lastPanelSig = "";
+let scrapArmedUntil = 0;
+
+function setBackpackFilter(v) { backpackFilter = v; lastPanelSig = ""; updatePanels(); }
+function setUpgradesOnly(v) { upgradesOnly = !!v; lastPanelSig = ""; updatePanels(); }
+
+function diffTxt(label, n, o, pct) {
+  const d = (n || 0) - (o || 0);
+  if (Math.abs(d) < 1e-9) return "";
+  const v = pct ? (d * 100).toFixed(0) + "%" : d;
+  return `<span style="color:${d > 0 ? "var(--emerald)" : "var(--crimson)"};">${d > 0 ? "▲ +" : "▼ "}${v} ${label}</span>`;
+}
+
+function compareHtml(it) {
+  const eq = gameState.loadout[it.slot];
+  if (!eq) return `<span style="color:var(--emerald);">▲ empty slot</span>`;
+  const a = itemStats(it), b = itemStats(eq);
+  return [diffTxt("Click", a.c, b.c), diffTxt("Auto", a.a, b.a), diffTxt("Mult", a.m, b.m, true)].filter(Boolean).join(" · ") || "same as equipped";
+}
+
+function renderBackpack() {
+  const container = document.getElementById("backpack-grid");
+  if (!container) return;
+  if (gameState.inventory.length === 0) {
+    container.innerHTML = `<div class="bp-empty">Backpack is empty. Open the Company Chest to acquire gear!</div>`;
+    return;
+  }
+  let list = gameState.inventory.filter(s => backpackFilter === "ALL" || s.slot === backpackFilter);
+  if (upgradesOnly) list = list.filter(s => isUpgrade(s));
+
+  const eqRating = (s) => { const eq = gameState.loadout[s.slot]; return eq ? itemRating(eq) : 0; };
+  list.sort((a, b) => upgradesOnly
+    ? (itemRating(b) - eqRating(b)) - (itemRating(a) - eqRating(a))
+    : (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0)) || (SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot)));
+
+  if (list.length === 0) {
+    container.innerHTML = `<div class="bp-empty">${upgradesOnly ? "No upgrades for your equipped gear." : "Nothing in this slot."}</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(s => {
+    const st = itemStats(s);
+    const key = stackKey(s);
+    const txt = [st.c ? `+${st.c} Click` : "", st.a ? `+${st.a} Auto` : "", st.m ? `+${(st.m * 100).toFixed(0)}% Mult` : ""].filter(Boolean).join(" | ");
+    return `<div class="item-card t${s.tier}">
+      <div class="item-top">
+        <span class="item-name" style="color:var(--rarity-t${s.tier});">${itemName(s)} +${s.lvl || 0}</span>
+        <span class="item-count-badge">${s.n}×</span>
+      </div>
+      <div class="item-stats"><span style="color:var(--cyan);font-weight:700;">${SLOT_ICONS[s.slot]} ${s.slot}</span> &bull; T${s.tier} &bull; ${txt}</div>
+      <div class="item-stats">vs equipped: ${compareHtml(s)}</div>
+      <div class="item-actions">
+        <button class="btn btn-cyan" onclick="equipStack('${key}')">EQUIP</button>
+        <button class="btn btn-crimson" onclick="dismantleStack('${key}',1)">SCRAP 1</button>
+        ${s.n > 1 ? `<button class="btn btn-crimson" onclick="dismantleStack('${key}',${s.n})">ALL ${s.n}</button>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderLoadout() {
+  for (const slot of SLOTS) {
+    const it = gameState.loadout[slot];
+    const nameEl = document.getElementById(`slot-${slot}-name`);
+    const slotEl = document.getElementById(`slot-${slot}`);
+    if (!nameEl || !slotEl) continue;
+    if (it) {
+      const st = itemStats(it);
+      nameEl.innerHTML = `<span style="color:var(--rarity-t${it.tier});">${itemName(it)} +${it.lvl || 0}</span><div class="slot-stats">C${st.c} · A${st.a}${st.m ? " · M" + Math.round(st.m * 100) + "%" : ""}</div>`;
+      slotEl.className = "loadout-slot filled";
+      slotEl.onclick = () => unequipSlot(slot);
+      slotEl.title = "Click to unequip";
+    } else {
+      nameEl.innerHTML = `<span style="color:var(--text-muted);">EMPTY</span>`;
+      slotEl.className = "loadout-slot";
+      slotEl.onclick = null;
+      slotEl.title = "";
+    }
+  }
+}
+
+function equipStack(key) {
+  const s = invByKey(key);
+  if (!s) return;
+  const item = { slot: s.slot, tier: s.tier, lvl: s.lvl || 0 };
+  const old = gameState.loadout[s.slot];
+  if (!invTake(key, 1)) return;
+  if (old) invAdd(old.slot, old.tier, old.lvl || 0, 1);
+  gameState.loadout[s.slot] = item;
+  log(`Equipped ${itemName(item)} +${item.lvl} to [${item.slot}].`, "success");
+  updateUI();
+}
+
+function unequipSlot(slot) {
+  const it = gameState.loadout[slot];
+  if (!it) return;
+  if (!invFind(it.slot, it.tier, it.lvl || 0) && gameState.inventory.length >= INV_MAX_STACKS) {
+    log("Cannot unequip: no free backpack stack slots.", "warning");
+    return;
+  }
+  gameState.loadout[slot] = null;
+  invAdd(it.slot, it.tier, it.lvl || 0, 1);
+  log(`Unequipped ${itemName(it)} from [${slot}].`);
+  updateUI();
+}
+
+function dismantleStack(key, count) {
+  const s = invByKey(key);
+  if (!s) return;
+  count = Math.min(count, s.n);
+  const gain = itemScrapValue(s) * count;
+  const name = itemName(s);
+  if (!invTake(key, count)) return;
+  gameState.scrap += gain;
+  log(`Dismantled ${count}× ${name} for +${gain.toLocaleString()} Scrap.`);
+  updateUI();
+}
+
+// ---------- Scrap podle rarity ----------
+function scrapPlan() {
+  const maxTier = Number(document.getElementById("scrap-tier").value) || 1;
+  const keepMerged = document.getElementById("scrap-keep-merged").checked;
+  const keepUpg = document.getElementById("scrap-keep-upgrades").checked;
+  let items = 0, scrap = 0;
+  const keys = [];
+  for (const s of gameState.inventory) {
+    if (s.tier > maxTier) continue;
+    if (keepMerged && (s.lvl || 0) > 0) continue;
+    if (keepUpg && isUpgrade(s)) continue;
+    items += s.n;
+    scrap += itemScrapValue(s) * s.n;
+    keys.push([stackKey(s), s.n]);
+  }
+  return { items: items, scrap: scrap, keys: keys };
+}
+
+function refreshScrapButton() {
+  const btn = document.getElementById("btn-scrap-tier");
+  if (!btn) return;
+  const p = scrapPlan();
+  const armed = Date.now() < scrapArmedUntil;
+  btn.disabled = p.items === 0;
+  btn.innerText = p.items === 0 ? "NOTHING TO SCRAP" : (armed ? `CONFIRM: ${p.items} items → +${p.scrap.toLocaleString()} scrap` : `SCRAP ${p.items} items (+${p.scrap.toLocaleString()})`);
+  btn.className = "btn " + (armed ? "btn-gold" : "btn-crimson");
+}
+
+function scrapByTier() {
+  const p = scrapPlan();
+  if (p.items === 0) return;
+  if (Date.now() > scrapArmedUntil) {
+    scrapArmedUntil = Date.now() + 4000;
+    refreshScrapButton();
+    setTimeout(refreshScrapButton, 4100);
+    return;
+  }
+  scrapArmedUntil = 0;
+  p.keys.forEach(k => invTake(k[0], k[1]));
+  gameState.scrap += p.scrap;
+  log(`Scrapped ${p.items} items for +${p.scrap.toLocaleString()} Scrap.`, "success");
+  updateUI();
+}
+
+function setAutosellTier(v) {
+  gameState.autosellTier = Number(v) || 0;
+  log(gameState.autosellTier ? `Autosell ON: new drops up to T${gameState.autosellTier} that are not upgrades are scrapped.` : "Autosell OFF.");
+}
+
+// ==========================================================================
+// 11. MERGE (3 stejné -> +1 level)
+// ==========================================================================
+function renderMergeStation() {
+  const box = document.getElementById("merge-list");
+  if (!box) return;
+  const list = gameState.inventory.filter(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL)
+    .sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0)));
+  if (list.length === 0) {
+    box.innerHTML = `<div class="bp-empty" style="padding:12px;">No ${MERGE_COUNT}× identical items ready to merge.</div>`;
+    return;
+  }
+  box.innerHTML = list.map(s => {
+    const key = stackKey(s);
+    const times = Math.floor(s.n / MERGE_COUNT);
+    return `<div class="merge-card">
+      <div class="merge-card-info">
+        <span class="merge-card-title" style="color:var(--rarity-t${s.tier});">${itemName(s)} +${s.lvl || 0}</span>
+        <span class="merge-card-count">${s.n} owned &bull; ${MERGE_COUNT}× → +${(s.lvl || 0) + 1}</span>
+      </div>
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-cyan" onclick="performSmartMerge('${key}',1)">×1</button>
+        ${times > 1 ? `<button class="btn btn-gold" onclick="performSmartMerge('${key}',${times})">ALL (${times})</button>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function performSmartMerge(key, times) {
+  const s0 = invByKey(key);
+  if (!s0) return;
+  const slot = s0.slot, tier = s0.tier, lvl = s0.lvl || 0;
+  let ok = 0, crit = 0, fail = 0, refund = 0, done = 0;
+  for (let i = 0; i < times; i++) {
+    if (!invTake(key, MERGE_COUNT)) break;
+    done++;
+    const roll = Math.random() * 100;
+    if (roll < 5) {
+      fail++;
+      refund += Math.floor(itemScrapValue({ tier: tier, lvl: lvl }) * MERGE_COUNT * 0.5);
+    } else {
+      const bonus = roll < 15 ? 2 : 1;
+      if (bonus === 2) crit++;
+      invAdd(slot, tier, Math.min(MERGE_MAX_LVL, lvl + bonus), 1);
+      ok++;
+    }
+  }
+  if (done === 0) { log(`Cannot merge: need ${MERGE_COUNT} identical items.`, "warning"); return; }
+  gameState.scrap += refund;
+  const name = itemName({ slot: slot, tier: tier });
+  log(`MERGE ${name} +${lvl}: ${ok} success${crit ? " (" + crit + " crit +2)" : ""}${fail ? ", " + fail + " failed (+" + refund + " scrap salvaged)" : ""}.`, crit || ok ? "special" : "error");
+  updateUI();
+}
+
+// ==========================================================================
+// 12. HERNÍ SMYČKA (časová, odolná vůči throttlingu tabu)
+// ==========================================================================
+let lastLoopAt = Date.now();
+
+setInterval(function gameLoop() {
+  const now = Date.now();
+  let dt = (now - lastLoopAt) / 1000;
+  lastLoopAt = now;
+  if (!(dt > 0)) dt = 0;
+  const offlineDt = Math.min(dt, 8 * 3600);
+  if (dt > MAX_LOOP_DT) dt = MAX_LOOP_DT;
+
+  if (gameLoaded && dt > 0) {
+    if (gameState.focusAutogenActive) {
+      const use = Math.min(offlineDt, gameState.focusAutogenRemaining);
+      if (offlineDt > 120) log(`Idle: autogen běžel ${Math.round(Math.min(offlineDt, use))} s na pozadí.`, 'special');
+      const gain = calculateAutoGcRate() * use;
+      if (gain > 0) gameState.coins += gain;
+      gameState.focusAutogenRemaining -= use;
+      if (gameState.focusAutogenRemaining <= 0.001) {
+        gameState.focusAutogenActive = false;
+        gameState.focusAutogenRemaining = 0;
+        log("45M Focus Autogen session completed. Start it again to renew.");
+      }
+    }
+    autoclickerTick(dt);
+    if (gameState.consultBuff.active && now > gameState.consultBuff.expiresAt) {
+      gameState.consultBuff.active = false;
+      log("Consult buff/debuff has expired.");
+    }
+  }
+  updateUI();
+}, 1000);
+
+setInterval(updateHud, 250);
+setInterval(function () { saveGame(); }, 12000);
+
+// ==========================================================================
+// 13. HUD (lehký render, zapisuje jen změněné texty)
+// ==========================================================================
+function fmtTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  return Math.floor(sec / 60) + ":" + (sec % 60 < 10 ? "0" : "") + (sec % 60);
+}
+
+function buffChips() {
+  const g = gameState;
+  const chips = [];
+  chips.push(`<span class="buff-chip" title="1 + prestige ${g.prestige}×0.25 + gear multipliers">⚡ MULT ${calculateNetMultiplier().toFixed(2)}×</span>`);
+  if (g.lpUp.click) chips.push(`<span class="buff-chip lp">★ +${g.lpUp.click * 10}% click</span>`);
+  if (g.lpUp.auto) chips.push(`<span class="buff-chip lp">★ +${g.lpUp.auto * 10}% auto</span>`);
+  if (g.prestige >= 5) chips.push(`<span class="buff-chip">🔁 AUTO ×${Math.pow(2, Math.floor(g.prestige / 5))}</span>`);
+  if (g.focusAutogenActive) chips.push(`<span class="buff-chip on">⏱ AUTOGEN ${fmtTime(g.focusAutogenRemaining)}</span>`);
+  if (g.autoclicker.running) chips.push(`<span class="buff-chip on">🤖 AUTOCLICK ${fmtTime(g.autoclicker.charge)}</span>`);
+  if (buffActive()) {
+    const b = g.consultBuff;
+    const left = Math.max(0, Math.ceil((b.expiresAt - Date.now()) / 1000));
+    chips.push(b.type === "overdrive"
+      ? `<span class="buff-chip on">🚀 OVERDRIVE ×${b.clickMult.toFixed(1)} · ${left}s</span>`
+      : `<span class="buff-chip bad">💥 CRASH −50% · ${left}s</span>`);
+  }
+  if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">🎟 ${g.slotTokens} token${g.slotTokens > 1 ? "s" : ""}</span>`);
+  return chips.join("");
+}
+
+function updateHud() {
+  if (!document.getElementById("stat-tickets")) return;
+  const g = gameState;
+  const coinsTxt = Math.floor(g.coins).toLocaleString();
+
+  setTxt("user-display", g.ldap || "AGENT");
+  setTxt("stat-tickets", Math.floor(g.tickets).toLocaleString());
+  setTxt("stat-coins", coinsTxt);
+  setTxt("stat-scrap", Math.floor(g.scrap).toLocaleString());
+  const cp = calculateClickPower();
+  const cpTxt = Number.isInteger(cp) ? cp.toLocaleString() : cp.toFixed(2);
+  setTxt("stat-click", cpTxt);
+  setTxt("click-val", cpTxt);
+  setTxt("stat-gc-sec", calculateAutoGcRate().toFixed(1));
+  const mult = calculateNetMultiplier();
+  setTxt("stat-mult", mult.toFixed(2) + "×");
+  setTxt("multiplier-badge", "MULT: " + mult.toFixed(2) + "×");
+  setTxt("stat-cps", getLiveCps().toFixed(1));
+  setTxt("stat-peak-cps", g.peakCps.toFixed(1));
+  ["bal-roulette", "bal-slots", "bal-bj", "bal-chicken", "bal-pachinko", "bal-showdown"].forEach(id => setTxt(id, coinsTxt + " GC"));
+
+  setHtml("buff-row", buffChips());
+
+  // autogen
+  const btnAg = document.getElementById("btn-autogen");
+  if (g.focusAutogenActive) {
+    setTxt("autogen-timer", fmtTime(g.focusAutogenRemaining) + " ACTIVE");
+    if (btnAg) { btnAg.disabled = true; setTxt("btn-autogen", "AUTOGEN IN PROGRESS"); }
+  } else {
+    setTxt("autogen-timer", "IDLE / READY");
+    if (btnAg) { btnAg.disabled = false; setTxt("btn-autogen", "START 45M AUTOGEN"); }
+  }
+
+  // autoclicker
+  const ac = g.autoclicker;
+  setTxt("ac-charge", Math.floor(ac.charge) + "s / " + AC_MAX_CHARGE + "s");
+  const barA = document.getElementById("ac-bar-fill");
+  if (barA) barA.style.width = Math.min(100, ac.charge / AC_MAX_CHARGE * 100) + "%";
+  setTxt("ac-next", Math.max(0, AC_CLICKS_PER_SEC - ac.clicks) + " clicks");
+  const barN = document.getElementById("ac-next-fill");
+  if (barN) barN.style.width = Math.min(100, ac.clicks / AC_CLICKS_PER_SEC * 100) + "%";
+  setTxt("ac-avg", ac.avgCps.toFixed(1));
+  const btnAc = document.getElementById("btn-autoclick");
+  if (btnAc) {
+    setTxt("btn-autoclick", ac.running ? `STOP AUTOCLICKER (${Math.floor(ac.charge)}s left)` : (ac.charge >= 1 ? "START AUTOCLICKER" : `AUTOCLICKER (${AC_CLICKS_PER_SEC} CLICKS = +1s)`));
+    btnAc.className = ac.running ? "btn btn-crimson" : "btn btn-gold";
+  }
+
+  // prestiž
+  setTxt("prestige-lvl", g.prestige);
+  setTxt("prestige-bonus", Math.pow(2, Math.floor(g.prestige / 5)).toFixed(1) + "×");
+  setTxt("lp-count", g.lp);
+  const nextCost = getPrestigeCost(g.prestige);
+  const costTxt = nextCost >= 1e9 ? (nextCost / 1e9).toFixed(2) + "B" : nextCost >= 1e6 ? (nextCost / 1e6).toFixed(2) + "M" : (nextCost / 1e3).toFixed(1) + "K";
+  const armed = Date.now() < prestigeArmedUntil;
+  setTxt("btn-prestige", armed ? "⚠ CLICK AGAIN TO CONFIRM (resets your run!)" : `ASCEND PRESTIGE (${costTxt} TICKETS · +${lpGainFor(g.prestige + 1)} LP)`);
+
+  // bedna
+  const chestCost = getChestScrapCost();
+  setTxt("btn-open-chest", `OPEN ×1 (${chestCost.toLocaleString()} SCRAP)`);
+  setTxt("btn-open-chest10", `OPEN ×10 (${(chestCost * 10).toLocaleString()})`);
+  setTxt("chest-lvl", g.chestLevel);
+  setTxt("chest-upgrade-cost", getChestUpgradeCost(g.chestLevel).toLocaleString());
+  const o = getChestOdds(g.chestLevel);
+  setTxt("odd-trash", o.trash.toFixed(1) + "%");
+  setTxt("odd-t1", o.t1.toFixed(1) + "%");
+  setTxt("odd-t2", o.t2.toFixed(1) + "%");
+  setTxt("odd-t3", o.t3.toFixed(2) + "%");
+  setTxt("odd-t4", o.t4.toFixed(2) + "%");
+  setTxt("odd-t5", (o.t5 + o.t6).toFixed(3) + "%");
+  setTxt("chest-next-info", o.trash > 0
+    ? "Next level: -0.5% Empty, +0.8% Rare, +0.15% Epic (0% Empty at level 90)"
+    : "Level 90+: 0% empty drops, every open gives an item.");
+  const btnTok = document.getElementById("btn-token");
+  if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `🎟 USE SLOT TOKEN (${g.slotTokens})`); }
+
+  setTxt("bp-count", `${g.inventory.length} / ${INV_MAX_STACKS} stacks · ${invItems()} items`);
+
+  const cd = document.getElementById("roulette-cd");
+  if (cd && !isRouletteSpinning) {
+    const rem = Math.max(0, Math.ceil((rouletteCooldownUntil - Date.now()) / 1000));
+    setTxt("roulette-cd", rem > 0 ? `COOLDOWN (${rem}s)` : "READY");
+  }
+}
+
+function updatePanels() {
+  const g = gameState;
+  const sig = g.inventory.map(s => s.slot + s.tier + "_" + (s.lvl || 0) + ":" + s.n).join(",") + "|" +
+    SLOTS.map(s => g.loadout[s] ? g.loadout[s].tier + "_" + (g.loadout[s].lvl || 0) : "-").join(",") + "|" + backpackFilter + upgradesOnly;
+  if (sig === lastPanelSig) return;
+  lastPanelSig = sig;
+  renderLoadout();
+  renderBackpack();
+  renderMergeStation();
+  refreshScrapButton();
+}
+
+function updateUI() {
+  updateHud();
+  updatePanels();
+  renderLpShop(false);
+}
+</script>
+
+  <script>
+/**
+ * TICKET TYCOON v6.1 - CASINO  (soubor "casino")
+ * Ruleta, sloty, blackjack a Consult escalation. Spoléhá na globály ze "script" (gameState, TT, log, updateUI ...).
+ */
+
+// ==========================================================================
+// KONFIGURACE CONSULTU (laď tady)
+// ==========================================================================
+const CONSULT_COST_SCRAP = 5000;
+const CONSULT_WIN_MIN = 5, CONSULT_WIN_MAX = 30;      // výhra = Auto GC/s x 60 x (5..30 minut)
+const CONSULT_LOSS_MIN = 1, CONSULT_LOSS_MAX = 10;    // prohra = Auto GC/s x 60 x (1..10 minut)
+const CONSULT_BUG_WIN_MIN = 5, CONSULT_BUG_WIN_MAX = 10;   // BUG výhra = click power x (5..10) na 60 s
+const CONSULT_MIN_WIN = 1000, CONSULT_MIN_LOSS = 200;
+
+const ROULETTE_NUMBERS = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+  5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+];
+const RED_NUMS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+
+function $c(id) { return document.getElementById(id); }
+
+function switchCasinoTab(tab) {
+  ["roulette", "slots", "blackjack"].forEach(t => {
+    $c("view-" + t).style.display = (t === tab ? "block" : "none");
+    $c("tab-btn-" + t).className = "casino-tab-btn" + (t === tab ? " active" : "");
+  });
+}
+
+// ==========================================================================
+// RULETA
+// ==========================================================================
+function getRouletteBet() {
+  const max = Math.max(10, Math.floor(gameState.coins));
+  return TT.cleanBet($c("wager-input").value, 10, max);
+}
+function setWager(v) {
+  if (isRouletteSpinning) return;
+  $c("wager-input").value = TT.cleanBet(v, 10, Math.max(10, Math.floor(gameState.coins)));
+}
+function wagerPct(p) { setWager(Math.floor(gameState.coins * p)); }
+function wagerMul(f) { setWager(Math.floor(getRouletteBet() * f)); }
+
+function initRouletteWheel() {
+  const track = $c("roulette-track");
+  if (!track) return;
+  let html = "";
+  for (let cycle = 0; cycle < 8; cycle++) {
+    ROULETTE_NUMBERS.forEach(num => {
+      const cls = num === 0 ? "zero" : (RED_NUMS.includes(num) ? "red" : "black");
+      html += `<div class="r-slot ${cls}" data-num="${num}">${num}</div>`;
+    });
+  }
+  track.innerHTML = html;
+}
+
+function placeRouletteBet(type) {
+  if (isRouletteSpinning) return;
+  if (Date.now() < rouletteCooldownUntil) {
+    log("Roulette wheel is stabilizing. Please wait for the cooldown.", "warning");
+    return;
+  }
+  const wager = getRouletteBet();
+  $c("wager-input").value = wager;
+  if (!TT.spend(wager)) {
+    log("Insufficient Google Coins (GC) for this bet.", "warning");
+    return;
+  }
+
+  isRouletteSpinning = true;
+  rouletteCooldownUntil = Date.now() + 30000;
+  $c("roulette-result").innerHTML = "";
+  updateUI();
+
+  const winningIndex = Math.floor(TT.rnd() * 37);
+  const winningNum = ROULETTE_NUMBERS[winningIndex];
+
+  const slotWidth = 48;
+  const targetSlotIndex = (5 * 37) + winningIndex;
+  const viewportWidth = document.querySelector(".roulette-viewport").offsetWidth || 340;
+  const centerOffset = (viewportWidth / 2) - (slotWidth / 2);
+  const jitter = (Math.random() * 14) - 7;
+  const finalX = -(targetSlotIndex * slotWidth - centerOffset + jitter);
+
+  const track = $c("roulette-track");
+  track.style.transition = "none";
+  track.style.transform = "translateX(0px)";
+  setTimeout(() => {
+    track.style.transition = "transform 6.2s cubic-bezier(0.1, 0.85, 0.25, 1)";
+    track.style.transform = `translateX(${finalX}px)`;
+  }, 30);
+
+  setTimeout(() => {
+    isRouletteSpinning = false;
+    evaluateRouletteResult(winningNum, type, wager);
+    updateUI();
+  }, 6400);
+}
+
+function evaluateRouletteResult(num, betType, wager) {
+  const isRed = RED_NUMS.includes(num);
+  const isBlack = (num !== 0 && !isRed);
+  let mult = 0;
+  if (betType === "red" && isRed) mult = 2;
+  else if (betType === "black" && isBlack) mult = 2;
+  else if (betType === "zero" && num === 0) mult = 36;
+  else if (betType === "low" && num >= 1 && num <= 18) mult = 2;
+  else if (betType === "high" && num >= 19 && num <= 36) mult = 2;
+
+  const colorName = num === 0 ? "GREEN" : (isRed ? "RED" : "BLACK");
+  const box = $c("roulette-result");
+  if (mult > 0) {
+    const payout = wager * mult;
+    TT.win(payout);
+    box.innerHTML = `<span style="color:var(--emerald);">[${num} ${colorName}] WIN +${(payout - wager).toLocaleString()} GC</span>`;
+    log(`ROULETTE HIT [${num} ${colorName}]! WON ${payout.toLocaleString()} GC!`, "special");
+    TT.announce(String(num), colorName, wager, payout);
+  } else {
+    box.innerHTML = `<span style="color:var(--crimson);">[${num} ${colorName}] LOSS -${wager.toLocaleString()} GC</span>`;
+    log(`Roulette rolled [${num} ${colorName}]. Lost ${wager.toLocaleString()} GC.`, "error");
+  }
+}
+
+// ==========================================================================
+// SLOTY
+// ==========================================================================
+const SLOT_SYMBOLS = ["🍒", "🍒", "🍒", "🔔", "🔔", "7️⃣", "💎"];
+function randSymbol() { return SLOT_SYMBOLS[Math.floor(TT.rnd() * SLOT_SYMBOLS.length)]; }
+
+function spinSlots() {
+  if (isSpinningSlots) return;
+  const betInput = $c("slots-bet");
+  const bet = TT.cleanBet(betInput.value, 10, 100000000);
+  betInput.value = bet;
+  if (!TT.spend(bet)) { log("Insufficient Google Coins for Slots spin.", "warning"); return; }
+
+  isSpinningSlots = true;
+  updateUI();
+  const reels = [$c("reel-1"), $c("reel-2"), $c("reel-3")];
+  $c("slots-banner").innerText = "";
+  reels.forEach(r => { r.className = "slot-reel spinning"; });
+  const spinning = [true, true, true];
+  const iv = setInterval(() => { reels.forEach((r, i) => { if (spinning[i]) r.innerText = randSymbol(); }); }, 60);
+
+  const stop = (i, ms, last) => setTimeout(() => {
+    spinning[i] = false;
+    reels[i].className = "slot-reel";
+    reels[i].innerText = randSymbol();
+    if (last) {
+      clearInterval(iv);
+      isSpinningSlots = false;
+      evaluateSlots(reels.map(r => r.innerText), bet);
+      updateUI();
+    }
+  }, ms);
+  stop(0, 900); stop(1, 1500); stop(2, 2100, true);
+}
+
+function evaluateSlots(s, bet) {
+  const reels = [$c("reel-1"), $c("reel-2"), $c("reel-3")];
+  const banner = $c("slots-banner");
+  if (s[0] === s[1] && s[1] === s[2]) {
+    const mult = { "🍒": 5, "🔔": 15, "7️⃣": 50, "💎": 500 }[s[0]] || 0;
+    const payout = bet * mult;
+    TT.win(payout);
+    reels.forEach(r => { r.className = "slot-reel winner"; });
+    banner.innerHTML = `🎉 WIN ${mult}× (+${(payout - bet).toLocaleString()} GC) 🎉`;
+    log(`SLOTS JACKPOT [${s.join(" ")}]! ${mult}× = ${payout.toLocaleString()} GC!`, "special");
+    if (mult >= 50) TT.announce(s.join(""), "SLOTS", bet, payout);
+  } else {
+    banner.innerHTML = `<span style="color:var(--crimson);">LOSS -${bet.toLocaleString()} GC</span>`;
+    log(`Slots stopped on [${s.join(" | ")}]. No match.`);
+  }
+}
+
+// ==========================================================================
+// BLACKJACK
+// ==========================================================================
+let bjDeck = [], bjPlayerHand = [], bjDealerHand = [], bjWager = 0;
+
+function createDeck() {
+  const suits = ["♠", "♥", "♦", "♣"];
+  const values = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+  const deck = [];
+  for (const s of suits) for (const v of values) deck.push({ suit: s, val: v, isRed: (s === "♥" || s === "♦") });
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(TT.rnd() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+function calculateHandScore(hand) {
+  let score = 0, aces = 0;
+  for (const c of hand) {
+    if (c.val === "A") { aces++; score += 11; }
+    else if (["K", "Q", "J", "10"].includes(c.val)) score += 10;
+    else score += parseInt(c.val, 10);
+  }
+  while (score > 21 && aces > 0) { score -= 10; aces--; }
+  return score;
+}
+
+function bjCard(c) { return `<div class="bj-card ${c.isRed ? "red" : ""}"><span>${c.val}</span><span>${c.suit}</span></div>`; }
+
+function renderBjCards(hideHole) {
+  $c("bj-player-cards").innerHTML = bjPlayerHand.map(bjCard).join("");
+  $c("bj-player-score").innerText = calculateHandScore(bjPlayerHand);
+  if (hideHole && isBjInProgress) {
+    $c("bj-dealer-cards").innerHTML = bjCard(bjDealerHand[0]) + `<div class="bj-card back">?</div>`;
+    $c("bj-dealer-score").innerText = "?";
+  } else {
+    $c("bj-dealer-cards").innerHTML = bjDealerHand.map(bjCard).join("");
+    $c("bj-dealer-score").innerText = calculateHandScore(bjDealerHand);
+  }
+}
+
+function bjResult(text, cls) {
+  const el = $c("bj-result");
+  el.className = "bj-result " + cls;
+  el.innerText = text;
+}
+
+function startBlackjackGame() {
+  if (isBjInProgress) return;
+  const betInput = $c("bj-bet");
+  bjWager = TT.cleanBet(betInput.value, 10, 100000000);
+  betInput.value = bjWager;
+  if (!TT.spend(bjWager)) { log("Insufficient Google Coins for Blackjack bet.", "warning"); return; }
+
+  isBjInProgress = true;
+  bjDeck = createDeck();
+  bjPlayerHand = [bjDeck.pop(), bjDeck.pop()];
+  bjDealerHand = [bjDeck.pop(), bjDeck.pop()];
+  bjResult("Your move.", "idle");
+
+  $c("btn-bj-deal").disabled = true;
+  $c("btn-bj-hit").disabled = false;
+  $c("btn-bj-stand").disabled = false;
+  $c("btn-bj-double").disabled = (gameState.coins < bjWager);
+  renderBjCards(true);
+  updateUI();
+  if (calculateHandScore(bjPlayerHand) === 21) bjStand();
+}
+
+function bjHit() {
+  if (!isBjInProgress) return;
+  bjPlayerHand.push(bjDeck.pop());
+  renderBjCards(true);
+  $c("btn-bj-double").disabled = true;
+  const s = calculateHandScore(bjPlayerHand);
+  if (s > 21) { renderBjCards(false); endBlackjack("BUST", false); }
+  else if (s === 21) bjStand();
+}
+
+function bjDouble() {
+  if (!isBjInProgress || !TT.spend(bjWager)) return;
+  bjWager *= 2;
+  bjPlayerHand.push(bjDeck.pop());
+  renderBjCards(true);
+  if (calculateHandScore(bjPlayerHand) > 21) { renderBjCards(false); endBlackjack("BUST on double", false); }
+  else bjStand();
+}
+
+function bjStand() {
+  if (!isBjInProgress) return;
+  while (calculateHandScore(bjDealerHand) < 17) bjDealerHand.push(bjDeck.pop());
+  const p = calculateHandScore(bjPlayerHand), d = calculateHandScore(bjDealerHand);
+  renderBjCards(false);
+  if (d > 21) endBlackjack(`Dealer busts (${d})`, true);
+  else if (p > d) {
+    const nat = (p === 21 && bjPlayerHand.length === 2);
+    endBlackjack(nat ? "BLACKJACK 2.5×" : `${p} vs ${d}`, true, nat);
+  } else if (p < d) endBlackjack(`Dealer wins ${d} vs ${p}`, false);
+  else endBlackjack(`Push at ${p}`, "push");
+}
+
+function endBlackjack(msg, outcome, natural) {
+  isBjInProgress = false;
+  ["btn-bj-hit", "btn-bj-stand", "btn-bj-double"].forEach(id => { $c(id).disabled = true; });
+  $c("btn-bj-deal").disabled = false;
+
+  if (outcome === true) {
+    const payout = Math.floor(bjWager * (natural ? 2.5 : 2.0));
+    TT.win(payout);
+    bjResult(`WIN +${(payout - bjWager).toLocaleString()} GC · ${msg}`, "win");
+    log(`BLACKJACK WIN: ${msg}. Won ${payout.toLocaleString()} GC!`, "special");
+  } else if (outcome === "push") {
+    TT.win(bjWager);
+    bjResult(`PUSH · bet returned · ${msg}`, "push");
+    log(`BLACKJACK PUSH: ${msg}`);
+  } else {
+    bjResult(`LOSS -${bjWager.toLocaleString()} GC · ${msg}`, "loss");
+    log(`BLACKJACK LOSS: ${msg}. Lost ${bjWager.toLocaleString()} GC.`, "error");
+  }
+  updateUI();
+}
+
+// ==========================================================================
+// CONSULT ESCALATION
+// ==========================================================================
+function randInt(a, b) { return a + Math.floor(TT.rnd() * (b - a + 1)); }
+
+function launchConsultEscalation() {
+  if (isConsultActive) return;
+  if (gameState.scrap < CONSULT_COST_SCRAP) {
+    log(`Insufficient scrap: consult requires ${CONSULT_COST_SCRAP.toLocaleString()} Scrap.`, "warning");
+    return;
+  }
+  gameState.scrap -= CONSULT_COST_SCRAP;
+  isConsultActive = true;
+  $c("btn-consult-launch").disabled = true;
+  $c("consult-bug-box").style.display = "none";
+  updateUI();
+
+  const display = $c("consult-display");
+  display.innerText = "ESCALATING TO SME NODES - INITIALIZING QUANTUM RADAR...";
+  const zones = ["emea", "apac", "hindi"];
+  let step = 0, delay = 80;
+
+  function stepRadar() {
+    zones.forEach(z => { $c("zone-" + z).className = "consult-zone-card"; });
+    $c("zone-" + zones[step % 3]).className = "consult-zone-card flicker";
+    step++;
+    if (step < 20) { delay += 12; setTimeout(stepRadar, delay); return; }
+    const r = TT.rnd() * 100;
+    const zone = r < 25 ? "emea" : (r < 60 ? "apac" : "hindi");
+    zones.forEach(z => { $c("zone-" + z).className = "consult-zone-card"; });
+    $c("zone-" + zone).className = "consult-zone-card selected";
+    display.innerText = `LOCKED ONTO [${zone.toUpperCase()} SME NODE] // DECRYPTING TICKET OUTCOME...`;
+    setTimeout(() => startOutcomeScan(zone), 1200);
+  }
+  stepRadar();
+}
+
+function startOutcomeScan(zone) {
+  const display = $c("consult-display");
+  let blinks = 0;
+  const iv = setInterval(() => {
+    blinks++;
+    display.innerText = `SCANNING NODE CHANNELS: 0x${Math.random().toString(16).substr(2, 6).toUpperCase()}...`;
+    if (blinks >= 8) { clearInterval(iv); evaluateConsultOutcome(zone); }
+  }, 200);
+}
+
+function evaluateConsultOutcome(zone) {
+  const display = $c("consult-display");
+  const r = TT.rnd() * 100;
+  const winT = zone === "emea" ? 55 : (zone === "apac" ? 45 : 35);
+  const outcome = r < winT ? "win" : (r < 90 ? "loss" : "bug");
+  const rate = calculateAutoGcRate();
+
+  if (outcome === "win") {
+    const minutes = randInt(CONSULT_WIN_MIN, CONSULT_WIN_MAX);
+    const reward = Math.max(CONSULT_MIN_WIN, Math.floor(rate * 60 * minutes));
+    gameState.coins += reward;
+    display.innerHTML = `<span style="color:var(--emerald);">SUCCESS! ${minutes} MIN OF AUTO GC (+${reward.toLocaleString()} GC)</span>`;
+    log(`CONSULT WIN [${zone.toUpperCase()}]: ${minutes} min of Auto GC = +${reward.toLocaleString()} GC!`, "special");
+    finishConsult();
+  } else if (outcome === "loss") {
+    const minutes = randInt(CONSULT_LOSS_MIN, CONSULT_LOSS_MAX);
+    const penalty = Math.min(gameState.coins, Math.max(CONSULT_MIN_LOSS, Math.floor(rate * 60 * minutes)));
+    gameState.coins = Math.max(0, gameState.coins - penalty);
+    display.innerHTML = `<span style="color:var(--crimson);">FAILED // ${minutes} MIN LOST (-${Math.floor(penalty).toLocaleString()} GC)</span>`;
+    log(`CONSULT FAILURE [${zone.toUpperCase()}]: drained ${Math.floor(penalty).toLocaleString()} GC (${minutes} min).`, "error");
+    finishConsult();
+  } else {
+    display.innerHTML = `<span style="color:var(--amber);">CRITICAL FIRMWARE BUG // OPENING 50/50 OVERDRIVE CHAMBER!</span>`;
+    log(`CRITICAL BUG in ${zone.toUpperCase()} node! Launching 50/50 chamber.`, "special");
+    setTimeout(startBugChamber, 1500);
+  }
+}
+
+function startBugChamber() {
+  const box = $c("consult-bug-box");
+  const winCard = $c("bug-card-win"), lossCard = $c("bug-card-loss");
+  const display = $c("consult-display");
+  box.style.display = "grid";
+  let count = 0, delay = 100;
+
+  function alt() {
+    count++;
+    winCard.className = "bug-card" + (count % 2 === 0 ? " highlight" : "");
+    lossCard.className = "bug-card" + (count % 2 === 1 ? " highlight" : "");
+    if (count < 18) { delay += 15; setTimeout(alt, delay); return; }
+
+    const isWinner = TT.rnd() < 0.5;
+    winCard.className = "bug-card" + (isWinner ? " highlight" : "");
+    lossCard.className = "bug-card" + (!isWinner ? " highlight" : "");
+    if (isWinner) {
+      const mult = Math.round((CONSULT_BUG_WIN_MIN + TT.rnd() * (CONSULT_BUG_WIN_MAX - CONSULT_BUG_WIN_MIN)) * 10) / 10;
+      display.innerHTML = `<span style="color:var(--emerald);">OVERDRIVE: ×${mult.toFixed(1)} CLICK POWER FOR 60 SECONDS!</span>`;
+      log(`BUG CHAMBER OVERDRIVE: ×${mult.toFixed(1)} click power for 60s!`, "special");
+      gameState.consultBuff = { active: true, type: "overdrive", expiresAt: Date.now() + 60000, clickMult: mult, gcMult: 1.0 };
+    } else {
+      display.innerHTML = `<span style="color:var(--crimson);">SYSTEM CRASH: -50% AUTO GC & -50% CLICK FOR 60 SECONDS!</span>`;
+      log("BUG CHAMBER CRASH: -50% click power and Auto GC for 60s!", "error");
+      gameState.consultBuff = { active: true, type: "crash", expiresAt: Date.now() + 60000, clickMult: 0.5, gcMult: 0.5 };
+    }
+    finishConsult();
+  }
+  alt();
+}
+
+function finishConsult() {
+  isConsultActive = false;
+  $c("btn-consult-launch").disabled = false;
+  updateUI();
+  TT.saveSoon();
+}
+</script>
+
+  <script>
+/**
+ * TICKET TYCOON v6.1 - SYNC  (soubor "sync")
+ * Tutorial, leaderboard, ukládání/načítání (s migrací starých savů), ochrana dvou tabů, auto-obnova při nové verzi.
+ */
+
+// ==========================================================================
+// 1. TUTORIAL
+// ==========================================================================
+const TUTORIAL_STEPS = [
+  { t: "WELCOME TO IDLE ROYALE", b: `
+    <p>Grind <b>Tickets</b>, turn them into <b>Scrap</b>, open the <b>Company Chest</b> for gear, <b>Prestige</b> for permanent bonuses and gamble your <b>Google Coins (GC)</b>.</p>
+    <ul><li>3 currencies: <b>Tickets</b>, <b>Scrap</b>, <b>GC</b> (+ <b>Legacy Points</b> from prestige)</li>
+    <li>Cloud save every 12 s and after every bet</li>
+    <li>Season wipes reset everyone, the Top 10 is ranked by a score that never drops</li></ul>` },
+  { t: "1) CLICKING & CPS", b: `
+    <p><b>RESOLVE TICKET</b> gives <b>Click Power</b> (1 + gear) × <b>Net Multiplier</b>. Decimals count: 1.75 per click is real.</p>
+    <ul><li>Live CPS is measured over the last 2 seconds</li><li>Peak CPS = your record</li></ul>` },
+  { t: "2) AUTOCLICKER BATTERY", b: `
+    <p>Every <b>50 manual clicks = +1 second</b> of battery (max 10 min). It remembers your average CPS (cap 15).</p>
+    <ul><li>A pause longer than 1.5 s breaks the series and the unfinished 50 clicks are dropped</li>
+    <li>It keeps running if you switch to another window, and survives page refreshes</li>
+    <li>Clicks faster than 35 ms apart do not count for charging</li></ul>` },
+  { t: "3) SCRAP & COMPANY CHEST", b: `
+    <p>10 Tickets = 1 Scrap. Opening costs Scrap (grows ×1.2 per prestige). Open ×1 or ×10.</p>
+    <ul><li>Upgrade the chest with GC for better odds (no empty drops from level 90)</li>
+    <li>🎟 <b>Slot Token</b> (rare drop): you choose the body slot, then rarity is rolled (min. Rare). Use it with a real mouse click - the keyboard is ignored on purpose</li></ul>` },
+  { t: "4) GEAR, STACKS & MERGE", b: `
+    <p>There is one item per slot and rarity, so equal items <b>stack</b>. 6 slots: HEAD, RIG, TOOL, AUGMENT, OS, RELIC.</p>
+    <ul><li><b>Merge 3 identical → +1 level</b> (10% crit +2, 5% fail = half the scrap back). Each level adds +60% of the base stats</li>
+    <li>"Upgrades only" shows items better than what you wear, green/red arrows compare them</li>
+    <li>Scrap by rarity has a preview and a confirm click; it protects merged items and upgrades</li></ul>` },
+  { t: "5) AUTOGEN & GOOGLE COINS", b: `
+    <p><b>45M Focus Autogen</b> makes GC per second from the Auto stat of your gear. GC also come from consults and the casino.</p>
+    <ul><li>Active bonuses are shown as chips under the click button</li></ul>` },
+  { t: "6) PRESTIGE & LEGACY POINTS", b: `
+    <p>Prestige <b>resets your run</b> (tickets, scrap, GC, chest, gear) but raises the multiplier (+0.25 each) and gives <b>Legacy Points</b>.</p>
+    <ul><li>Spend LP in the Legacy Shop: click/auto bonuses, cheaper chests, start GC and <b>Heirloom</b> (keep your best equipped items)</li>
+    <li>You have to click twice to confirm a prestige</li></ul>` },
+  { t: "7) CASINO", b: `
+    <p><b>Roulette</b> (30 s cooldown), <b>Slots</b>, <b>Blackjack</b> (blackjack pays 2.5×). Use the 10% / 25% / 50% / MAX buttons for bets.</p>
+    <ul><li>Your gambling profit/loss is shown in the leaderboard (GAMBLE)</li></ul>` },
+  { t: "8) MINIGAMES", b: `
+    <p><b>Chicken Road</b>: every jump has 50% to die, the multiplier grows ×1.92. <b>Pachinko</b>: buy balls, edge bins pay up to 500×.</p>
+    <p><b>Showdown (PvP)</b>: rock-paper-scissors, best of 3. Set your 3 moves, create a challenge with a stake or accept someone else's. Winner takes 95% of the pot.</p>` },
+  { t: "9) CONSULT", b: `
+    <p>5,000 Scrap to dispatch a consult. Win = 5-30 min of Auto GC, loss = 1-10 min. A BUG (10%) opens the 50/50 chamber: ×5-10 click power or -50% for 60 s.</p>` },
+  { t: "10) SCORE", b: `
+    <p>Score = prestige × 1,000,000 + log of lifetime tickets + 5,000 × best chest level. It never goes down - not even when you prestige.</p>
+    <p>Reopen this guide anytime with <b>? HOW TO PLAY</b>.</p>` }
+];
+let tutorialIdx = 0;
+
+function openTutorial() { tutorialIdx = 0; document.getElementById("tt-overlay").classList.add("open"); renderTutorial(); }
+function closeTutorial() {
+  document.getElementById("tt-overlay").classList.remove("open");
+  if (!gameState.tutorialDone) { gameState.tutorialDone = true; saveGame(); }
+}
+function tutorialStep(d) {
+  const n = tutorialIdx + d;
+  if (n >= TUTORIAL_STEPS.length) { closeTutorial(); return; }
+  if (n < 0) return;
+  tutorialIdx = n;
+  renderTutorial();
+}
+function renderTutorial() {
+  const s = TUTORIAL_STEPS[tutorialIdx];
+  document.getElementById("tt-title").innerText = s.t;
+  document.getElementById("tt-body").innerHTML = s.b;
+  document.getElementById("tt-dots").innerHTML = TUTORIAL_STEPS.map((_, i) => `<span class="tt-dot ${i === tutorialIdx ? "on" : ""}"></span>`).join("");
+  document.getElementById("tt-prev").disabled = (tutorialIdx === 0);
+  document.getElementById("tt-next").innerText = (tutorialIdx === TUTORIAL_STEPS.length - 1) ? "FINISH ✔" : "NEXT ▶";
+}
+
+// ==========================================================================
+// 2. LEADERBOARD + ticker + chat polling
+// ==========================================================================
+function refreshLeaderboard() {
+  if (typeof google === "undefined" || !google.script || !google.script.run) return;
+  google.script.run
+    .withSuccessHandler(data => {
+      if (!data) return;
+
+      if (data.leaderboard) {
+        document.getElementById("lb-body").innerHTML = data.leaderboard.map((u, i) => {
+          const isMe = (u.ldap === gameState.ldap);
+          const gn = u.gambleNet || 0;
+          return `<tr class="${isMe ? "me" : ""}">
+            <td>${i + 1}</td><td>${escapeHtml(u.ldap)}</td>
+            <td style="color:var(--crimson);">${u.prestige || 0}</td>
+            <td style="color:var(--cyan);">${u.chestLvl || 1}</td>
+            <td style="color:var(--amber);">${Math.floor(u.score || 0).toLocaleString()}</td>
+            <td style="color:${gn >= 0 ? "var(--emerald)" : "var(--crimson)"};">${gn >= 0 ? "+" : ""}${Math.floor(gn).toLocaleString()}</td>
+          </tr>`;
+        }).join("");
+      }
+
+      if (data.currentSeason) {
+        const srv = Number(data.currentSeason);
+        document.getElementById("season-display").innerText = srv;
+        if (gameState.season && Number(gameState.season) < srv) {
+          log("NEW SEASON DETECTED! Resetting terminal profile...", "special");
+          gameState.season = srv;
+          gameLoaded = false;
+          setTimeout(() => location.reload(), 800);
+          return;
+        }
+        gameState.season = srv;
+      }
+
+      if (Array.isArray(data.feed)) {
+        const t = data.feed.map(f => `[${escapeHtml(f.time || "")} ${escapeHtml(f.user)}: ${escapeHtml(f.num)} ${escapeHtml(f.color)} - ${f.payout > 0 ? "WON " + Number(f.payout).toLocaleString() + " GC" : "LOST"}]`).join(" &bull; ");
+        document.getElementById("ticker-recent").innerHTML = `<span>${t || "No recent spins recorded."}</span>`;
+      }
+      if (Array.isArray(data.topWins)) {
+        const t = data.topWins.map((w, i) => `#${i + 1} ${escapeHtml(w.user)}: +${Number(w.payout).toLocaleString()} GC on ${escapeHtml(w.num)}`).join(" &bull; ");
+        document.getElementById("ticker-top").innerHTML = `<span>${t || "No jackpots recorded yet."}</span>`;
+      }
+      if (data.chat) renderChatMessages(data.chat);
+    })
+    .getLeaderboardAndRoulette();
+}
+
+// ==========================================================================
+// 3. SAVE
+// ==========================================================================
+let reloading = false;
+
+function buildPayload() {
+  const g = gameState, ac = g.autoclicker;
+  sanitizeAc();
+  return JSON.stringify({
+    ldap: g.ldap, season: g.season,
+    tickets: g.tickets, lifetimeTickets: g.lifetimeTickets,
+    coins: g.coins, scrap: g.scrap,
+    prestige: g.prestige, chestLevel: g.chestLevel, maxChestLevel: g.maxChestLevel,
+    peakCps: g.peakCps, gambleNet: g.gambleNet,
+    loadout: g.loadout, inventory: g.inventory,
+    autosellTier: g.autosellTier,
+    focusAutogenActive: g.focusAutogenActive, focusAutogenRemaining: g.focusAutogenRemaining,
+    tutorialDone: g.tutorialDone, slotTokens: g.slotTokens,
+    lp: g.lp, lpUp: g.lpUp,
+    autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
+    pachinko: g.pachinko, pcPending: g.pcPending
+  });
+}
+
+function saveGame(cb) {
+  if (!gameLoaded || reloading) { if (cb) cb(false); return; }
+  if (typeof google === "undefined" || !google.script || !google.script.run) { if (cb) cb(false); return; }
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res && res.ok === false && res.reason === "season") {
+        log("Season changed on server. Reloading...", "special");
+        gameLoaded = false;
+        setTimeout(() => location.reload(), 800);
+      }
+      if (cb) cb(!!(res && res.ok));
+    })
+    .withFailureHandler(err => { console.error("Cloud save failed: " + err); if (cb) cb(false); })
+    .saveGame(buildPayload());
+}
+window.addEventListener("beforeunload", function () { try { saveGame(); } catch (e) {} });
+
+// ==========================================================================
+// 4. LOAD + MIGRACE STARÝCH SAVŮ
+// ==========================================================================
+function nv(v, d) { v = Number(v); return isFinite(v) ? v : d; }
+
+function migrateInventory(arr) {
+  const out = [];
+  (Array.isArray(arr) ? arr : []).forEach(o => {
+    if (!o || SLOTS.indexOf(o.slot) < 0) return;
+    const tier = Math.floor(nv(o.tier, 0));
+    if (tier < 1 || tier > 6) return;
+    const lvl = Math.max(0, Math.min(MERGE_MAX_LVL, Math.floor(nv(o.lvl !== undefined ? o.lvl : o.mergeLevel, 0))));
+    const n = o.n !== undefined ? Math.max(1, Math.floor(nv(o.n, 1))) : 1;
+    const ex = out.find(s => s.slot === o.slot && s.tier === tier && s.lvl === lvl);
+    if (ex) ex.n += n; else out.push({ slot: o.slot, tier: tier, lvl: lvl, n: n });
+  });
+  return out;
+}
+
+function migrateLoadout(lo) {
+  const out = { HEAD: null, RIG: null, TOOL: null, AUGMENT: null, OS: null, RELIC: null };
+  if (!lo) return out;
+  SLOTS.forEach(s => {
+    const o = lo[s];
+    if (!o) return;
+    const tier = Math.floor(nv(o.tier, 0));
+    if (tier < 1 || tier > 6) return;
+    out[s] = { slot: s, tier: tier, lvl: Math.max(0, Math.min(MERGE_MAX_LVL, Math.floor(nv(o.lvl !== undefined ? o.lvl : o.mergeLevel, 0)))) };
+  });
+  return out;
+}
+
+function applyLoaded(l) {
+  const g = gameState;
+  g.ldap = l.ldap || g.ldap;
+  g.season = Number(l.season) || g.season;
+  g.tickets = Math.max(0, nv(l.tickets, 0));
+  g.coins = l.coins !== undefined ? Math.max(0, nv(l.coins, 500)) : 500;
+  g.scrap = l.scrap !== undefined ? Math.max(0, nv(l.scrap, 250)) : 250;
+  g.prestige = Math.max(0, Math.floor(nv(l.prestige, 0)));
+  g.chestLevel = Math.max(1, Math.floor(nv(l.chestLevel, 1)));
+  g.maxChestLevel = Math.max(g.chestLevel, Math.floor(nv(l.maxChestLevel, 1)));
+  g.peakCps = Math.max(0, nv(l.peakCps, 0));
+  g.gambleNet = nv(l.gambleNet, 0);
+
+  // lifetime tickets: starý save -> součet cen dosažených prestiží + aktuální tickety (score tak neklesne)
+  if (l.lifetimeTickets !== undefined && nv(l.lifetimeTickets, 0) > 0) {
+    g.lifetimeTickets = nv(l.lifetimeTickets, 0);
+  } else {
+    let est = g.tickets;
+    for (let p = 0; p < g.prestige; p++) est += getPrestigeCost(p);
+    g.lifetimeTickets = est;
+  }
+  if (g.lifetimeTickets < g.tickets) g.lifetimeTickets = g.tickets;
+
+  g.loadout = migrateLoadout(l.loadout);
+  g.inventory = migrateInventory(l.inventory);
+  g.autosellTier = l.autosellTier !== undefined ? Math.max(0, Math.min(3, Math.floor(nv(l.autosellTier, 0)))) : (l.autosellGrey ? 1 : 0);
+  g.focusAutogenActive = !!l.focusAutogenActive;
+  g.focusAutogenRemaining = Math.max(0, nv(l.focusAutogenRemaining, 0));
+  g.tutorialDone = !!l.tutorialDone;
+  g.slotTokens = Math.max(0, Math.floor(nv(l.slotTokens, 0)));
+
+  // Legacy Points: starý save dostane zpětně LP za dosažené prestiže
+  if (l.lp === undefined) {
+    let lp = 0;
+    for (let p = 1; p <= g.prestige; p++) lp += lpGainFor(p);
+    g.lp = lp;
+  } else g.lp = Math.max(0, Math.floor(nv(l.lp, 0)));
+  const up = l.lpUp || {};
+  LP_UPGRADES.forEach(u => { g.lpUp[u.id] = Math.max(0, Math.min(u.max, Math.floor(nv(up[u.id], 0)))); });
+
+  if (l.autoclicker) {
+    g.autoclicker.charge = nv(l.autoclicker.charge, 0);
+    g.autoclicker.avgCps = nv(l.autoclicker.avgCps, 0);
+    g.autoclicker.running = !!l.autoclicker.running;
+  }
+  sanitizeAc();
+  if (g.autoclicker.charge < 1 || g.autoclicker.avgCps <= 0) g.autoclicker.running = false;
+
+  if (l.pachinko) Object.keys(g.pachinko).forEach(k => { g.pachinko[k] = Math.max(0, Math.floor(nv(l.pachinko[k], 0))); });
+  g.pcPending = Array.isArray(l.pcPending) ? l.pcPending.filter(p => p && nv(p.value, 0) > 0) : [];
+}
+
+function finishLoading() {
+  gameLoaded = true;
+  lastLoopAt = Date.now();
+  const sel = document.getElementById("sel-autosell");
+  if (sel) sel.value = String(gameState.autosellTier);
+  lastPanelSig = "";
+  updateUI();
+  renderLpShop(true);
+  while (_loadedCallbacks.length) {
+    try { _loadedCallbacks.shift()(); } catch (e) { console.error(e); }
+  }
+  if (!gameState.tutorialDone) openTutorial();
+  startVersionWatch();
+}
+
+function loadFromServer() {
+  google.script.run
+    .withSuccessHandler(loaded => {
+      if (loaded && !loaded.isNew) {
+        applyLoaded(loaded);
+        log(`Welcome back, Agent ${escapeHtml(gameState.ldap)}. Profile loaded.`, "success");
+      } else if (loaded && loaded.ldap) {
+        gameState.ldap = loaded.ldap;
+        gameState.season = Number(loaded.season) || gameState.season;
+        log(`New terminal session for Agent ${escapeHtml(gameState.ldap)} (Season ${gameState.season}).`, "special");
+      }
+      finishLoading();
+      refreshLeaderboard();
+    })
+    .withFailureHandler(err => {
+      log("Could not load your save (" + escapeHtml(String(err)) + "). Reload the page. Saving is disabled.", "error");
+      updateUI();
+    })
+    .loadGame();
+}
+
+// ==========================================================================
+// 5. OCHRANA PROTI DVĚMA TABŮM
+// ==========================================================================
+let tabChannel = null;
+const tabId = Math.random().toString(36).slice(2);
+
+function showTabBlock(on) {
+  const el = document.getElementById("tab-block");
+  if (el) el.classList.toggle("open", !!on);
+}
+
+function takeOverTab() {
+  if (tabChannel) tabChannel.postMessage({ t: "takeover", id: tabId });
+  showTabBlock(false);
+  setTimeout(loadFromServer, 2500);     // starý tab si mezitím uloží a zablokuje se
+}
+
+function initTabGuard(start) {
+  try { tabChannel = new BroadcastChannel("tt_tab_guard"); } catch (e) { start(); return; }
+  let other = false;
+  tabChannel.onmessage = function (e) {
+    const d = e.data || {};
+    if (d.id === tabId) return;
+    if (d.t === "hello" && gameLoaded) tabChannel.postMessage({ t: "present", id: tabId });
+    else if (d.t === "present") other = true;
+    else if (d.t === "takeover" && gameLoaded) {
+      saveGame(function () { gameLoaded = false; showTabBlock(true); });
+    }
+  };
+  tabChannel.postMessage({ t: "hello", id: tabId });
+  setTimeout(function () { if (other) showTabBlock(true); else start(); }, 700);
+}
+
+// ==========================================================================
+// 6. AUTO-OBNOVA PŘI NOVÉ VERZI (Config!B8)
+// ==========================================================================
+let versionTimer = null, reloadAt = 0, reloadWatch = null;
+
+function startVersionWatch() {
+  if (versionTimer || typeof google === "undefined" || !google.script || !google.script.run) return;
+  versionTimer = setInterval(checkVersion, 5 * 60 * 1000);
+}
+
+function checkVersion() {
+  if (reloadAt) return;
+  google.script.run.withSuccessHandler(v => {
+    if (String(v) !== String(window.CLIENT_VERSION)) scheduleReload();
+  }).getAppVersion();
+}
+
+function scheduleReload() {
+  if (reloadAt) return;
+  reloadAt = Date.now() + 15000 + Math.random() * 105000;      // rozptyl 15-120 s, ať se Sheets nezahltí
+  const banner = document.getElementById("update-banner");
+  if (banner) banner.classList.add("open");
+  reloadWatch = setInterval(function () {
+    const left = Math.ceil((reloadAt - Date.now()) / 1000);
+    const txt = left > 0 ? `New version available - refreshing in ${left}s (your game is saved first)`
+      : (TT.isBusy() ? "New version available - waiting for your round to finish..." : "Saving and refreshing...");
+    const b = document.getElementById("update-banner-text");
+    if (b) b.innerText = txt;
+    if (left <= 0 && !TT.isBusy()) {
+      clearInterval(reloadWatch);
+      let done = false;
+      const go = function () { if (done) return; done = true; reloading = true; location.reload(); };
+      saveGame(go);
+      setTimeout(go, 8000);
+    }
+  }, 1000);
+}
+
+// ==========================================================================
+// 7. INIT
+// ==========================================================================
+function initGame() {
+  initRouletteWheel();
+  if (typeof google !== "undefined" && google.script && google.script.run) {
+    initTabGuard(loadFromServer);
+  } else {
+    log("Running in local offline sandbox mode (no saving).", "warning");
+    updateUI();
+  }
+  setInterval(function () { if (!document.hidden) refreshLeaderboard(); }, 15000);
+}
+
+window.__startGame = initGame;
+</script>
+
+  <style>
+/* ===== ADVANCED MINIGAMES: Chicken Road, Pachinko, Showdown (PvP) ===== */
+.adv-wrap .tab-row { margin-bottom: 8px; }
+.adv-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.adv-input { background: #000; border: 1px solid var(--border-subtle); color: #fff; padding: 6px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; width: 90px; }
+.adv-select { background: #000; border: 1px solid var(--border-subtle); color: var(--amber); padding: 6px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; }
+.adv-info { font-size: 11px; color: var(--text-dim); }
+.adv-info b { color: var(--amber); }
+.adv-bal { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--amber); text-align: right; margin-bottom: 4px; }
+
+.cr-road { display: flex; gap: 3px; overflow-x: auto; padding: 8px 2px; background: #11151e; border: 1px solid var(--border-subtle); border-radius: 4px; margin-bottom: 8px; }
+.cr-cell { flex: 0 0 46px; height: 74px; background: #1b2130; border-radius: 4px; border-bottom: 3px dashed #3a4560; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; position: relative; }
+.cr-cell .cr-lbl { font-family: 'Orbitron', monospace; font-size: 8px; color: var(--text-dim); position: absolute; bottom: 3px; }
+.cr-cell.done { background: rgba(0, 255, 136, 0.12); }
+.cr-cell.done .cr-lbl { color: var(--emerald); }
+.cr-cell.next { border-bottom-color: var(--amber); box-shadow: 0 0 8px rgba(255, 184, 0, 0.35); }
+.cr-cell.dead { background: rgba(255, 23, 68, 0.25); }
+.cr-cell.curb { background: #1d3b2a; }
+.cr-car { position: absolute; top: 4px; font-size: 14px; opacity: 0.55; }
+.cr-chicken.hop { display: inline-block; animation: crHop 0.28s ease-out; }
+@keyframes crHop { 0% { transform: translateY(0); } 40% { transform: translateY(-14px) scale(1.15); } 100% { transform: translateY(0); } }
+.cr-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+.cr-stats .stat-box { text-align: center; }
+.cr-msg { text-align: center; font-family: 'Orbitron', monospace; font-size: 12px; min-height: 18px; margin-bottom: 6px; }
+
+.pc-canvas-wrap { background: #05070b; border: 1px solid var(--border-subtle); border-radius: 4px; margin-bottom: 8px; }
+#pc-canvas { width: 100%; height: auto; display: block; }
+
+.sd-picker { background: var(--bg-panel-elevated); border-radius: 4px; padding: 8px; margin-bottom: 8px; }
+.sd-pick-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.sd-pick-row span.lbl { font-family: 'Orbitron', monospace; font-size: 10px; color: var(--text-dim); width: 62px; }
+.sd-mv { flex: 1; font-size: 18px; padding: 4px 0; }
+.sd-mv.sel { background: rgba(255, 184, 0, 0.3); border-color: var(--amber); box-shadow: 0 0 8px rgba(255, 184, 0, 0.35); }
+.sd-list { max-height: 170px; overflow-y: auto; margin-bottom: 8px; }
+.sd-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; background: var(--bg-panel-elevated); border-left: 3px solid var(--cyan); border-radius: 4px; margin-bottom: 4px; font-size: 12px; }
+.sd-item.mine { border-left-color: var(--amber); }
+.sd-hist { font-size: 11px; margin-bottom: 3px; }
+.sd-hist.WIN { color: var(--emerald); } .sd-hist.LOSE { color: var(--crimson); } .sd-hist.DRAW { color: var(--amber); }
+</style>
+
+<script>
+/**
+ * TICKET TYCOON v6.1 - ADVANCED MINIGAMES (soubor "advanced_minigames")
+ * Chicken Road, Pachinko (opravené zasekávání + uložení míčků v letu), Showdown (PvP kámen-nůžky-papír).
+ */
+(function () {
+  'use strict';
+
+  // ===== CONFIG =====
+  const CR_MAX_JUMPS = 15, CR_GROWTH = 1.92, CR_MAX_BET = 100000, CR_JACKPOT_MULT = 50;
+  const PC_ROWS = 12;
+  const PC_VALUES = ["10", "50", "100", "500"];
+  const PC_MULTS = [500, 25, 4, 1.2, 0.5, 0.3, 0.3, 0.3, 0.5, 1.2, 4, 25, 500];
+  const PC_MAX_ACTIVE = 15;
+  const W = 320, H = 340, HS = 12, TOP = 30, DY = 21, SEG_MS = 140;
+  const SD_ICON = { R: "✊", P: "✋", S: "✌️" };
+  const SD_MIN = 10, SD_MAX = 100000;
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Math.floor(n).toLocaleString();
+  function crMult(n) { return Math.round(Math.pow(CR_GROWTH, n) * 100) / 100; }
+  function binom(n, k) { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
+  function pcRtp() { let s = 0; for (let k = 0; k <= PC_ROWS; k++) s += (binom(PC_ROWS, k) / Math.pow(2, PC_ROWS)) * PC_MULTS[k]; return s; }
+
+  // ===== UI =====
+  function buildUi() {
+    const mount = $("adv-minigames-mount");
+    if (!mount || mount.dataset.built) return false;
+    mount.dataset.built = "1";
+    mount.innerHTML = `
+      <div class="panel adv-wrap">
+        <div class="panel-header"><span>ADVANCED MINIGAMES</span><span style="font-size:10px; color:var(--amber);">HIGH RISK / HIGH REWARD</span></div>
+        <div class="tab-row">
+          <button class="casino-tab-btn active" id="adv-tab-chicken" onclick="AdvMini.tab('chicken')">🐔 CHICKEN</button>
+          <button class="casino-tab-btn" id="adv-tab-pachinko" onclick="AdvMini.tab('pachinko')">⚪ PACHINKO</button>
+          <button class="casino-tab-btn" id="adv-tab-showdown" onclick="AdvMini.tab('showdown')">⚔ SHOWDOWN</button>
+        </div>
+
+        <div id="adv-view-chicken">
+          <div class="adv-bal">Balance: <span id="bal-chicken">0 GC</span></div>
+          <div class="adv-info" style="margin-bottom:6px;">Every jump has a <b>50% chance to die</b>. Multiplier grows <b>×${CR_GROWTH}</b> per jump (max ${CR_MAX_JUMPS} jumps = ${fmt(crMult(CR_MAX_JUMPS))}×).</div>
+          <div class="cr-road" id="cr-road"></div>
+          <div class="cr-stats">
+            <div class="stat-box"><div class="stat-label">Jumps</div><div class="stat-val cyan" id="cr-jumps">0</div></div>
+            <div class="stat-box"><div class="stat-label">Multiplier</div><div class="stat-val gold" id="cr-mult">1.00×</div></div>
+            <div class="stat-box"><div class="stat-label">Cash out</div><div class="stat-val emerald" id="cr-payout">0</div></div>
+          </div>
+          <div class="cr-msg" id="cr-msg">Place a bet and start crossing.</div>
+          <div class="adv-row">
+            <span style="font-size:11px;">BET:</span>
+            <input type="number" class="adv-input" id="cr-bet" min="10" step="10" value="100">
+            <button class="btn btn-gold" id="cr-start" style="flex:1;" onclick="AdvMini.crStart()">START</button>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-cyan" id="cr-jump" style="flex:1;" disabled onclick="AdvMini.crJump()">JUMP ➜ (<span id="cr-next-mult">1.92</span>×)</button>
+            <button class="btn btn-crimson" id="cr-cash" style="flex:1;" disabled onclick="AdvMini.crCash()">CASH OUT</button>
+          </div>
+        </div>
+
+        <div id="adv-view-pachinko" style="display:none;">
+          <div class="adv-bal">Balance: <span id="bal-pachinko">0 GC</span></div>
+          <div class="adv-info" style="margin-bottom:6px;">Buy balls, drop them. Edge bins pay up to <b>500×</b>, the middle only <b>0.3×</b>. RTP: <b id="pc-rtp">--</b></div>
+          <div class="pc-canvas-wrap"><canvas id="pc-canvas" width="${W}" height="${H}"></canvas></div>
+          <div class="adv-row">
+            <span style="font-size:11px;">BALL VALUE:</span>
+            <select class="adv-select" id="pc-value" onchange="AdvMini.pcRefresh()">${PC_VALUES.map(v => `<option value="${v}">${v} GC</option>`).join("")}</select>
+            <span class="adv-info">In stock: <b id="pc-stock">0</b> · in play: <b id="pc-play">0</b></span>
+          </div>
+          <div class="adv-row">
+            <button class="btn btn-gold" style="flex:1;" onclick="AdvMini.pcBuy(1)">BUY 1</button>
+            <button class="btn btn-gold" style="flex:1;" onclick="AdvMini.pcBuy(10)">BUY 10</button>
+            <button class="btn btn-gold" style="flex:1;" onclick="AdvMini.pcBuy(50)">BUY 50</button>
+          </div>
+          <div class="adv-row">
+            <button class="btn btn-crimson" style="flex:1;" onclick="AdvMini.pcDrop(1)">DROP 1</button>
+            <button class="btn btn-crimson" style="flex:1;" onclick="AdvMini.pcDrop(5)">DROP 5</button>
+            <button class="btn btn-cyan" style="flex:1;" onclick="AdvMini.pcDrop(99)">DROP MAX</button>
+          </div>
+          <div class="cr-msg" id="pc-msg">Buy some balls to start.</div>
+        </div>
+
+        <div id="adv-view-showdown" style="display:none;">
+          <div class="adv-bal">Balance: <span id="bal-showdown">0 GC</span></div>
+          <div class="adv-info" style="margin-bottom:6px;">Rock-paper-scissors, <b>best of 3</b>. Set your 3 moves, then <b>create a challenge</b> or <b>accept</b> one. Winner gets <b>95%</b> of the pot, a draw refunds both.</div>
+          <div class="sd-picker" id="sd-picker"></div>
+          <div class="adv-row">
+            <span style="font-size:11px;">STAKE:</span>
+            <input type="number" class="adv-input" id="sd-stake" min="${SD_MIN}" step="10" value="100">
+            <button class="btn btn-gold" style="flex:1;" onclick="AdvMini.sdCreate()">CREATE CHALLENGE</button>
+          </div>
+          <div class="cr-msg" id="sd-msg">Pick your moves.</div>
+          <div class="panel-header" style="font-size:10px;margin-bottom:6px;"><span>OPEN CHALLENGES</span><span id="sd-stats" style="color:var(--text-dim);"></span></div>
+          <div class="sd-list" id="sd-list"><div class="adv-info">Loading...</div></div>
+          <div class="panel-header" style="font-size:10px;margin-bottom:6px;"><span>YOUR RECENT MATCHES</span></div>
+          <div id="sd-hist"><div class="adv-info">-</div></div>
+        </div>
+      </div>`;
+    return true;
+  }
+
+  // ===== CHICKEN ROAD =====
+  const cr = { phase: "idle", jumps: 0, bet: 0, deadAt: -1 };
+
+  function crRender() {
+    const road = $("cr-road");
+    if (!road) return;
+    let html = "";
+    for (let i = 0; i <= CR_MAX_JUMPS; i++) {
+      let cls = "cr-cell", content = "";
+      if (i === 0) cls += " curb";
+      if (i > 0 && i <= cr.jumps) cls += " done";
+      if (cr.phase === "run" && i === cr.jumps + 1) cls += " next";
+      if (cr.phase === "dead") {
+        if (i === cr.deadAt) { cls += " dead"; content = "💥"; }
+        else if (i > 0 && i <= cr.jumps) content = "✔";
+        else if (i > cr.deadAt) content = `<span class="cr-car" style="left:${6 + (i * 7) % 18}px">${i % 2 ? "🚗" : "🚚"}</span>`;
+      } else {
+        if (i === cr.jumps) content = `<span class="cr-chicken" id="cr-chicken">🐔</span>`;
+        else if (i > 0 && i < cr.jumps) content = "✔";
+        else if (i > cr.jumps) content = `<span class="cr-car" style="left:${6 + (i * 7) % 18}px">${i % 2 ? "🚗" : "🚚"}</span>`;
+      }
+      html += `<div class="${cls}">${content}<span class="cr-lbl">${i === 0 ? "START" : crMult(i) + "×"}</span></div>`;
+    }
+    road.innerHTML = html;
+    const idx = cr.phase === "dead" ? cr.deadAt : cr.jumps;
+    const here = road.children[idx];
+    if (here) road.scrollLeft = Math.max(0, here.offsetLeft - road.clientWidth / 2 + 23);
+
+    const m = cr.phase === "dead" ? 0 : crMult(cr.jumps);
+    $("cr-jumps").innerText = cr.phase === "dead" ? cr.jumps : cr.jumps;
+    $("cr-mult").innerText = m.toFixed(2) + "×";
+    $("cr-payout").innerText = cr.phase === "run" ? fmt(cr.bet * m) : "0";
+    $("cr-next-mult").innerText = crMult(Math.min(CR_MAX_JUMPS, cr.jumps + 1)).toFixed(2);
+    $("cr-start").disabled = cr.phase === "run";
+    $("cr-jump").disabled = cr.phase !== "run";
+    $("cr-cash").disabled = cr.phase !== "run" || cr.jumps < 1;
+  }
+
+  function crStart() {
+    if (cr.phase === "run") return;
+    const input = $("cr-bet");
+    const bet = TT.cleanBet(input.value, 10, CR_MAX_BET);
+    input.value = bet;
+    if (!TT.spend(bet)) { $("cr-msg").style.color = "var(--crimson)"; $("cr-msg").innerText = "Not enough GC."; return; }
+    cr.phase = "run"; cr.jumps = 0; cr.bet = bet; cr.deadAt = -1;
+    $("cr-msg").style.color = "var(--cyan)";
+    $("cr-msg").innerText = "The road is open. Jump!";
+    crRender();
+  }
+
+  function crJump() {
+    if (cr.phase !== "run") return;
+    if (TT.rnd() < 0.5) {                                   // 50 % smrt
+      cr.phase = "dead"; cr.deadAt = cr.jumps + 1;
+      $("cr-msg").style.color = "var(--crimson)";
+      $("cr-msg").innerText = `SPLAT! Hit on jump ${cr.deadAt}. Lost ${fmt(cr.bet)} GC.`;
+      TT.log(`CHICKEN ROAD: hit by a car on jump ${cr.deadAt}. Lost ${fmt(cr.bet)} GC.`, "error");
+      crRender();
+      return;
+    }
+    cr.jumps += 1;
+    crRender();
+    const ch = $("cr-chicken");
+    if (ch) { ch.classList.remove("hop"); void ch.offsetWidth; ch.classList.add("hop"); }
+    $("cr-msg").style.color = "var(--emerald)";
+    $("cr-msg").innerText = `Safe! ${crMult(cr.jumps).toFixed(2)}× (${fmt(cr.bet * crMult(cr.jumps))} GC)`;
+    if (cr.jumps >= CR_MAX_JUMPS) crCash(true);
+  }
+
+  function crCash(auto) {
+    if (cr.phase !== "run" || cr.jumps < 1) return;
+    const mult = crMult(cr.jumps);
+    const payout = Math.floor(cr.bet * mult);
+    const jumps = cr.jumps, bet = cr.bet;
+    cr.phase = "idle"; cr.jumps = 0;
+    TT.win(payout);
+    TT.log(`CHICKEN ROAD CASH OUT: ${jumps} jumps, ${mult.toFixed(2)}× → +${fmt(payout)} GC${auto ? " (max jumps!)" : ""}`, "special");
+    if (mult >= CR_JACKPOT_MULT) TT.announce("CHICKEN x" + mult.toFixed(0), "ROAD", bet, payout);
+    crRender();
+    $("cr-msg").style.color = "var(--amber)";
+    $("cr-msg").innerText = `CASHED OUT ${mult.toFixed(2)}× = +${fmt(payout)} GC!`;
+  }
+
+  // ===== PACHINKO =====
+  const pc = { balls: [], raf: 0, ctx: null, flash: [], seq: 0 };
+
+  function pcStock() {
+    const g = TT.state();
+    if (!g.pachinko) g.pachinko = {};
+    PC_VALUES.forEach(v => { if (typeof g.pachinko[v] !== "number") g.pachinko[v] = 0; });
+    return g.pachinko;
+  }
+  function pcValue() { return $("pc-value").value; }
+  function pcRefresh() {
+    const a = $("pc-stock"), b = $("pc-play");
+    if (a) a.innerText = fmt(pcStock()[pcValue()] || 0);
+    if (b) b.innerText = pc.balls.length;
+  }
+
+  function pcBuy(n) {
+    const v = Number(pcValue());
+    if (!TT.spend(v * n)) { $("pc-msg").style.color = "var(--crimson)"; $("pc-msg").innerText = `Need ${fmt(v * n)} GC for ${n} ball(s).`; return; }
+    pcStock()[pcValue()] += n;
+    $("pc-msg").style.color = "var(--cyan)";
+    $("pc-msg").innerText = `Bought ${n} ball(s) @ ${v} GC.`;
+    pcRefresh();
+  }
+
+  function pcDrop(n) {
+    const key = pcValue(), stock = pcStock();
+    let dropped = 0;
+    for (let i = 0; i < n; i++) {
+      if (stock[key] <= 0 || pc.balls.length >= PC_MAX_ACTIVE) break;
+      stock[key] -= 1;
+      pcLaunch(Number(key));
+      dropped++;
+    }
+    if (dropped === 0) {
+      $("pc-msg").style.color = "var(--amber)";
+      $("pc-msg").innerText = stock[key] <= 0 ? "No balls in stock - buy some!" : `Max ${PC_MAX_ACTIVE} balls in play at once.`;
+    }
+    pcRefresh();
+    TT.saveSoon();
+  }
+
+  function pcLaunch(value) {
+    const offs = [0];
+    let o = 0;
+    for (let i = 0; i < PC_ROWS; i++) { o += (TT.rnd() < 0.5) ? -1 : 1; offs.push(o); }
+    const bin = (o + PC_ROWS) / 2;
+    const pts = [{ x: 0, y: 8 }];
+    for (let i = 0; i < PC_ROWS; i++) pts.push({ x: offs[i], y: TOP + i * DY - 8 });
+    pts.push({ x: offs[PC_ROWS], y: 306 });
+    const id = Date.now() + "_" + (pc.seq++);
+    // míček v letu se ukládá do savu -> při reloadu se vyplatí (dřív propadl)
+    TT.state().pcPending.push({ id: id, value: value, bin: bin });
+    pc.balls.push({ id: id, value: value, bin: bin, pts: pts, t0: performance.now(), dur: (pts.length - 1) * SEG_MS });
+    pcKick();
+  }
+
+  function pcKick() { if (!pc.raf) pc.raf = requestAnimationFrame(pcFrame); }
+
+  function pcBallPos(b, now) {
+    const el = now - b.t0;
+    const seg = Math.min(b.pts.length - 2, Math.floor(el / SEG_MS));
+    const f = Math.min(1, (el - seg * SEG_MS) / SEG_MS);
+    const p = b.pts[seg], q = b.pts[seg + 1];
+    const e = f * f * (3 - 2 * f);
+    const x = W / 2 + (p.x + (q.x - p.x) * e) * HS;
+    let y = p.y + (q.y - p.y) * f;
+    if (seg > 0 && seg < b.pts.length - 2) y -= 7 * Math.sin(Math.PI * f);
+    return { x: x, y: y };
+  }
+
+  /** Logika přistání - nezávislá na vykreslování (běží i v neviditelném tabu přes watchdog). */
+  function pcTick() {
+    const now = performance.now();
+    const rest = [];
+    for (const b of pc.balls) {
+      if (now - b.t0 >= b.dur) { try { pcLand(b); } catch (e) { console.error(e); } }
+      else rest.push(b);
+    }
+    pc.balls = rest;
+    pc.flash = pc.flash.filter(f => now - f.t < 600);
+    if (!pc.balls.length && !pc.flash.length) pc.raf = 0;
+    pcRefresh();
+  }
+
+  function pcFrame(now) {
+    try {
+      pcTick();
+      const ctx = pc.ctx;
+      pcDrawBoard(ctx);
+      for (const b of pc.balls) {
+        const pos = pcBallPos(b, now);
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffd54a";
+        ctx.fill();
+      }
+      for (const f of pc.flash) {
+        const x = W / 2 + (2 * f.bin - PC_ROWS) * HS;
+        ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - (now - f.t) / 600)})`;
+        ctx.fillRect(x - HS, 300, HS * 2, 34);
+      }
+    } catch (e) { console.error(e); }
+    if (pc.balls.length || pc.flash.length) pc.raf = requestAnimationFrame(pcFrame);
+    else { pc.raf = 0; try { pcDrawBoard(pc.ctx); } catch (e) {} }
+  }
+
+  function pcLand(b) {
+    const st = TT.state();
+    st.pcPending = (st.pcPending || []).filter(p => p.id !== b.id);
+    const mult = PC_MULTS[b.bin];
+    const payout = Math.floor(b.value * mult);
+    pc.flash.push({ bin: b.bin, t: performance.now() });
+    if (payout > 0) TT.win(payout);
+    const msg = $("pc-msg");
+    if (mult >= 1) {
+      msg.style.color = mult >= 25 ? "var(--amber)" : "var(--emerald)";
+      msg.innerText = `Ball @${b.value} → ${mult}× = +${fmt(payout)} GC!`;
+      TT.log(`PACHINKO: ball (${b.value} GC) hit ${mult}× → +${fmt(payout)} GC`, mult >= 25 ? "special" : "success");
+    } else {
+      msg.style.color = "var(--text-dim)";
+      msg.innerText = `Ball @${b.value} → ${mult}× (${fmt(payout)} GC back).`;
+    }
+    if (mult >= 25) TT.announce("PACHINKO x" + mult, "BALL", b.value, payout);
+  }
+
+  function pcResolvePending() {
+    const st = TT.state();
+    const list = st.pcPending || [];
+    if (!list.length) return;
+    let total = 0;
+    list.forEach(p => { total += Math.floor(p.value * (PC_MULTS[p.bin] || 0)); });
+    st.pcPending = [];
+    if (total > 0) TT.win(total);
+    TT.log(`Pachinko: ${list.length} ball(s) from your last session were resolved (+${fmt(total)} GC).`, "special");
+  }
+
+  function pcColor(m) { return m >= 100 ? "#f43f5e" : m >= 20 ? "#fbbf24" : m >= 4 ? "#a855f7" : m >= 1 ? "#2563eb" : "#2a3245"; }
+
+  function pcDrawBoard(ctx) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#8b9bb4";
+    for (let r = 0; r < PC_ROWS; r++) {
+      for (let k = -r; k <= r; k += 2) { ctx.beginPath(); ctx.arc(W / 2 + k * HS, TOP + r * DY, 2.6, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.font = "bold 9px Orbitron, monospace";
+    ctx.textAlign = "center";
+    for (let k = 0; k <= PC_ROWS; k++) {
+      const x = W / 2 + (2 * k - PC_ROWS) * HS;
+      ctx.fillStyle = pcColor(PC_MULTS[k]);
+      ctx.fillRect(x - HS + 1, 300, HS * 2 - 2, 34);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(PC_MULTS[k] + "×", x, 321);
+    }
+  }
+
+  setInterval(pcTick, 700);     // watchdog: míčky se vždy dopočítají i když rAF stojí
+
+  // ===== SHOWDOWN (PvP) =====
+  const sd = { moves: [null, null, null], busy: false, timer: null, started: Date.now(), seen: {}, open: [], hist: [], stats: null };
+  const SD_ERR = { busy: "Server busy, try again.", limit: "You already have 3 open challenges.", stake: "Invalid stake.", moves: "Invalid moves.", taken: "Someone was faster - challenge already taken.", own: "That's your own challenge.", missing: "Challenge not found.", state: "Challenge no longer open.", error: "Server error." };
+
+  function sdMsg(t, color) { const el = $("sd-msg"); if (el) { el.style.color = color || "var(--text-main)"; el.innerText = t; } }
+  function sdMovesStr() { return sd.moves.every(Boolean) ? sd.moves.join("") : null; }
+
+  function sdRenderPicker() {
+    const box = $("sd-picker");
+    if (!box) return;
+    box.innerHTML = [0, 1, 2].map(i => `<div class="sd-pick-row"><span class="lbl">ROUND ${i + 1}</span>` +
+      ["R", "P", "S"].map(m => `<button class="btn sd-mv ${sd.moves[i] === m ? "sel" : ""}" onclick="AdvMini.sdSet(${i},'${m}')">${SD_ICON[m]}</button>`).join("") + `</div>`).join("") +
+      `<button class="btn btn-cyan" style="width:100%;margin-top:4px;" onclick="AdvMini.sdRandom()">🎲 RANDOM MOVES</button>`;
+  }
+  function sdSet(i, m) { sd.moves[i] = m; sdRenderPicker(); }
+  function sdRandom() { sd.moves = [0, 1, 2].map(() => ["R", "P", "S"][Math.floor(TT.rnd() * 3)]); sdRenderPicker(); }
+
+  function sdAge(ts) {
+    const m = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+    return m < 60 ? m + "m" : Math.floor(m / 60) + "h";
+  }
+
+  function sdRenderLists() {
+    const list = $("sd-list");
+    if (list) {
+      list.innerHTML = sd.open.length ? sd.open.map(c => `<div class="sd-item ${c.mine ? "mine" : ""}">
+        <span><b>${escapeHtml(c.creator)}</b> · ${fmt(c.stake)} GC · ${sdAge(c.created)}</span>
+        ${c.mine ? `<button class="btn btn-crimson" onclick="AdvMini.sdCancel('${c.id}')">CANCEL</button>`
+          : `<button class="btn btn-gold" onclick="AdvMini.sdAccept('${c.id}',${c.stake})">ACCEPT</button>`}</div>`).join("")
+        : `<div class="adv-info">No open challenges. Create one!</div>`;
+    }
+    const h = $("sd-hist");
+    if (h) {
+      h.innerHTML = sd.hist.length ? sd.hist.map(x => {
+        const mv = x.myMoves ? ` ${x.myMoves.split("").map(c => SD_ICON[c]).join("")} vs ${x.theirMoves.split("").map(c => SD_ICON[c]).join("")}` : "";
+        return `<div class="sd-hist ${x.res}">${x.res} ${escapeHtml(x.score)} vs ${escapeHtml(x.vs)} · ${fmt(x.stake)} GC${mv}</div>`;
+      }).join("") : `<div class="adv-info">No matches yet.</div>`;
+    }
+    const s = $("sd-stats");
+    if (s && sd.stats) s.innerText = `W ${sd.stats.w} · L ${sd.stats.l} · D ${sd.stats.d} · net ${sd.stats.net >= 0 ? "+" : ""}${fmt(sd.stats.net)}`;
+  }
+
+  function sdCreate() {
+    if (sd.busy) return;
+    const moves = sdMovesStr();
+    if (!moves) { sdMsg("Pick all 3 moves first.", "var(--amber)"); return; }
+    const stake = TT.cleanBet($("sd-stake").value, SD_MIN, SD_MAX);
+    $("sd-stake").value = stake;
+    if (!TT.spend(stake)) { sdMsg("Not enough GC.", "var(--crimson)"); return; }
+    sd.busy = true;
+    google.script.run
+      .withSuccessHandler(res => {
+        sd.busy = false;
+        if (res && res.ok) { sdMsg(`Challenge created (${fmt(stake)} GC). Waiting for a rival...`, "var(--cyan)"); TT.log(`SHOWDOWN: challenge created for ${fmt(stake)} GC.`, "special"); }
+        else { TT.win(stake); sdMsg(SD_ERR[res && res.reason] || "Failed.", "var(--crimson)"); }
+        sdPoll(true);
+      })
+      .withFailureHandler(() => { sd.busy = false; TT.win(stake); sdMsg("Connection error - stake refunded.", "var(--crimson)"); })
+      .pvpCreate(stake, moves);
+  }
+
+  function sdAccept(id, stake) {
+    if (sd.busy) return;
+    const moves = sdMovesStr();
+    if (!moves) { sdMsg("Pick all 3 moves first.", "var(--amber)"); return; }
+    if (!TT.spend(stake)) { sdMsg("Not enough GC for that stake.", "var(--crimson)"); return; }
+    sd.busy = true;
+    google.script.run
+      .withSuccessHandler(res => {
+        sd.busy = false;
+        if (!res || !res.ok) { TT.win(stake); sdMsg(SD_ERR[res && res.reason] || "Failed.", "var(--crimson)"); sdPoll(true); return; }
+        sd.seen[id] = 1;
+        if (res.payout > 0) TT.win(res.payout);
+        const theirs = res.theirMoves.split("").map(c => SD_ICON[c]).join("");
+        const mine = moves.split("").map(c => SD_ICON[c]).join("");
+        if (res.result === "WIN") {
+          sdMsg(`WIN ${res.score} vs ${res.creator}! +${fmt(res.payout - stake)} GC  (${mine} vs ${theirs})`, "var(--emerald)");
+          TT.log(`SHOWDOWN WIN vs ${escapeHtml(res.creator)} (${res.score}): +${fmt(res.payout - stake)} GC`, "special");
+          if (res.payout >= 5000) TT.announce("SHOWDOWN vs " + res.creator, "PVP", stake, res.payout);
+        } else if (res.result === "DRAW") {
+          sdMsg(`DRAW ${res.score} vs ${res.creator}. Stake returned.  (${mine} vs ${theirs})`, "var(--amber)");
+          TT.log(`SHOWDOWN DRAW vs ${escapeHtml(res.creator)}.`);
+        } else {
+          sdMsg(`LOSS ${res.score} vs ${res.creator}. -${fmt(stake)} GC  (${mine} vs ${theirs})`, "var(--crimson)");
+          TT.log(`SHOWDOWN LOSS vs ${escapeHtml(res.creator)} (${res.score}): -${fmt(stake)} GC`, "error");
+        }
+        TT.saveNow();
+        sdPoll(true);
+      })
+      .withFailureHandler(() => { sd.busy = false; TT.win(stake); sdMsg("Connection error - stake refunded.", "var(--crimson)"); })
+      .pvpAccept(id, moves, stake);
+  }
+
+  function sdCancel(id) {
+    if (sd.busy) return;
+    sd.busy = true;
+    google.script.run
+      .withSuccessHandler(res => { sd.busy = false; sdMsg(res && res.ok ? "Challenge cancelled, stake returns shortly." : (SD_ERR[res && res.reason] || "Failed."), "var(--amber)"); sdPoll(true); })
+      .withFailureHandler(() => { sd.busy = false; })
+      .pvpCancel(id);
+  }
+
+  function sdVisible() { const v = $("adv-view-showdown"); return v && v.style.display !== "none"; }
+
+  function sdPoll(forceList) {
+    if (typeof google === "undefined" || !google.script || !google.script.run) return;
+    const wantList = !!forceList || sdVisible();
+    google.script.run.withSuccessHandler(res => {
+      if (!res || !res.ok) return;
+      if (res.claimed && res.claimed.length) {
+        let total = 0;
+        res.claimed.forEach(c => {
+          total += c.amount;
+          TT.log(`SHOWDOWN payout (${c.reason}): +${fmt(c.amount)} GC`, c.reason === "WIN" ? "special" : "success");
+        });
+        TT.win(total);
+        TT.saveNow();
+      }
+      if (res.open) {
+        sd.open = res.open; sd.hist = res.history || []; sd.stats = res.stats;
+        // oznámení o výsledcích výzev, které jsi vytvořil (a někdo je přijal)
+        sd.hist.forEach(x => {
+          if (x.res !== "WIN" && x.res !== "LOSE" && x.res !== "DRAW") return;
+          if (x.at > sd.started && !sd.seen[x.id]) {
+            sd.seen[x.id] = 1;
+            TT.log(`SHOWDOWN: ${escapeHtml(x.vs)} played your challenge - ${x.res} ${x.score}.`, x.res === "WIN" ? "special" : "normal");
+          }
+        });
+        sdRenderLists();
+      }
+    }).pvpPoll(wantList);
+  }
+
+  function sdLoop() {
+    sdPoll(false);
+    sd.timer = setTimeout(sdLoop, sdVisible() ? 6000 : 20000);
+  }
+
+  // ===== TABS + INIT =====
+  function tab(t) {
+    ["chicken", "pachinko", "showdown"].forEach(n => {
+      $("adv-view-" + n).style.display = (n === t) ? "block" : "none";
+      $("adv-tab-" + n).className = "casino-tab-btn" + (n === t ? " active" : "");
+    });
+    if (t === "pachinko") pcRefresh();
+    if (t === "showdown") sdPoll(true);
+  }
+
+  function init() {
+    if (!buildUi()) return;
+    pc.ctx = $("pc-canvas").getContext("2d");
+    pcDrawBoard(pc.ctx);
+    $("pc-rtp").innerText = (pcRtp() * 100).toFixed(1) + "%";
+    crRender();
+    pcRefresh();
+    sdRenderPicker();
+  }
+
+  window.AdvMini = {
+    tab: tab,
+    crStart: crStart, crJump: crJump, crCash: function () { crCash(false); },
+    pcBuy: pcBuy, pcDrop: pcDrop, pcRefresh: pcRefresh,
+    sdSet: sdSet, sdRandom: sdRandom, sdCreate: sdCreate, sdAccept: sdAccept, sdCancel: sdCancel,
+    isBusy: function () { return cr.phase === "run" || pc.balls.length > 0 || sd.busy; }
+  };
+
+  function boot() {
+    if (!window.TT) { setTimeout(boot, 50); return; }
+    init();
+    TT.onLoaded(function () {
+      pcResolvePending();
+      pcRefresh();
+      sd.started = Date.now();
+      sdLoop();
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+</script>
+
+  <style>
+/* ===== FX layer (fx.html) - jen transform/opacity, jednorázové animace, žádná nová smyčka ===== */
+:root { --fx-ease: cubic-bezier(.2,.8,.2,1); }
+
+/* --- obecné doladění (funguje i s FX vypnutými) --- */
+.btn { transition: transform .12s var(--fx-ease), box-shadow .15s, filter .15s, background .15s, border-color .15s, color .15s; }
+.btn:not(:disabled):hover { filter: brightness(1.18); }
+.btn:not(:disabled):active { transform: translateY(1px) scale(.975); filter: brightness(.95); }
+.btn:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.item-card { transition: transform .15s var(--fx-ease), border-color .15s, box-shadow .2s; }
+.item-card:hover { transform: translateY(-1px); }
+.item-card.t3 { box-shadow: inset 3px 0 12px -8px var(--rarity-t3); }
+.item-card.t4 { box-shadow: inset 3px 0 14px -7px var(--rarity-t4); }
+.item-card.t5 { box-shadow: inset 3px 0 16px -6px var(--rarity-t5); }
+.item-card.t6 { box-shadow: inset 3px 0 18px -5px var(--rarity-t6); }
+* { scrollbar-width: thin; scrollbar-color: #2a3345 transparent; }
+
+/* --- ovládací přepínač --- */
+#fx-toggle {
+  position: fixed; left: 10px; bottom: 10px; z-index: 50;
+  font: 700 10px 'Orbitron', monospace; letter-spacing: .5px;
+  padding: 5px 9px; border-radius: 4px; cursor: pointer;
+  background: rgba(13,17,26,.85); color: var(--text-dim); border: 1px solid var(--border-subtle);
+}
+#fx-toggle:hover { color: var(--cyan); border-color: var(--cyan); }
+
+/* --- plovoucí +N při kliku --- */
+.fx-float {
+  position: fixed; z-index: 60; pointer-events: none; left: 0; top: 0;
+  font: 800 16px 'Orbitron', monospace; color: var(--cyan);
+  text-shadow: 0 0 8px rgba(0,240,255,.7), 0 1px 0 #000;
+  opacity: 0; will-change: transform, opacity;
+}
+.fx-float.go { animation: fxFloat .75s var(--fx-ease) forwards; }
+@keyframes fxFloat {
+  0%   { opacity: 0; transform: translate(var(--fx-x), var(--fx-y)) scale(.7); }
+  15%  { opacity: 1; transform: translate(var(--fx-x), calc(var(--fx-y) - 14px)) scale(1.15); }
+  100% { opacity: 0; transform: translate(calc(var(--fx-x) + var(--fx-dx)), calc(var(--fx-y) - 70px)) scale(.9); }
+}
+
+/* --- číslo "poskočí" při změně --- */
+.fx-pop { animation: fxPop .28s var(--fx-ease); }
+@keyframes fxPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
+
+/* --- výhra / prohra --- */
+.fx-win  { animation: fxWin .7s var(--fx-ease); }
+.fx-loss { animation: fxShake .35s linear; }
+@keyframes fxWin {
+  0% { transform: scale(.96); filter: brightness(1); }
+  30% { transform: scale(1.05); filter: brightness(1.6) drop-shadow(0 0 10px rgba(0,255,136,.7)); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+@keyframes fxShake {
+  0%,100% { transform: translateX(0); } 20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); }
+}
+
+/* --- bedna: text výsledku --- */
+.fx-chest { animation: fxChest .5s var(--fx-ease); }
+@keyframes fxChest { 0% { opacity: 0; transform: translateY(6px) scale(.98); } 100% { opacity: 1; transform: none; } }
+
+/* --- celoobrazovkový záblesk (vzácný drop, prestiž) --- */
+#fx-flash {
+  position: fixed; inset: 0; z-index: 55; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, var(--fx-c, #fff) 0%, transparent 70%);
+}
+#fx-flash.go { animation: fxFlash .9s ease-out; }
+@keyframes fxFlash { 0% { opacity: 0; } 12% { opacity: .38; } 100% { opacity: 0; } }
+
+/* --- velký banner uprostřed (prestiž, velká výhra) --- */
+#fx-banner {
+  position: fixed; left: 50%; top: 22%; z-index: 65; pointer-events: none; opacity: 0;
+  transform: translate(-50%, 0); text-align: center;
+  font: 900 34px 'Orbitron', monospace; letter-spacing: 3px; color: var(--amber);
+  text-shadow: 0 0 18px rgba(255,184,0,.6), 0 2px 0 #000; white-space: nowrap;
+}
+#fx-banner small { display: block; font-size: 14px; letter-spacing: 2px; margin-top: 6px; color: var(--text-main); }
+#fx-banner.go { animation: fxBanner 1.7s var(--fx-ease) forwards; }
+@keyframes fxBanner {
+  0% { opacity: 0; transform: translate(-50%, 14px) scale(.8); }
+  14% { opacity: 1; transform: translate(-50%, 0) scale(1.06); }
+  24% { transform: translate(-50%, 0) scale(1); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -18px) scale(1); }
+}
+
+/* --- vstupní animace panelů (jednorázově) --- */
+.fx-intro .panel { animation: fxIn .5s var(--fx-ease) backwards; }
+.fx-intro .panel:nth-child(2) { animation-delay: .06s; }
+.fx-intro .panel:nth-child(3) { animation-delay: .12s; }
+.fx-intro .panel:nth-child(4) { animation-delay: .18s; }
+@keyframes fxIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* --- FX vypnuto / reduced motion --- */
+html.fx-off .fx-float, html.fx-off #fx-flash, html.fx-off #fx-banner { display: none !important; }
+html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-chest, html.fx-off .fx-intro .panel { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .fx-float, #fx-flash, #fx-banner { display: none !important; }
+  .fx-pop, .fx-win, .fx-loss, .fx-chest, .fx-intro .panel { animation: none !important; }
+}
+@media (max-width: 700px) { #fx-banner { font-size: 22px; } }
+</style>
+
+<div id="fx-flash"></div>
+<div id="fx-banner"></div>
+<button id="fx-toggle" type="button" title="Zapnout / vypnout efekty">✨ FX: ON</button>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var on = true;
+  try { if (localStorage.getItem("tt_fx") === "0") on = false; } catch (e) {}
+  try { if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) on = false; } catch (e) {}
+
+  function applyOn() {
+    document.documentElement.classList.toggle("fx-off", !on);
+    var t = $("fx-toggle"); if (t) t.textContent = "✨ FX: " + (on ? "ON" : "OFF");
+  }
+  applyOn();
+  $("fx-toggle").addEventListener("click", function () {
+    on = !on; applyOn();
+    try { localStorage.setItem("tt_fx", on ? "1" : "0"); } catch (e) {}
+  });
+
+  function canFx() { return on && !document.hidden; }
+  function retrigger(el, cls) {
+    if (!el) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;            // restart animace
+    el.classList.add(cls);
+  }
+
+  // ---------- intro ----------
+  document.body.classList.add("fx-intro");
+  setTimeout(function () { document.body.classList.remove("fx-intro"); }, 1200);
+
+  // ---------- plovoucí +N při kliku (pool 14 prvků) ----------
+  var POOL = [], poolIdx = 0, lastFloat = 0;
+  for (var i = 0; i < 14; i++) {
+    var d = document.createElement("div");
+    d.className = "fx-float";
+    d.addEventListener("animationend", function (ev) { ev.target.classList.remove("go"); });
+    document.body.appendChild(d); POOL.push(d);
+  }
+  var btn = $("btn-click");
+  if (btn) btn.addEventListener("click", function (ev) {
+    if (!canFx() || !ev.isTrusted) return;
+    var now = performance.now();
+    if (now - lastFloat < 70) return;           // max ~14 / s
+    lastFloat = now;
+    var r = btn.getBoundingClientRect();
+    var x = ev.detail > 0 ? ev.clientX : r.left + r.width / 2;
+    var y = ev.detail > 0 ? ev.clientY : r.top + r.height / 2;
+    var cv = $("click-val");
+    var el = POOL[poolIdx++ % POOL.length];
+    el.textContent = "+" + (cv ? cv.textContent.trim() : "1");
+    el.style.setProperty("--fx-x", (x - 14) + "px");
+    el.style.setProperty("--fx-y", (y - 24) + "px");
+    el.style.setProperty("--fx-dx", (Math.random() * 40 - 20).toFixed(0) + "px");
+    el.classList.remove("go"); void el.offsetWidth; el.classList.add("go");
+  });
+
+  // ---------- poskočení čísel (jen coins/scrap/click/mult, max 1x za 600 ms) ----------
+  ["stat-coins", "stat-scrap", "stat-click", "stat-mult"].forEach(function (id) {
+    var el = $(id); if (!el) return;
+    var last = 0, first = true;
+    new MutationObserver(function () {
+      if (first) { first = false; return; }
+      if (!canFx()) return;
+      var n = performance.now(); if (n - last < 600) return; last = n;
+      retrigger(el, "fx-pop");
+    }).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  document.addEventListener("animationend", function (e) {
+    if (e.target && e.target.classList) {
+      ["fx-pop", "fx-win", "fx-loss", "fx-chest"].forEach(function (c) { e.target.classList.remove(c); });
+    }
+  });
+
+  // ---------- flash + banner ----------
+  var flash = $("fx-flash"), banner = $("fx-banner"), bannerTimer = 0;
+  function doFlash(color) {
+    if (!canFx()) return;
+    flash.style.setProperty("--fx-c", color);
+    retrigger(flash, "go");
+  }
+  flash.addEventListener("animationend", function () { flash.classList.remove("go"); });
+  function doBanner(html, color) {
+    if (!canFx()) return;
+    banner.style.color = color || "var(--amber)";
+    banner.innerHTML = html;
+    retrigger(banner, "go");
+  }
+  banner.addEventListener("animationend", function () { banner.classList.remove("go"); });
+
+  // ---------- výsledky her: výhra/prohra + velká výhra ----------
+  function amount(txt) {
+    var m = /([+-])\s*([\d][\d,]*)\s*GC/.exec(txt);
+    return m ? Number(m[2].replace(/,/g, "")) : 0;
+  }
+  function watchResult(id, target) {
+    var el = $(id); if (!el) return;
+    var lastTxt = "";
+    new MutationObserver(function () {
+      var t = (el.textContent || "").trim();
+      if (!t || t === lastTxt) return;
+      lastTxt = t;
+      if (!canFx()) return;
+      var box = target ? $(target) : el;
+      if (/\b(WIN|SUCCESS|OVERDRIVE|JACKPOT)\b/.test(t)) {
+        retrigger(box, "fx-win");
+        var a = amount(t);
+        if (a >= 5000) { doFlash("#00ff88"); doBanner("+" + a.toLocaleString() + " GC", "var(--emerald)"); }
+      } else if (/\b(LOSS|FAILED|CRASH|BUST)\b/.test(t)) {
+        retrigger(box, "fx-loss");
+      }
+    }).observe(el, { childList: true, characterData: true, subtree: true });
+  }
+  watchResult("roulette-result");
+  watchResult("slots-banner");
+  watchResult("bj-result");
+  watchResult("consult-display");
+  watchResult("cr-msg");
+  watchResult("pc-msg");
+  watchResult("sd-msg");
+
+  // ---------- bedna: animace textu + záblesk podle nejvyšší rarity ----------
+  var chest = $("chest-result");
+  if (chest) {
+    var lastChest = "";
+    var COLORS = { 3: "#a855f7", 4: "#fbbf24", 5: "#f43f5e", 6: "#ff4dff" };
+    new MutationObserver(function () {
+      var t = chest.textContent || "";
+      if (!t || t === lastChest) return; lastChest = t;
+      if (!canFx()) return;
+      retrigger(chest, "fx-chest");
+      var best = 0, re = /T([1-6])×/g, m;
+      while ((m = re.exec(t))) best = Math.max(best, Number(m[1]));
+      if (best >= 3) doFlash(COLORS[best]);
+      if (best >= 5) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
+      if (/SLOT TOKEN/.test(t)) doBanner("🎟 SLOT TOKEN!", "var(--amber)");
+    }).observe(chest, { childList: true, characterData: true, subtree: true });
+  }
+
+  // ---------- prestiž ----------
+  var pl = $("prestige-lvl");
+  if (pl) {
+    var lastP = null;
+    new MutationObserver(function () {
+      var v = (pl.textContent || "").trim();
+      if (lastP === null) { lastP = v; return; }
+      if (v === lastP) return;
+      lastP = v;
+      doFlash("#ffb800");
+      doBanner("ASCENDED", "var(--amber)");
+      banner.innerHTML = "ASCENDED<small>PRESTIGE " + v + "</small>";
+    }).observe(pl, { childList: true, characterData: true, subtree: true });
+  }
+})();
+</script>
+
+  <style>
+/* ======================= MOBILNÍ REŽIM (html.m) =======================
+   Stejná hra, jen jiné rozložení: horní lišta + mini HUD + obsah jedné záložky + spodní lišta.
+   Záložka HRA má zamčený scroll a obří tlačítko, ostatní záložky se normálně posouvají. */
+#m-hud, #m-tabs { display: none; }
+
+html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
+html.m body {
+  display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+html.m .btn, html.m .btn-primary-action, html.m .casino-tab-btn, html.m #m-tabs button {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+}
+html.m .top-bar { flex: none; padding: 6px 10px; flex-direction: row; gap: 6px; }
+html.m .brand-title { font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
+html.m .user-badge { gap: 8px; font-size: 10px; flex-wrap: nowrap; }
+html.m .status-pill { display: none; }
+html.m .user-badge > span:nth-child(2) { display: none; }
+html.m .btn-help { padding: 3px 7px; font-size: 10px; }
+
+html.m #m-hud {
+  flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 5px 8px;
+  background: #0a0e16; border-bottom: 1px solid var(--border-subtle);
+}
+html.m #m-hud div { text-align: center; line-height: 1.15; min-width: 0; }
+html.m #m-hud small { display: block; font: 700 8px 'Orbitron', monospace; letter-spacing: .5px; color: var(--text-dim); }
+html.m #m-hud b { display: block; font: 800 13px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+html.m .main-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px; gap: 8px; max-width: none; width: 100%; box-sizing: border-box; }
+html.m .grid-columns { display: flex; flex-direction: column; gap: 8px; flex: none; }
+html.m .grid-columns { align-items: stretch; }
+html.m .grid-columns > *, html.m .main-wrapper > * { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
+html.m #adv-minigames-mount, html.m .adv-wrap { min-width: 0; max-width: 100%; overflow: hidden; }
+html.m .cr-road { max-width: 100%; }
+html.m .column { display: contents; }
+html.m [data-tab] { display: none; }
+html.m body[data-mtab="play"]   [data-tab="play"],
+html.m body[data-mtab="chest"]  [data-tab="chest"],
+html.m body[data-mtab="bag"]    [data-tab="bag"],
+html.m body[data-mtab="casino"] [data-tab="casino"],
+html.m body[data-mtab="more"]   [data-tab="more"] { display: block; }
+
+/* --- záložka HRA: nic se neposouvá, tlačítko vyplní zbytek výšky --- */
+html.m body[data-mtab="play"] .main-wrapper { overflow: hidden; }
+html.m body[data-mtab="play"] .grid-columns { flex: 1 1 auto; min-height: 0; }
+html.m body[data-mtab="play"] [data-tab="play"] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+html.m [data-tab="play"] .click-btn-wrap { flex: 1 1 auto; display: flex; min-height: 130px; }
+html.m [data-tab="play"] #btn-click { flex: 1; height: auto; font-size: 20px; line-height: 1.3; border-radius: 10px; }
+html.m [data-tab="play"] #btn-click:active { transform: scale(.985); }
+
+html.m #m-tabs {
+  flex: none; display: flex; background: #0a0e16; border-top: 1px solid var(--border-subtle);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+html.m #m-tabs button {
+  flex: 1; padding: 9px 2px 8px; background: none; border: 0; border-top: 2px solid transparent; color: var(--text-dim);
+  font: 700 9px 'Orbitron', monospace; letter-spacing: .5px; cursor: pointer;
+}
+html.m #m-tabs button span { display: block; font-size: 18px; margin-bottom: 2px; }
+html.m #m-tabs button.active { color: var(--cyan); border-top-color: var(--cyan); background: rgba(0,240,255,.06); }
+
+html.m #fx-toggle, html.m #ir-logout { display: none !important; }
+html.m .panel { padding: 10px; }
+html.m .stats-grid { grid-template-columns: repeat(2, 1fr); }
+html.m input, html.m select, html.m textarea { font-size: 16px; }   /* iOS nezoomuje při fokusu */
+html.m canvas { max-width: 100%; height: auto; }
+html.m table.lb-table { font-size: 11px; }
+html.m #backpack-grid { grid-template-columns: 1fr !important; }
+html.m .item-actions { flex-wrap: wrap; }
+html.m .item-actions .btn { padding: 8px 10px; }
+html.m #fx-banner { font-size: 22px; }
+html.m .tt-modal, html.m .modal { max-width: 94vw; }
+html.m #update-banner { top: 0; }
+
+/* panel Nastavení (jen mobil) */
+#m-settings { display: none; }
+html.m body[data-mtab="more"] #m-settings { display: block; }
+#m-settings .row { display: flex; gap: 8px; }
+#m-settings .btn { flex: 1; padding: 10px; }
+</style>
+
+<div id="m-hud">
+  <div><small>TICKETS</small><b id="mh-t" style="color:var(--cyan);">0</b></div>
+  <div><small>GC</small><b id="mh-c" style="color:var(--amber);">0</b></div>
+  <div><small>SCRAP</small><b id="mh-s" style="color:var(--text-main);">0</b></div>
+  <div><small>CPS</small><b id="mh-p" style="color:var(--emerald);">0.0</b></div>
+</div>
+<nav id="m-tabs">
+  <button data-go="play"><span>🎯</span>HRA</button>
+  <button data-go="chest"><span>📦</span>BEDNA</button>
+  <button data-go="bag"><span>🎒</span>BATOH</button>
+  <button data-go="casino"><span>🎰</span>CASINO</button>
+  <button data-go="more"><span>☰</span>VÍC</button>
+</nav>
+<div class="panel" id="m-settings" data-tab="more">
+  <div class="panel-header">NASTAVENÍ</div>
+  <div class="row">
+    <button class="btn btn-cyan" id="m-fx" type="button">✨ EFEKTY</button>
+    <button class="btn btn-crimson" id="m-logout" type="button">ODHLÁSIT</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var mq = window.matchMedia ? window.matchMedia("(max-width: 820px)") : { matches: false };
+  var tab = "play";
+  try { tab = localStorage.getItem("ir_tab") || "play"; } catch (e) {}
+
+  var tb = document.querySelector(".top-bar"); if (tb && $("m-hud")) tb.parentNode.insertBefore($("m-hud"), tb.nextSibling);
+  var mwEl = document.querySelector(".main-wrapper"); if (mwEl && $("m-settings")) mwEl.appendChild($("m-settings"));
+  var tabsEl = $("m-tabs"); if (mwEl && tabsEl) mwEl.parentNode.insertBefore(tabsEl, mwEl.nextSibling);
+
+  function panelOf(id) { var el = $(id); return el ? (el.closest(".panel") || el) : null; }
+  function panelByHeader(re) {
+    var all = document.querySelectorAll(".panel");
+    for (var i = 0; i < all.length; i++) { var h = all[i].querySelector(".panel-header"); if (h && re.test(h.textContent)) return all[i]; }
+    return null;
+  }
+  function tag(el, name) { if (el) el.setAttribute("data-tab", name); }
+
+  tag(panelOf("btn-click"), "play");
+  tag(panelByHeader(/SCRAP FABRICATION/), "chest");
+  tag(panelOf("btn-open-chest"), "chest");
+  tag(panelOf("slot-HEAD"), "bag");
+  tag(panelOf("backpack-grid"), "bag");
+  tag(panelOf("merge-list"), "bag");
+  tag(panelOf("view-roulette"), "casino");
+  tag($("adv-minigames-mount"), "casino");
+  tag(panelOf("btn-consult-launch"), "casino");
+  tag(panelOf("stat-tickets"), "more");
+  tag(panelOf("lp-shop"), "more");
+  tag(panelOf("log"), "more");
+  tag(panelOf("lb-body"), "more");
+
+  function setTab(t) {
+    tab = t;
+    document.body.setAttribute("data-mtab", t);
+    var bs = document.querySelectorAll("#m-tabs button");
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle("active", bs[i].getAttribute("data-go") === t);
+    var mw = document.querySelector(".main-wrapper"); if (mw) mw.scrollTop = 0;
+    try { localStorage.setItem("ir_tab", t); } catch (e) {}
+    window.dispatchEvent(new Event("resize"));      // ruleta si přepočítá šířku
+  }
+  document.getElementById("m-tabs").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button[data-go]"); if (b) setTab(b.getAttribute("data-go"));
+  });
+
+  function applyMode() {
+    var on = !!mq.matches;
+    document.documentElement.classList.toggle("m", on);
+    if (on) setTab(/^(play|chest|bag|casino|more)$/.test(tab) ? tab : "play");
+    else document.body.removeAttribute("data-mtab");
+  }
+  if (mq.addEventListener) mq.addEventListener("change", applyMode); else if (mq.addListener) mq.addListener(applyMode);
+  applyMode();
+
+  // ---------- mini HUD (zapisuje jen změněné texty, 4x za sekundu) ----------
+  var cache = {};
+  function mirror(from, to) {
+    var a = $(from), b = $(to); if (!a || !b) return;
+    var t = a.textContent;
+    if (cache[to] !== t) { cache[to] = t; b.textContent = t; }
+  }
+  setInterval(function () {
+    if (!mq.matches || document.hidden) return;
+    mirror("stat-tickets", "mh-t"); mirror("stat-coins", "mh-c"); mirror("stat-scrap", "mh-s"); mirror("stat-cps", "mh-p");
+  }, 250);
+
+  // ---------- nastavení ----------
+  $("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/.test(t.textContent)) ? "✨ EFEKTY: OFF" : "✨ EFEKTY: ON"; });
+  $("m-logout").addEventListener("click", function () { var t = $("ir-logout"); if (t) t.click(); });
+
+  // zákaz pinch-zoomu a přetahování stránky na záložce HRA
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+  document.addEventListener("touchmove", function (e) {
+    if (mq.matches && tab === "play" && !(e.target.closest && e.target.closest("input,textarea,select"))) e.preventDefault();
+  }, { passive: false });
+})();
+</script>
+
+</body>
+</html>
