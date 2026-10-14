@@ -1545,7 +1545,7 @@ const LP_UPGRADES = [
   { id: "auto", name: "Auto Mastery", desc: "+10% Auto GC / level", max: 25, cost: l => 2 + l },
   { id: "scrap", name: "Scrap Recycler", desc: "-3% scrap cost of chest / level", max: 10, cost: l => 2 + l },
   { id: "start", name: "Head Start", desc: "+500 GC after each prestige / level", max: 10, cost: l => 1 + l },
-  { id: "heirloom", name: "Heirloom", desc: "Keep your best N equipped items on prestige", max: 6, cost: l => 5 * (l + 1) }
+  { id: "heirloom", name: "Heirloom", desc: "Keep your best N equipped items on prestige (at half tier and half merge level)", max: 6, cost: l => 5 * (l + 1) }
 ];
 
 let gameState = {
@@ -1969,7 +1969,7 @@ function performPrestige() {
   if (n > 0) {
     SLOTS.map(s => gameState.loadout[s]).filter(Boolean)
       .sort((a, b) => itemRating(b) - itemRating(a)).slice(0, n)
-      .forEach(it => keep.push(it));
+      .forEach(it => keep.push({ slot: it.slot, tier: Math.max(1, Math.ceil(it.tier / 2)), lvl: Math.floor((it.lvl || 0) / 2) }));   // polovina tieru (nahoru) i merge levelu (dolů)
   }
 
   gameState.prestige += 1;
@@ -1985,7 +1985,7 @@ function performPrestige() {
   gameState.focusAutogenActive = false;
   gameState.focusAutogenRemaining = 0;
 
-  log(`ASCENDED TO PRESTIGE ${gameState.prestige}! +${lpGain} Legacy Points (total ${gameState.lp}). Start bonus: ${gameState.coins.toLocaleString()} GC.${keep.length ? " Heirloom kept " + keep.length + " item(s)." : ""}`, "special");
+  log(`ASCENDED TO PRESTIGE ${gameState.prestige}! +${lpGain} Legacy Points (total ${gameState.lp}). Start bonus: ${gameState.coins.toLocaleString()} GC.${keep.length ? " Heirloom kept " + keep.length + " item(s) at half tier & merge level." : ""}`, "special");
   saveGame();
   updateUI();
 }
@@ -3059,7 +3059,7 @@ const TUTORIAL_STEPS = [
     <ul><li>Active bonuses are shown as chips under the click button</li></ul>` },
   { t: "6) PRESTIGE & LEGACY POINTS", b: `
     <p>Prestige <b>resets your run</b> (tickets, scrap, GC, chest, gear) but raises the multiplier (+0.25 each) and gives <b>Legacy Points</b>.</p>
-    <ul><li>Spend LP in the Legacy Shop: click/auto bonuses, cheaper chests, start GC and <b>Heirloom</b> (keep your best equipped items)</li>
+    <ul><li>Spend LP in the Legacy Shop: click/auto bonuses, cheaper chests, start GC and <b>Heirloom</b> (keep your best equipped items at half tier &amp; merge level)</li>
     <li>You have to click twice to confirm a prestige</li></ul>` },
   { t: "7) CASINO", b: `
     <p><b>Roulette</b> (30 s cooldown), <b>Slots</b>, <b>Blackjack</b> (blackjack pays 2.5×). Use the 10% / 25% / 50% / MAX buttons for bets.</p>
