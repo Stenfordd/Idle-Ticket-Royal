@@ -1310,21 +1310,21 @@ body {
 <div id="ir-login">
   <form class="ir-card" id="ir-form" autocomplete="on">
     <div class="ir-title" id="ir-name">IDLE ROYALE</div>
-    <div class="ir-sub" id="ir-sub">Přihlas se přezdívkou a PINem</div>
-    <label for="ir-nick">PŘEZDÍVKA</label>
+    <div class="ir-sub" id="ir-sub">Log in with your nickname and PIN</div>
+    <label for="ir-nick">NICKNAME</label>
     <input id="ir-nick" name="username" type="text" maxlength="16" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <label for="ir-pin">PIN (min. 4 znaky)</label>
+    <label for="ir-pin">PIN (min. 4 characters)</label>
     <input id="ir-pin" name="password" type="password" maxlength="32" autocomplete="current-password" inputmode="text">
     <div id="ir-invite-wrap">
-      <label for="ir-invite">POZVÁNKOVÝ KÓD</label>
+      <label for="ir-invite">INVITE CODE</label>
       <input id="ir-invite" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false">
     </div>
-    <button class="btn btn-crimson ir-btn" id="ir-submit" type="submit">PŘIHLÁSIT</button>
+    <button class="btn btn-crimson ir-btn" id="ir-submit" type="submit">LOG IN</button>
     <div class="ir-msg" id="ir-msg"></div>
     <div class="ir-switch" id="ir-switch"></div>
   </form>
 </div>
-<button id="ir-logout" type="button">ODHLÁSIT</button>
+<button id="ir-logout" type="button">LOG OUT</button>
 
 <script>
 (function () {
@@ -1377,7 +1377,7 @@ body {
 
   // ---------- volání API ----------
   function call(fn, args, withAuth) {
-    if (!API || /PASTE|^$/.test(API)) return Promise.reject(new Error("Není nastavená adresa API (IR_CONFIG.API_URL v index.html)."));
+    if (!API || /PASTE|^$/.test(API)) return Promise.reject(new Error("API address not set (see config.js)."));
     var ctrl = window.AbortController ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : 0;
     return fetch(API, {
@@ -1389,11 +1389,11 @@ body {
       if (timer) clearTimeout(timer);
       return r.json();
     }).then(function (j) {
-      if (!j || !j.ok) throw new Error((j && j.error) || "Chyba serveru");
+      if (!j || !j.ok) throw new Error((j && j.error) || "Server error");
       return j.data;
     }).catch(function (e) {
       if (timer) clearTimeout(timer);
-      if (e && e.name === "AbortError") throw new Error("Server neodpověděl včas.");
+      if (e && e.name === "AbortError") throw new Error("Server did not respond in time.");
       throw e;
     });
   }
@@ -1424,12 +1424,12 @@ body {
   function setMode(m) {
     mode = m;
     $("ir-invite-wrap").style.display = m === "register" ? "block" : "none";
-    $("ir-submit").textContent = m === "register" ? "VYTVOŘIT ÚČET" : "PŘIHLÁSIT";
-    $("ir-sub").textContent = m === "register" ? "Nový účet (potřebuješ pozvánkový kód)" : "Přihlas se přezdívkou a PINem";
+    $("ir-submit").textContent = m === "register" ? "CREATE ACCOUNT" : "LOG IN";
+    $("ir-sub").textContent = m === "register" ? "New account (you need an invite code)" : "Log in with your nickname and PIN";
     $("ir-pin").autocomplete = m === "register" ? "new-password" : "current-password";
     $("ir-switch").innerHTML = m === "register"
-      ? 'Už máš účet? <a id="ir-sw">Přihlásit se</a>'
-      : 'Nemáš účet? <a id="ir-sw">Registrace</a>';
+      ? 'Already have an account? <a id="ir-sw">Log in</a>'
+      : 'No account? <a id="ir-sw">Register</a>';
     $("ir-sw").onclick = function () { setMsg(""); setMode(m === "register" ? "login" : "register"); };
   }
   function showLogin() { $("ir-login").classList.add("open"); setMode(mode); setTimeout(function () { $("ir-nick").focus(); }, 50); }
@@ -1441,7 +1441,7 @@ body {
   function clearAuth() { try { localStorage.removeItem("ir_auth"); } catch (e) {} }
 
   function boot() {
-    setMsg("Načítám...", true);
+    setMsg("Loading...", true);
     call("getAppVersion", [], false).then(function (v) {
       window.CLIENT_VERSION = String(v);
       hideLogin();
@@ -1449,16 +1449,16 @@ body {
       if (typeof window.__startGame === "function") window.__startGame();
     }).catch(function (e) {
       showLogin();
-      setMsg("Server není dostupný: " + e.message);
+      setMsg("Server unreachable: " + e.message);
     });
   }
 
   $("ir-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
     var nick = $("ir-nick").value.trim(), pin = $("ir-pin").value;
-    if (!/^[A-Za-z0-9_\-]{3,16}$/.test(nick)) { setMsg("Přezdívka: 3-16 znaků, jen písmena, čísla, _ a -"); return; }
-    if (pin.length < 4) { setMsg("PIN musí mít aspoň 4 znaky."); return; }
-    $("ir-submit").disabled = true; setMsg("Pracuji...", true);
+    if (!/^[A-Za-z0-9_\-]{3,16}$/.test(nick)) { setMsg("Nickname: 3-16 characters, letters, numbers, _ and - only"); return; }
+    if (pin.length < 4) { setMsg("PIN must be at least 4 characters."); return; }
+    $("ir-submit").disabled = true; setMsg("Working...", true);
     keyFor(nick, pin).then(function (h) {
       var args = mode === "register" ? [nick, h, $("ir-invite").value] : [nick, h];
       return call(mode, args, false).then(function (res) {
@@ -1470,7 +1470,7 @@ body {
   });
 
   $("ir-logout").addEventListener("click", function () {
-    if (!confirm("Odhlásit se? (hra se předtím uloží)")) return;
+    if (!confirm("Log out? (your game is saved first)")) return;
     var go = function () { clearAuth(); location.reload(); };
     try { if (typeof saveGame === "function") { saveGame(go); setTimeout(go, 4000); return; } } catch (e) {}
     go();
@@ -1485,7 +1485,7 @@ body {
     if (saved && saved.nick && saved.h) {
       auth = saved;
       call("login", [saved.nick, saved.h], false).then(function () { boot(); }).catch(function (e) {
-        if (/Špatná|PIN|přezdívka/i.test(e.message)) { clearAuth(); auth = null; }
+        if (/wrong|invalid|PIN|nickname/i.test(e.message)) { clearAuth(); auth = null; }
         showLogin(); setMsg(e.message);
       });
     } else {
@@ -4309,17 +4309,17 @@ html.m body[data-mtab="more"] #m-settings { display: block; }
   <div><small>CPS</small><b id="mh-p" style="color:var(--emerald);">0.0</b></div>
 </div>
 <nav id="m-tabs">
-  <button data-go="play"><span>🎯</span>HRA</button>
-  <button data-go="chest"><span>📦</span>BEDNA</button>
-  <button data-go="bag"><span>🎒</span>BATOH</button>
+  <button data-go="play"><span>🎯</span>PLAY</button>
+  <button data-go="chest"><span>📦</span>CHEST</button>
+  <button data-go="bag"><span>🎒</span>BAG</button>
   <button data-go="casino"><span>🎰</span>CASINO</button>
-  <button data-go="more"><span>☰</span>VÍC</button>
+  <button data-go="more"><span>☰</span>MORE</button>
 </nav>
 <div class="panel" id="m-settings" data-tab="more">
-  <div class="panel-header">NASTAVENÍ</div>
+  <div class="panel-header">SETTINGS</div>
   <div class="row">
-    <button class="btn btn-cyan" id="m-fx" type="button">✨ EFEKTY</button>
-    <button class="btn btn-crimson" id="m-logout" type="button">ODHLÁSIT</button>
+    <button class="btn btn-cyan" id="m-fx" type="button">✨ EFFECTS</button>
+    <button class="btn btn-crimson" id="m-logout" type="button">LOG OUT</button>
   </div>
 </div>
 
@@ -4403,7 +4403,7 @@ html.m body[data-mtab="more"] #m-settings { display: block; }
   }, 250);
 
   // ---------- nastavení ----------
-  $("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/.test(t.textContent)) ? "✨ EFEKTY: OFF" : "✨ EFEKTY: ON"; });
+  $("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/.test(t.textContent)) ? "✨ EFFECTS: OFF" : "✨ EFFECTS: ON"; });
   $("m-logout").addEventListener("click", function () { var t = $("ir-logout"); if (t) t.click(); });
 
   // zákaz pinch-zoomu a přetahování stránky na záložce HRA
