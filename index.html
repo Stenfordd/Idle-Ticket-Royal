@@ -4107,10 +4107,6 @@ window.__startGame = initGame;
 /* --- FX vypnuto / reduced motion --- */
 html.fx-off .fx-float, html.fx-off #fx-flash, html.fx-off #fx-banner { display: none !important; }
 html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-chest, html.fx-off .fx-intro .panel { animation: none !important; }
-@media (prefers-reduced-motion: reduce) {
-  .fx-float, #fx-flash, #fx-banner { display: none !important; }
-  .fx-pop, .fx-win, .fx-loss, .fx-chest, .fx-intro .panel { animation: none !important; }
-}
 @media (max-width: 700px) { #fx-banner { font-size: 22px; } }
 </style>
 
@@ -4123,8 +4119,10 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var on = true;
-  try { if (localStorage.getItem("tt_fx") === "0") on = false; } catch (e) {}
-  try { if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) on = false; } catch (e) {}
+  var saved = null;
+  try { saved = localStorage.getItem("tt_fx"); } catch (e) {}
+  if (saved === "0") on = false;
+  else if (saved === null) { try { if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) on = false; } catch (e) {} }   // systémové "méně animací" jen jako výchozí, tlačítko má vždy poslední slovo
 
   function applyOn() {
     document.documentElement.classList.toggle("fx-off", !on);
