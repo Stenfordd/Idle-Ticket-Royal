@@ -7,14 +7,11 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Idle Ticket Royale</title>
+  <title>Idle Royale</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <script>
-    /* ===== NASTAVENÍ (jediné místo, které musíš upravit) ===== */
-    window.IR_CONFIG = { API_URL: "https://script.google.com/macros/s/AKfycbzof6xaHiWtrDrnwAoqW4VPgiJdmHQUzG-sSvEp9MOfNqfdu_hQMpx-IFPzYq61uTmp7A/exec", NAME: "Idle Royale" };
-  </script>
+  <script src="config.js"></script>
   <style>
 /* ==========================================================================
    TICKET TYCOON // CASINO ROYALE v5.2 - OBSIDIAN & CRIMSON MODULAR UI
@@ -4230,13 +4227,14 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
 html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
 html.m body {
-  display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
+  display: flex; flex-direction: column; overflow: hidden;
+  position: fixed; top: 0; left: 0; width: 100%; height: var(--app-h, 100%);
   -webkit-tap-highlight-color: transparent;
 }
 html.m .btn, html.m .btn-primary-action, html.m .casino-tab-btn, html.m #m-tabs button {
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
 }
-html.m .top-bar { flex: none; padding: 6px 10px; flex-direction: row; gap: 6px; }
+html.m .top-bar { flex: none; padding: calc(6px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 6px calc(10px + env(safe-area-inset-left)); flex-direction: row; gap: 6px; }
 html.m .brand-title { font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
 html.m .user-badge { gap: 8px; font-size: 10px; flex-wrap: nowrap; }
 html.m .status-pill { display: none; }
@@ -4371,6 +4369,17 @@ html.m body[data-mtab="more"] #m-settings { display: block; }
   document.getElementById("m-tabs").addEventListener("click", function (ev) {
     var b = ev.target.closest("button[data-go]"); if (b) setTab(b.getAttribute("data-go"));
   });
+
+  function setAppH() {
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    if (h) document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
+  }
+  setAppH();
+  window.addEventListener("resize", setAppH);
+  window.addEventListener("orientationchange", function () { setTimeout(setAppH, 250); });
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", setAppH);
+  window.addEventListener("pageshow", setAppH);
+  setInterval(setAppH, 2000);     // pojistka: Chrome při schování/zobrazení lišty někdy resize nepošle
 
   function applyMode() {
     var on = !!mq.matches;
