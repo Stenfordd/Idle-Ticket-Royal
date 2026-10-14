@@ -1384,7 +1384,8 @@ body {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },     // "simple request" = bez CORS preflightu
       body: JSON.stringify({ fn: fn, args: args || [], auth: withAuth === false ? null : auth }),
-      signal: ctrl ? ctrl.signal : undefined
+      signal: ctrl ? ctrl.signal : undefined,
+      keepalive: fn === "saveGame" && JSON.stringify(args || []).length < 60000   // uložení se dokončí i při zavírání stránky
     }).then(function (r) {
       if (timer) clearTimeout(timer);
       return r.json();
@@ -3149,6 +3150,8 @@ function refreshLeaderboard() {
 // 3. SAVE
 // ==========================================================================
 let reloading = false;
+let saveRev = 0;                 // revize uložení, ze které tahle hra vychází (server odmítne uložení ze zastaralého stavu)
+let saveInFlight = false, saveQueued = null, saveFails = 0;
 
 function buildPayload() {
   const g = gameState, ac = g.autoclicker;
@@ -3169,22 +3172,71 @@ function buildPayload() {
   });
 }
 
+function noteSave(ok) {
+  const pill = document.querySelector(".status-pill");
+  const label = pill && pill.lastChild;
+  if (ok) {
+    if (saveFails >= 3) log("Cloud save is working again.", "success");
+    saveFails = 0;
+    if (pill && label && label.nodeType === 3) { label.textContent = " LIVE LINK"; pill.style.color = ""; }
+  } else {
+    saveFails += 1;
+    if (saveFails === 3) log("Cloud save is failing (check your connection). Your progress is NOT saved yet.", "error");
+    if (saveFails >= 3 && pill && label && label.nodeType === 3) { label.textContent = " SAVE ERROR"; pill.style.color = "var(--crimson)"; }
+  }
+}
+
+function showConflict() {
+  gameLoaded = false;                       // zastaví ukládání i herní smyčku v tomhle okně
+  if (document.getElementById("ir-conflict")) return;
+  const d = document.createElement("div");
+  d.id = "ir-conflict";
+  d.style.cssText = "position:fixed;inset:0;z-index:400;background:rgba(5,7,11,.93);display:flex;align-items:center;justify-content:center;padding:16px;";
+  d.innerHTML = '<div style="max-width:380px;background:var(--bg-panel);border:1px solid var(--crimson);border-radius:10px;padding:22px;text-align:center;">' +
+    '<div style="font:800 15px Orbitron,monospace;color:var(--crimson);letter-spacing:2px;margin-bottom:10px;">SAVE UPDATED ELSEWHERE</div>' +
+    '<div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;line-height:1.5;">This save was changed on another device or tab. To avoid overwriting your progress, this window stopped saving. Reload to continue with the latest save.</div>' +
+    '<button class="btn btn-crimson" style="width:100%;padding:12px;" onclick="location.reload()">RELOAD</button></div>';
+  document.body.appendChild(d);
+}
+
 function saveGame(cb) {
   if (!gameLoaded || reloading) { if (cb) cb(false); return; }
   if (typeof google === "undefined" || !google.script || !google.script.run) { if (cb) cb(false); return; }
+  if (saveInFlight) {                       // ukládání po jednom, ať se revize nepřetahují s vlastním dřívějším uložením
+    saveQueued = saveQueued || [];
+    if (cb) saveQueued.push(cb);
+    return;
+  }
+  saveInFlight = true;
+  const done = function (ok) {
+    saveInFlight = false;
+    if (cb) cb(ok);
+    if (saveQueued) {
+      const q = saveQueued; saveQueued = null;
+      saveGame(function (o) { q.forEach(function (f) { try { f(o); } catch (e) {} }); });
+    }
+  };
   google.script.run
     .withSuccessHandler(res => {
-      if (res && res.ok === false && res.reason === "season") {
+      if (res && res.ok) { saveRev = Number(res.rev) || saveRev; noteSave(true); done(true); return; }
+      if (res && res.reason === "conflict") { showConflict(); done(false); return; }
+      if (res && res.reason === "season") {
         log("Season changed on server. Reloading...", "special");
         gameLoaded = false;
         setTimeout(() => location.reload(), 800);
+        done(false);
+        return;
       }
-      if (cb) cb(!!(res && res.ok));
+      noteSave(false);
+      done(false);
     })
-    .withFailureHandler(err => { console.error("Cloud save failed: " + err); if (cb) cb(false); })
-    .saveGame(buildPayload());
+    .withFailureHandler(err => { console.error("Cloud save failed: " + err); noteSave(false); done(false); })
+    .saveGame(buildPayload(), saveRev);
 }
 window.addEventListener("beforeunload", function () { try { saveGame(); } catch (e) {} });
+// Mobil: beforeunload se tam nevolá. Uložit při schování aplikace / zamčení telefonu / přepnutí záložky (fetch má keepalive).
+window.addEventListener("pagehide", function () { try { saveGame(); } catch (e) {} });
+document.addEventListener("visibilitychange", function () { if (document.hidden) { try { saveGame(); } catch (e) {} } });
 
 // ==========================================================================
 // 4. LOAD + MIGRACE STARÝCH SAVŮ
@@ -3221,6 +3273,7 @@ function migrateLoadout(lo) {
 function applyLoaded(l) {
   const g = gameState;
   g.ldap = l.ldap || g.ldap;
+  saveRev = Math.max(0, Math.floor(nv(l.rev, 0)));
   g.season = Number(l.season) || g.season;
   g.tickets = Math.max(0, nv(l.tickets, 0));
   g.coins = l.coins !== undefined ? Math.max(0, nv(l.coins, 500)) : 500;
@@ -3292,6 +3345,7 @@ function loadFromServer() {
         applyLoaded(loaded);
         log(`Welcome back, Agent ${escapeHtml(gameState.ldap)}. Profile loaded.`, "success");
       } else if (loaded && loaded.ldap) {
+        saveRev = Math.max(0, Math.floor(nv(loaded.rev, 0)));
         gameState.ldap = loaded.ldap;
         gameState.season = Number(loaded.season) || gameState.season;
         log(`New terminal session for Agent ${escapeHtml(gameState.ldap)} (Season ${gameState.season}).`, "special");
