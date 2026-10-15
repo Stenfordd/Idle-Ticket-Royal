@@ -185,6 +185,7 @@ function saveGame(stateJson, baseRev) {
       if (Number(baseRev) !== storedRev) return { ok: false, reason: 'conflict', rev: storedRev };
     }
     state.rev = storedRev + 1;
+    presenceStamp_(user, state);
     var json = JSON.stringify(state);
 
     var chunks = [];
@@ -364,7 +365,9 @@ function buildLeaderboard_(db, currentSeason) {
         peakCps: Number(s.peakCps) || 0,
         gear: cleanTxt_(gear.join(' '), 80),
         dungeon: { cls: cleanTxt_(dg.cls, 12), level: Number(dg.level) || 0, best: Number(dg.best) || 0, wins: Number(dg.wins) || 0, losses: Number(dg.losses) || 0, title: cleanTxt_(dg.title, 40), honor: arenaHonorOf_(saves[i][0]) },
-        score: computeScore_(s)
+        score: computeScore_(s),
+        presence: presenceOf_(s).presence,
+        seen: presenceOf_(s).seen
       });
     } catch (e) {}
   }
@@ -897,6 +900,26 @@ function resetPlayerUi_() {
 
 
 // ==========================================================================
+// PRESENCE (v7.2): zelená = hraje (postup se změnil za ~2 min), žlutá = hru má otevřenou, ale AFK, šedá = offline
+// ==========================================================================
+function presenceStamp_(user, state) {
+  var now = Date.now(), c = CacheService.getScriptCache(), k = 'pres_' + user, prev = null;
+  try { prev = JSON.parse(c.get(k) || 'null'); } catch (e) {}
+  var inv = Array.isArray(state.inventory) ? state.inventory.reduce(function (a, s) { return a + (Number(s && s.n) || 0); }, 0) : 0;
+  var sig = [Math.floor(Number(state.lifetimeTickets) || 0), Math.floor(Number(state.scrap) || 0), Number(state.prestige) || 0,
+    Number(state.chestLevel) || 0, Math.floor(Number(state.gambleNet) || 0), inv, (state.dungeon && state.dungeon.wins) || 0].join('|');
+  var activeAt = (prev && prev.sig === sig && prev.activeAt) ? prev.activeAt : now;
+  state.savedAt = now;
+  state.activeAt = activeAt;
+  try { c.put(k, JSON.stringify({ sig: sig, activeAt: activeAt }), 21600); } catch (e) {}
+}
+function presenceOf_(s) {
+  var now = Date.now(), saved = Number(s.savedAt) || 0, act = Number(s.activeAt) || 0;
+  var p = !saved || now - saved > 90000 ? 'off' : (now - act < 150000 ? 'on' : 'afk');
+  return { presence: p, seen: saved ? now - saved : -1 };
+}
+
+// ==========================================================================
 // ARÉNA (v7.1) - asynchronní PvP proti uloženým postavám ostatních.
 // Souboj počítá SERVER stejným enginem jako dungeon (DungeonEngine níže), klient ho jen přehrává.
 // Honor = Elo (start 1000, K 32). Limit útoků za den, cooldown na stejného soupeře.
@@ -983,7 +1006,8 @@ function arenaList() {
     var d = saves[nick].dungeon || {}, r = recs[nick] || {};
     var last = (mine.last || {})[nick] || 0;
     opp.push({ nick: nick, cls: d.cls, level: p.level, title: cleanTxt_(d.title, 40), best: Number(d.best) || 0, honor: r.honor || ARENA_START,
-      power: DungeonEngine.power(p), wins: r.wins || 0, losses: r.losses || 0, cooldown: Math.max(0, ARENA_SAME_TARGET_MS - (Date.now() - last)) });
+      power: DungeonEngine.power(p), wins: r.wins || 0, losses: r.losses || 0, cooldown: Math.max(0, ARENA_SAME_TARGET_MS - (Date.now() - last)),
+      presence: presenceOf_(saves[nick]).presence });
   });
   opp.sort(function (a, b) { return b.honor - a.honor; });
   // obrany: kdo na mě zaútočil (posledních 10)

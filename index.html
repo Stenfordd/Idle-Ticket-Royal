@@ -3737,6 +3737,19 @@ function renderTutorial() {
 // ==========================================================================
 // 2. LEADERBOARD + ticker + chat polling
 // ==========================================================================
+function fmtAgo(ms) {
+  const m = Math.floor(ms / 60000);
+  return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.floor(m / 60) + " h ago" : Math.floor(m / 1440) + " d ago";
+}
+function presenceText(u) {
+  if (!u || !u.presence) return "";
+  return u.presence === "on" ? "🟢 playing now" : u.presence === "afk" ? "🟡 online (AFK)" : (u.seen >= 0 ? "⚫ last seen " + fmtAgo(u.seen) : "⚫ offline");
+}
+function presenceDot(u) {
+  const p = (u && u.presence) || "off";
+  return `<span class="pres-dot ${p}" title="${presenceText(u)}"></span>`;
+}
+
 function refreshLeaderboard() {
   if (typeof google === "undefined" || !google.script || !google.script.run) return;
   google.script.run
@@ -3749,7 +3762,7 @@ function refreshLeaderboard() {
           const isMe = (u.ldap === gameState.ldap);
           const gn = u.gambleNet || 0;
           return `<tr class="${isMe ? "me" : ""}" onclick="window.Dungeon && Dungeon.showProfile(window.__lbRows[${i}])" title="Click for player card">
-            <td>${i + 1}</td><td>${escapeHtml(u.ldap)}</td>
+            <td>${i + 1}</td><td>${presenceDot(u)}${escapeHtml(u.ldap)}</td>
             <td style="color:var(--crimson);">${u.prestige || 0}</td>
             <td style="color:var(--cyan);">${u.chestLvl || 1}</td>
             <td style="color:#ff4d6d;">${(u.dungeon && u.dungeon.best) || 0}</td>
@@ -6193,7 +6206,7 @@ html.m #dg-open-btn { display: none; }
       const cd = o.cooldown > 0;
       const can = me && me.left > 0 && !cd && !arena.busy;
       return `<div class="dg-art"><div style="width:44px;flex:none;">${sprite(CLS_IDX[o.cls] || 0, "p").replace('class="dg-sprite"', 'class="dg-sprite" style="width:40px;height:40px;margin:0;"')}</div>
-        <div class="t"><b>${escapeHtml(o.nick)}</b> · ${E.CLASSES[o.cls] ? E.CLASSES[o.cls].icon : ""} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
+        <div class="t">${typeof presenceDot === "function" ? presenceDot(o) : ""}<b>${escapeHtml(o.nick)}</b> · ${E.CLASSES[o.cls] ? E.CLASSES[o.cls].icon : ""} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
           <div class="dg-dim">${escapeHtml(o.title || "")} · power ${fmt(o.power)} ${tag} · floor ${o.best} · ${o.wins}W/${o.losses}L</div></div>
         <button class="btn ${can ? "btn-crimson" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.arenaAttack('${escapeHtml(o.nick).replace(/'/g, "")}')">${cd ? "⏳ " + fmtT(o.cooldown) : "⚔ ATTACK"}</button></div>`;
     }).join("");
@@ -6328,7 +6341,7 @@ html.m #dg-open-btn { display: none; }
     el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
     el.onclick = (e) => { if (e.target === el) el.remove(); };
     el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
-      <h2 style="color:var(--cyan);">${escapeHtml(u.ldap)}</h2>
+      <h2 style="color:var(--cyan);">${escapeHtml(u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
       <div style="display:flex;gap:12px;align-items:center;">
         ${cls ? sprite(["sysadmin", "engineer", "cyber"].indexOf(dg.cls), "p") : '<div style="font-size:48px;">👤</div>'}
         <div class="tt-body" style="min-height:0;font-size:13px;">
@@ -6374,6 +6387,118 @@ html.m #dg-open-btn { display: none; }
     setInterval(() => { if (open) { regenKeys(); renderKeys(); } }, 1000);
     document.addEventListener("keydown", (e) => { if (open && e.key === "Escape" && !Dungeon.isBusy()) closeScreen(); });
   }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+
+  <style>
+/* ===== POSTUPNÉ ODEMYKÁNÍ + ZJEDNODUŠENÍ UI ===== */
+.panel.gate-locked > :not(.gate-card) { display: none !important; }
+.gate-card { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
+.gate-card .ic { font-size: 22px; opacity: .7; }
+.gate-card .t { flex: 1; min-width: 0; }
+.gate-card b { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--text-dim); }
+.gate-card .dg-dim, .gate-card small { display: block; font-size: 11px; color: var(--text-muted, #667); margin-top: 2px; }
+.gate-bar { height: 4px; background: #000; border-radius: 2px; overflow: hidden; margin-top: 5px; }
+.gate-bar div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--amber)); }
+.panel.gate-hidden { display: none !important; }
+.pres-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: #3b4252; }
+.pres-dot.on { background: #00ff88; box-shadow: 0 0 6px #00ff88; animation: presPulse 1.6s ease-in-out infinite; }
+.pres-dot.afk { background: #ffb800; box-shadow: 0 0 5px rgba(255,184,0,.7); }
+@keyframes presPulse { 50% { opacity: .45; } }
+
+/* Telemetry: sbalitelný */
+.tele-toggle { cursor: pointer; user-select: none; }
+.tele-toggle::after { content: " ▾"; color: var(--text-dim); }
+.tele-collapsed .tele-toggle::after { content: " ▸"; }
+.tele-collapsed .stats-grid { display: none; }
+
+/* Autoclicker + autogen kompaktně */
+.ac-box { padding: 6px 8px; }
+.ac-box > .ac-row:nth-child(3), .ac-box > .ac-bar-next { display: none; }
+.ac-box .ac-bar { margin-bottom: 4px; height: 6px; }
+.ac-box .btn, #btn-autogen { padding: 6px 4px; font-size: 10px; }
+.ag-compact { margin-top: 6px !important; padding: 6px 8px !important; }
+
+/* Kasino taby ve dvou řadách */
+#tab-btn-roulette { margin-left: 0; }
+.panel .tab-row:has(#tab-btn-roulette) { flex-wrap: wrap; gap: 4px; }
+.panel .tab-row:has(#tab-btn-roulette) .casino-tab-btn { flex: 1 0 30%; }
+</style>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  // co, od kdy (nejvyšší dosažený level bedny - prestiž ho nesnižuje)
+  const GATES = [
+    { key: "casino", find: () => panelOf("view-roulette"), chest: 5, icon: "🎰", name: "CASINO ROYALE", what: "Roulette, Slots, Blackjack, MEGA 5×5, Crash" },
+    { key: "adv", find: () => { const m = $("adv-minigames-mount"); return m && m.querySelector(".panel"); }, chest: 10, icon: "🐔", name: "ADVANCED MINIGAMES", what: "Chicken Road, Pachinko, Showdown PvP" },
+    { key: "consult", find: () => panelOf("btn-consult-launch"), chest: 15, icon: "🐞", name: "SME CONSULT", what: "Escalate tickets for big GC wins (and bugs)" },
+    { key: "legacy", find: () => panelOf("lp-shop"), prestige: 1, icon: "★", name: "LEGACY SHOP", what: "Permanent upgrades bought with Legacy Points" }
+  ];
+  function panelOf(id) { const el = $(id); return el ? (el.closest(".panel") || el) : null; }
+  function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
+  function isOpen(g) {
+    if (g.prestige) return (gameState.prestige || 0) >= g.prestige || (gameState.lp || 0) > 0;
+    return maxChest() >= g.chest;
+  }
+  const state = {};
+  let booted = false;
+
+  function apply() {
+    if (typeof gameState === "undefined" || !gameLoaded) return;
+    GATES.forEach(g => {
+      const p = g.find(); if (!p) return;
+      const open = isOpen(g);
+      if (state[g.key] === false && open && booted) {
+        log(`🔓 UNLOCKED: ${g.name}! ${g.what}.`, "special");
+        const b = $("fx-banner");
+        if (b) { b.style.color = "var(--amber)"; b.innerHTML = "UNLOCKED<small>" + g.name + "</small>"; b.classList.remove("go"); void b.offsetWidth; b.classList.add("go"); }
+      }
+      state[g.key] = open;
+      p.classList.toggle("gate-locked", !open);
+      let card = p.querySelector(":scope > .gate-card");
+      if (!open) {
+        const pct = g.prestige ? 0 : Math.min(100, (maxChest() - 1) / (g.chest - 1) * 100);
+        const html = `<span class="ic">🔒</span><div class="t"><b>${g.icon} ${g.name}</b><small>${g.what}</small>
+          <small>Unlocks at ${g.prestige ? "Prestige " + g.prestige : "chest level " + g.chest + " (you: " + maxChest() + ")"}</small>
+          ${g.prestige ? "" : `<div class="gate-bar"><div style="width:${pct}%"></div></div>`}</div>`;
+        if (!card) { card = document.createElement("div"); card.className = "gate-card"; p.insertBefore(card, p.firstChild); }
+        if (card.__h !== html) { card.innerHTML = html; card.__h = html; }
+      } else if (card) card.remove();
+    });
+    // Merge station jen když je co mergovat
+    const mp = panelOf("merge-list");
+    if (mp) {
+      const any = gameState.inventory.some(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL);
+      mp.classList.toggle("gate-hidden", !any);
+    }
+    // mobilní záložka kasina se zámkem
+    const mt = document.querySelector('#m-tabs button[data-go="casino"] span');
+    if (mt) { const t = isOpen(GATES[0]) ? "🎰" : "🔒"; if (mt.textContent !== t) mt.textContent = t; }
+    const ft = document.querySelector('#m-tabs button[data-go="fight"] span');
+    if (ft && window.Dungeon) { const t = Dungeon.unlocked() ? "⚔" : "🔒"; if (ft.textContent !== t) ft.textContent = t; }
+    booted = true;
+  }
+
+  function boot() {
+    if (typeof gameState === "undefined" || !window.TT) { setTimeout(boot, 50); return; }
+    // Telemetry sbalitelný (výchozí sbalený)
+    const tp = panelOf("stat-tickets");
+    if (tp) {
+      const h = tp.querySelector(".panel-header");
+      if (h) {
+        h.classList.add("tele-toggle");
+        let col = true; try { col = localStorage.getItem("ir_tele") !== "open"; } catch (e) {}
+        tp.classList.toggle("tele-collapsed", col);
+        h.addEventListener("click", () => { const c = tp.classList.toggle("tele-collapsed"); try { localStorage.setItem("ir_tele", c ? "closed" : "open"); } catch (e) {} });
+      }
+    }
+    const ag = $("btn-autogen"); if (ag && ag.parentElement) ag.parentElement.classList.add("ag-compact");
+    TT.onLoaded(() => { apply(); setInterval(apply, 1000); });
+  }
+  window.Gate = { apply: apply };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
 </script>
