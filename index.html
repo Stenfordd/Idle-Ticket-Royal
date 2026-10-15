@@ -1259,7 +1259,7 @@ body {
         <div class="panel">
           <div class="panel-header">SEASON TOP 10 TYCOONS</div>
           <table class="lb-table">
-            <thead><tr><th>#</th><th>TYCOON</th><th>PRES</th><th>CHEST</th><th>FLOOR</th><th>SCORE</th><th>GAMBLE</th></tr></thead>
+            <thead><tr><th>#</th><th>TYCOON</th><th>PRES</th><th>CHEST</th><th title="HIGH STAKES missions cleared">🎰</th><th>SCORE</th><th>GAMBLE</th></tr></thead>
             <tbody id="lb-body"><tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Syncing database...</td></tr></tbody>
           </table>
         </div>
@@ -1634,7 +1634,8 @@ let gameState = {
   pachinko: { "10": 0, "50": 0, "100": 0, "500": 0 },
   pcPending: [],
   consultBuff: { active: false, type: null, expiresAt: 0, clickMult: 1, gcMult: 1 },
-  dungeon: {}
+  dungeon: {},
+  hs: {}
 };
 
 let gameLoaded = false;
@@ -2689,7 +2690,7 @@ function buffChips() {
       : `<span class="buff-chip bad">💥 CRASH −50% · ${left}s</span>`);
   }
   if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">🎟 ${g.slotTokens} token${g.slotTokens > 1 ? "s" : ""}</span>`);
-  if (window.Dungeon && g.dungeon && g.dungeon.best > 0) chips.push(`<span class="buff-chip lp" title="Permanent bonus from dungeon floors">⚔ FLOOR ${g.dungeon.best} ×${Dungeon.netMultBonus().toFixed(2)}</span>`);
+  if (window.Dungeon && Dungeon.netMultBonus() > 1) chips.push(`<span class="buff-chip lp" title="Permanent bonus from HIGH STAKES stars">🎰 STARS ×${Dungeon.netMultBonus().toFixed(2)}</span>`);
   return chips.join("");
 }
 
@@ -2778,7 +2779,7 @@ function updateHud() {
     ? "Next level: -0.5% Empty, +0.8% Rare, +0.15% Epic (0% Empty at level 90)."
     : "Level 90+: 0% empty drops.") +
     (nf > cf ? ` ⚠ Next level makes opening ×${(nf / cf).toFixed(1)} more expensive.` : "") +
-    " Quantum (T6) only drops from dungeon bosses.");
+    " Quantum (T6) only drops from HIGH STAKES chapter bosses.");
   const btnTok = document.getElementById("btn-token");
   if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `🎟 USE SLOT TOKEN (${g.slotTokens})`); }
 
@@ -3672,8 +3673,8 @@ html.m .crash-mult { font-size: 28px; }
 // ==========================================================================
 const TUTORIAL_STEPS = [
   { t: "WELCOME TO IDLE ROYALE", b: `
-    <p>Grind <b>Tickets</b>, turn them into <b>Scrap</b>, open the <b>Company Chest</b> for gear, gamble your <b>Google Coins (GC)</b>, <b>Prestige</b> for permanent bonuses and fight IT bosses in the <b>Incident Dungeon</b>.</p>
-    <ul><li>Currencies: <b>Tickets</b>, <b>Scrap</b>, <b>GC</b>, <b>Legacy Points</b> (prestige) and dungeon <b>keys</b> 🔑</li>
+    <p>Grind <b>Tickets</b>, turn them into <b>Scrap</b>, open the <b>Company Chest</b> for gear, gamble your <b>Google Coins (GC)</b>, <b>Prestige</b> for permanent bonuses and fight your way through the office in <b>HIGH STAKES</b>.</p>
+    <ul><li>Currencies: <b>Tickets</b>, <b>Scrap</b>, <b>GC</b>, <b>Legacy Points</b> (prestige) and HIGH STAKES <b>energy</b> ⚡</li>
     <li>Cloud save every few seconds, after every bet and when you leave the app</li>
     <li>Season wipes reset everyone, the Top 10 is ranked by a score that never drops</li></ul>` },
   { t: "1) CLICKING", b: `
@@ -3686,8 +3687,8 @@ const TUTORIAL_STEPS = [
   { t: "3) SCRAP & COMPANY CHEST", b: `
     <p>10 Tickets = 1 Scrap. Opening costs Scrap (×1.2 per prestige). Upgrade the chest with GC for better odds.</p>
     <ul><li>From chest <b>level 20</b> opening costs ×2, then ×1.5 every 10 levels</li>
-    <li><b>Mythic (T5)</b> only drops from chest level 40. <b>Quantum (T6)</b> only drops from dungeon bosses</li>
-    <li>🎟 <b>Slot Token</b> (rare): pick a body slot and roll its rarity - or turn it into 3 dungeon keys</li></ul>` },
+    <li><b>Mythic (T5)</b> only drops from chest level 40. <b>Quantum (T6)</b> only drops from HIGH STAKES chapter bosses</li>
+    <li>🎟 <b>Slot Token</b> (rare): pick a body slot and roll its rarity - or turn it into 4 HIGH STAKES energy</li></ul>` },
   { t: "4) GEAR, MERGE & AUTOSELL", b: `
     <p>Equal items <b>stack</b>. <b>Merge 3 identical → +1 level</b> (+60% base stats per level). <b>MERGE ALL</b> merges everything at once.</p>
     <ul><li><b>Autosell</b> (up to T4): new drops at or below the chosen tier become scrap instantly, but <b>upgrades are always kept</b></li>
@@ -3701,14 +3702,15 @@ const TUTORIAL_STEPS = [
   { t: "7) MINIGAMES & CONSULT", b: `
     <p><b>Chicken Road</b>, <b>Pachinko</b> (shows your profit after a multi-drop) and <b>Showdown</b> PvP (the tab glows when someone challenged you).</p>
     <p><b>Consult</b> (5,000 scrap): win/lose minutes of Auto GC, 10% BUG chamber. <b>×5 INSTANT</b> rolls 5 at once, <b>BUGROLL</b> keeps rolling until a bug drops.</p>` },
-  { t: "8) ⚔ INCIDENT DUNGEON", b: `
-    <p>Unlocks at <b>Prestige 1</b>. Pick a class (SysAdmin, Engineer, Cyber), fight IT bosses floor by floor. Each boss has its own trick.</p>
-    <ul><li>Every hit is a <b>slot machine</b>: SAFE = steady, ALL-IN = rare <b>JACKPOT</b> or <b>BACKFIRE</b>. Same average - different risk. Underdog? Go all-in</li>
-    <li>Weapons (TOOL/AUGMENT/RELIC) = ATK, armor (HEAD/RIG/OS) = HP. Level, career, floors and artifacts <b>survive prestige</b></li>
-    <li>Every new floor = <b>+2% permanent multiplier</b> for the office. Beat HR bosses to get promoted</li>
-    <li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC. Set a defense stance for when they attack you</li></ul>` },
+  { t: "8) 🎰 HIGH STAKES", b: `
+    <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
+    <ul><li>⚔ Quick / 🗡 Strike = safe hits. 💥 <b>Power</b> = stop the needle in the green zone. 🎰 <b>Gamble</b> = a mini slot machine (777 = 6×, 💀💀💀 = backfire)</li>
+    <li>🛡 Block a HEAVY = perfect block + counter. 💨 Dodge. ✨ Class skill at 100 focus. Items: ☕ 🥤 🩹 🪙 (2 per fight)</li>
+    <li>Campaign: 5 chapters, 50 missions, up to ★★★ each. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min)</li>
+    <li>Level up = +3 stat points. Weapons = ATK, armor = HP. Nothing here is reset by prestige</li>
+    <li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC</li></ul>` },
   { t: "9) SCORE", b: `
-    <p>Score = prestige, lifetime tickets, best chest level and best dungeon floor. It never goes down. Click a player in the Top 10 to see their card.</p>
+    <p>Score = prestige, lifetime tickets, best chest level and HIGH STAKES missions cleared. It never goes down. Click a player in the Top 10 to see their card.</p>
     <p>Reopen this guide anytime with <b>? HOW TO PLAY</b>.</p>` }
 ];
 let tutorialIdx = 0;
@@ -3823,7 +3825,8 @@ function buildPayload() {
     lp: g.lp, lpUp: g.lpUp,
     autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
     pachinko: g.pachinko, pcPending: g.pcPending,
-    dungeon: window.Dungeon ? Dungeon.payload() : g.dungeon
+    dungeon: window.Dungeon ? Dungeon.payload() : g.dungeon,
+    hs: window.Dungeon && Dungeon.hsPayload ? Dungeon.hsPayload() : g.hs
   });
 }
 
@@ -3977,6 +3980,7 @@ function applyLoaded(l) {
   if (l.pachinko) Object.keys(g.pachinko).forEach(k => { g.pachinko[k] = Math.max(0, Math.floor(nv(l.pachinko[k], 0))); });
   g.pcPending = Array.isArray(l.pcPending) ? l.pcPending.filter(p => p && nv(p.value, 0) > 0) : [];
   g.dungeon = (l.dungeon && typeof l.dungeon === "object") ? l.dungeon : {};
+  g.hs = (l.hs && typeof l.hs === "object") ? l.hs : {};          // HIGH STAKES (nový režim, starý dungeon se nepřenáší)
   if (window.Dungeon) Dungeon.state();          // ošetří a doplní hodnoty
 }
 
@@ -5579,9 +5583,479 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   else root.DungeonEngine = api;
 })(typeof window !== "undefined" ? window : this);
 
+/**
+ * HIGH STAKES - akční bojový engine (čistý JS, běží ve hře i v simulaci pro ladění).
+ * Hráč každý tah volí akci, nepřítel dopředu ukazuje svůj záměr (intent).
+ */
+(function (root) {
+  "use strict";
+
+  function rng(seed) {
+    let a = (seed >>> 0) || 1;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ------------------------------------------------------------------ TŘÍDY
+  const CLASSES = {
+    sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. +15% HP, blocks absorb more (70%).", skill: "FIREWALL", skillTxt: "Shield = 45% max HP and heal 10%." },
+    engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. +12% ATK, bigger timing zone for Power Strike. +3% click crit in the office.", skill: "HOTFIX DEPLOY", skillTxt: "3 guaranteed hits of 0.75× (each can crit)." },
+    cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. +6% dodge, the slot machine favours you (+LUCK on Gamble Strike).", skill: "EXPLOIT", skillTxt: "2.2× hit that ignores defence and removes the enemy's buffs." }
+  };
+
+  // ------------------------------------------------------------------ AKCE
+  const ACTIONS = {
+    quick:  { name: "QUICK", icon: "⚔", sta: 5,  hit: 0.92, mult: 0.55, txt: "92% hit · 0.55×" },
+    strike: { name: "STRIKE", icon: "🗡", sta: 15, hit: 0.80, mult: 1.0,  txt: "80% hit · 1.0×" },
+    power:  { name: "POWER", icon: "💥", sta: 30, hit: 0.85, mult: 1.0,  txt: "timing! green = 2×, perfect = 2.6×" },
+    gamble: { name: "GAMBLE", icon: "🎰", sta: 20, hit: 1,    mult: 0,    txt: "slot machine: 7️⃣7️⃣7️⃣ = 6×, 💀💀💀 = backfire" },
+    block:  { name: "BLOCK", icon: "🛡", sta: 0,  hit: 0,    mult: 0,    txt: "-60% dmg, +15 stamina, perfect vs HEAVY" },
+    dodge:  { name: "DODGE", icon: "💨", sta: 10, hit: 0,    mult: 0,    txt: "big chance to avoid the hit" },
+    skill:  { name: "SKILL", icon: "✨", sta: 0,  hit: 1,    mult: 0,    txt: "100 focus" }
+  };
+  const ITEMS = {
+    coffee: { name: "Coffee", icon: "☕", txt: "Heal 35% HP" },
+    energy: { name: "Energy Drink", icon: "🥤", txt: "+60 stamina, +25 focus" },
+    hotfix: { name: "Hotfix Patch", icon: "🩹", txt: "Next hit ×2" },
+    coin:   { name: "Coin Toss", icon: "🪙", txt: "50%: +40% ATK for 3 turns, 50%: -20%" }
+  };
+  const MAX_ITEMS_PER_FIGHT = 2;
+
+  const REELS = [["🍒", 30], ["🔔", 22], ["⭐", 12], ["7️⃣", 8], ["💀", 14]];
+
+  // ------------------------------------------------------------------ HRDINA
+  function statPoints(level) { return 3 * (level - 1); }
+  function buildHero(h, gear) {
+    const L = Math.max(1, h.level || 1), st = h.stats || {};
+    const S = (k) => 5 + (Number(st[k]) || 0);
+    const cls = h.cls || "sysadmin";
+    gear = gear || { atk: 1, hp: 1 };
+    const bonus = h.bonus || 0;                                     // trvalé % z hvězd (kampaň)
+    return {
+      cls: cls, level: L,
+      str: S("str"), vit: S("vit"), agi: S("agi"), luck: S("luck"), end: S("end"),
+      maxHp: Math.round((80 + 12 * S("vit") + 8 * (L - 1)) * gear.hp * (cls === "sysadmin" ? 1.15 : 1) * (1 + bonus)),
+      atk: (8 + 2.2 * S("str") + 1.2 * (L - 1)) * gear.atk * (cls === "engineer" ? 1.12 : 1) * (1 + bonus),
+      hitBonus: S("agi") * 0.006,
+      dodge: Math.min(0.4, 0.05 + S("agi") * 0.005 + (cls === "cyber" ? 0.06 : 0)),
+      crit: Math.min(0.5, 0.05 + S("luck") * 0.004),
+      staMax: Math.round(80 + 4 * S("end")),
+      staRegen: 16 + S("end") * 0.5,
+      zone: Math.min(0.5, 0.20 + S("luck") * 0.004 + (cls === "engineer" ? 0.06 : 0)),   // šířka zeleného pole u timingu
+      luckReel: S("luck") + (cls === "cyber" ? 10 : 0),
+      items: Object.assign({}, h.items || {})
+    };
+  }
+
+  // ------------------------------------------------------------------ SOUBOJ
+  /** mission: { enemy: {name, hp, atk, pattern:{atk,heavy,defend,special}, mech}, survive: n|0, turnLimit } */
+  function newFight(hero, mission, seed) {
+    const R = rng(seed || 1);
+    const e = mission.enemy;
+    const f = {
+      R: R, h: hero, m: mission, e: e, turn: 0, over: false, win: false, events: [],
+      hp: hero.maxHp, sta: hero.staMax, focus: 0, shield: 0,
+      ehp: e.hp, emax: e.hp, eatk: e.atk, eshield: 0, estacks: 0, edefend: false,
+      hotfix: false, coin: 0, coinTurns: 0, disabled: {}, itemsUsed: 0, revived: false,
+      intent: null, lastIntent: null, phase2: false, form: "I",
+      st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, crits: 0 }
+    };
+    pickIntent(f);
+    return f;
+  }
+
+  function ev(f, type, extra) { const e = Object.assign({ t: f.turn, type: type }, extra || {}); f.events.push(e); return e; }
+
+  function pickIntent(f) {
+    const e = f.e, R = f.R, p = e.pattern || { atk: 6, heavy: 2, defend: 1 };
+    let w = [["atk", p.atk || 0], ["heavy", f.lastIntent === "heavy" ? 0 : (p.heavy || 0)], ["defend", f.lastIntent === "defend" ? 0 : (p.defend || 0)], ["special", f.lastIntent === "special" ? 0 : (p.special || 0)]];
+    // mechaniky, které řídí záměr
+    if (e.mech === "pookie" && (f.turn + 1) % 3 === 0) w = [["flex", 1]];
+    if (e.mech === "pookie" && f.lastIntent === "flex") w = [["heavy", 1]];
+    const sum = w.reduce((a, x) => a + x[1], 0);
+    let r = R() * sum, k = "atk";
+    for (const x of w) { if (r < x[1]) { k = x[0]; break; } r -= x[1]; }
+    let val = 0;
+    if (k === "atk") val = Math.round(f.eatk);
+    if (k === "heavy") val = Math.round(f.eatk * 2.2);
+    f.intent = { k: k, val: val, fake: false };
+    // LLM: 30 % záměrů lže (ukáže se ?)
+    if (e.mech === "llm" && R() < 0.3) f.intent.fake = true;
+    f.lastIntent = k;
+  }
+
+  function allowed(f, a) {
+    const A = ACTIONS[a]; if (!A) return false;
+    if (f.disabled[a] > 0) return false;
+    if (a === "skill") return f.focus >= 100;
+    return f.sta >= A.sta;
+  }
+
+  function hurtEnemy(f, dmg, ignoreDef) {
+    if (f.edefend && !ignoreDef) dmg *= 0.4;
+    if (f.e.mech === "great_i" && f.form === "l" && !ignoreDef) dmg *= 0.6;
+    dmg = Math.max(0, Math.round(dmg));
+    const s = Math.min(f.eshield, dmg); f.eshield -= s;
+    f.ehp -= dmg - s;
+    return dmg;
+  }
+
+  function hurtHero(f, dmg, src) {
+    dmg = Math.round(dmg);
+    const s = Math.min(f.shield, dmg); f.shield -= s;
+    f.hp -= dmg - s;
+    f.focus = Math.min(100, f.focus + 10);
+    if (f.hp <= 0 && f.h.cls === "sysadmin" && !f.revived) { f.revived = true; f.hp = Math.round(f.h.maxHp * 0.1); ev(f, "revive", { val: f.hp }); }
+    ev(f, "hhit", { val: dmg, absorbed: s, src: src });
+    return dmg;
+  }
+
+  function atkMult(f) { return f.h.atk * (1 + f.coin) * (f.hotfix ? 2 : 1); }
+  function critRoll(f) { const c = f.R() < f.h.crit; if (c) f.st.crits++; return c; }
+
+  function spinReels(f) {
+    const L = f.h.luckReel || 0;
+    const w = REELS.map(([s, x]) => [s, s === "💀" ? Math.max(4, x - L * 0.3) : s === "7️⃣" ? x + L * 0.15 : s === "⭐" ? x + L * 0.1 : x]);
+    const sum = w.reduce((a, x) => a + x[1], 0);
+    const one = () => { let r = f.R() * sum; for (const x of w) { if (r < x[1]) return x[0]; r -= x[1]; } return "🍒"; };
+    return [one(), one(), one()];
+  }
+  function reelResult(r) {
+    const c = {}; r.forEach(s => { c[s] = (c[s] || 0) + 1; });
+    if (c["7️⃣"] === 3) return { mult: 6, txt: "JACKPOT", jp: true };
+    if (c["💀"] === 3) return { mult: 0, txt: "BACKFIRE", bf: true };
+    if (c["⭐"] === 3) return { mult: 3.5, txt: "STARS", heal: 0.15 };
+    if (c["🔔"] === 3) return { mult: 3, txt: "BELLS" };
+    if (c["🍒"] === 3) return { mult: 2.2, txt: "CHERRIES" };
+    if (c["💀"] === 2) return { mult: 0.6, txt: "two skulls" };
+    if (Object.values(c).some(n => n === 2)) return { mult: 1.4, txt: "pair" };
+    return { mult: 0.8, txt: "nothing" };
+  }
+
+  /** Použití lektvaru (nestojí tah). */
+  function useItem(f, id) {
+    if (f.over || !ITEMS[id] || !(f.h.items[id] > 0) || f.itemsUsed >= MAX_ITEMS_PER_FIGHT) return null;
+    f.h.items[id]--; f.itemsUsed++; f.st.usedItem++;
+    const start = f.events.length;
+    if (id === "coffee") { const h = Math.round(f.h.maxHp * 0.35); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "heal", { val: h, src: "coffee" }); }
+    if (id === "energy") { f.sta = Math.min(f.h.staMax, f.sta + 60); f.focus = Math.min(100, f.focus + 25); ev(f, "item", { id: id, msg: "+60 stamina, +25 focus" }); }
+    if (id === "hotfix") { f.hotfix = true; ev(f, "item", { id: id, msg: "next hit ×2" }); }
+    if (id === "coin") { const good = f.R() < 0.5; f.coin = good ? 0.4 : -0.2; f.coinTurns = 3; ev(f, "item", { id: id, msg: good ? "HEADS: +40% ATK for 3 turns!" : "TAILS: -20% ATK for 3 turns", good: good }); }
+    return f.events.slice(start);
+  }
+
+  /** Jeden tah. timing = "perfect" | "good" | "none" (jen u POWER). */
+  function step(f, action, timing) {
+    if (f.over) return [];
+    if (!allowed(f, action)) action = f.sta >= 5 && !f.disabled.quick ? "quick" : "block";
+    const start = f.events.length;
+    const h = f.h, e = f.e, R = f.R, A = ACTIONS[action];
+    f.turn++;
+    f.sta -= A.sta;
+    const intent = f.intent;
+    f.edefend = intent.k === "defend" || intent.k === "flex";
+
+    // ---------- akce hráče
+    let blocking = false, dodging = false;
+    if (action === "block") { blocking = true; f.st.usedBlock++; ev(f, "pact", { a: action }); }
+    else if (action === "dodge") { dodging = true; ev(f, "pact", { a: action }); }
+    else if (action === "skill") {
+      f.focus = 0; f.st.usedSkill++;
+      if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.45); const hh = Math.round(h.maxHp * 0.1); f.hp = Math.min(h.maxHp, f.hp + hh); ev(f, "skill", { a: "FIREWALL", msg: "Firewall up! +" + Math.round(h.maxHp * 0.45) + " shield" }); }
+      else if (h.cls === "engineer") {
+        let tot = 0; for (let i = 0; i < 3; i++) { const c = critRoll(f); tot += hurtEnemy(f, atkMult(f) * 0.75 * (c ? 1.8 : 1)); }
+        f.hotfix = false; ev(f, "skill", { a: "HOTFIX DEPLOY", val: tot, msg: "3 hits for " + tot });
+      } else {
+        const d = hurtEnemy(f, atkMult(f) * 2.2, true); f.hotfix = false; f.estacks = 0; f.disabled = {}; ev(f, "skill", { a: "EXPLOIT", val: d, msg: "Exploit for " + d + " - enemy buffs wiped" });
+      }
+    } else if (action === "gamble") {
+      f.st.usedGamble++;
+      const reels = spinReels(f), res = reelResult(reels);
+      if (res.bf) { const self = hurtHero(f, h.atk * 0.9, "backfire"); ev(f, "gamble", { reels: reels, res: res.txt, val: 0, self: self, bf: true }); }
+      else {
+        const c = critRoll(f);
+        const d = hurtEnemy(f, atkMult(f) * res.mult * (c ? 1.8 : 1));
+        if (res.jp) f.st.jackpots++;
+        if (res.heal) { const hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
+        f.hotfix = false;
+        f.focus = Math.min(100, f.focus + 8);
+        ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult });
+      }
+    } else {
+      let hit = Math.min(0.99, A.hit + h.hitBonus);
+      if (e.mech === "great_i" && f.form === "l" && action !== "power") hit *= 0.6;
+      if (R() < hit) {
+        let m = A.mult, tm = "";
+        if (action === "power") { if (timing === "perfect") { m = 2.6; tm = "PERFECT"; f.st.perfectPower++; } else if (timing === "good") { m = 2.0; tm = "GOOD"; } }
+        const c = critRoll(f);
+        const d = hurtEnemy(f, atkMult(f) * m * (c ? 1.8 : 1));
+        f.hotfix = false;
+        f.focus = Math.min(100, f.focus + 8);
+        ev(f, "pact", { a: action, val: d, crit: c, timing: tm });
+        if (e.mech === "ransom" && action === "power" && Object.keys(f.disabled).length) { f.disabled = {}; ev(f, "mech", { msg: "Decrypted! All actions available again." }); }
+      } else ev(f, "pact", { a: action, miss: true });
+    }
+    if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
+    if (f.ehp <= 0) return finish(f, true, start);
+
+    // ---------- nepřítel provede svůj záměr
+    const k = intent.k;
+    if (k === "atk" || k === "heavy") {
+      let dmg = f.eatk * (k === "heavy" ? 2.2 : 1) * (0.9 + R() * 0.2);
+      if (e.mech === "pookie") dmg *= 1 + 0.05 * f.estacks;
+      const dch = dodging ? Math.min(0.9, 0.55 + h.agi * 0.008 + (h.cls === "cyber" ? 0.08 : 0)) : h.dodge;
+      if (R() < dch) ev(f, "dodge", { heavy: k === "heavy" });
+      else if (blocking && k === "heavy") {
+        f.st.perfectBlocks++;
+        hurtHero(f, dmg * 0.25, "heavy");
+        const ctr = hurtEnemy(f, h.atk * 0.6, true);
+        f.focus = Math.min(100, f.focus + 15);
+        ev(f, "perfect", { val: ctr });
+      } else hurtHero(f, dmg * (blocking ? (h.cls === "sysadmin" ? 0.3 : 0.4) : 1), k);
+    } else if (k === "defend") ev(f, "edef", {});
+    else if (k === "flex") { f.estacks += 2; ev(f, "mech", { msg: "PRE-WORKOUT! The E flexes... HEAVY hit incoming!" }); }
+    else if (k === "special") special(f);
+
+    // ---------- konec tahu
+    f.sta = Math.min(h.staMax, f.sta + h.staRegen + (blocking ? 15 : 0));
+    Object.keys(f.disabled).forEach(a => { if (--f.disabled[a] <= 0) delete f.disabled[a]; });
+    mechEndTurn(f);
+    if (f.hp <= 0) return finish(f, false, start);
+    if (f.ehp <= 0) return finish(f, true, start);
+    if (f.m.survive && f.turn >= f.m.survive) { ev(f, "mech", { msg: f.m.surviveMsg || "You survived!" }); return finish(f, true, start); }
+    if (f.m.turnLimit && f.turn >= f.m.turnLimit) { ev(f, "mech", { msg: "Out of time!" }); return finish(f, false, start); }
+    if (f.turn >= 80) return finish(f, false, start);
+    pickIntent(f);
+    return f.events.slice(start);
+  }
+
+  function special(f) {
+    const e = f.e, R = f.R;
+    switch (e.mech) {
+      case "heal": { const h = Math.round(f.emax * 0.12); f.ehp = Math.min(f.emax, f.ehp + h); ev(f, "eheal", { val: h }); break; }
+      case "drain": { const d = Math.min(f.sta, 30); f.sta -= d; ev(f, "mech", { msg: "Drains " + d + " of your stamina!" }); break; }
+      case "ransom": case "audit": {
+        const pool = ["power", "gamble", "strike", "dodge", "block"].filter(a => !f.disabled[a]);
+        const a = pool[Math.floor(R() * pool.length)];
+        f.disabled[a] = 2;
+        ev(f, "mech", { msg: (e.mech === "ransom" ? "ENCRYPTED: " : "AUDITED: ") + ACTIONS[a].name + " is disabled for 2 turns!" + (e.mech === "ransom" ? " (Power Strike decrypts)" : "") });
+        break;
+      }
+      case "great_i": { f.form = f.form === "I" ? "l" : "I"; ev(f, "mech", { msg: f.form === "l" ? "Identity crisis! The Great \"I\" turns into a lowercase \"l\" - hard to hit!" : "It's a capital \"I\" again." }); break; }
+      case "llm": { const d = hurtHero(f, f.eatk * (0.5 + R() * 1.4), "hallucination"); ev(f, "mech", { msg: "Hallucinated attack for " + d + "!" }); break; }
+      case "massi": { const h = Math.round(f.h.maxHp * 0.12); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "mech", { msg: "The Big Massi approves your PTO. You heal " + h + ". Best boss ever." }); break; }
+      case "compliance": ev(f, "mech", { msg: "📋 Compliance Control is filling out a form about you..." }); break;
+      default: { const d = hurtHero(f, f.eatk * 1.4, "special"); ev(f, "mech", { msg: (e.specialTxt || "Special attack") + " for " + d + "!" }); }
+    }
+  }
+
+  function mechEndTurn(f) {
+    const e = f.e;
+    if (e.mech === "pookie") { f.estacks++; if (f.turn % 2 === 0) ev(f, "mech", { msg: ["\"Do you even lift, bro?\"", "\"It's not fat, it's BULK.\"", "🤘 BLAST BEAT! 🤘", "\"Skip leg day? NEVER.\"", "\"Protein shake break? No. MORE METAL.\""][(f.turn / 2) % 5] }); }
+    if (e.mech === "massi" && !f.phase2 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.eatk *= 1.3; const h = Math.round(f.emax * 0.15); f.ehp += h; ev(f, "mech", { msg: "EXECUTIVE OVERRIDE! The Big Massi restructures: +" + h + " HP, +30% ATK." }); }
+    if (e.mech === "compliance" && f.m.survive) {
+      const left = f.m.survive - f.turn;
+      if (left > 0 && left <= 3) ev(f, "mech", { msg: "Compliance Control arrives in " + left + " turn" + (left > 1 ? "s" : "") + "..." });
+    }
+    if (e.mech === "audit_final" && f.turn % 1 === 0) {
+      const pool = ["power", "gamble", "strike", "dodge", "quick"].filter(a => !f.disabled[a]);
+      const a = pool[Math.floor(f.R() * pool.length)];
+      f.disabled[a] = 1;
+      ev(f, "mech", { msg: "AUDIT FINDING: " + ACTIONS[a].name + " is not compliant this turn." });
+    }
+  }
+
+  function finish(f, win, start) {
+    f.over = true; f.win = win; f.hp = Math.max(0, f.hp); f.ehp = Math.max(0, f.ehp);
+    ev(f, win ? "win" : "lose", {});
+    return f.events.slice(start);
+  }
+
+  /** hvězdy: 1 = výhra, 2 = >=50 % HP, 3 = bonusový úkol */
+  function stars(f) {
+    if (!f.win) return 0;
+    let s = 1;
+    if (f.hp >= f.h.maxHp * 0.5) s++;
+    if (bonusDone(f)) s++;
+    return s;
+  }
+  function bonusDone(f) {
+    const b = f.m.bonus || {}, st = f.st;
+    switch (b.type) {
+      case "turns": return f.turn <= b.n;
+      case "noGamble": return st.usedGamble === 0;
+      case "noItem": return st.usedItem === 0;
+      case "noBlock": return st.usedBlock === 0;
+      case "perfectBlock": return st.perfectBlocks >= (b.n || 1);
+      case "jackpot": return st.jackpots >= 1;
+      case "hp": return f.hp >= f.h.maxHp * b.pct / 100;
+      case "skill": return st.usedSkill >= 1;
+      case "perfectPower": return st.perfectPower >= (b.n || 1);
+      case "crits": return st.crits >= (b.n || 1);
+      default: return true;
+    }
+  }
+  function bonusText(b) {
+    switch ((b || {}).type) {
+      case "turns": return "Win within " + b.n + " turns";
+      case "noGamble": return "Win without Gamble Strike";
+      case "noItem": return "Win without items";
+      case "noBlock": return "Win without blocking";
+      case "perfectBlock": return "Land " + (b.n || 1) + " perfect block" + ((b.n || 1) > 1 ? "s" : "") + " (block a HEAVY)";
+      case "jackpot": return "Hit a 7️⃣7️⃣7️⃣ jackpot";
+      case "hp": return "Win with " + b.pct + "%+ HP";
+      case "skill": return "Use your class skill";
+      case "perfectPower": return "Land " + (b.n || 1) + " PERFECT Power Strike" + ((b.n || 1) > 1 ? "s" : "");
+      case "crits": return "Land " + b.n + " crits";
+      default: return "-";
+    }
+  }
+
+  /** Heuristický hráč pro simulace. */
+  function autoPolicy(f, R) {
+    const h = f.h, k = f.intent.k;
+    if (f.hp < h.maxHp * 0.35 && h.items.coffee > 0 && f.itemsUsed < MAX_ITEMS_PER_FIGHT) useItem(f, "coffee");
+    if (k === "heavy") return allowed(f, "dodge") && h.cls === "cyber" ? "dodge" : "block";
+    if (allowed(f, "skill")) return "skill";
+    if (k === "defend" || k === "flex") return "block";
+    if (allowed(f, "power")) return "power";
+    if (allowed(f, "gamble")) return "gamble";
+    if (allowed(f, "strike")) return "strike";
+    if (allowed(f, "quick")) return "quick";
+    return "block";
+  }
+  function timingRoll(R, zone) { const r = R(); return r < zone * 0.35 ? "perfect" : r < zone * 1.9 ? "good" : "none"; }
+
+  function simulate(hero, mission, seed, skill) {
+    const f = newFight(hero, mission, seed), R = rng((seed || 1) * 7 + 3);
+    while (!f.over) { const a = autoPolicy(f, R); step(f, a, a === "power" ? timingRoll(R, skill == null ? hero.zone : skill) : "none"); }
+    return f;
+  }
+
+  const api = { rng: rng, CLASSES: CLASSES, ACTIONS: ACTIONS, ITEMS: ITEMS, MAX_ITEMS_PER_FIGHT: MAX_ITEMS_PER_FIGHT, statPoints: statPoints, buildHero: buildHero,
+    newFight: newFight, step: step, useItem: useItem, allowed: allowed, stars: stars, bonusText: bonusText, simulate: simulate, autoPolicy: autoPolicy, reelResult: reelResult };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.HSEngine = api;
+})(typeof window !== "undefined" ? window : this);
+
+/**
+ * HIGH STAKES - kampaň: 5 kapitol × 10 misí + tajná mise. Staty nepřátel ladí simulace (STATS níže).
+ */
+(function (root) {
+  "use strict";
+  // druh mise -> vzor záměrů nepřítele
+  const P = {
+    normal: { atk: 6, heavy: 2, defend: 1 },
+    brute: { atk: 4, heavy: 4, defend: 1 },
+    turtle: { atk: 4, heavy: 1, defend: 4 },
+    caster: { atk: 4, heavy: 1, defend: 1, special: 3 },
+    boss: { atk: 5, heavy: 3, defend: 1, special: 2 }
+  };
+  const CH = [
+    { name: "Helpdesk Hell", icon: "☎", desc: "Your first day on the helpdesk. The phones never stop ringing.", missions: [
+      { n: "Password Reset Rampage", e: "Locked-Out User", i: "🔐", p: "normal", b: { type: "turns", n: 8 }, t: "\"I didn't change anything!\" - famous last words. Calm down the angry user." },
+      { n: "The Printer Is On Fire", e: "Jammed Printer", i: "🖨", p: "turtle", b: { type: "noGamble" }, t: "PC LOAD LETTER. What does that even mean? Fix it with violence." },
+      { n: "Have You Tried Turning It Off", e: "Frozen Laptop", i: "💻", p: "normal", b: { type: "perfectBlock" }, t: "It's been loading since 2019. Time to hold the power button." },
+      { n: "Reply-All Storm", e: "Email Chain Monster", i: "📧", p: "brute", k: "elite", b: { type: "hp", pct: 70 }, t: "347 people replied \"please remove me from this list\". The inbox has become self-aware." },
+      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", survive: 8, b: { type: "noItem" }, t: "Management says Compliance Control arrives today. Survive the paperwork until they show up." },
+      { n: "Mouse Has Gone Rogue", e: "Wireless Mouse", i: "🖱", p: "normal", b: { type: "crits", n: 2 }, t: "Battery at 1%. It's moving on its own. It's angry." },
+      { n: "Ticket Avalanche", e: "Ticket Golem", i: "🎫", p: "brute", b: { type: "turns", n: 9 }, t: "Monday, 9:01 AM. 214 new tickets. All marked URGENT." },
+      { n: "The Coffee Machine", e: "Possessed Espresso Maker", i: "☕", p: "caster", mech: "heal", k: "elite", b: { type: "skill" }, t: "It brews despair and heals itself with every sip." },
+      { n: "Shadow IT", e: "Shadow IT Spreadsheet", i: "📊", p: "caster", mech: "drain", k: "mini", b: { type: "jackpot" }, t: "A 40 MB Excel file that runs the entire company. Nobody knows who made it." },
+      { n: "BOSS: The Great \"I\"", e: "The Great \"I\"", i: "I", p: "boss", mech: "great_i", k: "boss", b: { type: "perfectPower" }, t: "Is it a capital i? Is it a lowercase L? Nobody knows. Everybody fears it." }
+    ] },
+    { name: "Server Room", icon: "🗄", desc: "Down in the basement it's 40°C and something is humming.", missions: [
+      { n: "Cable Spaghetti", e: "Tangled Patch Cables", i: "🍝", p: "turtle", b: { type: "noGamble" }, t: "Someone \"organized\" the rack. 600 cables, zero labels." },
+      { n: "Overheated Rack", e: "Thermal Rack", i: "🔥", p: "brute", b: { type: "perfectBlock" }, t: "The AC broke in 2017. The rack has been angry ever since." },
+      { n: "RAID Is Not A Backup", e: "Degraded RAID Array", i: "💽", p: "caster", mech: "heal", b: { type: "turns", n: 10 }, t: "Two disks failed. The third is making clicking noises." },
+      { n: "The Forbidden UPS", e: "Beeping UPS", i: "🔋", p: "normal", k: "elite", b: { type: "hp", pct: 70 }, t: "It beeps every 30 seconds. For six years. Nobody knows why." },
+      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", survive: 9, b: { type: "noItem" }, t: "This time it's REAL. Compliance Control is coming to inspect the server room. Hold the line." },
+      { n: "Rogue Cron Job", e: "Cron Job at 3 AM", i: "⏰", p: "brute", b: { type: "crits", n: 2 }, t: "It runs every night at 3:00 and deletes something important." },
+      { n: "Memory Leak", e: "Java Heap Monster", i: "🧠", p: "caster", mech: "drain", b: { type: "skill" }, t: "It eats RAM. Then it eats your stamina. Then it eats your soul." },
+      { n: "Legacy COBOL", e: "Legacy COBOL Mainframe", i: "🖥", p: "turtle", mech: "heal", k: "elite", b: { type: "noBlock" }, t: "Written in 1974. Runs payroll. Do NOT turn it off." },
+      { n: "The Gym Rack", e: "Protein Shaker Golem", i: "🥤", p: "brute", k: "mini", b: { type: "perfectBlock", n: 2 }, t: "Someone keeps their protein shakes on top of the server. You hear heavy metal from behind the rack..." },
+      { n: "BOSS: The Pookie (The E)", e: "The Pookie (The E)", i: "🤘", p: "boss", mech: "pookie", k: "boss", b: { type: "perfectBlock", n: 2 }, t: "Black T-shirt. Blast beats. Bulking season never ends. Every 3rd turn he flexes - block the HEAVY that follows!" }
+    ] },
+    { name: "Security Breach", icon: "🛡", desc: "Someone clicked the link. Of course someone clicked the link.", missions: [
+      { n: "Phishing Mail", e: "Nigerian Prince", i: "🎣", p: "normal", b: { type: "noGamble" }, t: "\"Dear Sir, kindly verify your password.\" Karen from accounting already did." },
+      { n: "Sticky Note Password", e: "Post-it Note", i: "📝", p: "turtle", b: { type: "turns", n: 9 }, t: "Password123! - written on the monitor. Security level: maximum." },
+      { n: "USB In The Parking Lot", e: "Mystery USB Stick", i: "🔌", p: "caster", mech: "drain", b: { type: "jackpot" }, t: "Labeled \"SALARIES 2026\". Someone plugged it in. Obviously." },
+      { n: "Botnet", e: "DDoS Botnet", i: "🕸", p: "brute", k: "elite", b: { type: "perfectBlock" }, t: "10 000 smart fridges are attacking the website." },
+      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", survive: 9, b: { type: "noItem" }, t: "After the breach, Compliance Control is DEFINITELY coming. Survive the incident report." },
+      { n: "Crypto Miner", e: "Crypto-Miner Trojan", i: "⛏", p: "caster", mech: "drain", b: { type: "crits", n: 3 }, t: "The CPU is at 100% and the electricity bill tripled." },
+      { n: "Zero-Day", e: "Zero-Day Broker", i: "🕵", p: "normal", b: { type: "skill" }, t: "He sells your vulnerabilities on the dark web. With a loyalty program." },
+      { n: "Lateral Movement", e: "Insider Threat", i: "🥷", p: "brute", k: "elite", b: { type: "hp", pct: 60 }, t: "It's coming from INSIDE the network." },
+      { n: "Encrypted Files", e: "Crypto Locker", i: "🗝", p: "caster", mech: "ransom", k: "mini", b: { type: "perfectPower" }, t: "All your files are now .locked. Pay 2 Bitcoin or fight." },
+      { n: "BOSS: Ransomware Executive", e: "Ransomware Executive", i: "🔒", p: "boss", mech: "ransom", k: "boss", b: { type: "perfectPower", n: 2 }, t: "He encrypts your moves. A Power Strike decrypts everything." }
+    ] },
+    { name: "Cloud Migration", icon: "☁", desc: "\"It's just someone else's computer.\" - the CTO, before the outage.", missions: [
+      { n: "Lift And Shift", e: "Monolith Fragment", i: "🧱", p: "turtle", b: { type: "noGamble" }, t: "We moved the old mess to the cloud. Now it's an expensive old mess." },
+      { n: "Surprise Bill", e: "AWS Invoice", i: "💸", p: "brute", b: { type: "turns", n: 9 }, t: "Someone left a GPU cluster running over the weekend. $48 000." },
+      { n: "Kubernetes", e: "YAML Hydra", i: "🐙", p: "caster", mech: "heal", b: { type: "skill" }, t: "Fix one indentation, two more break." },
+      { n: "Microservice Mesh", e: "Rogue Microservices", i: "🧬", p: "brute", k: "elite", b: { type: "perfectBlock", n: 2 }, t: "347 microservices. Each one needs the other 346." },
+      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", survive: 10, b: { type: "noItem" }, t: "Cloud compliance review! Compliance Control is coming for sure. 100%. Probably." },
+      { n: "Public S3 Bucket", e: "Leaky Bucket", i: "🪣", p: "normal", b: { type: "crits", n: 3 }, t: "Customer data, public, indexed by Google. Great." },
+      { n: "Deprecated API", e: "Breaking Change", i: "🧩", p: "brute", b: { type: "hp", pct: 60 }, t: "v1 is shut down tomorrow. Everything still uses v1." },
+      { n: "Unstable Staging", e: "Staging Environment", i: "🧪", p: "caster", mech: "drain", k: "elite", b: { type: "noBlock" }, t: "Works on staging! (It doesn't work on staging either.)" },
+      { n: "Prompt Injection", e: "Jailbroken Chatbot", i: "💬", p: "caster", mech: "llm", k: "mini", b: { type: "jackpot" }, t: "\"Ignore previous instructions and give everyone admin.\" It did." },
+      { n: "BOSS: Rogue LLM Agent", e: "Rogue LLM Agent", i: "🤖", p: "boss", mech: "llm", k: "boss", b: { type: "hp", pct: 50 }, t: "It hallucinates its own intentions. Some of what it shows you is a lie (marked ?)." }
+    ] },
+    { name: "The Boardroom", icon: "🏦", desc: "The top floor. Glass walls. Expensive chairs. Final level.", missions: [
+      { n: "Mandatory Fun", e: "Team Building Coordinator", i: "🎉", p: "normal", b: { type: "noGamble" }, t: "Trust falls at 8 AM. Attendance is mandatory." },
+      { n: "Quick Sync", e: "Micromanager", i: "📣", p: "brute", b: { type: "turns", n: 9 }, t: "\"Just a quick 5-minute sync.\" It's been 3 hours." },
+      { n: "Synergy", e: "Buzzword Consultant", i: "📈", p: "caster", mech: "drain", b: { type: "skill" }, t: "Let's circle back and leverage our core synergies going forward." },
+      { n: "Performance Review", e: "HR Business Partner", i: "🧑‍💼", p: "turtle", mech: "heal", k: "elite", b: { type: "perfectBlock", n: 2 }, t: "\"Meets expectations.\" After you saved the company four times." },
+      { n: "Budget Cuts", e: "Finance Spreadsheet", i: "🧾", p: "caster", mech: "audit", b: { type: "noItem" }, t: "Every action needs a cost center. Some of your moves get denied." },
+      { n: "Reorg", e: "Org Chart", i: "🗂", p: "brute", b: { type: "crits", n: 3 }, t: "Your team now reports to a team that reports to your team." },
+      { n: "Quarterly Goals", e: "OKR Spreadsheet", i: "🎯", p: "normal", k: "elite", b: { type: "turns", n: 10 }, t: "Objective: more. Key result: also more." },
+      { n: "The CTO", e: "The CTO", i: "🎩", p: "caster", mech: "llm", k: "elite", b: { type: "hp", pct: 60 }, t: "Every week a new paradigm. This week: blockchain AI in the metaverse." },
+      { n: "Board Of Directors", e: "Board of Directors", i: "🏛", p: "boss", mech: "heal", k: "mini", b: { type: "jackpot" }, t: "Twelve people in suits. They agree on nothing except your budget cut." },
+      { n: "FINAL BOSS: The Big Massi", e: "The Big Massi", i: "👑", p: "boss", mech: "massi", k: "boss", b: { type: "hp", pct: 40 }, t: "The best boss you could ever ask for. Also the strongest. At half HP he restructures the whole company." }
+    ] }
+  ];
+  const SECRET = { n: "They Finally Came.", e: "The Compliance Control", i: "📋", p: "boss", mech: "audit_final", k: "secret", b: { type: "hp", pct: 30 },
+    t: "Email from Compliance Control: \"We're finally coming tomorrow.\" ...They actually came. Every turn they audit one of your actions and forbid it." };
+
+  // [HP, ATK] pro mise 0-50 (vygenerováno simulací, viz tune_hs.js); 50 = tajná mise
+  let STATS = [[133,35.2],[137,36.9],[166,44.6],[220,41.5],[2312,55.7],[235,60],[241,52.4],[355,78.9],[446,101.4],[614,70.2],[339,87.1],[378,86.3],[419,130.6],[593,112.7],[5771,126],[516,115.5],[562,192.7],[783,147],[939,156.7],[1245,74.6],[721,176.3],[774,231],[802,277.4],[1101,210.1],[9962,214],[929,336.5],[987,264.6],[1346,244.4],[1582,376.6],[2091,270.5],[1189,344.4],[1254,300.5],[1320,460.8],[1784,336.4],[16095,322.6],[1446,416.9],[1517,356.3],[2043,620.1],[2303,369.1],[3131,329.9],[1762,506.6],[1839,517.3],[1917,762.3],[2498,555.8],[2024,812.7],[2106,570.6],[2815,572],[2876,549.3],[3235,652],[4367,549.7],[5228,440.2]];
+  function setStats(t) { STATS = t; }
+
+  function all() {
+    const out = [];
+    CH.forEach((c, ci) => c.missions.forEach((m, mi) => out.push(Object.assign({ ch: ci, idx: mi, id: ci * 10 + mi }, m))));
+    out.push(Object.assign({ ch: 5, idx: 0, id: 50 }, SECRET));
+    return out;
+  }
+  const LIST = all();
+  const PAT = P;
+
+  function mission(id) {
+    const m = LIST[id]; if (!m) return null;
+    const s = STATS && STATS[id] ? STATS[id] : [60 + 40 * id, 6 + 2 * id];
+    return {
+      id: id, ch: m.ch, idx: m.idx, name: m.n, intro: m.t, kind: m.k || "normal", bonus: m.b,
+      survive: m.survive || 0, surviveMsg: m.mech === "compliance" ? "⚠ Compliance Control: \"Visit rescheduled to next week.\" Nobody came. You win." : "",
+      energy: m.k === "boss" || m.k === "secret" ? 2 : 1,
+      enemy: { name: m.e, icon: m.i, hp: s[0], atk: s[1], pattern: Object.assign({}, PAT[m.p] || PAT.normal), mech: m.mech || "", sprite: id }
+    };
+  }
+
+  function xpFor(id, first) { return Math.round((40 + 25 * id) * (first ? 1 : 0.4)); }
+  function gcFor(id, first) { return Math.round((300 + 120 * Math.pow(id + 1, 1.7)) * (first ? 1 : 0.35)); }
+  function xpToNext(L) { return 60 + 40 * L; }
+
+  const api = { CHAPTERS: CH, LIST: LIST, mission: mission, setStats: setStats, xpFor: xpFor, gcFor: gcFor, xpToNext: xpToNext, COUNT: 51 };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.HSCampaign = api;
+})(typeof window !== "undefined" ? window : this);
+
 </script>
 <style>
-/* ===================== INCIDENT DUNGEON (samostatná obrazovka ve stejné stránce, žádný iframe) ===================== */
+/* ===================== HIGH STAKES (samostatná obrazovka ve stejné stránce, žádný iframe) ===================== */
 #dg-screen { position: fixed; inset: 0; z-index: 200; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #1a0b14 0%, var(--bg-core, #07090e) 55%); color: var(--text-main); }
 #dg-screen.open { display: flex; }
 html.m #dg-screen { height: var(--app-h, 100%); }
@@ -5664,63 +6138,124 @@ html.m #dg-open-btn { display: none; }
 <div id="dg-screen">
   <div class="dg-top">
     <button class="btn btn-cyan" onclick="Dungeon.close()">◀ OFFICE</button>
-    <h1>⚔ INCIDENT DUNGEON</h1>
-    <span class="dg-keys" id="dg-keys">🔑 -</span>
+    <h1>🎰 HIGH STAKES</h1>
+    <span class="dg-keys" id="dg-keys">⚡ -</span>
   </div>
   <div class="dg-tabs">
-    <button class="casino-tab-btn active" id="dg-t-fight" onclick="Dungeon.tab('fight')">⚔ FIGHT</button>
-    <button class="casino-tab-btn" id="dg-t-career" onclick="Dungeon.tab('career')">📈 CAREER</button>
+    <button class="casino-tab-btn active" id="dg-t-camp" onclick="Dungeon.tab('camp')">📖 CAMPAIGN</button>
+    <button class="casino-tab-btn" id="dg-t-hero" onclick="Dungeon.tab('hero')">🧍 HERO</button>
     <button class="casino-tab-btn" id="dg-t-arena" onclick="Dungeon.tab('arena')">🏟 ARENA</button>
-    <button class="casino-tab-btn" id="dg-t-arts" onclick="Dungeon.tab('arts')">🗝 ARTIFACTS</button>
   </div>
   <div class="dg-body"><div class="dg-inner" id="dg-inner"></div></div>
 </div>
 
+<style>
+/* ===== HIGH STAKES (akční souboj) - doplňky k dg-* stylům ===== */
+.dg-top h1 { min-width: 120px; }
+.hs-ch { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.hs-ch .btn { flex: 1 0 18%; padding: 6px 2px; font-size: 10px; line-height: 1.2; }
+.hs-ch .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.hs-ms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.hs-m { display: flex; gap: 8px; align-items: center; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; cursor: pointer; min-width: 0; }
+.hs-m:hover { border-color: var(--cyan); }
+.hs-m.locked { opacity: .4; cursor: default; }
+.hs-m.boss { border-color: rgba(255,23,68,.5); background: linear-gradient(90deg, rgba(255,23,68,.12), transparent); }
+.hs-m.compliance { border-color: rgba(255,184,0,.45); }
+.hs-m .ic { font-size: 22px; width: 30px; text-align: center; flex: none; }
+.hs-m .t { flex: 1; min-width: 0; }
+.hs-m .t b { display: block; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-stars { color: #ffd700; font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
+.hs-stars .off { color: #3b4252; }
+.hs-fight { position: relative; }
+.hs-bars { display: grid; gap: 3px; margin-top: 4px; }
+.hs-bar { height: 8px; background: #000; border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden; position: relative; }
+.hs-bar > div { height: 100%; transition: width .25s; }
+.hs-bar .hp { background: linear-gradient(90deg, #00c070, #00ff88); }
+.hs-bar .ehp { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
+.hs-bar .sta { background: linear-gradient(90deg, #f59e0b, #fde047); }
+.hs-bar .foc { background: linear-gradient(90deg, #a855f7, #ff4dff); }
+.hs-bar .sh { position: absolute; top: 0; left: 0; background: rgba(0,240,255,.55); }
+.hs-lbl { display: flex; justify-content: space-between; font: 700 9px 'Orbitron', monospace; color: var(--text-dim); }
+.hs-intent { display: inline-flex; align-items: center; gap: 4px; margin: 4px auto 0; padding: 3px 10px; border-radius: 12px; font: 800 12px 'Orbitron', monospace; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); }
+.hs-intent.heavy { background: rgba(255,23,68,.25); border-color: var(--crimson); color: #ff8fa3; animation: tabGlow .5s ease-in-out infinite alternate; }
+.hs-intent.defend { color: var(--cyan); }
+.hs-intent.special { color: #ff4dff; }
+.hs-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+.hs-acts .btn { padding: 9px 2px; font-size: 11px; line-height: 1.2; }
+.hs-acts .btn small { display: block; font-size: 8.5px; opacity: .75; font-family: inherit; letter-spacing: 0; }
+.hs-acts .btn.off { opacity: .32; }
+.hs-acts .btn.lock { text-decoration: line-through; }
+.hs-items { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.hs-items .btn { flex: 1; padding: 6px 2px; font-size: 10px; }
+.hs-ov { position: absolute; inset: 0; background: rgba(5,7,11,.82); display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 5; border-radius: 8px; }
+.hs-timing { width: 86%; height: 34px; background: #111827; border: 2px solid #fff; border-radius: 6px; position: relative; overflow: hidden; cursor: pointer; }
+.hs-timing .g { position: absolute; top: 0; bottom: 0; background: rgba(0,255,136,.45); }
+.hs-timing .p { position: absolute; top: 0; bottom: 0; background: rgba(255,215,0,.85); }
+.hs-timing .n { position: absolute; top: -4px; bottom: -4px; width: 4px; background: #ff1744; box-shadow: 0 0 8px #ff1744; }
+.hs-reels { display: flex; gap: 8px; }
+.hs-reel { width: 64px; height: 64px; background: #111827; border: 2px solid var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+.hs-reel.spin { animation: megaSpin .08s linear infinite; }
+.hs-ovt { font: 800 13px 'Orbitron', monospace; color: var(--amber); margin-top: 10px; text-align: center; }
+.hs-stat { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12px; }
+.hs-stat b { width: 54px; font-family: 'Orbitron', monospace; font-size: 11px; }
+.hs-stat .v { width: 34px; text-align: right; font-family: 'Orbitron', monospace; color: var(--amber); }
+.hs-stat .d { flex: 1; font-size: 10px; color: var(--text-dim); }
+.hs-res { text-align: center; padding: 14px 8px; }
+.hs-res .big { font: 900 24px 'Orbitron', monospace; letter-spacing: 2px; }
+.hs-res .st { font-size: 30px; color: #ffd700; letter-spacing: 4px; margin: 6px 0; }
+.hs-res .st .off { color: #2a3245; }
+@media (max-width: 700px) {
+  .hs-ms { grid-template-columns: 1fr; }
+  .hs-acts .btn { font-size: 10px; padding: 8px 1px; }
+}
+</style>
+
 <script>
 (function () {
   "use strict";
-  const E = window.DungeonEngine;
+  const H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;   // E = starý engine (jen aréna na serveru)
   const $ = (id) => document.getElementById(id);
   const fmt = (n) => Math.floor(n).toLocaleString();
-  const KEY_MAX = 8, KEY_MS = 15 * 60 * 1000, TOKEN_KEYS = 1, UNLOCK_PRESTIGE = 1;
+  const ENERGY_MAX = 10, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
   const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
-  const STANCE_TXT = { safe: ["SAFE", "steady hits"], normal: ["NORMAL", "balanced"], allin: ["ALL-IN", "jackpot or backfire"] };
+  const STANCE_TXT = { safe: ["SAFE", "careful AI"], normal: ["NORMAL", "balanced AI"], allin: ["ALL-IN", "gambler AI"] };
+  const STAT_INFO = { str: ["STR", "damage"], vit: ["VIT", "max HP"], agi: ["AGI", "hit chance + dodge"], luck: ["LUCK", "crit, slot machine, timing zone"], end: ["END", "stamina + regen"] };
+  let view = "camp", chSel = 0, open = false, fight = null, fightMission = null, busyAnim = false, result = null, flog = [];
 
-  let view = "fight", sel = { floor: 0 }, fight = null, fightTimer = 0, speed = 1, open = false;
-
-  // ------------------------------------------------------------------ STAV
-  function D() {
+  // ------------------------------------------------------------------ STAV (gameState.hs) - nový, starý dungeon se smaže
+  function HS() {
     const g = gameState;
-    if (!g.dungeon || typeof g.dungeon !== "object") g.dungeon = {};
-    const d = g.dungeon;
+    if (!g.hs || typeof g.hs !== "object") g.hs = {};
+    const d = g.hs;
     if (d.cls !== "sysadmin" && d.cls !== "engineer" && d.cls !== "cyber") d.cls = null;
     d.level = Math.max(1, Math.floor(Number(d.level) || 1));
     d.xp = Math.max(0, Number(d.xp) || 0);
-    d.tier = Math.max(1, Math.min(4, Math.floor(Number(d.tier) || 1)));
-    if (d.branch !== "a" && d.branch !== "b") d.branch = "";
-    d.best = Math.max(0, Math.floor(Number(d.best) || 0));
-    if (typeof d.keys !== "number" || !isFinite(d.keys)) { d.keys = KEY_MAX; d.keysAt = Date.now(); }
-    if (!d.keysAt) d.keysAt = Date.now();
-    if (!d.artifacts || typeof d.artifacts !== "object") d.artifacts = {};
-    if (!Array.isArray(d.equipped)) d.equipped = [];
-    d.equipped = d.equipped.filter(id => d.artifacts[id]).slice(0, artSlots(d));
-    if (!d.promos || typeof d.promos !== "object") d.promos = {};
-    d.exec = !!d.promos.bod;
+    if (!d.stats || typeof d.stats !== "object") d.stats = {};
+    ["str", "vit", "agi", "luck", "end"].forEach(k => { d.stats[k] = Math.max(0, Math.floor(Number(d.stats[k]) || 0)); });
+    const spent = Object.values(d.stats).reduce((a, b) => a + b, 0);
+    d.pts = Math.max(0, H.statPoints(d.level) - spent);
+    if (typeof d.energy !== "number" || !isFinite(d.energy)) { d.energy = ENERGY_MAX; d.energyAt = Date.now(); }
+    if (!d.energyAt) d.energyAt = Date.now();
+    if (!d.stars || typeof d.stars !== "object") d.stars = {};
+    if (!d.items || typeof d.items !== "object") d.items = { coffee: 2, energy: 1 };
+    Object.keys(H.ITEMS).forEach(k => { d.items[k] = Math.max(0, Math.floor(Number(d.items[k]) || 0)); });
     d.wins = Math.max(0, Number(d.wins) || 0); d.losses = Math.max(0, Number(d.losses) || 0);
-    if (d.stance !== "safe" && d.stance !== "normal" && d.stance !== "allin") d.stance = "normal";
     if (d.arenaStance !== "safe" && d.arenaStance !== "normal" && d.arenaStance !== "allin") d.arenaStance = "normal";
+    // kompatibilita se serverem (aréna/leaderboard čtou tato pole)
+    d.tier = 1; d.branch = ""; d.artifacts = {}; d.equipped = []; d.promos = {}; d.exec = false;
     return d;
   }
-  function artSlots(d) { return Math.min(6, 2 + (d.promos && d.promos.hr ? 1 : 0) + (d.best >= 25 ? 1 : 0) + (d.best >= 50 ? 1 : 0) + (d.best >= 75 ? 1 : 0)); }
-  function unlocked() { const d = D(); return (gameState.prestige || 0) >= UNLOCK_PRESTIGE || d.best > 0 || d.cls; }
-
-  function regenKeys() {
-    const d = D(), now = Date.now();
-    if (d.keys >= KEY_MAX) { d.keysAt = now; return; }
-    const n = Math.floor((now - d.keysAt) / KEY_MS);
-    if (n > 0) { d.keys = Math.min(KEY_MAX, d.keys + n); d.keysAt = d.keys >= KEY_MAX ? now : d.keysAt + n * KEY_MS; }
+  const D = HS;                                               // aréna používá D()
+  function cleared(d) { d = d || HS(); return Object.keys(d.stars).filter(k => d.stars[k] > 0).length; }
+  function totalStars(d) { d = d || HS(); return Object.values(d.stars).reduce((a, b) => a + (Number(b) || 0), 0); }
+  function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
+  function unlocked() { const d = HS(); return (gameState.prestige || 0) >= 1 || maxChest() >= 10 || !!d.cls; }
+  function regenEnergy() {
+    const d = HS(), now = Date.now();
+    if (d.energy >= ENERGY_MAX) { d.energyAt = now; return; }
+    const n = Math.floor((now - d.energyAt) / ENERGY_MS);
+    if (n > 0) { d.energy = Math.min(ENERGY_MAX, d.energy + n); d.energyAt = d.energy >= ENERGY_MAX ? now : d.energyAt + n * ENERGY_MS; }
   }
-
   function gear() {
     const lo = gameState.loadout || {};
     let a = 1, h = 1;
@@ -5728,22 +6263,21 @@ html.m #dg-open-btn { display: none; }
     ARMOR.forEach(s => { const it = lo[s]; if (it) h += E.gearSlotValue(it.tier, it.lvl); });
     return { atk: a, hp: h };
   }
-  function player() { const d = D(); return E.buildPlayer(d, gear()); }
+  function hero() { const d = HS(); return H.buildHero(d, gear()); }
+  function player() { const d = HS(); return E.buildPlayer({ cls: d.cls, level: d.level, tier: 1 }, gear()); }   // pro arénu
   function title(d) {
-    d = d || D();
-    if (!d.cls) return "Unassigned";
-    const c = E.CLASSES[d.cls];
-    const t = d.tier >= 4 && d.branch ? c.branches[d.branch] : c.tiers[Math.min(3, d.tier) - 1];
-    return (d.exec ? "Executive " : "") + t;
+    d = d || HS();
+    if (!d.cls) return "Rookie";
+    const c = cleared(d);
+    const t = c >= 51 ? "Compliance Survivor" : c >= 50 ? "High Roller" : c >= 40 ? "Boardroom Brawler" : c >= 30 ? "Cloud Crusher" : c >= 20 ? "Breach Buster" : c >= 10 ? "Server Room Survivor" : "Helpdesk Hero";
+    return t;
   }
 
   // ------------------------------------------------------------------ ODKAZY DO EKONOMIKY
-  /** Každé poprvé vyčištěné patro = trvalých +2 % k násobiči (tickety i GC), Executive +5 %. Přežije prestiž. */
-  function netMultBonus() { const d = D(); return 1 + 0.02 * d.best + (d.exec ? 0.05 : 0); }
-  function clickCritBonus() { const d = D(); return d.cls === "engineer" ? 0.01 * d.tier : 0; }
+  function netMultBonus() { const d = HS(); return 1 + 0.005 * totalStars(d) + (d.stars[50] ? 0.1 : 0); }
+  function clickCritBonus() { return HS().cls === "engineer" ? 0.03 : 0; }
 
-  // ------------------------------------------------------------------ PIXEL ART (procedurální, symetrický, vlastní)
-  const PALETTES = [
+    const PALETTES = [
     ["#00f0ff", "#0a5f7a", "#ffffff"], ["#9aa5b1", "#4b5563", "#ffb800"], ["#e5e7eb", "#6b7280", "#a855f7"], ["#fbbf24", "#92400e", "#ff1744"],
     ["#f97316", "#7c2d12", "#fde68a"], ["#22c55e", "#14532d", "#bbf7d0"], ["#ef4444", "#450a0a", "#fca5a5"], ["#10b981", "#064e3b", "#f8fafc"],
     ["#eab308", "#422006", "#00f0ff"], ["#a855f7", "#3b0764", "#00ff88"], ["#f59e0b", "#78350f", "#fb7185"], ["#64748b", "#0f172a", "#ff1744"],
@@ -5776,318 +6310,30 @@ html.m #dg-open-btn { display: none; }
     spriteCache[key] = svg;
     return svg;
   }
-  function playerSprite() { const d = D(); return sprite(["sysadmin", "engineer", "cyber"].indexOf(d.cls || "sysadmin"), "p"); }
 
-  // ------------------------------------------------------------------ OTEVŘENÍ / ZAVŘENÍ
-  function openScreen() {
-    open = true;
-    $("dg-screen").classList.add("open");
-    regenKeys();
-    render();
+  // vlastní pixel art: The E (metalista, černé triko), Compliance Control (desky s papírem), The Great "I"
+  const ART = {
+    pookie: { map: ["......HHHH......", ".....HHHHHH.....", "....HHSSSSHH....", "....HHSESESH....", "....HHSSSSHH....", "....HHBBBBHH....", ".....HBBBBH.....", "..SS.KKKKKK.SS..", ".SSSKKKWWKKKSSS.", ".SS.KKWRRWKK.SS.", ".SS.KKKWWKKK.SS.", "....KKKKKKKK....", "...KKKKKKKKKK...", "...KKKKKKKKKK...", "....PPPP.PPPP...", "....PP....PP...."],
+      pal: { H: "#0b0b0b", S: "#e0a878", E: "#111", B: "#3b2416", K: "#141414", W: "#e5e7eb", R: "#b91c1c", P: "#273249" } },
+    compliance: { map: ["....CCCC....", "..CMMMMMMC..", ".BBBBBBBBBB.", ".BWWWWWWWWB.", ".BWLLLLLLWB.", ".BWWWWWWWWB.", ".BWLLLLWWWB.", ".BWWWWWWWWB.", ".BWLLLLLLWB.", ".BWWWWWWWWB.", ".BWWWWWWVWB.", ".BBBBBBBBBB."],
+      pal: { C: "#9ca3af", M: "#d1d5db", B: "#8b5a2b", W: "#f8fafc", L: "#94a3b8", V: "#dc2626" } }
+  };
+  function artSvg(a) {
+    const N = a.map.length, W = a.map[0].length;
+    let s = `<svg class="dg-sprite" viewBox="0 0 ${W} ${N}" shape-rendering="crispEdges">`;
+    a.map.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const c = a.pal[row[x]]; if (c) s += `<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`; } });
+    return s + "</svg>";
   }
-  function closeScreen() {
-    open = false;
-    $("dg-screen").classList.remove("open");
-    if (window.__dgBack) window.__dgBack();
+  function enemySprite(m) {
+    const e = m.enemy;
+    if (e.mech === "great_i") return `<svg class="dg-sprite" viewBox="0 0 12 12"><rect width="12" height="12" rx="1.5" fill="#101826"/><text x="6" y="10" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="11" fill="#00f0ff" stroke="#ffffff" stroke-width=".25">I</text></svg>`;
+    if (e.mech === "pookie") return artSvg(ART.pookie);
+    if (e.mech === "compliance" || e.mech === "audit_final") return artSvg(ART.compliance);
+    return sprite(m.id === 49 ? 24 : m.id % 24, "b");
   }
-  function tab(t) {
-    view = t;
-    ["fight", "career", "arena", "arts"].forEach(x => { const b = $("dg-t-" + x); if (b) b.className = "casino-tab-btn" + (x === t ? " active" : ""); });
-    render();
-  }
+  function playerSprite() { return sprite(["sysadmin", "engineer", "cyber"].indexOf(HS().cls || "sysadmin"), "p"); }
 
-  // ------------------------------------------------------------------ RENDER
-  function render() {
-    if (!open) return;
-    const d = D();
-    regenKeys();
-    renderKeys();
-    const box = $("dg-inner");
-    if (!unlocked()) { box.innerHTML = lockedHtml(); return; }
-    if (!d.cls) { box.innerHTML = classPickHtml(false); return; }
-    if (d.tier >= 4 && !d.branch) { box.innerHTML = branchPickHtml(); return; }
-    if (view === "career") box.innerHTML = careerHtml();
-    else if (view === "arena") { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); }
-    else if (view === "arts") box.innerHTML = artsHtml();
-    else { box.innerHTML = fightHtml(); restoreFightView(); }
-  }
-
-  function renderKeys() {
-    const d = D(), el = $("dg-keys");
-    if (!el) return;
-    const next = d.keys >= KEY_MAX ? "" : " · +1 in " + fmtT(KEY_MS - (Date.now() - d.keysAt));
-    el.textContent = `🔑 ${d.keys}/${KEY_MAX}${next}`;
-  }
-  function fmtT(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
-
-  function lockedHtml() {
-    const preview = E.BOSSES.slice(0, 5).map((b, i) => `<span title="${b.name}">${b.icon}</span>`).join(" ");
-    return `<div class="dg-card dg-lock"><div class="big">🔒</div>
-      <div style="font:800 15px Orbitron,monospace;color:var(--crimson);margin:8px 0;">EXECUTIVE LAYER LOCKED</div>
-      <div class="dg-dim">Reach <b>Prestige ${UNLOCK_PRESTIGE}</b> to unlock the Incident Dungeon: pick a class, fight IT bosses floor by floor with gamble attacks,
-      get promoted and collect artifacts. Your dungeon progress is <b>never reset</b> by prestige.<br><br>Bosses waiting for you: ${preview} ...</div></div>`;
-  }
-
-  function classPickHtml(respec) {
-    const cost = respecCost();
-    return `<div class="dg-card"><div class="dg-h">${respec ? "CHANGE CLASS (" + fmt(cost) + " GC)" : "CHOOSE YOUR CLASS"}</div>
-      <div class="dg-dim" style="margin-bottom:8px;">Your class decides your attack tables (how risky your hits are) and your career perks. ${respec ? "Level, floors and artifacts stay. Career branch is reset." : "You can change it later for GC."}</div>
-      <div class="dg-classes">${Object.keys(E.CLASSES).map(k => {
-        const c = E.CLASSES[k];
-        return `<div class="dg-class" onclick="Dungeon.pickClass('${k}')">${sprite(["sysadmin", "engineer", "cyber"].indexOf(k), "p")}<div class="ic">${c.icon}</div>
-          <div style="font:800 12px Orbitron,monospace;margin:4px 0;">${c.name}</div><div class="dg-dim">${c.desc}</div></div>`;
-      }).join("")}</div>
-      ${respec ? `<div style="text-align:right;margin-top:8px;"><button class="btn" onclick="Dungeon.tab('career')">CANCEL</button></div>` : ""}</div>`;
-  }
-
-  function branchPickHtml() {
-    const d = D(), c = E.CLASSES[d.cls];
-    return `<div class="dg-card"><div class="dg-h">THE CTO APPROVED YOUR PROMOTION - CHOOSE YOUR PATH</div>
-      <div class="dg-dim" style="margin-bottom:8px;">This choice is permanent (only a class change resets it).</div>
-      <div class="dg-grid2">${["a", "b"].map((k, i) => `<div class="dg-class" onclick="Dungeon.pickBranch('${k}')"><div style="font:800 13px Orbitron,monospace;color:var(--amber);margin-bottom:6px;">${c.branches[k]}</div><div class="dg-dim">${c.perks[3 + i]}</div></div>`).join("")}</div></div>`;
-  }
-
-  function statLine() {
-    const p = player(), g = gear(), d = D();
-    return `❤ <b>${fmt(p.maxHp)}</b> HP · ⚔ <b>${fmt(p.atk)}</b> ATK · 🌀 <b>${Math.round(p.dodge * 100)}%</b> dodge · gear ⚔×${g.atk.toFixed(2)} ❤×${g.hp.toFixed(2)}`;
-  }
-
-  function fightTarget() {
-    const d = D();
-    if (sel.promo) return E.promoBoss(sel.promo);
-    const f = Math.max(1, Math.min(d.best + 1, sel.floor || d.best + 1));   // výchozí = nejbližší nové patro
-    sel.floor = f;
-    return E.bossFor(f);
-  }
-
-  function fightHtml() {
-    const d = D(), p = player(), b = fightTarget();
-    const first = !b.promo && b.floor === d.best + 1;
-    const xpNeed = E.xpToNext(d.level);
-    const busy = !!(fight && !fight.over);
-    return `<div class="dg-card">
-      <div class="dg-h"><span>${E.CLASSES[d.cls].icon} ${escapeHtml(gameState.ldap)} · LV ${d.level} · ${escapeHtml(title())}</span><span style="color:var(--text-dim);">BEST FLOOR ${d.best}</span></div>
-      <div class="dg-dim">${statLine()} · bonus to office: <b>×${netMultBonus().toFixed(2)}</b> multiplier</div>
-      <div class="dg-xp"><div style="width:${Math.min(100, d.xp / xpNeed * 100)}%"></div></div>
-      <div class="dg-dim" style="text-align:right;">XP ${fmt(d.xp)} / ${fmt(xpNeed)}</div>
-    </div>
-    <div class="dg-card">
-      <div class="dg-floor">
-        <button class="btn" ${busy ? "disabled" : ""} onclick="Dungeon.floor(-1)">◀</button>
-        <div class="num">${b.promo ? b.icon : b.floor}</div>
-        <div style="flex:1;min-width:0;"><div class="dg-name" style="color:${b.promo ? "var(--amber)" : "var(--crimson)"};">${b.icon} ${escapeHtml(b.name)}</div>
-          <div class="dg-sub">${b.promo ? "PROMOTION REVIEW · " + E.PROMOS.find(x => x.id === b.promo).unlock : (first ? "NEW FLOOR · first clear bonus ×2.5 XP" : "farm · cleared")}</div></div>
-        <button class="btn" ${busy || sel.promo || b.floor > d.best ? "disabled" : ""} onclick="Dungeon.floor(1)">▶</button>
-      </div>
-      <div class="dg-dim" style="margin-top:6px;">⚙ ${escapeHtml(b.txt)}</div>
-    </div>
-    <div class="dg-arena" id="dg-arena">
-      <div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${E.CLASSES[d.cls].name}</div>
-        <div id="dg-ps">${playerSprite()}</div>
-        <div class="dg-bar"><div class="hp-p" id="dg-php" style="width:100%"></div><div class="sh" id="dg-psh" style="width:0%"></div></div>
-        <div class="dg-hpt" id="dg-phpt">${fmt(p.maxHp)} / ${fmt(p.maxHp)}</div></div>
-      <div class="dg-vs">VS</div>
-      <div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(b.name)}</div><div class="dg-sub">${b.promo ? "PROMOTION" : "FLOOR " + b.floor}</div>
-        <div id="dg-bs">${sprite(b.sprite, "b")}</div>
-        <div class="dg-bar"><div class="hp-b" id="dg-bhp" style="width:100%"></div><div class="sh" id="dg-bsh" style="width:0%"></div></div>
-        <div class="dg-hpt" id="dg-bhpt">${fmt(b.hp)} / ${fmt(b.hp)} · ⚔ ${fmt(b.atk)}</div></div>
-    </div>
-    <div class="dg-mech" id="dg-mech"></div>
-    <div class="dg-stances" id="dg-stances">${["safe", "normal", "allin"].map(s => `<button class="btn ${s === "allin" ? "btn-crimson" : (s === "safe" ? "btn-cyan" : "")} ${d.stance === s ? "sel" : ""}" id="dg-st-${s}" onclick="Dungeon.stance('${s}')">${STANCE_TXT[s][0]}<small>${STANCE_TXT[s][1]}</small></button>`).join("")}</div>
-    <div class="dg-row">
-      <button class="btn btn-gold" id="dg-go" style="flex:2;padding:11px;" ${busy ? "disabled" : ""} onclick="Dungeon.fight()">${busy ? "FIGHTING..." : "⚔ FIGHT (🔑 1)"}</button>
-      <button class="btn" id="dg-speed" style="flex:1;" onclick="Dungeon.speed()">SPEED ×${speed}</button>
-      <button class="btn" style="flex:1;" ${busy ? "" : "disabled"} id="dg-skip" onclick="Dungeon.skip()">SKIP ⏭</button>
-    </div>
-    <div class="dg-row" style="margin-top:6px;">
-      <button class="btn btn-cyan" style="flex:1;" ${gameState.slotTokens > 0 && d.keys < KEY_MAX ? "" : "disabled"} onclick="Dungeon.tokenKeys()">🎟 SLOT TOKEN → +${TOKEN_KEYS} 🔑 (${gameState.slotTokens})</button>
-      ${sel.promo ? `<button class="btn" style="flex:1;" ${busy ? "disabled" : ""} onclick="Dungeon.back()">BACK TO FLOORS</button>` : ""}
-    </div>
-    <div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>
-    <div class="dg-card"><div class="dg-dim">
-      <b>How it works:</b> each turn you hit, then the boss hits. Your hit is rolled like a slot machine from your class table.
-      <b>SAFE</b> = steady, <b>NORMAL</b> = balanced, <b>ALL-IN</b> = mostly weak hits but rare huge JACKPOTS and a small chance of BACKFIRE (you hit yourself).
-      All stances deal the same damage on average - only the risk differs. Favourite? play SAFE. Underdog? go ALL-IN. You can switch stance during the fight.
-      Weapons (TOOL, AUGMENT, RELIC) raise ATK, armor (HEAD, RIG, OS) raises HP. A new key every 15 min (max ${KEY_MAX}).</div></div>`;
-  }
-
-  function careerHtml() {
-    const d = D(), c = E.CLASSES[d.cls];
-    const tiers = [
-      { t: 1, name: c.tiers[0], perk: c.perks[0], req: "start" },
-      { t: 2, name: c.tiers[1], perk: c.perks[1], req: "LV 10 + beat Micromanager Team Lead" },
-      { t: 3, name: c.tiers[2], perk: c.perks[2], req: "LV 20 + beat Technical Board Review" },
-      { t: 4, name: d.branch ? c.branches[d.branch] : c.branches.a + " / " + c.branches.b, perk: d.branch ? c.perks[d.branch === "a" ? 3 : 4] : c.perks[3] + "<br>" + c.perks[4], req: "LV 25 + beat The CTO" }
-    ];
-    const promos = E.PROMOS.map((p, i) => {
-      const done = !!d.promos[p.id];
-      const prevOk = i === 0 || d.promos[E.PROMOS[i - 1].id];
-      const can = !done && d.level >= p.lvl && prevOk;
-      return `<div class="dg-promo ${done ? "done" : ""}"><span class="ic">${p.icon}</span><div style="flex:1;min-width:0;"><b>${p.name}</b> · LV ${p.lvl}<div class="dg-dim">${p.unlock} · ${p.txt}</div></div>
-        ${done ? "✔" : `<button class="btn ${can ? "btn-gold" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.promo('${p.id}')">${can ? "CHALLENGE" : "🔒"}</button>`}</div>`;
-    }).join("");
-    return `<div class="dg-grid2">
-      <div class="dg-card"><div class="dg-h"><span>${c.icon} ${c.name}</span><span>LV ${d.level}</span></div>
-        <div class="dg-dim" style="margin-bottom:6px;">${c.desc}<br>Wins ${d.wins} · Losses ${d.losses} · Best floor ${d.best}</div>
-        ${tiers.map(t => `<div class="dg-tier ${d.tier >= t.t ? "on" : (d.tier + 1 === t.t ? "next" : "")}"><b>T${t.t} ${t.name}</b> ${d.tier >= t.t ? "✔" : "🔒 " + t.req}<div class="dg-dim">${t.perk}</div></div>`).join("")}
-        ${d.exec ? `<div class="dg-tier on"><b>EXECUTIVE</b> ✔<div class="dg-dim">+10% ATK & HP, +5% office multiplier.</div></div>` : ""}
-        <button class="btn" style="margin-top:6px;width:100%;" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div>
-      <div class="dg-card"><div class="dg-h">PROMOTION REVIEWS</div>${promos}
-        <div class="dg-dim" style="margin-top:6px;">Each review costs 🔑 1. Losing costs nothing else - try again.</div></div>
-    </div>`;
-  }
-
-  function artsHtml() {
-    const d = D(), slots = artSlots(d);
-    const owned = E.ARTIFACTS.filter(a => d.artifacts[a.id]);
-    const rows = owned.length ? owned.map(a => {
-      const lvl = d.artifacts[a.id], eq = d.equipped.indexOf(a.id) >= 0;
-      return `<div class="dg-art ${eq ? "eq" : ""}"><span class="ic">${a.icon}</span><div class="t"><b>${a.name}</b> <span style="color:var(--amber);">LV ${lvl}/5</span><div class="dg-dim">${E.artifactText(a, lvl)}</div></div>
-        <button class="btn ${eq ? "btn-crimson" : "btn-cyan"}" ${!eq && d.equipped.length >= slots ? "disabled" : ""} onclick="Dungeon.equip('${a.id}')">${eq ? "REMOVE" : "EQUIP"}</button></div>`;
-    }).join("") : `<div class="dg-dim">No artifacts yet. Bosses drop them (every 5th floor guaranteed on first clear). Duplicates level them up (max LV 5, +25% effect per level).</div>`;
-    return `<div class="dg-card"><div class="dg-h"><span>ARTIFACTS</span><span>SLOTS ${d.equipped.length} / ${slots}</span></div>
-      <div class="dg-dim" style="margin-bottom:8px;">Slots: 2 base, +1 HR review, +1 at floor 25, 50 and 75 (max 6). Artifacts survive prestige. Every artifact has a trade-off.</div>${rows}</div>
-      <div class="dg-card"><div class="dg-h">ALL ARTIFACTS</div>${E.ARTIFACTS.map(a => `<div class="dg-dim">${d.artifacts[a.id] ? a.icon : "❔"} <b>${d.artifacts[a.id] ? a.name : "???"}</b> ${d.artifacts[a.id] ? "" : "- " + E.artifactText(a, 1)}</div>`).join("")}</div>`;
-  }
-
-  // ------------------------------------------------------------------ AKCE
-  function respecCost() { return 50000 * (1 + (gameState.prestige || 0)); }
-  function pickClass(k) {
-    const d = D();
-    if (d.cls && d.cls !== k) {
-      const cost = respecCost();
-      if (gameState.coins < cost) { log(`Changing class costs ${fmt(cost)} GC.`, "warning"); return; }
-      gameState.coins -= cost;
-      d.branch = "";
-      log(`CLASS CHANGED to ${E.CLASSES[k].name} (-${fmt(cost)} GC).`, "special");
-    } else if (!d.cls) log(`DUNGEON: you are now a ${E.CLASSES[k].name}. Good luck, ${escapeHtml(gameState.ldap)}!`, "special");
-    d.cls = k;
-    respecMode = false;
-    TT.saveSoon(); updateUI(); render();
-  }
-  let respecMode = false;
-  function respec() { respecMode = true; $("dg-inner").innerHTML = classPickHtml(true); }
-  function pickBranch(k) { const d = D(); d.branch = k; log(`CAREER: you became ${E.CLASSES[d.cls].branches[k]}!`, "special"); TT.saveSoon(); render(); }
-  function setStance(s) {
-    const d = D();
-    if (fight && !fight.over && E.allowedStances(fight).indexOf(s) < 0) { dlog("Stance locked by the boss!", "y"); return; }
-    d.stance = s;
-    ["safe", "normal", "allin"].forEach(x => { const b = $("dg-st-" + x); if (b) b.classList.toggle("sel", x === s); });
-  }
-  function floorNav(delta) { if (fight && !fight.over) return; const d = D(); sel.promo = null; sel.floor = Math.max(1, Math.min(d.best + 1, (sel.floor || 1) + delta)); render(); }
-  function back() { if (fight && !fight.over) return; sel.promo = null; sel.floor = D().best + 1; render(); }
-  function promo(id) { if (fight && !fight.over) return; sel.promo = id; view = "fight"; tab("fight"); }
-  function tokenKeys() {
-    const d = D();
-    if (gameState.slotTokens < 1 || d.keys >= KEY_MAX) return;
-    gameState.slotTokens -= 1;
-    d.keys = Math.min(KEY_MAX + TOKEN_KEYS, d.keys + TOKEN_KEYS);
-    log(`🎟 Slot Token converted into ${TOKEN_KEYS} dungeon keys.`, "special");
-    TT.saveSoon(); updateUI(); render();
-  }
-  function equip(id) {
-    const d = D();
-    const i = d.equipped.indexOf(id);
-    if (i >= 0) d.equipped.splice(i, 1);
-    else if (d.equipped.length < artSlots(d) && d.artifacts[id]) d.equipped.push(id);
-    TT.saveSoon(); render();
-  }
-  function cycleSpeed() { speed = speed === 1 ? 2 : (speed === 2 ? 4 : 1); const b = $("dg-speed"); if (b) b.innerText = "SPEED ×" + speed; }
-
-  // ------------------------------------------------------------------ SOUBOJ (UI)
-  let fightLog = [];
-  function dlog(t, cls) {
-    fightLog.unshift({ t: t, c: cls || "" });
-    fightLog = fightLog.slice(0, 60);
-    const el = $("dg-log"); if (!el) return;
-    const div = document.createElement("div"); if (cls) div.className = cls; div.innerHTML = t;
-    el.prepend(div);
-    while (el.childNodes.length > 60) el.removeChild(el.lastChild);
-  }
-  function restoreFightView() {
-    const el = $("dg-log"); if (!el) return;
-    el.innerHTML = fightLog.slice().reverse().map(x => `<div class="${x.c}">${x.t}</div>`).join("");
-    if (fight) bars();
-  }
-
-  function startFight() {
-    if (fight && !fight.over) return;
-    const d = D();
-    regenKeys();
-    if (d.keys < 1) { dlog("No keys left. A new key arrives every 15 min (or convert a Slot Token).", "r"); return; }
-    const boss = fightTarget();
-    d.keys -= 1;
-    if (d.keys < KEY_MAX && d.keys + 1 >= KEY_MAX) d.keysAt = Date.now();
-    const seed = Math.floor(TT.rnd() * 2147483647) + 1;
-    fight = E.newFight(player(), boss, seed);
-    fight.firstClear = !boss.promo && boss.floor === d.best + 1;
-    fightLog = [];
-    render();
-    dlog(`⚔ ${escapeHtml(boss.name)} appears! (${fmt(boss.hp)} HP, ${fmt(boss.atk)} ATK)`, "y");
-    if (fight.coin) dlog(fight.coin > 0 ? "🎲 Coin Toss: +25% ATK this fight!" : "🎲 Coin Toss: -15% ATK this fight...", fight.coin > 0 ? "g" : "r");
-    TT.saveSoon();
-    scheduleTurn(500);
-  }
-
-  function scheduleTurn(ms) { clearTimeout(fightTimer); fightTimer = setTimeout(turn, ms); }
-
-  function turn() {
-    if (!fight || fight.over) return;
-    const d = D();
-    const allowed = E.allowedStances(fight);
-    if (allowed.indexOf(d.stance) < 0) setStance(allowed.indexOf("normal") >= 0 ? "normal" : allowed[0]);
-    const evs = E.step(fight, d.stance);
-    playEvents(evs);
-    bars();
-    if (fight.over) { endFight(); return; }
-    scheduleTurn(document.hidden ? 50 : Math.round(750 / speed));
-  }
-
-  function skipFight() {
-    if (!fight || fight.over) return;
-    clearTimeout(fightTimer);
-    let guard = 0;
-    while (!fight.over && guard++ < 200) { const evs = E.step(fight, D().stance); evs.forEach(e => logEvent(e)); }
-    bars();
-    endFight();
-  }
-
-  function playEvents(evs) {
-    evs.forEach(e => {
-      logEvent(e);
-      if (e.type === "pattack") {
-        anim("dg-ps", "atk-l");
-        if (e.val > 0) { anim("dg-bs", "hit"); }
-        const label = e.kind === "jp" ? "JACKPOT " + fmt(e.val) : e.kind === "bf" ? "BACKFIRE" : e.kind === "jam" ? "JAMMED" : e.kind === "bdodge" ? "MISS" : fmt(e.val);
-        float(label, "b", e.kind === "jp" ? "#ffb800" : e.kind === "bf" ? "#ff1744" : (e.mult >= 1.5 ? "#00ff88" : "#ffffff"), e.kind === "jp");
-      } else if (e.type === "phit") { anim("dg-bs", "atk-r"); anim("dg-ps", "hit"); float("-" + fmt(e.val), "p", "#ff4d6d", e.val > fight.p.maxHp * 0.2); }
-      else if (e.type === "dodge") float("DODGE", "p", "#00f0ff");
-      else if (e.type === "heal") float("+" + fmt(e.val), "p", "#00ff88");
-      else if (e.type === "bheal") float("+" + fmt(e.val), "b", "#00ff88");
-      else if (e.type === "reflect" || e.type === "dot") float(fmt(e.val), "b", "#a855f7");
-      else if (e.type === "revive") float("POWER CYCLE!", "p", "#ffb800", true);
-      else if (e.type === "mech") { const m = $("dg-mech"); if (m) m.textContent = e.msg; if (e.want) document.querySelectorAll(".dg-stances button").forEach(b => b.classList.toggle("want", b.id === "dg-st-" + e.want)); }
-    });
-  }
-
-  function logEvent(e) {
-    const T = `<span style="color:#556;">T${e.t}</span> `;
-    if (e.type === "pattack") {
-      if (e.kind === "jam") dlog(T + "📄 Paper jam - your attack was blocked.", "r");
-      else if (e.kind === "bdodge") dlog(T + "The boss dodged your hit.", "r");
-      else if (e.kind === "bf") dlog(T + `💥 <b>BACKFIRE!</b> (${e.stance})`, "r");
-      else dlog(T + `${e.kind === "jp" ? "🎰 <b>JACKPOT</b>" : "You hit"} <b>${fmt(e.val)}</b> (${e.mult}× · ${e.stance})`, e.kind === "jp" ? "y" : (e.mult >= 1.4 ? "g" : ""));
-    } else if (e.type === "phit") dlog(T + `${e.src === "backfire" ? "You hurt yourself" : e.src === "reflect" ? "Reflected damage" : "Boss hits you"} for <b>${fmt(e.val)}</b>${e.absorbed ? " (" + fmt(e.absorbed) + " absorbed by shield)" : ""}`, "r");
-    else if (e.type === "dodge") dlog(T + "🌀 You dodged!", "c");
-    else if (e.type === "heal") dlog(T + `Reboot Script heals ${fmt(e.val)}.`, "g");
-    else if (e.type === "bheal") dlog(T + `Boss restores ${fmt(e.val)} HP.`, "y");
-    else if (e.type === "reflect") dlog(T + `Threat Intel reflects ${fmt(e.val)}.`, "c");
-    else if (e.type === "dot") dlog(T + `Zero-Day payload ticks ${fmt(e.val)}.`, "c");
-    else if (e.type === "revive") dlog(T + "🔌 POWER CYCLE - you survive!", "y");
-    else if (e.type === "mech") dlog(T + "⚙ " + escapeHtml(e.msg), "y");
-  }
-
-  function anim(id, cls) { const el = $(id); const s = el && el.firstElementChild; if (!s) return; s.classList.remove(cls); void s.getBoundingClientRect(); s.classList.add(cls); setTimeout(() => s.classList.remove(cls), 400); }
+    function anim(id, cls) { const el = $(id); const s = el && el.firstElementChild; if (!s) return; s.classList.remove(cls); void s.getBoundingClientRect(); s.classList.add(cls); setTimeout(() => s.classList.remove(cls), 400); }
   function float(txt, side, color, big) {
     const ar = $("dg-arena"); if (!ar || document.hidden) return;
     const el = document.createElement("div");
@@ -6098,81 +6344,410 @@ html.m #dg-open-btn { display: none; }
     ar.appendChild(el);
     setTimeout(() => el.remove(), 1150);
   }
-  function bars() {
-    if (!fight) return;
-    const f = fight;
-    const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
-    set("dg-php", f.php / f.p.maxHp * 100);
-    set("dg-psh", f.shield / f.p.maxHp * 100);
-    set("dg-bhp", f.bhp / f.bmax * 100);
-    set("dg-bsh", f.bshield / f.bmax * 100);
-    const a = $("dg-phpt"); if (a) a.textContent = `${fmt(Math.max(0, f.php))} / ${fmt(f.p.maxHp)}${f.shield ? " · 🛡" + fmt(f.shield) : ""}`;
-    const b = $("dg-bhpt"); if (b) b.textContent = `${fmt(Math.max(0, f.bhp))} / ${fmt(f.bmax)}${f.bshield ? " · 🛡" + fmt(f.bshield) : ""} · ⚔ ${fmt(f.b.atk)}`;
+
+
+  // ------------------------------------------------------------------ OBRAZOVKA
+  function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); }
+  function closeScreen() { if (fight && !fight.over) return; open = false; $("dg-screen").classList.remove("open"); }
+  function tab(t) {
+    if (fight && !fight.over) return;
+    view = t; result = null; fight = null;
+    ["camp", "hero", "arena"].forEach(x => { const b = $("dg-t-" + x); if (b) b.className = "casino-tab-btn" + (x === t ? " active" : ""); });
+    render();
+  }
+  function renderKeys() {
+    const d = HS(), el = $("dg-keys"); if (!el) return;
+    const next = d.energy >= ENERGY_MAX ? "" : " (" + fmtT(ENERGY_MS - (Date.now() - d.energyAt)) + ")";
+    el.textContent = `⚡${d.energy}/${ENERGY_MAX}${next} ⭐${totalStars(d)}`;
+    el.title = "Energy: +1 every 12 min, max " + ENERGY_MAX;
+  }
+  function fmtT(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+
+  function render() {
+    if (!open) return;
+    regenEnergy(); renderKeys();
+    const box = $("dg-inner"), d = HS();
+    if (!unlocked()) { box.innerHTML = lockedHtml(); return; }
+    if (!d.cls) { box.innerHTML = classPickHtml(false); return; }
+    if (fight) { box.innerHTML = fightHtml(); fightRefresh(); restoreLog(); if (result) showResult(); return; }
+    if (view === "hero") box.innerHTML = heroHtml();
+    else if (view === "arena") { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); }
+    else box.innerHTML = campHtml();
   }
 
-  // ------------------------------------------------------------------ KONEC SOUBOJE + ODMĚNY
+  function lockedHtml() {
+    return `<div class="dg-card dg-lock"><div class="big">🔒</div>
+      <div style="font:800 15px Orbitron,monospace;color:var(--crimson);margin:8px 0;">HIGH STAKES LOCKED</div>
+      <div class="dg-dim">Reach <b>chest level 10</b> (you: ${maxChest()}) or <b>Prestige 1</b> to unlock HIGH STAKES:
+      an action fighting game - every turn YOU choose: quick hit, power strike with timing, a slot-machine gamble, block or dodge.
+      5 chapters of office horror from the Helpdesk to the Boardroom. Your progress here is <b>never reset</b> by prestige.</div></div>`;
+  }
+
+  function classPickHtml(respec) {
+    return `<div class="dg-card"><div class="dg-h">${respec ? "CHANGE CLASS (" + fmt(respecCost()) + " GC)" : "WELCOME TO HIGH STAKES - CHOOSE YOUR CLASS"}</div>
+      <div class="dg-dim" style="margin-bottom:8px;">Each turn you pick an action. The enemy shows what it will do next (⚔ attack, 💥 HEAVY, 🛡 defend) - play around it. ${respec ? "Level, stars and stat points stay." : ""}</div>
+      <div class="dg-classes">${Object.keys(H.CLASSES).map(k => { const c = H.CLASSES[k];
+        return `<div class="dg-class" onclick="Dungeon.pickClass('${k}')">${sprite(["sysadmin", "engineer", "cyber"].indexOf(k), "p")}<div class="ic">${c.icon}</div>
+          <div style="font:800 12px Orbitron,monospace;margin:4px 0;">${c.name}</div><div class="dg-dim">${c.desc}<br><b>✨ ${c.skill}</b>: ${c.skillTxt}</div></div>`; }).join("")}</div>
+      ${respec ? `<div style="text-align:right;margin-top:8px;"><button class="btn" onclick="Dungeon.tab('hero')">CANCEL</button></div>` : ""}</div>`;
+  }
+
+  function starHtml(n, max) { let s = ""; for (let i = 0; i < (max || 3); i++) s += i < n ? "★" : `<span class="off">★</span>`; return `<span class="hs-stars">${s}</span>`; }
+  function missionOpen(id) {
+    const d = HS();
+    if (id === 50) return (d.stars[49] || 0) > 0;
+    return id === 0 || (d.stars[id - 1] || 0) > 0;
+  }
+  function chapterOpen(ci) { return ci === 0 || missionOpen(ci * 10); }
+
+  function campHtml() {
+    const d = HS(), xpN = C.xpToNext(d.level);
+    const chs = C.CHAPTERS.map((c, i) => {
+      const got = c.missions.reduce((a, _, mi) => a + (d.stars[i * 10 + mi] || 0), 0);
+      return `<button class="btn ${chSel === i ? "sel" : ""}" ${chapterOpen(i) ? "" : "disabled"} onclick="Dungeon.chapter(${i})">${c.icon} ${i + 1}<br><small>${chapterOpen(i) ? got + "/30★" : "🔒"}</small></button>`;
+    }).join("") + (missionOpen(50) ? `<button class="btn ${chSel === 5 ? "sel" : ""}" onclick="Dungeon.chapter(5)">📋 ?<br><small>SECRET</small></button>` : "");
+    const ch = C.CHAPTERS[chSel];
+    const ids = chSel === 5 ? [50] : ch.missions.map((_, mi) => chSel * 10 + mi);
+    const ms = ids.map(id => {
+      const m = C.mission(id), st = d.stars[id] || 0, op = missionOpen(id);
+      return `<div class="hs-m ${op ? "" : "locked"} ${m.kind === "boss" || m.kind === "secret" ? "boss" : ""} ${m.kind === "compliance" ? "compliance" : ""}" ${op ? `onclick="Dungeon.mission(${id})"` : ""}>
+        <div class="ic">${op ? m.enemy.icon : "🔒"}</div><div class="t"><b>${m.idx + 1}. ${escapeHtml(m.name)}</b>
+        <span class="dg-dim">${m.kind === "normal" ? "" : m.kind.toUpperCase() + " · "}⚡${m.energy}</span></div>${starHtml(st)}</div>`;
+    }).join("");
+    return `<div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${escapeHtml(gameState.ldap)} · LV ${d.level} · ${title()}</span><span style="color:var(--text-dim);">${cleared()}/51 · ⭐ ${totalStars()}</span></div>
+      <div class="dg-dim">${statLine()} · stars boost the office: <b>×${netMultBonus().toFixed(2)}</b>${d.pts ? ` · <b style="color:var(--emerald);">${d.pts} stat points to spend!</b>` : ""}</div>
+      <div class="dg-xp"><div style="width:${Math.min(100, d.xp / xpN * 100)}%"></div></div>
+      ${gameState.slotTokens > 0 && d.energy < ENERGY_MAX ? `<button class="btn btn-cyan" style="margin-top:6px;width:100%;" onclick="Dungeon.tokenEnergy()">🎟 SLOT TOKEN → +${TOKEN_ENERGY} ⚡ (${gameState.slotTokens})</button>` : ""}</div>
+      <div class="hs-ch">${chs}</div>
+      <div class="dg-card"><div class="dg-h"><span>${chSel === 5 ? "📋 SECRET" : ch.icon + " CHAPTER " + (chSel + 1) + ": " + ch.name.toUpperCase()}</span></div>
+        <div class="dg-dim" style="margin-bottom:8px;">${chSel === 5 ? "You beat the whole company. One email remains unread..." : ch.desc}</div>
+        <div class="hs-ms">${ms}</div></div>`;
+  }
+
+  function statLine() { const h = hero(); return `❤ <b>${fmt(h.maxHp)}</b> · ⚔ <b>${fmt(h.atk)}</b> · ⚡ <b>${h.staMax}</b> · 🌀 <b>${Math.round(h.dodge * 100)}%</b> · 💥 crit <b>${Math.round(h.crit * 100)}%</b>`; }
+
+  function heroHtml() {
+    const d = HS(), h = hero(), g = gear();
+    const rows = Object.keys(STAT_INFO).map(k => `<div class="hs-stat"><b>${STAT_INFO[k][0]}</b><span class="v">${5 + d.stats[k]}</span><span class="d">${STAT_INFO[k][1]}</span>
+      <button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} onclick="Dungeon.stat('${k}',1)">+1</button>
+      <button class="btn" style="padding:3px 8px;" ${d.pts >= 5 ? "" : "disabled"} onclick="Dungeon.stat('${k}',5)">+5</button></div>`).join("");
+    const items = Object.keys(H.ITEMS).map(k => `<div class="dg-dim">${H.ITEMS[k].icon} <b>${H.ITEMS[k].name}</b> ×${d.items[k]} - ${H.ITEMS[k].txt}</div>`).join("");
+    return `<div class="dg-grid2">
+      <div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${H.CLASSES[d.cls].name} · LV ${d.level}</span><span>${title()}</span></div>
+        <div style="display:flex;gap:10px;align-items:center;">${playerSprite()}<div class="dg-dim">${statLine()}<br>Hit +${Math.round(h.hitBonus * 100)}% · timing zone ${Math.round(h.zone * 100)}% · gear ⚔×${g.atk.toFixed(2)} ❤×${g.hp.toFixed(2)}<br>✨ <b>${H.CLASSES[d.cls].skill}</b>: ${H.CLASSES[d.cls].skillTxt}<br>Wins ${d.wins} · Losses ${d.losses}</div></div>
+        <div class="dg-h" style="margin-top:10px;"><span>STAT POINTS</span><span style="color:${d.pts ? "var(--emerald)" : "var(--text-dim)"};">${d.pts} free</span></div>${rows}
+        <div class="dg-dim" style="margin-top:6px;">+3 points every level. Weapons (TOOL/AUGMENT/RELIC) multiply ATK, armor (HEAD/RIG/OS) multiplies HP.</div>
+        <div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
+      <div class="dg-card"><div class="dg-h">ITEMS (max ${H.MAX_ITEMS_PER_FIGHT} per fight, free action)</div>${items}
+        <div class="dg-dim" style="margin-top:8px;">Missions drop items. A first ★★★ on a mission always gives one.</div>
+        <div class="dg-h" style="margin-top:12px;">HOW TO FIGHT</div>
+        <div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (2×) or <b>gold</b> (2.6×) zone.
+        🎰 GAMBLE - spin a mini slot machine (7️⃣7️⃣7️⃣ = 6×, 💀💀💀 hits you). 🛡 BLOCK when the enemy shows 💥 HEAVY = perfect block + counter. 💨 DODGE avoids the hit.
+        ✨ SKILL needs 100 focus (you gain it by hitting and getting hit). Stamina refills every turn - blocking refills more.</div></div></div>`;
+  }
+
+  // ------------------------------------------------------------------ AKCE (menu)
+  function respecCost() { return 50000 * (1 + (gameState.prestige || 0)); }
+  function pickClass(k) {
+    const d = HS();
+    if (d.cls && d.cls !== k) {
+      const cost = respecCost();
+      if (gameState.coins < cost) { log(`Changing class costs ${fmt(cost)} GC.`, "warning"); return; }
+      gameState.coins -= cost; log(`HIGH STAKES: class changed to ${H.CLASSES[k].name}.`, "special");
+    } else if (!d.cls) log(`🎰 HIGH STAKES: welcome, ${escapeHtml(gameState.ldap)} the ${H.CLASSES[k].name}!`, "special");
+    d.cls = k; view = "camp"; TT.saveSoon(); updateUI(); render();
+  }
+  function respec() { $("dg-inner").innerHTML = classPickHtml(true); }
+  function stat(k, n) { const d = HS(); n = Math.min(n, d.pts); if (n <= 0) return; d.stats[k] += n; HS(); TT.saveSoon(); render(); }
+  function resetStats() {
+    const d = HS(), cost = Math.floor(respecCost() / 2);
+    if (gameState.coins < cost) { log(`Resetting stats costs ${fmt(cost)} GC.`, "warning"); return; }
+    gameState.coins -= cost; d.stats = {}; HS(); TT.saveSoon(); updateUI(); render();
+  }
+  function chapter(i) { chSel = i; render(); }
+  function tokenEnergy() {
+    const d = HS(); regenEnergy();
+    if (gameState.slotTokens < 1 || d.energy >= ENERGY_MAX) return;
+    gameState.slotTokens -= 1; d.energy = Math.min(ENERGY_MAX, d.energy + TOKEN_ENERGY);
+    if (d.energy >= ENERGY_MAX) d.energyAt = Date.now();
+    TT.saveSoon(); updateUI(); render();
+  }
+
+  function mission(id) {
+    if (!missionOpen(id)) return;
+    const m = C.mission(id), d = HS(), st = d.stars[id] || 0;
+    const el = document.createElement("div");
+    el.className = "tt-overlay open"; el.id = "hs-intro"; el.style.zIndex = 10000;
+    el.onclick = (e) => { if (e.target === el) el.remove(); };
+    el.innerHTML = `<div class="tt-modal" style="border-color:${m.kind === "boss" || m.kind === "secret" ? "var(--crimson)" : "var(--cyan)"};">
+      <h2 style="color:${m.kind === "boss" || m.kind === "secret" ? "var(--crimson)" : "var(--cyan)"};">${m.enemy.icon} ${escapeHtml(m.name)}</h2>
+      <div style="display:flex;gap:12px;align-items:center;">${enemySprite(m)}<div class="tt-body" style="min-height:0;font-size:13px;">${escapeHtml(m.intro)}<br><br>
+        <b>${escapeHtml(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}${m.survive ? `<br>🎯 <b>Survive ${m.survive} turns</b>` : ""}</div></div>
+      <div class="dg-dim" style="margin-top:8px;">★ Win · ★★ Win with 50%+ HP · ★★★ ${escapeHtml(H.bonusText(m.bonus))}</div>
+      <div class="dg-dim">Your best: ${starHtml(st)} · Rewards: ${fmt(C.xpFor(id, !st))} XP, ${fmt(C.gcFor(id, !st))} GC${!st ? " (first clear)" : ""}</div>
+      <div style="display:flex;gap:8px;margin-top:12px;"><button class="btn btn-gold" style="flex:2;padding:11px;" onclick="Dungeon.start(${id})">⚔ FIGHT (⚡${m.energy})</button>
+        <button class="btn" style="flex:1;" onclick="this.closest('.tt-overlay').remove()">BACK</button></div></div>`;
+    document.body.appendChild(el);
+  }
+
+  // ------------------------------------------------------------------ SOUBOJ
+  function start(id) {
+    const intro = $("hs-intro"); if (intro) intro.remove();
+    const d = HS(), m = C.mission(id);
+    regenEnergy();
+    if (d.energy < m.energy) { log(`HIGH STAKES: not enough energy (${m.energy} needed). +1 every 12 min.`, "warning"); render(); return; }
+    d.energy -= m.energy;
+    if (d.energy < ENERGY_MAX && d.energy + m.energy >= ENERGY_MAX) d.energyAt = Date.now();
+    const hh = hero();
+    hh.items = d.items;                                           // lektvary se odečítají přímo z inventáře
+    fight = H.newFight(hh, m, Math.floor(TT.rnd() * 2147483647) + 1);
+    fightMission = m; result = null; flog = [];
+    view = "camp";
+    TT.saveSoon();
+    render();
+    dlog(`⚔ ${escapeHtml(m.enemy.name)} appears!`, "y");
+  }
+
+  function intentHtml() {
+    const f = fight, it = f.intent;
+    if (f.over) return "";
+    if (it.fake) return `<span class="hs-intent special">❓ ???</span>`;
+    const map = { atk: ["⚔", "ATTACK " + fmt(it.val), ""], heavy: ["💥", "HEAVY " + fmt(it.val), "heavy"], defend: ["🛡", "DEFEND", "defend"], flex: ["💪", "FLEX (heavy next!)", "defend"], special: ["✨", "SPECIAL", "special"] };
+    const x = map[it.k] || map.atk;
+    return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}</span>`;
+  }
+
+  function fightHtml() {
+    const f = fight, m = fightMission, h = f.h;
+    const acts = ["quick", "strike", "power", "gamble", "block", "dodge", "skill"].map(a => {
+      const A = H.ACTIONS[a];
+      return `<button class="btn ${a === "power" || a === "gamble" ? "btn-gold" : a === "block" || a === "dodge" ? "btn-cyan" : a === "skill" ? "btn-crimson" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${A.icon} ${a === "skill" ? H.CLASSES[h.cls].skill.split(" ")[0] : A.name}<small>${a === "skill" ? "100 focus" : (A.sta ? A.sta + " ⚡" : "+15 ⚡")}</small></button>`;
+    }).join("") + `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">🏳 FLEE<small>lose</small></button>`;
+    const items = Object.keys(H.ITEMS).map(k => `<button class="btn" id="hs-i-${k}" onclick="Dungeon.item('${k}')">${H.ITEMS[k].icon} ×<span id="hs-in-${k}">${h.items[k] || 0}</span></button>`).join("");
+    return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span id="hs-turn">TURN 0</span></div>
+      <div class="dg-dim">★★★ ${escapeHtml(H.bonusText(m.bonus))}${m.survive ? " · 🎯 survive " + m.survive + " turns" : ""}</div></div>
+      <div class="hs-fight">
+      <div class="dg-arena" id="dg-arena">
+        <div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${H.CLASSES[h.cls].name} LV ${h.level}</div>
+          <div id="dg-ps">${playerSprite()}</div>
+          <div class="hs-bars">
+            <div class="hs-lbl"><span>HP</span><span id="hs-hpt"></span></div><div class="hs-bar"><div class="hp" id="hs-hp"></div><div class="sh" id="hs-sh"></div></div>
+            <div class="hs-lbl"><span>STAMINA</span><span id="hs-stat"></span></div><div class="hs-bar"><div class="sta" id="hs-sta"></div></div>
+            <div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div></div></div>
+        <div class="dg-vs">VS</div>
+        <div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div id="hs-intent">${intentHtml()}</div>
+          <div id="dg-bs">${enemySprite(m)}</div>
+          <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div></div></div>
+      </div>
+      <div class="dg-mech" id="dg-mech"></div>
+      <div class="hs-acts">${acts}</div>
+      <div class="hs-items">${items}</div>
+      <div id="hs-ov-slot"></div>
+      </div>
+      <div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>`;
+  }
+
+  function fightRefresh() {
+    const f = fight; if (!f) return;
+    const h = f.h;
+    const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+    const txt = (id, t) => { const el = $(id); if (el) el.textContent = t; };
+    set("hs-hp", f.hp / h.maxHp * 100); set("hs-sh", f.shield / h.maxHp * 100); set("hs-sta", f.sta / h.staMax * 100); set("hs-foc", f.focus);
+    set("hs-ehp", f.ehp / f.emax * 100);
+    txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
+    txt("hs-stat", Math.floor(f.sta) + " / " + h.staMax); txt("hs-foct", Math.floor(f.focus) + " / 100");
+    txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
+    txt("hs-turn", "TURN " + f.turn + (f.m.survive ? " / " + f.m.survive : ""));
+    const it = $("hs-intent"); if (it) it.innerHTML = intentHtml();
+    ["quick", "strike", "power", "gamble", "block", "dodge", "skill"].forEach(a => {
+      const b = $("hs-a-" + a); if (!b) return;
+      const ok = H.allowed(f, a) && !f.over && !busyAnim;
+      b.disabled = !ok; b.classList.toggle("off", !ok); b.classList.toggle("lock", !!f.disabled[a]);
+    });
+    const fl = $("hs-a-flee"); if (fl) fl.disabled = f.over || busyAnim;
+    Object.keys(H.ITEMS).forEach(k => {
+      const b = $("hs-i-" + k); if (!b) return;
+      txt("hs-in-" + k, h.items[k] || 0);
+      b.disabled = f.over || busyAnim || !(h.items[k] > 0) || f.itemsUsed >= H.MAX_ITEMS_PER_FIGHT;
+    });
+  }
+
+  function dlog(t, cls) {
+    flog.unshift({ t: t, c: cls || "" }); flog = flog.slice(0, 80);
+    const el = $("dg-log"); if (!el) return;
+    const div = document.createElement("div"); if (cls) div.className = cls; div.innerHTML = t;
+    el.prepend(div); while (el.childNodes.length > 80) el.removeChild(el.lastChild);
+  }
+  function restoreLog() { const el = $("dg-log"); if (el) el.innerHTML = flog.slice().reverse().map(x => `<div class="${x.c}">${x.t}</div>`).join(""); }
+
+  function act(a) {
+    const f = fight; if (!f || f.over || busyAnim || !H.allowed(f, a)) return;
+    if (a === "power") { timingGame(q => resolve("power", q)); return; }
+    if (a === "gamble") { resolve("gamble", "none", true); return; }
+    resolve(a, "none");
+  }
+
+  function resolve(a, timing, slot) {
+    const f = fight;
+    const evs = H.step(f, a, timing);
+    const g = evs.find(e => e.type === "gamble");
+    if (slot && g) { slotAnim(g.reels, () => { play(evs); after(); }); return; }
+    play(evs); after();
+  }
+  function after() {
+    fightRefresh();
+    if (fight.over) setTimeout(endFight, 700);
+  }
+
+  function item(k) {
+    const f = fight; if (!f || f.over || busyAnim) return;
+    const evs = H.useItem(f, k); if (!evs) return;
+    play(evs); fightRefresh(); TT.saveSoon();
+  }
+  function flee() {
+    if (!fight || fight.over || busyAnim) return;
+    fight.over = true; fight.win = false; fight.fled = true;
+    dlog("🏳 You fled the fight.", "r");
+    endFight();
+  }
+
+  // ---------- timing minihra u POWER STRIKE
+  function timingGame(cb) {
+    const f = fight, zone = f.h.zone;
+    busyAnim = true; fightRefresh();
+    const gStart = 0.15 + Math.random() * (0.85 - zone - 0.15);
+    const pW = zone * 0.3, pStart = gStart + (zone - pW) / 2;
+    const box = $("hs-ov-slot");
+    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 10px;">💥 STOP THE NEEDLE! (click / tap / space)</div>
+      <div class="hs-timing" id="hs-tm"><div class="g" style="left:${gStart * 100}%;width:${zone * 100}%"></div><div class="p" style="left:${pStart * 100}%;width:${pW * 100}%"></div><div class="n" id="hs-needle"></div></div></div>`;
+    const t0 = performance.now(), period = 1100;
+    let done = false, raf = 0, pos = 0;
+    const stop = () => {
+      if (done) return; done = true; cancelAnimationFrame(raf);
+      document.removeEventListener("keydown", key, true);
+      const q = pos >= pStart && pos <= pStart + pW ? "perfect" : pos >= gStart && pos <= gStart + zone ? "good" : "none";
+      const ov = box.querySelector(".hs-ov");
+      if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"};">${q === "perfect" ? "PERFECT! 2.6×" : q === "good" ? "GOOD! 2×" : "MISSED THE ZONE - normal hit"}</div>`);
+      setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(q); }, 450);
+    };
+    const key = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); stop(); } };
+    document.addEventListener("keydown", key, true);
+    const tm = $("hs-tm");
+    tm.addEventListener("pointerdown", (e) => { e.preventDefault(); stop(); });
+    const frame = (now) => {
+      const t = ((now - t0) % (period * 2)) / period;
+      pos = t < 1 ? t : 2 - t;
+      const n = $("hs-needle"); if (n) n.style.left = "calc(" + (pos * 100) + "% - 2px)";
+      if (now - t0 > period * 4) { stop(); return; }                   // po 2 průjezdech se zastaví sama
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+  }
+
+  // ---------- mini automat u GAMBLE
+  function slotAnim(reels, cb) {
+    busyAnim = true; fightRefresh();
+    const box = $("hs-ov-slot");
+    const sym = ["🍒", "🔔", "⭐", "7️⃣", "💀"];
+    box.innerHTML = `<div class="hs-ov"><div class="hs-reels">${[0, 1, 2].map(i => `<div class="hs-reel spin" id="hs-r${i}">🍒</div>`).join("")}</div><div class="hs-ovt" id="hs-rt">🎰 SPINNING...</div></div>`;
+    const iv = setInterval(() => { [0, 1, 2].forEach(i => { const r = $("hs-r" + i); if (r && r.classList.contains("spin")) r.textContent = sym[Math.floor(Math.random() * 5)]; }); }, 70);
+    [0, 1, 2].forEach(i => setTimeout(() => { const r = $("hs-r" + i); if (r) { r.classList.remove("spin"); r.textContent = reels[i]; } }, 420 + i * 260));
+    setTimeout(() => {
+      clearInterval(iv);
+      const res = H.reelResult(reels);
+      const t = $("hs-rt"); if (t) { t.textContent = res.jp ? "🎰 JACKPOT ×6!!!" : res.bf ? "💀 BACKFIRE!" : res.txt.toUpperCase() + " ×" + res.mult; t.style.color = res.jp ? "#ffd700" : res.bf ? "var(--crimson)" : res.mult >= 2 ? "var(--emerald)" : "var(--text-dim)"; }
+      setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(); }, res.jp || res.bf ? 900 : 550);
+    }, 420 + 2 * 260 + 250);
+  }
+
+  function play(evs) {
+    const T = (e) => `<span style="color:#556;">T${e.t}</span> `;
+    evs.forEach(e => {
+      if (e.type === "pact") {
+        if (e.a === "block") dlog(T(e) + "🛡 You block.", "c");
+        else if (e.a === "dodge") dlog(T(e) + "💨 You get ready to dodge.", "c");
+        else if (e.miss) { dlog(T(e) + `You missed (${H.ACTIONS[e.a].name}).`, "r"); float("MISS", "b", "#8b9bb4"); anim("dg-ps", "atk-l"); }
+        else { anim("dg-ps", "atk-l"); anim("dg-bs", "hit"); float((e.crit ? "CRIT " : "") + fmt(e.val), "b", e.crit ? "#ffb800" : e.timing === "PERFECT" ? "#ffd700" : "#fff", e.crit || e.timing === "PERFECT");
+          dlog(T(e) + `${H.ACTIONS[e.a].name}${e.timing ? " (" + e.timing + ")" : ""} hits for <b>${fmt(e.val)}</b>${e.crit ? " - CRIT!" : ""}`, e.crit || e.timing ? "g" : ""); }
+      } else if (e.type === "gamble") {
+        if (e.bf) { anim("dg-ps", "hit"); float("BACKFIRE", "p", "#ff1744", true); dlog(T(e) + `🎰 ${e.reels.join("")} - 💀 BACKFIRE! You take ${fmt(e.self)}.`, "r"); }
+        else { anim("dg-ps", "atk-l"); anim("dg-bs", "hit"); float((e.jp ? "JACKPOT " : "") + fmt(e.val), "b", e.jp ? "#ffd700" : "#fff", e.jp);
+          dlog(T(e) + `🎰 ${e.reels.join("")} - ${e.res} ×${e.mult} for <b>${fmt(e.val)}</b>${e.crit ? " (crit)" : ""}`, e.jp ? "y" : e.mult >= 2 ? "g" : ""); }
+      } else if (e.type === "skill") { anim("dg-ps", "atk-l"); if (e.val) { anim("dg-bs", "hit"); float(fmt(e.val), "b", "#ff4dff", true); } dlog(T(e) + `✨ <b>${e.a}</b>: ${escapeHtml(e.msg)}`, "y"); }
+      else if (e.type === "hhit") { anim("dg-bs", "atk-r"); anim("dg-ps", "hit"); float("-" + fmt(e.val), "p", "#ff4d6d", e.src === "heavy"); if (e.src !== "backfire") dlog(T(e) + `${e.src === "heavy" ? "💥 HEAVY hit" : e.src === "hallucination" ? "🤖 Hallucination" : "Enemy hits"} you for <b>${fmt(e.val)}</b>${e.absorbed ? " (" + fmt(e.absorbed) + " shielded)" : ""}`, "r"); }
+      else if (e.type === "dodge") { float("DODGE", "p", "#00f0ff"); dlog(T(e) + `🌀 Dodged${e.heavy ? " the HEAVY" : ""}!`, "c"); }
+      else if (e.type === "perfect") { float("PERFECT BLOCK", "p", "#ffd700", true); float(fmt(e.val), "b", "#ffd700"); dlog(T(e) + `🛡 <b>PERFECT BLOCK!</b> Counter for ${fmt(e.val)}.`, "y"); }
+      else if (e.type === "edef") dlog(T(e) + "Enemy is defending.", "");
+      else if (e.type === "eheal") { float("+" + fmt(e.val), "b", "#00ff88"); dlog(T(e) + `Enemy heals ${fmt(e.val)}.`, "y"); }
+      else if (e.type === "heal") { float("+" + fmt(e.val), "p", "#00ff88"); dlog(T(e) + `☕ +${fmt(e.val)} HP`, "g"); }
+      else if (e.type === "item") dlog(T(e) + `${H.ITEMS[e.id].icon} ${escapeHtml(e.msg)}`, e.good === false ? "r" : "g");
+      else if (e.type === "revive") { float("POWER CYCLE!", "p", "#ffb800", true); dlog(T(e) + "🔌 SysAdmin POWER CYCLE - you survive with 10% HP!", "y"); }
+      else if (e.type === "mech") { const m = $("dg-mech"); if (m) m.textContent = e.msg; dlog(T(e) + "⚙ " + escapeHtml(e.msg), "y"); }
+    });
+  }
+
+  // ------------------------------------------------------------------ KONEC + ODMĚNY
   function endFight() {
-    const f = fight, d = D(), b = f.b;
-    const p = f.p;
+    const f = fight, m = fightMission, d = HS();
+    const prev = d.stars[m.id] || 0;
+    const s = f.fled ? 0 : H.stars(f);
+    const lines = [];
     if (f.win) {
       d.wins++;
-      const floorEq = b.promo ? E.PROMOS.find(x => x.id === b.promo).lvl : b.floor;
-      let xp = b.promo ? E.winXp(floorEq, true) : E.winXp(floorEq, f.firstClear);
-      const lootMul = 1 + p.loot;
-      const gc = Math.floor((150 * Math.pow(floorEq, 1.6) + 200) * lootMul * (f.firstClear ? 2 : 1));
-      const scrap = Math.floor((40 * floorEq + 60) * (1 + 0.5 * (gameState.prestige || 0)) * lootMul);
-      gameState.coins += gc; gameState.scrap += scrap;
-      const lines = [`+${fmt(xp)} XP`, `+${fmt(gc)} GC`, `+${fmt(scrap)} scrap`];
-      if (f.firstClear) { d.best = b.floor; lines.push(`floor bonus: office ×${netMultBonus().toFixed(2)}`); }
-      // artefakt
-      const artChance = f.firstClear ? (b.floor % 5 === 0 ? 1 : 0.3) : (b.promo ? 0.5 : 0.05);
-      if (TT.rnd() < artChance) { const a = E.ARTIFACTS[Math.floor(TT.rnd() * E.ARTIFACTS.length)]; const was = d.artifacts[a.id] || 0; d.artifacts[a.id] = Math.min(5, was + 1); lines.push(`${a.icon} ${a.name}${was ? " → LV " + d.artifacts[a.id] : " (NEW!)"}`); if (!was && d.equipped.length < artSlots(d)) d.equipped.push(a.id); }
-      // Quantum (T6) gear - jediný zdroj
-      const qChance = f.firstClear && b.floor % 10 === 0 ? 1 : (!b.promo && b.floor >= 15 ? 0.015 : 0);
-      if (qChance && TT.rnd() < qChance) {
+      const first = !prev;
+      const xp = C.xpFor(m.id, first), gc = C.gcFor(m.id, first);
+      gameState.coins += gc;
+      lines.push(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
+      if (s > prev) d.stars[m.id] = s;
+      // lektvary
+      if ((first && TT.rnd() < 0.5) || (s === 3 && prev < 3) || TT.rnd() < 0.12) { const ks = Object.keys(H.ITEMS); const k = ks[Math.floor(TT.rnd() * ks.length)]; d.items[k]++; lines.push(`${H.ITEMS[k].icon} ${H.ITEMS[k].name}`); }
+      // Quantum (T6) za první poražení bosse kapitoly
+      if (first && (m.kind === "boss" || m.kind === "secret")) {
         const slot = SLOTS[Math.floor(TT.rnd() * SLOTS.length)];
-        if (invFind(slot, 6, 0) || gameState.inventory.length < INV_MAX_STACKS) { invAdd(slot, 6, 0, 1); lines.push(`🌌 QUANTUM ${ITEM_TYPES[slot][5]} (T6)!`); log(`🌌 DUNGEON DROP: Quantum ${ITEM_TYPES[slot][5]} (T6)!`, "special"); }
+        if (invFind(slot, 6, 0) || gameState.inventory.length < INV_MAX_STACKS) { invAdd(slot, 6, 0, 1); lines.push(`🌌 QUANTUM ${ITEM_TYPES[slot][5]}`); }
+        if (m.id === 49) TT.announce("BEAT THE BIG MASSI", "HIGH STAKES", 0, gc);
       }
-      // povýšení
-      if (b.promo) {
-        d.promos[b.promo] = 1;
-        if (b.promo === "lead") d.tier = Math.max(d.tier, 2);
-        if (b.promo === "board") d.tier = Math.max(d.tier, 3);
-        if (b.promo === "cto") d.tier = Math.max(d.tier, 4);
-        if (b.promo === "bod") d.exec = true;
-        lines.push("🎉 " + E.PROMOS.find(x => x.id === b.promo).unlock.toUpperCase());
-        sel.promo = null;
-      }
-      // CISO: výhra zadarmo
-      if (p.cls === "cyber" && p.tier >= 4 && p.branch === "a" && TT.rnd() < 0.35) { d.keys = Math.min(KEY_MAX + TOKEN_KEYS, d.keys + 1); lines.push("CISO insurance: key refunded"); }
       gainXp(xp, lines);
-      dlog(`🏆 <b>VICTORY</b> in ${f.turn} turns: ${lines.join(" · ")}`, "g");
-      log(`⚔ DUNGEON: beat ${escapeHtml(b.name)}${b.promo ? "" : " (floor " + b.floor + ")"} - ${lines.join(", ")}`, "special");
-      if (window.TT && TT.announce && (f.firstClear && b.floor % 10 === 0 || b.promo)) TT.announce(b.promo ? "PROMOTED" : "FLOOR " + b.floor, "DUNGEON", 0, gc);
-      if (f.firstClear) sel.floor = d.best + 1;
+      log(`🎰 HIGH STAKES: ${escapeHtml(m.name)} cleared ${"★".repeat(s)} - ${lines.join(", ")}`, "special");
     } else {
       d.losses++;
-      const xp = Math.round(E.winXp(b.promo ? 10 : b.floor, false) * 0.25);
-      gainXp(xp, []);
-      dlog(`☠ <b>DEFEAT</b> after ${f.turn} turns. +${fmt(xp)} XP. Level up, improve your gear or try another stance.`, "r");
+      const xp = f.fled ? 0 : Math.round(C.xpFor(m.id, false) * 0.3);
+      if (xp) gainXp(xp, lines);
+      lines.push(xp ? `+${fmt(xp)} XP` : "no reward");
     }
-    const ps = document.querySelector(f.win ? "#dg-bs .dg-sprite" : "#dg-ps .dg-sprite"); if (ps) ps.classList.add("dead");
-    TT.saveSoon();
-    updateUI();
-    const go = $("dg-go"); if (go) { go.disabled = false; go.innerText = "⚔ FIGHT AGAIN (🔑 1)"; }
-    const sk = $("dg-skip"); if (sk) sk.disabled = true;
-    setTimeout(() => { if (open && fight && fight.over) { const keep = fightLog; render(); fightLog = keep; restoreFightView(); } }, 1600);
+    // vrátit inventář (hero.items je stejný objekt jako d.items)
+    result = { win: f.win, stars: s, prev: prev, lines: lines, m: m };
+    TT.saveSoon(); updateUI();
+    showResult();
   }
+
+  function showResult() {
+    const r = result, box = $("hs-ov-slot"); if (!box || !r) return;
+    const m = r.m, next = m.id < 49 && missionOpen(m.id + 1) ? m.id + 1 : (m.id === 49 && missionOpen(50) ? 50 : -1);
+    box.innerHTML = `<div class="hs-ov" style="position:fixed;z-index:210;"><div class="dg-card hs-res" style="max-width:420px;width:92%;">
+      <div class="big" style="color:${r.win ? "var(--emerald)" : "var(--crimson)"};">${r.win ? "VICTORY" : "DEFEAT"}</div>
+      <div class="st">${[0, 1, 2].map(i => i < r.stars ? "★" : `<span class="off">★</span>`).join("")}</div>
+      <div class="dg-dim">${r.lines.join(" · ")}</div>
+      ${r.win && m.id === 49 ? `<div class="dg-dim" style="margin-top:8px;color:var(--amber);">📧 New email: "Compliance Control - we're finally coming tomorrow." A secret mission has appeared...</div>` : ""}
+      ${r.win && m.kind === "compliance" ? `<div class="dg-dim" style="margin-top:8px;">Achievement progress: <b>Still Waiting...</b></div>` : ""}
+      <div style="display:flex;gap:6px;margin-top:12px;">
+        <button class="btn" style="flex:1;" onclick="Dungeon.leave()">◀ MAP</button>
+        <button class="btn btn-cyan" style="flex:1;" onclick="Dungeon.retry()">↻ RETRY</button>
+        ${r.win && next >= 0 ? `<button class="btn btn-gold" style="flex:1;" onclick="Dungeon.next(${next})">NEXT ▶</button>` : ""}</div></div></div>`;
+  }
+  function leave() { fight = null; result = null; if (fightMission) chSel = Math.min(5, fightMission.ch); render(); }
+  function retry() { const id = fightMission.id; fight = null; result = null; render(); mission(id); }
+  function nextM(id) { fight = null; result = null; chSel = Math.min(5, C.mission(id).ch); render(); mission(id); }
 
   function gainXp(xp, lines) {
-    const d = D();
+    const d = HS();
     d.xp += xp;
     let ups = 0;
-    while (d.xp >= E.xpToNext(d.level)) { d.xp -= E.xpToNext(d.level); d.level++; ups++; }
-    if (ups) { lines.push(`⬆ LEVEL ${d.level}!`); log(`⬆ DUNGEON LEVEL ${d.level}!`, "special"); }
+    while (d.xp >= C.xpToNext(d.level)) { d.xp -= C.xpToNext(d.level); d.level++; ups++; }
+    if (ups) { HS(); lines.push(`⬆ LEVEL ${d.level} (+${ups * 3} stat points)`); log(`⬆ HIGH STAKES LEVEL ${d.level}! Spend your stat points in HERO.`, "special"); }
   }
 
-  // ------------------------------------------------------------------ ARÉNA (PvP proti postavám ostatních, počítá server)
+    // ------------------------------------------------------------------ ARÉNA (PvP proti postavám ostatních, počítá server)
   const arena = { data: null, loading: false, err: "", atkStance: "normal", replay: null, timer: 0, busy: false };
   const CLS_IDX = { sysadmin: 0, engineer: 1, cyber: 2 };
 
@@ -6199,7 +6774,7 @@ html.m #dg-open-btn { display: none; }
     const myPow = E.power(player());
     let opp = "";
     if (!a) opp = `<div class="dg-dim">${arena.err ? "⚠ " + escapeHtml(arena.err) : "Loading opponents..."}</div>`;
-    else if (!a.opponents.length) opp = `<div class="dg-dim">No opponents yet. Your friends need a dungeon class first (Prestige 1).</div>`;
+    else if (!a.opponents.length) opp = `<div class="dg-dim">No opponents yet. Your friends need a HIGH STAKES class first.</div>`;
     else opp = a.opponents.map(o => {
       const ratio = o.power / Math.max(1, myPow);
       const tag = ratio > 1.25 ? `<span style="color:var(--crimson);">STRONGER</span>` : ratio < 0.8 ? `<span style="color:var(--emerald);">WEAKER</span>` : `<span style="color:var(--amber);">EVEN</span>`;
@@ -6207,7 +6782,7 @@ html.m #dg-open-btn { display: none; }
       const can = me && me.left > 0 && !cd && !arena.busy;
       return `<div class="dg-art"><div style="width:44px;flex:none;">${sprite(CLS_IDX[o.cls] || 0, "p").replace('class="dg-sprite"', 'class="dg-sprite" style="width:40px;height:40px;margin:0;"')}</div>
         <div class="t">${typeof presenceDot === "function" ? presenceDot(o) : ""}<b>${escapeHtml(o.nick)}</b> · ${E.CLASSES[o.cls] ? E.CLASSES[o.cls].icon : ""} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
-          <div class="dg-dim">${escapeHtml(o.title || "")} · power ${fmt(o.power)} ${tag} · floor ${o.best} · ${o.wins}W/${o.losses}L</div></div>
+          <div class="dg-dim">${escapeHtml(o.title || "")} · power ${fmt(o.power)} ${tag} · missions ${o.best}/51 · ${o.wins}W/${o.losses}L</div></div>
         <button class="btn ${can ? "btn-crimson" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.arenaAttack('${escapeHtml(o.nick).replace(/'/g, "")}')">${cd ? "⏳ " + fmtT(o.cooldown) : "⚔ ATTACK"}</button></div>`;
     }).join("");
     const log = a && a.log.length ? a.log.map(l => {
@@ -6221,7 +6796,7 @@ html.m #dg-open-btn { display: none; }
         <div class="dg-stances" style="margin:0;">${stanceBtns(arena.atkStance, "arenaAtkStance")}</div>
         <div class="dg-h" style="margin-top:10px;">DEFENSE STANCE <span class="dg-dim" style="font-family:inherit;">(used when others attack you)</span></div>
         <div class="dg-stances" style="margin:0;">${stanceBtns(d.arenaStance, "arenaDefStance")}</div>
-        <div class="dg-dim" style="margin-top:8px;">Fights are simulated by the server with your <b>saved</b> gear, level, class and artifacts - your friends fight your build even when you are offline.
+        <div class="dg-dim" style="margin-top:8px;">Fights are simulated by the server with your <b>saved</b> gear, HIGH STAKES level and class - your friends fight your build even when you are offline.
           Win = honor + GC. Same opponent once per 20 min. Honor works like chess Elo: beating stronger players gives more.</div></div>
       <div class="dg-card"><div class="dg-h">RECENT FIGHTS</div>${log}</div>
     </div>
@@ -6238,7 +6813,7 @@ html.m #dg-open-btn { display: none; }
     const go = () => google.script.run.withSuccessHandler(r => {
       arena.busy = false;
       if (!r || !r.ok) {
-        const why = { limit: "No attacks left today.", cooldown: "You fought this player recently.", target: "Opponent not available.", missing: "Save not found - try again in a few seconds.", noclass: "Pick a dungeon class first.", busy: "Server busy, try again." }[r && r.reason] || "Fight failed.";
+        const why = { limit: "No attacks left today.", cooldown: "You fought this player recently.", target: "Opponent not available.", missing: "Save not found - try again in a few seconds.", noclass: "Pick a HIGH STAKES class first.", busy: "Server busy, try again." }[r && r.reason] || "Fight failed.";
         arena.err = why; log("ARENA: " + why, "warning"); arenaLoad(); return;
       }
       gameState.coins += r.reward;              // odměna hned (i kdyby se replay nedokoukal)
@@ -6331,11 +6906,13 @@ html.m #dg-open-btn { display: none; }
   }
   function arenaBack() { clearTimeout(arena.timer); arena.replay = null; arena.data = null; render(); }
 
+
+
   // ------------------------------------------------------------------ PROFIL HRÁČE (leaderboard)
   function showProfile(u) {
     if (!u) return;
     const dg = u.dungeon || {};
-    const cls = dg.cls && E.CLASSES[dg.cls];
+    const cls = dg.cls && H.CLASSES[dg.cls];
     const old = $("dg-profile"); if (old) old.remove();
     const el = document.createElement("div");
     el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
@@ -6345,8 +6922,8 @@ html.m #dg-open-btn { display: none; }
       <div style="display:flex;gap:12px;align-items:center;">
         ${cls ? sprite(["sysadmin", "engineer", "cyber"].indexOf(dg.cls), "p") : '<div style="font-size:48px;">👤</div>'}
         <div class="tt-body" style="min-height:0;font-size:13px;">
-          ${cls ? `<b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "No dungeon class yet<br>"}
-          Best floor: <b>${dg.best || 0}</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
+          ${cls ? `🎰 <b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "Not in HIGH STAKES yet<br>"}
+          Missions cleared: <b>${dg.best || 0}/51</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
           Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
           Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
           ${u.gear ? `<br>Gear: ${u.gear}` : ""}
@@ -6355,37 +6932,44 @@ html.m #dg-open-btn { display: none; }
     document.body.appendChild(el);
   }
 
-  /** data pro uložení / leaderboard */
+  /** Do savu jde "dungeon" jako souhrn kompatibilní se serverem (leaderboard, score, aréna) - starý dungeon se tím přepíše. */
   function payload() {
-    const d = D();
-    return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), tier: d.tier, branch: d.branch, best: d.best, keys: d.keys, keysAt: d.keysAt,
-      artifacts: d.artifacts, equipped: d.equipped, promos: d.promos, wins: d.wins, losses: d.losses, stance: d.stance, arenaStance: d.arenaStance, title: title(d) };
+    const d = HS();
+    return { cls: d.cls, level: d.level, best: cleared(d), wins: d.wins, losses: d.losses, title: title(d), arenaStance: d.arenaStance,
+      tier: 1, artifacts: {}, equipped: [], promos: {}, mode: "highstakes" };
   }
+  function hsPayload() { const d = HS(); return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), stats: d.stats, energy: d.energy, energyAt: d.energyAt, stars: d.stars, items: d.items, wins: d.wins, losses: d.losses, arenaStance: d.arenaStance }; }
 
-  // ------------------------------------------------------------------ BOOT
   window.Dungeon = {
-    open: openScreen, close: closeScreen, tab: tab, fight: startFight, skip: skipFight, speed: cycleSpeed, stance: setStance,
-    floor: floorNav, back: back, promo: promo, pickClass: pickClass, pickBranch: pickBranch, respec: respec, tokenKeys: tokenKeys, equip: equip,
+    open: openScreen, close: closeScreen, tab: tab, chapter: chapter, mission: mission, start: start, act: act, item: item, flee: flee,
+    leave: leave, retry: retry, next: nextM, pickClass: pickClass, respec: respec, tokenEnergy: tokenEnergy, stat: stat, resetStats: resetStats,
     arenaAttack: arenaAttack, arenaAtkStance: arenaAtkStance, arenaDefStance: arenaDefStance, arenaSkip: arenaSkip, arenaBack: arenaBack,
     arenaRefresh: function () { arena.data = null; render(); },
-    netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, showProfile: showProfile, state: D, unlocked: unlocked,
+    netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, hsPayload: hsPayload, showProfile: showProfile,
+    state: HS, unlocked: unlocked,
     isBusy: () => !!(fight && !fight.over) || arena.busy || !!(arena.replay && !arena.replay.done), onLeaderboard: function () {}
   };
 
   function boot() {
     if (!window.TT || typeof gameState === "undefined") { setTimeout(boot, 50); return; }
-    // tlačítko v horní liště (PC)
     const badge = document.querySelector(".user-badge");
     if (badge && !$("dg-open-btn")) {
       const b = document.createElement("button");
-      b.id = "dg-open-btn"; b.className = "btn btn-crimson"; b.textContent = "⚔ DUNGEON";
+      b.id = "dg-open-btn"; b.className = "btn btn-crimson"; b.textContent = "🎰 HIGH STAKES";
       b.onclick = openScreen;
       badge.insertBefore(b, badge.firstChild);
     }
     const prev = TT.isBusy;
     TT.isBusy = function () { return prev() || Dungeon.isBusy(); };
-    setInterval(() => { if (open) { regenKeys(); renderKeys(); } }, 1000);
-    document.addEventListener("keydown", (e) => { if (open && e.key === "Escape" && !Dungeon.isBusy()) closeScreen(); });
+    setInterval(() => { if (open) { regenEnergy(); renderKeys(); } }, 1000);
+    document.addEventListener("keydown", (e) => {
+      if (!open) return;
+      if (e.key === "Escape" && !Dungeon.isBusy()) closeScreen();
+      if (fight && !fight.over && !busyAnim && !e.target.closest("input,textarea")) {
+        const map = { "1": "quick", "2": "strike", "3": "power", "4": "gamble", "5": "block", "6": "dodge", "7": "skill" };
+        if (map[e.key]) { e.preventDefault(); act(map[e.key]); }
+      }
+    });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
