@@ -7362,7 +7362,7 @@ html.m body[data-mtab="more"] #m-settings { display: block; }
   // zákaz pinch-zoomu a přetahování stránky na záložce HRA
   document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
   document.addEventListener("touchmove", function (e) {
-    if (mq.matches && tab === "play" && !(e.target.closest && e.target.closest("input,textarea,select"))) e.preventDefault();
+    if (mq.matches && tab === "play" && !(e.target.closest && e.target.closest("input,textarea,select,#dg-screen,.tt-overlay"))) e.preventDefault();   // HIGH STAKES a modaly se scrollují
   }, { passive: false });
 })();
 </script>
