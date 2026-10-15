@@ -3757,7 +3757,7 @@ const TUTORIAL_STEPS = [
   { t: "8) 🎰 HIGH STAKES", b: `
     <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
     <ul><li>⚔ Quick / 🗡 Strike = safe hits. 💥 <b>Power</b> = stop the needle in the green zone. 🎰 <b>Gamble</b> = a mini slot machine (777 = 6×, 💀💀💀 = backfire)</li>
-    <li>🛡 Block a HEAVY = perfect block + counter. 💨 Dodge. ✨ Class skill at 100 focus. Items: ☕ 🥤 🩹 🪙 (2 per fight)</li>
+    <li>🛡 Block a HEAVY and tap in time = <b>PARRY</b> (no damage, counter, stun). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. Items: ☕ 🥤 🩹 🪙 (2 per fight)</li>
     <li>Campaign: 5 chapters, 50 missions, up to ★★★ each. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min)</li>
     <li>Level up = +3 stat points. Weapons = ATK, armor = HP. Nothing here is reset by prestige</li>
     <li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC</li></ul>` },
@@ -5654,7 +5654,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
   // ------------------------------------------------------------------ TŘÍDY
   const CLASSES = {
-    sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. +15% HP, blocks absorb more (70%).", skill: "FIREWALL", skillTxt: "Shield = 45% max HP and heal 10%." },
+    sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. +6% HP, blocks absorb more (70%).", skill: "FIREWALL", skillTxt: "Shield = 45% max HP and heal 10%." },
     engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. +12% ATK, bigger timing zone for Power Strike. +3% click crit in the office.", skill: "HOTFIX DEPLOY", skillTxt: "3 guaranteed hits of 0.75× (each can crit)." },
     cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. +6% dodge, the slot machine favours you (+LUCK on Gamble Strike).", skill: "EXPLOIT", skillTxt: "2.2× hit that ignores defence and removes the enemy's buffs." }
   };
@@ -5690,14 +5690,14 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     return {
       cls: cls, level: L,
       str: S("str"), vit: S("vit"), agi: S("agi"), luck: S("luck"), end: S("end"),
-      maxHp: Math.round((80 + 12 * S("vit") + 8 * (L - 1)) * gear.hp * (cls === "sysadmin" ? 1.15 : 1) * (1 + bonus)),
-      atk: (8 + 2.2 * S("str") + 1.2 * (L - 1)) * gear.atk * (cls === "engineer" ? 1.12 : 1) * (1 + bonus),
+      maxHp: Math.round((80 + 12 * S("vit") + 8 * (L - 1)) * gear.hp * (cls === "sysadmin" ? 1.06 : cls === "cyber" ? 1.03 : 1) * (1 + bonus)),
+      atk: (8 + 2.2 * S("str") + 1.2 * (L - 1)) * gear.atk * (cls === "engineer" ? 1.12 : cls === "cyber" ? 1.04 : 1) * (1 + bonus),
       hitBonus: S("agi") * 0.006,
       dodge: Math.min(0.4, 0.05 + S("agi") * 0.005 + (cls === "cyber" ? 0.06 : 0)),
       crit: Math.min(0.5, 0.05 + S("luck") * 0.004),
       staMax: Math.round(80 + 4 * S("end")),
       staRegen: 16 + S("end") * 0.5,
-      zone: Math.min(0.5, 0.20 + S("luck") * 0.004 + (cls === "engineer" ? 0.06 : 0)),   // šířka zeleného pole u timingu
+      zone: Math.min(0.45, 0.16 + S("luck") * 0.0035 + (cls === "engineer" ? 0.06 : 0)),   // šířka zeleného pole u timingu
       luckReel: S("luck") + (cls === "cyber" ? 10 : 0),
       items: Object.assign({}, h.items || {})
     };
@@ -5713,8 +5713,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       hp: hero.maxHp, sta: hero.staMax, focus: 0, shield: 0,
       ehp: e.hp, emax: e.hp, eatk: e.atk, eshield: 0, estacks: 0, edefend: false,
       hotfix: false, coin: 0, coinTurns: 0, disabled: {}, itemsUsed: 0, revived: false,
-      intent: null, lastIntent: null, phase2: false, form: "I",
-      st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, crits: 0 }
+      intent: null, lastIntent: null, phase2: false, form: "I", brk: 0, vuln: false, stunNext: false,
+      st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, crits: 0, parries: 0, breaks: 0 }
     };
     pickIntent(f);
     return f;
@@ -5724,7 +5724,10 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
   function pickIntent(f) {
     const e = f.e, R = f.R, p = e.pattern || { atk: 6, heavy: 2, defend: 1 };
-    let w = [["atk", p.atk || 0], ["heavy", f.lastIntent === "heavy" ? 0 : (p.heavy || 0)], ["defend", f.lastIntent === "defend" ? 0 : (p.defend || 0)], ["special", f.lastIntent === "special" ? 0 : (p.special || 0)]];
+    if (f.stunNext) { f.stunNext = false; f.intent = { k: "stun", val: 0, fake: false }; f.lastIntent = "stun"; return; }
+    if (f.lastIntent === "charge") { f.intent = { k: "unleash", val: Math.round(f.eatk * 2.7), fake: false }; f.lastIntent = "unleash"; return; }
+    const chW = f.lastIntent === "unleash" || f.turn < 1 ? 0 : (p.charge != null ? p.charge : (f.m.kind === "normal" || f.m.kind === "compliance" ? 0 : 1));
+    let w = [["charge", chW], ["atk", p.atk || 0], ["heavy", f.lastIntent === "heavy" ? 0 : (p.heavy || 0)], ["defend", f.lastIntent === "defend" ? 0 : (p.defend || 0)], ["special", f.lastIntent === "special" ? 0 : (p.special || 0)]];
     // mechaniky, které řídí záměr
     if (e.mech === "pookie" && (f.turn + 1) % 3 === 0) w = [["flex", 1]];
     if (e.mech === "pookie" && f.lastIntent === "flex") w = [["heavy", 1]];
@@ -5747,7 +5750,15 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     return f.sta >= A.sta;
   }
 
+  /** Break meter: zásahy plní, na 100 je nepřítel STAGGERED (přijde o tah) a další rána dá 1,5×. */
+  const BREAK = { quick: 7, strike: 15, power: 22, gamble: 9, skill: 30, parry: 40, perfect: 15 };
+  function addBreak(f, n) {
+    if (f.over || f.intent.k === "stun") return;
+    const res = f.m.kind === "boss" || f.m.kind === "secret" ? 0.65 : f.m.kind === "mini" || f.m.kind === "elite" ? 0.85 : 1;
+    f.brk = Math.min(100, f.brk + n * res * (f.intent.k === "charge" || f.intent.k === "unleash" ? 1.6 : 1));
+  }
   function hurtEnemy(f, dmg, ignoreDef) {
+    if (f.vuln) { dmg *= 1.5; f.vuln = false; }
     if (f.edefend && !ignoreDef) dmg *= 0.4;
     if (f.e.mech === "great_i" && f.form === "l" && !ignoreDef) dmg *= 0.6;
     dmg = Math.max(0, Math.round(dmg));
@@ -5820,9 +5831,9 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.45); const hh = Math.round(h.maxHp * 0.1); f.hp = Math.min(h.maxHp, f.hp + hh); ev(f, "skill", { a: "FIREWALL", msg: "Firewall up! +" + Math.round(h.maxHp * 0.45) + " shield" }); }
       else if (h.cls === "engineer") {
         let tot = 0; for (let i = 0; i < 3; i++) { const c = critRoll(f); tot += hurtEnemy(f, atkMult(f) * 0.75 * (c ? 1.8 : 1)); }
-        f.hotfix = false; ev(f, "skill", { a: "HOTFIX DEPLOY", val: tot, msg: "3 hits for " + tot });
+        f.hotfix = false; addBreak(f, BREAK.skill); ev(f, "skill", { a: "HOTFIX DEPLOY", val: tot, msg: "3 hits for " + tot });
       } else {
-        const d = hurtEnemy(f, atkMult(f) * 2.2, true); f.hotfix = false; f.estacks = 0; f.disabled = {}; ev(f, "skill", { a: "EXPLOIT", val: d, msg: "Exploit for " + d + " - enemy buffs wiped" });
+        const d = hurtEnemy(f, atkMult(f) * 2.2, true); f.hotfix = false; f.estacks = 0; addBreak(f, BREAK.skill); f.disabled = {}; ev(f, "skill", { a: "EXPLOIT", val: d, msg: "Exploit for " + d + " - enemy buffs wiped" });
       }
     } else if (action === "gamble") {
       f.st.usedGamble++;
@@ -5832,6 +5843,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         const c = critRoll(f);
         const d = hurtEnemy(f, atkMult(f) * res.mult * (c ? 1.8 : 1));
         if (res.jp) f.st.jackpots++;
+        addBreak(f, BREAK.gamble * res.mult);
         if (res.heal) { const hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
         f.hotfix = false;
         f.focus = Math.min(100, f.focus + 8);
@@ -5842,33 +5854,51 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (e.mech === "great_i" && f.form === "l" && action !== "power") hit *= 0.6;
       if (R() < hit) {
         let m = A.mult, tm = "";
-        if (action === "power") { if (timing === "perfect") { m = 2.6; tm = "PERFECT"; f.st.perfectPower++; } else if (timing === "good") { m = 2.0; tm = "GOOD"; } }
+        if (action === "power") { if (timing === "perfect") { m = 2.5; tm = "PERFECT"; f.st.perfectPower++; } else if (timing === "good") { m = 1.9; tm = "GOOD"; } }
         const c = critRoll(f);
         const d = hurtEnemy(f, atkMult(f) * m * (c ? 1.8 : 1));
         f.hotfix = false;
         f.focus = Math.min(100, f.focus + 8);
+        addBreak(f, BREAK[action] * (tm === "PERFECT" ? 1.4 : tm === "GOOD" ? 1.2 : 1));
         ev(f, "pact", { a: action, val: d, crit: c, timing: tm });
         if (e.mech === "ransom" && action === "power" && Object.keys(f.disabled).length) { f.disabled = {}; ev(f, "mech", { msg: "Decrypted! All actions available again." }); }
       } else ev(f, "pact", { a: action, miss: true });
     }
     if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
     if (f.ehp <= 0) return finish(f, true, start);
+    if (f.brk >= 100) {
+      f.brk = 0; f.st.breaks++; f.vuln = true;
+      ev(f, "break", { was: intent.k });
+      intent.k = "stun"; f.lastIntent = "stun";
+    }
 
     // ---------- nepřítel provede svůj záměr
     const k = intent.k;
-    if (k === "atk" || k === "heavy") {
-      let dmg = f.eatk * (k === "heavy" ? 2.2 : 1) * (0.9 + R() * 0.2);
+    if (k === "atk" || k === "heavy" || k === "unleash") {
+      const big = k === "heavy" || k === "unleash";
+      let dmg = f.eatk * (k === "heavy" ? 2.2 : k === "unleash" ? 2.7 : 1) * (0.9 + R() * 0.2);
       if (e.mech === "pookie") dmg *= 1 + 0.05 * f.estacks;
       const dch = dodging ? Math.min(0.9, 0.55 + h.agi * 0.008 + (h.cls === "cyber" ? 0.08 : 0)) : h.dodge;
-      if (R() < dch) ev(f, "dodge", { heavy: k === "heavy" });
-      else if (blocking && k === "heavy") {
+      if (blocking && big && timing === "parry") {
+        // PARRY: aktivní QTE při bloku -> 0 dmg, protiútok a omráčení
+        f.st.perfectBlocks++; f.st.parries++;
+        const ctr = hurtEnemy(f, h.atk * 1.2, true);
+        f.focus = Math.min(100, f.focus + 20);
+        addBreak(f, BREAK.parry); f.stunNext = true;
+        ev(f, "parry", { val: ctr, heavy: true });
+      } else if (R() < dch) ev(f, "dodge", { heavy: big });
+      else if (blocking && big) {
         f.st.perfectBlocks++;
         hurtHero(f, dmg * 0.25, "heavy");
         const ctr = hurtEnemy(f, h.atk * 0.6, true);
         f.focus = Math.min(100, f.focus + 15);
+        addBreak(f, BREAK.perfect);
         ev(f, "perfect", { val: ctr });
-      } else hurtHero(f, dmg * (blocking ? (h.cls === "sysadmin" ? 0.3 : 0.4) : 1), k);
-    } else if (k === "defend") ev(f, "edef", {});
+      } else hurtHero(f, dmg * (blocking ? (h.cls === "sysadmin" ? 0.3 : 0.4) : 1), k === "unleash" ? "heavy" : k);
+      if (f.brk >= 100 && !f.over) { f.brk = 0; f.st.breaks++; f.vuln = true; f.stunNext = true; ev(f, "break", { was: "counter" }); }
+    } else if (k === "charge") ev(f, "mech", { msg: "⏳ " + f.e.name + " is CHARGING a 2.7× attack! Break it or get ready to block." });
+    else if (k === "stun") ev(f, "mech", { msg: "😵 " + f.e.name + " is stunned!" });
+    else if (k === "defend") ev(f, "edef", {});
     else if (k === "flex") { f.estacks += 2; ev(f, "mech", { msg: "PRE-WORKOUT! The E flexes... HEAVY hit incoming!" }); }
     else if (k === "special") special(f);
 
@@ -5971,7 +6001,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function autoPolicy(f, R) {
     const h = f.h, k = f.intent.k;
     if (f.hp < h.maxHp * 0.35 && h.items.coffee > 0 && f.itemsUsed < MAX_ITEMS_PER_FIGHT) useItem(f, "coffee");
-    if (k === "heavy") return allowed(f, "dodge") && h.cls === "cyber" ? "dodge" : "block";
+    if (k === "heavy" || k === "unleash") return "block";
+    if (k === "charge" && allowed(f, "strike")) return allowed(f, "power") ? "power" : "strike";
     if (allowed(f, "skill")) return "skill";
     if (k === "defend" || k === "flex") return "block";
     if (allowed(f, "power")) return "power";
@@ -5980,16 +6011,17 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (allowed(f, "quick")) return "quick";
     return "block";
   }
-  function timingRoll(R, zone) { const r = R(); return r < zone * 0.35 ? "perfect" : r < zone * 1.9 ? "good" : "none"; }
+  function timingRoll(R, zone) { const r = R(); return r < zone * 0.3 ? "perfect" : r < zone * 1.7 ? "good" : "none"; }
+  const PARRY_SKILL = { p: 0.45 };                                  // simulace: jak často hráč trefí parry
 
   function simulate(hero, mission, seed, skill) {
     const f = newFight(hero, mission, seed), R = rng((seed || 1) * 7 + 3);
-    while (!f.over) { const a = autoPolicy(f, R); step(f, a, a === "power" ? timingRoll(R, skill == null ? hero.zone : skill) : "none"); }
+    while (!f.over) { const a = autoPolicy(f, R); step(f, a, a === "power" ? timingRoll(R, skill == null ? hero.zone : skill) : a === "block" && (f.intent.k === "heavy" || f.intent.k === "unleash") ? (R() < PARRY_SKILL.p ? "parry" : "none") : "none"); }
     return f;
   }
 
   const api = { rng: rng, CLASSES: CLASSES, ACTIONS: ACTIONS, ITEMS: ITEMS, MAX_ITEMS_PER_FIGHT: MAX_ITEMS_PER_FIGHT, statPoints: statPoints, buildHero: buildHero,
-    newFight: newFight, step: step, useItem: useItem, allowed: allowed, stars: stars, bonusText: bonusText, simulate: simulate, autoPolicy: autoPolicy, reelResult: reelResult };
+    newFight: newFight, step: step, useItem: useItem, allowed: allowed, stars: stars, bonusText: bonusText, simulate: simulate, autoPolicy: autoPolicy, PARRY_SKILL: PARRY_SKILL, BREAK: BREAK, reelResult: reelResult };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSEngine = api;
 })(typeof window !== "undefined" ? window : this);
@@ -6073,7 +6105,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     t: "Email from Compliance Control: \"We're finally coming tomorrow.\" ...They actually came. Every turn they audit one of your actions and forbid it." };
 
   // [HP, ATK] pro mise 0-50 (vygenerováno simulací, viz tune_hs.js); 50 = tajná mise
-  let STATS = [[133,35.2],[137,36.9],[166,44.6],[220,41.5],[2312,55.7],[235,60],[241,52.4],[355,78.9],[446,101.4],[614,70.2],[339,87.1],[378,86.3],[419,130.6],[593,112.7],[5771,126],[516,115.5],[562,192.7],[783,147],[939,156.7],[1245,74.6],[721,176.3],[774,231],[802,277.4],[1101,210.1],[9962,214],[929,336.5],[987,264.6],[1346,244.4],[1582,376.6],[2091,270.5],[1189,344.4],[1254,300.5],[1320,460.8],[1784,336.4],[16095,322.6],[1446,416.9],[1517,356.3],[2043,620.1],[2303,369.1],[3131,329.9],[1762,506.6],[1839,517.3],[1917,762.3],[2498,555.8],[2024,812.7],[2106,570.6],[2815,572],[2876,549.3],[3235,652],[4367,549.7],[5228,440.2]];
+  let STATS = [[166,39.8],[171,40.4],[208,51],[275,61.2],[2312,68.7],[294,70.1],[301,78.9],[444,92.5],[558,115.2],[768,85.6],[423,94.1],[472,120.2],[524,135.4],[741,127.6],[5771,156.5],[645,177.6],[702,199.2],[978,189.4],[1174,220.7],[1556,123.1],[902,194.9],[967,230.8],[1002,291.4],[1377,290.7],[9962,272.8],[1161,335.7],[1234,291.8],[1682,321.9],[1978,444.9],[2613,335.8],[1486,351.8],[1567,396.1],[1650,442.6],[2230,476.7],[16095,420.2],[1808,444.5],[1896,499.6],[2554,636.5],[2878,396.3],[3914,393.9],[2202,535.4],[2299,610.1],[2397,765],[3122,625.7],[2529,794.9],[2632,705.2],[3518,706.2],[3595,593.7],[4044,781],[5459,631.9],[6534,514.3]];
   function setStats(t) { STATS = t; }
 
   function all() {
@@ -6226,6 +6258,14 @@ html.m #dg-open-btn { display: none; }
 .hs-bar .ehp { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
 .hs-bar .sta { background: linear-gradient(90deg, #f59e0b, #fde047); }
 .hs-bar .foc { background: linear-gradient(90deg, #a855f7, #ff4dff); }
+.hs-bar .brk { background: linear-gradient(90deg, #64748b, #e2e8f0); }
+.hs-bar.full .brk { background: #ffd700; }
+.hs-intent.charge { background: rgba(255,184,0,.2); border-color: var(--amber); color: var(--amber); animation: tabGlow .4s ease-in-out infinite alternate; }
+.hs-intent.unleash { background: rgba(255,23,68,.4); border-color: #ff1744; color: #fff; animation: tabGlow .25s ease-in-out infinite alternate; }
+.hs-intent.stun { color: #ffd700; }
+.hs-parry { position: relative; width: 150px; height: 150px; cursor: pointer; touch-action: none; }
+.hs-parry .tgt { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 4px solid #ffd700; box-shadow: 0 0 12px #ffd700; }
+.hs-parry .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 4px solid #ff1744; box-shadow: 0 0 10px #ff1744; }
 .hs-bar .sh { position: absolute; top: 0; left: 0; background: rgba(0,240,255,.55); }
 .hs-lbl { display: flex; justify-content: space-between; font: 700 9px 'Orbitron', monospace; color: var(--text-dim); }
 .hs-intent { display: inline-flex; align-items: center; gap: 4px; margin: 4px auto 0; padding: 3px 10px; border-radius: 12px; font: 800 12px 'Orbitron', monospace; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); }
@@ -6494,7 +6534,7 @@ html.m #dg-open-btn { display: none; }
         <div class="dg-dim" style="margin-top:8px;">Missions drop items. A first ★★★ on a mission always gives one.</div>
         <div class="dg-h" style="margin-top:12px;">HOW TO FIGHT</div>
         <div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (2×) or <b>gold</b> (2.6×) zone.
-        🎰 GAMBLE - spin a mini slot machine (7️⃣7️⃣7️⃣ = 6×, 💀💀💀 hits you). 🛡 BLOCK when the enemy shows 💥 HEAVY = perfect block + counter. 💨 DODGE avoids the hit.
+        🎰 GAMBLE - spin a mini slot machine (7️⃣7️⃣7️⃣ = 6×, 💀💀💀 hits you). 🛡 BLOCK when the enemy shows 💥 HEAVY or ☄ UNLEASH: tap when the rings meet for a <b>PARRY</b> (0 damage, counter, stun). 💢 Fill the enemy's <b>BREAK</b> bar to stagger it (it loses its turn, your next hit 1.5×) - breaking a ⏳ CHARGING enemy cancels its big attack. 💨 DODGE avoids the hit.
         ✨ SKILL needs 100 focus (you gain it by hitting and getting hit). Stamina refills every turn - blocking refills more.</div></div></div>`;
   }
 
@@ -6564,7 +6604,8 @@ html.m #dg-open-btn { display: none; }
     const f = fight, it = f.intent;
     if (f.over) return "";
     if (it.fake) return `<span class="hs-intent special">❓ ???</span>`;
-    const map = { atk: ["⚔", "ATTACK " + fmt(it.val), ""], heavy: ["💥", "HEAVY " + fmt(it.val), "heavy"], defend: ["🛡", "DEFEND", "defend"], flex: ["💪", "FLEX (heavy next!)", "defend"], special: ["✨", "SPECIAL", "special"] };
+    const map = { atk: ["⚔", "ATTACK " + fmt(it.val), ""], heavy: ["💥", "HEAVY " + fmt(it.val), "heavy"], defend: ["🛡", "DEFEND", "defend"], flex: ["💪", "FLEX (heavy next!)", "defend"], special: ["✨", "SPECIAL", "special"],
+      charge: ["⏳", "CHARGING...", "charge"], unleash: ["☄", "UNLEASH " + fmt(it.val), "unleash"], stun: ["😵", "STUNNED", "stun"] };
     const x = map[it.k] || map.atk;
     return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}</span>`;
   }
@@ -6589,7 +6630,8 @@ html.m #dg-open-btn { display: none; }
         <div class="dg-vs">VS</div>
         <div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div id="hs-intent">${intentHtml()}</div>
           <div id="dg-bs">${enemySprite(m)}</div>
-          <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div></div></div>
+          <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div>
+            <div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div></div></div>
       </div>
       <div class="dg-mech" id="dg-mech"></div>
       <div class="hs-acts">${acts}</div>
@@ -6605,7 +6647,9 @@ html.m #dg-open-btn { display: none; }
     const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
     const txt = (id, t) => { const el = $(id); if (el) el.textContent = t; };
     set("hs-hp", f.hp / h.maxHp * 100); set("hs-sh", f.shield / h.maxHp * 100); set("hs-sta", f.sta / h.staMax * 100); set("hs-foc", f.focus);
-    set("hs-ehp", f.ehp / f.emax * 100);
+    set("hs-ehp", f.ehp / f.emax * 100); set("hs-brk", f.brk);
+    const bb = $("hs-brkb"); if (bb) bb.classList.toggle("full", !!f.vuln); if (f.vuln) set("hs-brk", 100);
+    txt("hs-brkt", f.vuln ? "VULNERABLE 1.5×" : Math.floor(f.brk) + " / 100");
     txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
     txt("hs-stat", Math.floor(f.sta) + " / " + h.staMax); txt("hs-foct", Math.floor(f.focus) + " / 100");
     txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
@@ -6636,6 +6680,7 @@ html.m #dg-open-btn { display: none; }
     const f = fight; if (!f || f.over || busyAnim || !H.allowed(f, a)) return;
     if (a === "power") { timingGame(q => resolve("power", q)); return; }
     if (a === "gamble") { resolve("gamble", "none", true); return; }
+    if (a === "block" && !f.intent.fake && (f.intent.k === "heavy" || f.intent.k === "unleash")) { parryGame(q => resolve("block", q)); return; }
     resolve(a, "none");
   }
 
@@ -6672,14 +6717,14 @@ html.m #dg-open-btn { display: none; }
     const box = $("hs-ov-slot");
     box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 10px;">💥 STOP THE NEEDLE! (click / tap / space)</div>
       <div class="hs-timing" id="hs-tm"><div class="g" style="left:${gStart * 100}%;width:${zone * 100}%"></div><div class="p" style="left:${pStart * 100}%;width:${pW * 100}%"></div><div class="n" id="hs-needle"></div></div></div>`;
-    const t0 = performance.now(), period = 1100;
+    const t0 = performance.now(), period = 820;
     let done = false, raf = 0, pos = 0;
     const stop = () => {
       if (done) return; done = true; cancelAnimationFrame(raf);
       document.removeEventListener("keydown", key, true);
       const q = pos >= pStart && pos <= pStart + pW ? "perfect" : pos >= gStart && pos <= gStart + zone ? "good" : "none";
       const ov = box.querySelector(".hs-ov");
-      if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"};">${q === "perfect" ? "PERFECT! 2.6×" : q === "good" ? "GOOD! 2×" : "MISSED THE ZONE - normal hit"}</div>`);
+      if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"};">${q === "perfect" ? "PERFECT! 2.5×" : q === "good" ? "GOOD! 1.9×" : "MISSED THE ZONE - normal hit"}</div>`);
       setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(q); }, 450);
     };
     const key = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); stop(); } };
@@ -6691,6 +6736,35 @@ html.m #dg-open-btn { display: none; }
       pos = t < 1 ? t : 2 - t;
       const n = $("hs-needle"); if (n) n.style.left = "calc(" + (pos * 100) + "% - 2px)";
       if (now - t0 > period * 4) { stop(); return; }                   // po 2 průjezdech se zastaví sama
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+  }
+
+  // ---------- PARRY: kroužek se smršťuje, tapni když je na zlatém terči
+  function parryGame(cb) {
+    busyAnim = true; fightRefresh();
+    const box = $("hs-ov-slot");
+    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">🛡 PARRY! Tap when the red ring hits the gold one</div>
+      <div class="hs-parry" id="hs-pr"><div class="tgt"></div><div class="ring" id="hs-ring"></div></div></div>`;
+    const t0 = performance.now(), dur = 950, from = 150, to = 20, target = 46, win = 9;
+    let done = false, raf = 0, size = from;
+    const stop = (auto) => {
+      if (done) return; done = true; cancelAnimationFrame(raf);
+      document.removeEventListener("keydown", key, true);
+      const q = !auto && Math.abs(size - target) <= win ? "parry" : "none";
+      const ov = box.querySelector(".hs-ov");
+      if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "parry" ? "#ffd700" : "var(--text-dim)"};">${q === "parry" ? "PARRY! 0 damage + counter + stun" : "Normal block"}</div>`);
+      setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(q); }, 420);
+    };
+    const key = (e) => { if (e.key === " " || e.key === "Enter" || e.key === "5") { e.preventDefault(); stop(false); } };
+    document.addEventListener("keydown", key, true);
+    $("hs-pr").addEventListener("pointerdown", (e) => { e.preventDefault(); stop(false); });
+    const frame = (now) => {
+      const t = (now - t0) / dur;
+      size = from - (from - to) * Math.min(1, t);
+      const r = $("hs-ring"); if (r) { r.style.width = r.style.height = size + "px"; r.style.margin = (-size / 2) + "px 0 0 " + (-size / 2) + "px"; }
+      if (t >= 1) { stop(true); return; }
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -6730,6 +6804,8 @@ html.m #dg-open-btn { display: none; }
       else if (e.type === "dodge") { float("DODGE", "p", "#00f0ff"); dlog(T(e) + `🌀 Dodged${e.heavy ? " the HEAVY" : ""}!`, "c"); }
       else if (e.type === "perfect") { float("PERFECT BLOCK", "p", "#ffd700", true); float(fmt(e.val), "b", "#ffd700"); dlog(T(e) + `🛡 <b>PERFECT BLOCK!</b> Counter for ${fmt(e.val)}.`, "y"); }
       else if (e.type === "edef") dlog(T(e) + "Enemy is defending.", "");
+      else if (e.type === "parry") { anim("dg-ps", "atk-l"); anim("dg-bs", "hit"); float("PARRY!", "p", "#ffd700", true); float(fmt(e.val), "b", "#ffd700", true); dlog(T(e) + `🛡 <b>PARRY!</b> No damage, counter for ${fmt(e.val)} - enemy stunned next turn.`, "y"); }
+      else if (e.type === "break") { anim("dg-bs", "hit"); float("BREAK!", "b", "#ffd700", true); dlog(T(e) + `💢 <b>BREAK!</b> ${e.was === "charge" || e.was === "unleash" ? "Charged attack interrupted! " : ""}Enemy staggered - your next hit deals 1.5×.`, "y"); }
       else if (e.type === "eheal") { float("+" + fmt(e.val), "b", "#00ff88"); dlog(T(e) + `Enemy heals ${fmt(e.val)}.`, "y"); }
       else if (e.type === "heal") { float("+" + fmt(e.val), "p", "#00ff88"); dlog(T(e) + `☕ +${fmt(e.val)} HP`, "g"); }
       else if (e.type === "item") dlog(T(e) + `${H.ITEMS[e.id].icon} ${escapeHtml(e.msg)}`, e.good === false ? "r" : "g");
