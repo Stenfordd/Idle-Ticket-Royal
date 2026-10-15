@@ -891,6 +891,18 @@ body {
     .bj-result.loss { background: rgba(255,23,68,0.15); color: var(--crimson); }
     .bj-result.push { background: rgba(255,184,0,0.15); color: var(--amber); }
 
+    /* v7: přehřátí, autosell info, nepřečtené */
+    .heat-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-dim); margin-top: 6px; font-family: 'Orbitron', monospace; }
+    .heat-bar { flex: 1; height: 6px; background: #000; border: 1px solid var(--border-subtle); border-radius: 3px; overflow: hidden; }
+    .heat-fill { height: 100%; width: 0%; background: var(--cyan); transition: width .2s, background .2s; }
+    #btn-click.overheated { filter: grayscale(.8) brightness(.6); cursor: not-allowed; }
+    .autosell-info { font-size: 10px; color: var(--text-dim); margin: 0 0 6px; line-height: 1.4; }
+    .autosell-info b { color: var(--amber); }
+    .unread { display: inline-block; min-width: 14px; padding: 0 4px; border-radius: 7px; background: var(--crimson); color: #fff; font-size: 9px; line-height: 14px; }
+    .unread:empty { display: none; }
+    .casino-tab-btn.glow { color: var(--amber) !important; border-color: var(--amber) !important; animation: tabGlow 1.2s ease-in-out infinite alternate; }
+    @keyframes tabGlow { from { box-shadow: 0 0 0 rgba(255,184,0,0); } to { box-shadow: 0 0 10px rgba(255,184,0,.6); } }
+
     @media (max-width: 1000px) {
       .grid-columns { flex-direction: column; }
       .column { width: 100%; flex: none; }
@@ -930,6 +942,7 @@ body {
             </button>
           </div>
 
+          <div class="heat-row"><span>🌡 CPU</span><div class="heat-bar"><div class="heat-fill" id="heat-fill"></div></div><b id="heat-txt">0%</b></div>
           <div class="buff-row" id="buff-row"></div>
 
           <div class="ac-box">
@@ -981,10 +994,10 @@ body {
         <div class="panel">
           <div class="panel-header">
             <span>SMART MERGE STATION (3×)</span>
-            <span style="font-size:9px; color:var(--text-dim);">+60% BASE STATS / LVL</span>
+            <button class="btn btn-gold" style="padding:3px 10px; font-size:10px;" onclick="mergeAll()">MERGE ALL</button>
           </div>
           <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;">
-            Merges 3 identical items into +1 level (10% crit +2, 5% fail = half the scrap back).
+            Merges 3 identical items into +1 level (+60% base stats per level, 10% crit +2, 5% fail = half the scrap back).
           </div>
           <div class="merge-list" id="merge-list"></div>
         </div>
@@ -992,13 +1005,13 @@ body {
         <div class="panel">
           <div class="tab-row">
             <button class="casino-tab-btn active" id="tab-btn-log" onclick="switchBottomLeftTab('log')">📋 SYSTEM LOG</button>
-            <button class="casino-tab-btn" id="tab-btn-chat" onclick="switchBottomLeftTab('chat')">💬 CHAT</button>
+            <button class="casino-tab-btn" id="tab-btn-chat" onclick="switchBottomLeftTab('chat')">💬 CHAT <span class="unread" id="chat-unread"></span></button>
           </div>
           <div id="view-system-log"><div id="log" class="log-container"></div></div>
           <div id="view-office-chat" style="display:none;">
             <div id="chat-messages" class="chat-container"><div class="chat-empty">Loading chat...</div></div>
             <div class="chat-input-row">
-              <input type="text" id="chat-input" placeholder="Napiš zprávu..." maxlength="180" onkeydown="if(event.key==='Enter') sendChat();">
+              <input type="text" id="chat-input" placeholder="Type a message..." maxlength="180" onkeydown="if(event.key==='Enter') sendChat();">
               <button class="btn btn-cyan" onclick="sendChat()" style="padding:6px 12px;">SEND</button>
             </div>
           </div>
@@ -1057,11 +1070,12 @@ body {
             <label><input type="checkbox" id="chk-upgrades" onchange="setUpgradesOnly(this.checked)"> Upgrades only</label>
             <span style="margin-left:auto;">Autosell:
               <select id="sel-autosell" class="adv-select" onchange="setAutosellTier(this.value)">
-                <option value="0">Off</option><option value="1">≤ T1</option><option value="2">≤ T2</option><option value="3">≤ T3</option>
+                <option value="0">Off</option><option value="1">≤ T1</option><option value="2">≤ T2</option><option value="3">≤ T3</option><option value="4">≤ T4</option>
               </select>
             </span>
           </div>
 
+          <div class="autosell-info" id="autosell-info"></div>
           <div class="bp-controls" style="background:var(--bg-panel-elevated); padding:6px; border-radius:4px;">
             <span>Scrap up to</span>
             <select id="scrap-tier" class="adv-select" onchange="refreshScrapButton()">
@@ -1093,7 +1107,7 @@ body {
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t2);">🔵 Rare T2</div><div class="odds-val" id="odd-t2" style="color:var(--rarity-t2);">9.8%</div></div>
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t3);">🟣 Epic T3</div><div class="odds-val" id="odd-t3" style="color:var(--rarity-t3);">0.20%</div></div>
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t4);">🟡 Legendary T4</div><div class="odds-val" id="odd-t4" style="color:var(--rarity-t4);">0.01%</div></div>
-            <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t5);">🔴 Mythic+ T5/T6</div><div class="odds-val" id="odd-t5" style="color:var(--rarity-t5);">0.001%</div></div>
+            <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t5);">🔴 Mythic T5</div><div class="odds-val" id="odd-t5" style="color:var(--rarity-t5);">0.001%</div></div>
           </div>
 
           <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;" id="chest-next-info"></div>
@@ -1119,6 +1133,8 @@ body {
             <button class="casino-tab-btn active" id="tab-btn-roulette" onclick="switchCasinoTab('roulette')">🎰 ROULETTE</button>
             <button class="casino-tab-btn" id="tab-btn-slots" onclick="switchCasinoTab('slots')">🍒 SLOTS</button>
             <button class="casino-tab-btn" id="tab-btn-blackjack" onclick="switchCasinoTab('blackjack')">♠️ BLACKJACK</button>
+            <button class="casino-tab-btn" id="tab-btn-mega" onclick="switchCasinoTab('mega')">💰 MEGA 5×5</button>
+            <button class="casino-tab-btn" id="tab-btn-crash" onclick="switchCasinoTab('crash')">🚀 CRASH</button>
           </div>
 
           <!-- ROULETTE -->
@@ -1126,6 +1142,7 @@ body {
             <div class="ticker-wrap"><div class="ticker-move" id="ticker-recent"><span>Recent Rolls: Loading live feed...</span></div></div>
             <div class="ticker-wrap" style="border-color:rgba(255,184,0,0.25);"><div class="ticker-move" id="ticker-top" style="color:var(--amber);"><span>Top Jackpots: Loading...</span></div></div>
 
+            <div class="r-hist" id="r-hist" title="Last 6 roulette results (everyone)"><span class="r-hist-lbl">LAST 6</span></div>
             <div class="roulette-viewport">
               <div class="roulette-marker"></div>
               <div class="roulette-track" id="roulette-track"></div>
@@ -1195,6 +1212,45 @@ body {
               <button class="btn btn-crimson" id="btn-bj-stand" style="flex:1; padding:8px;" disabled onclick="bjStand()">STAND</button>
               <button class="btn" id="btn-bj-double" style="flex:1; padding:8px;" disabled onclick="bjDouble()">DOUBLE</button>
             </div>
+            <div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:6px;">Blackjack pays 2.5× · ✋ <b style="color:var(--amber);">Five-Card Charlie</b>: 5 cards without busting = automatic win</div>
+          </div>
+
+          <!-- MEGA 5x5 -->
+          <div id="view-mega" style="display:none;">
+            <div class="bal-line">Balance: <span id="bal-mega">0 GC</span></div>
+            <div class="mega-wrap">
+              <div class="mega-grid" id="mega-grid"></div>
+              <svg class="mega-lines" id="mega-lines" viewBox="0 0 500 500" preserveAspectRatio="none"></svg>
+              <div class="mega-banner" id="mega-banner"></div>
+            </div>
+            <div class="slots-banner" id="mega-msg">10 lines · ⭐ wild · 💰 3+ anywhere = bonus (5× 💰 = 250× JACKPOT)</div>
+            <div class="wager-row">
+              <span style="font-size:11px;">BET:</span>
+              <input type="number" id="mega-bet" min="10" step="10" value="100">
+              <button class="btn" onclick="Mega.betMul(0.5)">½</button>
+              <button class="btn" onclick="Mega.betMul(2)">2×</button>
+              <button class="btn" onclick="Mega.payTable()">PAYTABLE</button>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-crimson" id="mega-spin" style="flex:2; padding:9px 0;" onclick="Mega.spin()">SPIN</button>
+              <button class="btn btn-gold" id="mega-auto" style="flex:1;" onclick="Mega.auto(10)">AUTO ×10</button>
+              <button class="btn btn-gold" id="mega-auto25" style="flex:1;" onclick="Mega.auto(25)">×25</button>
+            </div>
+          </div>
+
+          <!-- CRASH -->
+          <div id="view-crash" style="display:none;">
+            <div class="bal-line">Balance: <span id="bal-crash">0 GC</span></div>
+            <div class="crash-wrap"><canvas id="crash-canvas" width="440" height="220"></canvas><div class="crash-mult" id="crash-mult">1.00×</div></div>
+            <div class="crash-hist" id="crash-hist"></div>
+            <div class="slots-banner" id="crash-msg">The line grows exponentially. Cash out before it crashes!</div>
+            <div class="wager-row">
+              <span style="font-size:11px;">BET:</span>
+              <input type="number" id="crash-bet" min="10" step="10" value="100">
+              <span style="font-size:11px;">AUTO CASH-OUT:</span>
+              <input type="number" id="crash-auto" min="1.01" step="0.1" value="2.00" style="width:80px;">
+            </div>
+            <button class="btn btn-crimson" id="crash-btn" style="width:100%; padding:11px 0; font-size:13px;" onclick="Crash.press()">START (BET)</button>
           </div>
         </div>
 
@@ -1203,8 +1259,8 @@ body {
         <div class="panel">
           <div class="panel-header">SEASON TOP 10 TYCOONS</div>
           <table class="lb-table">
-            <thead><tr><th>#</th><th>TYCOON</th><th>PRES</th><th>CHEST</th><th>SCORE</th><th>GAMBLE</th></tr></thead>
-            <tbody id="lb-body"><tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Syncing database...</td></tr></tbody>
+            <thead><tr><th>#</th><th>TYCOON</th><th>PRES</th><th>CHEST</th><th>FLOOR</th><th>SCORE</th><th>GAMBLE</th></tr></thead>
+            <tbody id="lb-body"><tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Syncing database...</td></tr></tbody>
           </table>
         </div>
 
@@ -1221,7 +1277,11 @@ body {
         <div style="font-size:11px; color:var(--text-dim); max-width:760px;">
           Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose 1-10 min of Auto GC. <b>BUG</b> (10%): 50/50 chamber = ×5-10 click power or -50% for 60 s.
         </div>
-        <button class="btn btn-cyan" id="btn-consult-launch" onclick="launchConsultEscalation()">DISPATCH CONSULT (5,000 SCRAP)</button>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn btn-cyan" id="btn-consult-launch" onclick="launchConsultEscalation()">DISPATCH CONSULT (5,000 SCRAP)</button>
+          <button class="btn btn-cyan" id="btn-consult-bulk" onclick="consultBulk(5)">×5 INSTANT (25,000)</button>
+          <button class="btn btn-gold" id="btn-consult-auto" onclick="toggleConsultAuto()">🐞 BUGROLL (AUTO UNTIL BUG)</button>
+        </div>
       </div>
       <div class="consult-grid">
         <div class="consult-zone-card" id="zone-emea"><div class="zone-name" style="color:var(--cyan);">EMEA NODE</div><div class="zone-odds">Selection: 25% | Win: 55% | Loss: 35% | BUG: 10%</div></div>
@@ -1298,7 +1358,6 @@ body {
 .ir-msg.ok { color: var(--emerald); }
 .ir-switch { text-align: center; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
 .ir-switch a { color: var(--cyan); cursor: pointer; text-decoration: underline; }
-#ir-invite-wrap { display: none; }
 #ir-logout {
   position: fixed; left: 92px; bottom: 10px; z-index: 50; display: none;
   font: 700 10px 'Orbitron', monospace; letter-spacing: .5px; padding: 5px 9px; border-radius: 4px; cursor: pointer;
@@ -1315,10 +1374,6 @@ body {
     <input id="ir-nick" name="username" type="text" maxlength="16" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
     <label for="ir-pin">PIN (min. 4 characters)</label>
     <input id="ir-pin" name="password" type="password" maxlength="32" autocomplete="current-password" inputmode="text">
-    <div id="ir-invite-wrap">
-      <label for="ir-invite">INVITE CODE</label>
-      <input id="ir-invite" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false">
-    </div>
     <button class="btn btn-crimson ir-btn" id="ir-submit" type="submit">LOG IN</button>
     <div class="ir-msg" id="ir-msg"></div>
     <div class="ir-switch" id="ir-switch"></div>
@@ -1424,9 +1479,8 @@ body {
   function setMsg(t, ok) { var m = $("ir-msg"); m.textContent = t || ""; m.className = "ir-msg" + (ok ? " ok" : ""); }
   function setMode(m) {
     mode = m;
-    $("ir-invite-wrap").style.display = m === "register" ? "block" : "none";
     $("ir-submit").textContent = m === "register" ? "CREATE ACCOUNT" : "LOG IN";
-    $("ir-sub").textContent = m === "register" ? "New account (you need an invite code)" : "Log in with your nickname and PIN";
+    $("ir-sub").textContent = m === "register" ? "Create a new account - pick a nickname and a PIN" : "Log in with your nickname and PIN";
     $("ir-pin").autocomplete = m === "register" ? "new-password" : "current-password";
     $("ir-switch").innerHTML = m === "register"
       ? 'Already have an account? <a id="ir-sw">Log in</a>'
@@ -1461,7 +1515,7 @@ body {
     if (pin.length < 4) { setMsg("PIN must be at least 4 characters."); return; }
     $("ir-submit").disabled = true; setMsg("Working...", true);
     keyFor(nick, pin).then(function (h) {
-      var args = mode === "register" ? [nick, h, $("ir-invite").value] : [nick, h];
+      var args = mode === "register" ? [nick, h, ""] : [nick, h];
       return call(mode, args, false).then(function (res) {
         auth = { nick: res.nick, h: h };
         saveAuth();
@@ -1533,6 +1587,12 @@ const MERGE_COUNT = 3;          // kolik stejných itemů se mergne
 const MERGE_MAX_LVL = 10;
 const MERGE_STAT_STEP = 0.6;    // +60 % základních statů za level (aditivně, ne složeně)
 const TOKEN_CHANCE = 0.003;     // šance na Slot Token za každé otevření bedny
+const CLICK_CRIT_CHANCE = 0.05; // 5 % kliků je kritických
+const CLICK_CRIT_MULT = 3;
+const HEAT_CPS = 14;            // nad tímhle CPS se "CPU" začne zahřívat
+const HEAT_DECAY = 20;          // chladnutí za sekundu
+const OVERHEAT_MS = 8000;       // jak dlouho trvá přehřátí
+const BP_PAGE = 60;             // kolik karet batohu se vykreslí najednou (výkon na slabých PC)
 
 const AC_CLICKS_PER_SEC = 50;   // 50 kliků = +1 s baterie
 const AC_MAX_CHARGE = 600;      // max 10 min
@@ -1573,7 +1633,8 @@ let gameState = {
   autoclicker: { charge: 0, avgCps: 0, running: false, clicks: 0, activeMs: 0, lastClick: 0 },
   pachinko: { "10": 0, "50": 0, "100": 0, "500": 0 },
   pcPending: [],
-  consultBuff: { active: false, type: null, expiresAt: 0, clickMult: 1, gcMult: 1 }
+  consultBuff: { active: false, type: null, expiresAt: 0, clickMult: 1, gcMult: 1 },
+  dungeon: {}
 };
 
 let gameLoaded = false;
@@ -1629,6 +1690,7 @@ window.TT = {
       (window.AdvMini && AdvMini.isBusy && AdvMini.isBusy());
   },
   fmt: (n) => Math.floor(n).toLocaleString(),
+  maxBet: () => Math.min(1e9, 100000 * Math.pow(2, gameState.prestige || 0)),
   cleanBet: function (value, min, max) {
     let n = Math.floor(Number(value));
     if (!isFinite(n)) n = min;
@@ -1656,8 +1718,10 @@ function log(msg, type = "normal") {
   entry.className = `log-entry ${type}`;
   const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   entry.innerHTML = `<span style="color:#556;">[${time}]</span> ${msg}`;
+  const nearTop = Math.abs(container.scrollTop) < 40;   // column-reverse: 0 = nejnovější (dole)
   container.prepend(entry);
   while (container.childNodes.length > 50) container.removeChild(container.lastChild);
+  if (nearTop) container.scrollTop = 0;
 }
 
 function escapeHtml(text) {
@@ -1688,11 +1752,41 @@ function switchBottomLeftTab(tab) {
   document.getElementById("view-office-chat").style.display = isLog ? "none" : "block";
   document.getElementById("tab-btn-log").classList.toggle("active", isLog);
   document.getElementById("tab-btn-chat").classList.toggle("active", !isLog);
-  if (!isLog) scrollChatToBottom();
+  if (!isLog) { scrollChatToBottom(); chatUnread = 0; renderChatUnread(); }
 }
 
+let chatUnread = 0, chatLastSig = null;
+function chatVisible() {
+  const v = document.getElementById("view-office-chat");
+  if (!v || v.style.display === "none") return false;
+  if (document.documentElement.classList.contains("m") && document.body.getAttribute("data-mtab") !== "more") return false;
+  return true;
+}
+function renderChatUnread() {
+  setTxt("chat-unread", chatUnread ? String(chatUnread) : "");
+  document.documentElement.classList.toggle("has-unread", chatUnread > 0);
+}
 function renderChatMessages(messages) {
   if (!messages) return;
+  // nepřečtené zprávy od ostatních (když chat není vidět)
+  const last = messages[messages.length - 1];
+  const sig = messages.length ? messages.length + "|" + (last.time || "") + "|" + last.user + "|" + last.text : "0";
+  if (chatLastSig !== null && sig !== chatLastSig && !chatVisible()) {
+    let fresh = 0;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      const k = messages.length - i;
+      if (k > 10) break;
+      if (m.user === gameState.ldap) break;
+      if (window.__chatSeen && window.__chatSeen[(m.time || "") + m.user + m.text]) break;
+      fresh++;
+    }
+    if (fresh) { chatUnread += fresh; renderChatUnread(); }
+  }
+  chatLastSig = sig;
+  window.__chatSeen = {};
+  messages.forEach(m => { window.__chatSeen[(m.time || "") + m.user + m.text] = 1; });
+  if (chatVisible() && chatUnread) { chatUnread = 0; renderChatUnread(); }
   const container = document.getElementById("chat-messages");
   if (!container) return;
   if (messages.length === 0) {
@@ -1802,10 +1896,40 @@ function getLiveCps() {
   return (n - 1) / span;
 }
 
+let heat = 0, heatAt = 0, overheatUntil = 0;
+function heatNow(now) {
+  if (heatAt) heat = Math.max(0, heat - HEAT_DECAY * (now - heatAt) / 1000);
+  heatAt = now;
+  return heat;
+}
+function isOverheated() { return Date.now() < overheatUntil; }
+
+function clickCritChance() {
+  let c = CLICK_CRIT_CHANCE;
+  if (window.Dungeon && Dungeon.clickCritBonus) c += Dungeon.clickCritBonus();
+  return c;
+}
+
 function handleManualClick(ev) {
   if (ev && ev.isTrusted === false) return;   // syntetické kliky ze skriptů se ignorují
   const now = Date.now();
-  addTickets(calculateClickPower());
+  window.__lastCrit = false;
+  if (now < overheatUntil) { window.__lastCrit = "heat"; updateHud(); return; }   // přehřáto = klik nic nedá
+
+  const crit = Math.random() < clickCritChance();
+  window.__lastCrit = crit;
+  addTickets(calculateClickPower() * (crit ? CLICK_CRIT_MULT : 1));
+  if (gameLoaded && !gameState.focusAutogenActive) toggleFocusAutogen(true);   // klik sám zapne 45m autogen
+
+  // anti-cheat: rychlé klikání zahřívá CPU, nad 100 % se přehřeje
+  heatNow(now);
+  const live = getLiveCps();
+  if (live > HEAT_CPS) heat = Math.min(100, heat + (live - HEAT_CPS));
+  if (heat >= 100) {
+    overheatUntil = now + OVERHEAT_MS;
+    heat = 100;
+    log(`🔥 CPU OVERHEATED! Clicking ${live.toFixed(1)} CPS is too fast - clicks are disabled for ${OVERHEAT_MS / 1000}s.`, "error");
+  }
 
   if (now - lastCountedClickAt >= AC_MIN_GAP) {
     lastCountedClickAt = now;
@@ -1909,6 +2033,7 @@ function calculateNetMultiplier() {
     const it = gameState.loadout[slot];
     if (it) m += itemStats(it).m;
   }
+  if (window.Dungeon && Dungeon.netMultBonus) m *= Dungeon.netMultBonus();   // trvalý bonus z dungeonu (přežije prestiž)
   return m;
 }
 
@@ -1934,11 +2059,11 @@ function calculateAutoGcRate() {
   return base * 0.1 * mult * Math.pow(2, Math.floor(gameState.prestige / 5));
 }
 
-function toggleFocusAutogen() {
+function toggleFocusAutogen(fromClick) {
   if (gameState.focusAutogenActive) return;
   gameState.focusAutogenActive = true;
   gameState.focusAutogenRemaining = 2700;
-  log("45M FOCUS AUTOGEN ACTIVATED: passive Google Coins accumulation started!", "special");
+  log(fromClick === true ? "45M FOCUS AUTOGEN auto-started by your click." : "45M FOCUS AUTOGEN ACTIVATED: passive Google Coins accumulation started!", "special");
   updateUI();
   TT.saveSoon();
 }
@@ -2056,10 +2181,15 @@ function buyMaxScrap() {
 // ==========================================================================
 function getChestUpgradeCost(lvl) { return Math.floor(75 * Math.pow(lvl, 1.35)); }
 
+/** Sezóna 2+: od levelu 20 dvojnásob, pak každých 10 levelů ×1.5 (lvl 30 = ×3, lvl 40 = ×4.5 ...) */
+function chestLevelCostFactor(lvl) {
+  return lvl < 20 ? 1 : 2 * Math.pow(1.5, Math.floor((lvl - 20) / 10));
+}
 function getChestScrapCost() {
-  const base = 100 * Math.pow(1.2, gameState.prestige || 0) * (1 - 0.03 * gameState.lpUp.scrap);
+  const base = 100 * Math.pow(1.2, gameState.prestige || 0) * (1 - 0.03 * gameState.lpUp.scrap) * chestLevelCostFactor(gameState.chestLevel);
   return Math.max(10, Math.floor(base));
 }
+const T5_UNLOCK_LVL = 40;          // Mythic padá až od bedny lvl 40, Quantum (T6) jen z dungeonu
 
 function getChestOdds(lvl) {
   const l = Math.max(1, lvl);
@@ -2067,8 +2197,8 @@ function getChestOdds(lvl) {
   const t2 = Math.min(50.0, 9.8 + (l - 1) * 0.8);
   const t3 = Math.min(25.0, 0.20 + (l - 1) * 0.15);
   const t4 = Math.min(10.0, 0.01 + (l - 1) * 0.03);
-  const t5 = Math.min(4.0, 0.001 + (l - 1) * 0.008);
-  const t6 = Math.min(1.0, 0.0001 + (l - 1) * 0.002);
+  const t5 = l < T5_UNLOCK_LVL ? 0 : Math.min(1.5, 0.05 + (l - T5_UNLOCK_LVL) * 0.006);
+  const t6 = 0;
   const t1 = Math.max(0, 100.0 - (trash + t2 + t3 + t4 + t5 + t6));
   return { trash, t1, t2, t3, t4, t5, t6 };
 }
@@ -2100,6 +2230,7 @@ function upgradeCompanyChest() {
   saveGame();
 }
 
+let autosellSession = { n: 0, scrap: 0 };
 function shouldAutosell(it) {
   return gameState.autosellTier > 0 && it.tier <= gameState.autosellTier && !isUpgrade(it);
 }
@@ -2129,6 +2260,7 @@ function openCompanyChest(n) {
     if (shouldAutosell(it)) {
       const v = rarityOf(t).scrap;
       gameState.scrap += v; soldScrap += v; sold++;
+      autosellSession.n++; autosellSession.scrap += v;
       continue;
     }
     if (!invFind(slot, t, 0) && gameState.inventory.length >= INV_MAX_STACKS) {
@@ -2221,9 +2353,12 @@ let backpackFilter = "ALL";
 let upgradesOnly = false;
 let lastPanelSig = "";
 let scrapArmedUntil = 0;
+let bpLimit = BP_PAGE;
 
-function setBackpackFilter(v) { backpackFilter = v; lastPanelSig = ""; updatePanels(); }
-function setUpgradesOnly(v) { upgradesOnly = !!v; lastPanelSig = ""; updatePanels(); }
+function showMoreBackpack() { bpLimit += BP_PAGE * 3; lastPanelSig = ""; updatePanels(); }
+
+function setBackpackFilter(v) { backpackFilter = v; bpLimit = BP_PAGE; lastPanelSig = ""; updatePanels(); }
+function setUpgradesOnly(v) { upgradesOnly = !!v; bpLimit = BP_PAGE; lastPanelSig = ""; updatePanels(); }
 
 function diffTxt(label, n, o, pct) {
   const d = (n || 0) - (o || 0);
@@ -2259,6 +2394,8 @@ function renderBackpack() {
     return;
   }
 
+  const total = list.length;
+  if (total > bpLimit) list = list.slice(0, bpLimit);
   container.innerHTML = list.map(s => {
     const st = itemStats(s);
     const key = stackKey(s);
@@ -2276,7 +2413,8 @@ function renderBackpack() {
         ${s.n > 1 ? `<button class="btn btn-crimson" onclick="dismantleStack('${key}',${s.n})">ALL ${s.n}</button>` : ""}
       </div>
     </div>`;
-  }).join("");
+  }).join("") + (total > list.length
+    ? `<div class="bp-empty" style="padding:10px;"><button class="btn btn-cyan" onclick="showMoreBackpack()">SHOW MORE (${total - list.length} more stacks)</button></div>` : "");
 }
 
 function renderLoadout() {
@@ -2375,15 +2513,26 @@ function scrapByTier() {
     return;
   }
   scrapArmedUntil = 0;
-  p.keys.forEach(k => invTake(k[0], k[1]));
+  const kill = {};
+  p.keys.forEach(k => { kill[k[0]] = k[1]; });
+  gameState.inventory = gameState.inventory.filter(s => !(stackKey(s) in kill));   // jeden průchod místo hledání stacku po stacku
   gameState.scrap += p.scrap;
   log(`Scrapped ${p.items} items for +${p.scrap.toLocaleString()} Scrap.`, "success");
   updateUI();
 }
 
 function setAutosellTier(v) {
-  gameState.autosellTier = Number(v) || 0;
-  log(gameState.autosellTier ? `Autosell ON: new drops up to T${gameState.autosellTier} that are not upgrades are scrapped.` : "Autosell OFF.");
+  gameState.autosellTier = Math.max(0, Math.min(4, Number(v) || 0));
+  log(gameState.autosellTier ? `Autosell ON: new chest drops up to T${gameState.autosellTier} are scrapped instantly - unless they are better than what you wear.` : "Autosell OFF.");
+  renderAutosellInfo();
+  TT.saveSoon();
+}
+
+function renderAutosellInfo() {
+  const t = gameState.autosellTier;
+  setHtml("autosell-info", t
+    ? `♻ <b>Autosell ≤ T${t}</b>: new drops up to <b>${tierLabel(t)}</b> become scrap right away. Upgrades for your equipped gear are <b>always kept</b>. This session: <b>${autosellSession.n}</b> items → <b>+${autosellSession.scrap.toLocaleString()}</b> scrap.`
+    : `♻ Autosell is <b>off</b> - every drop goes to your backpack. Turn it on to auto-scrap low drops (upgrades are always kept).`);
 }
 
 // ==========================================================================
@@ -2412,6 +2561,43 @@ function renderMergeStation() {
       </div>
     </div>`;
   }).join("");
+}
+
+function mergeAll() {
+  let ok = 0, crit = 0, fail = 0, refund = 0, rounds = 0;
+  for (; rounds < 60; rounds++) {
+    const s = gameState.inventory.filter(x => x.n >= MERGE_COUNT && (x.lvl || 0) < MERGE_MAX_LVL)
+      .sort((a, b) => (a.lvl || 0) - (b.lvl || 0))[0];
+    if (!s) break;
+    const r = mergeStack(s, Math.floor(s.n / MERGE_COUNT));
+    ok += r.ok; crit += r.crit; fail += r.fail; refund += r.refund;
+  }
+  if (!ok && !fail) { log("Nothing to merge.", "warning"); return; }
+  gameState.scrap += refund;
+  log(`MERGE ALL: ${ok} merges${crit ? " (" + crit + " crit +2)" : ""}${fail ? ", " + fail + " failed (+" + refund + " scrap)" : ""}.`, "special");
+  updateUI();
+  TT.saveSoon();
+}
+
+function mergeStack(s0, times) {
+  const key = stackKey(s0);
+  const slot = s0.slot, tier = s0.tier, lvl = s0.lvl || 0;
+  const r = { ok: 0, crit: 0, fail: 0, refund: 0, done: 0 };
+  for (let i = 0; i < times; i++) {
+    if (!invTake(key, MERGE_COUNT)) break;
+    r.done++;
+    const roll = Math.random() * 100;
+    if (roll < 5) {
+      r.fail++;
+      r.refund += Math.floor(itemScrapValue({ tier: tier, lvl: lvl }) * MERGE_COUNT * 0.5);
+    } else {
+      const bonus = roll < 15 ? 2 : 1;
+      if (bonus === 2) r.crit++;
+      invAdd(slot, tier, Math.min(MERGE_MAX_LVL, lvl + bonus), 1);
+      r.ok++;
+    }
+  }
+  return r;
 }
 
 function performSmartMerge(key, times) {
@@ -2503,6 +2689,7 @@ function buffChips() {
       : `<span class="buff-chip bad">💥 CRASH −50% · ${left}s</span>`);
   }
   if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">🎟 ${g.slotTokens} token${g.slotTokens > 1 ? "s" : ""}</span>`);
+  if (window.Dungeon && g.dungeon && g.dungeon.best > 0) chips.push(`<span class="buff-chip lp" title="Permanent bonus from dungeon floors">⚔ FLOOR ${g.dungeon.best} ×${Dungeon.netMultBonus().toFixed(2)}</span>`);
   return chips.join("");
 }
 
@@ -2524,6 +2711,16 @@ function updateHud() {
   setTxt("stat-mult", mult.toFixed(2) + "×");
   setTxt("multiplier-badge", "MULT: " + mult.toFixed(2) + "×");
   setTxt("stat-cps", getLiveCps().toFixed(1));
+  const hNow = heatNow(Date.now());
+  const hb = document.getElementById("heat-fill");
+  if (hb) {
+    const over = isOverheated();
+    hb.style.width = (over ? 100 : hNow) + "%";
+    hb.style.background = over ? "var(--crimson)" : (hNow > 60 ? "var(--amber)" : "var(--cyan)");
+    setTxt("heat-txt", over ? "OVERHEATED " + Math.ceil((overheatUntil - Date.now()) / 1000) + "s" : Math.round(hNow) + "%");
+    const cb = document.getElementById("btn-click");
+    if (cb) cb.classList.toggle("overheated", over);
+  }
   setTxt("stat-peak-cps", g.peakCps.toFixed(1));
   ["bal-roulette", "bal-slots", "bal-bj", "bal-chicken", "bal-pachinko", "bal-showdown"].forEach(id => setTxt(id, coinsTxt + " GC"));
 
@@ -2575,10 +2772,13 @@ function updateHud() {
   setTxt("odd-t2", o.t2.toFixed(1) + "%");
   setTxt("odd-t3", o.t3.toFixed(2) + "%");
   setTxt("odd-t4", o.t4.toFixed(2) + "%");
-  setTxt("odd-t5", (o.t5 + o.t6).toFixed(3) + "%");
-  setTxt("chest-next-info", o.trash > 0
-    ? "Next level: -0.5% Empty, +0.8% Rare, +0.15% Epic (0% Empty at level 90)"
-    : "Level 90+: 0% empty drops, every open gives an item.");
+  setTxt("odd-t5", g.chestLevel < T5_UNLOCK_LVL ? "🔒 LVL " + T5_UNLOCK_LVL : o.t5.toFixed(3) + "%");
+  const nf = chestLevelCostFactor(g.chestLevel + 1), cf = chestLevelCostFactor(g.chestLevel);
+  setTxt("chest-next-info", (o.trash > 0
+    ? "Next level: -0.5% Empty, +0.8% Rare, +0.15% Epic (0% Empty at level 90)."
+    : "Level 90+: 0% empty drops.") +
+    (nf > cf ? ` ⚠ Next level makes opening ×${(nf / cf).toFixed(1)} more expensive.` : "") +
+    " Quantum (T6) only drops from dungeon bosses.");
   const btnTok = document.getElementById("btn-token");
   if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `🎟 USE SLOT TOKEN (${g.slotTokens})`); }
 
@@ -2603,10 +2803,14 @@ function updatePanels() {
   refreshScrapButton();
 }
 
+let panelsQueued = false;
 function updateUI() {
   updateHud();
-  updatePanels();
   renderLpShop(false);
+  if (document.hidden) { updatePanels(); return; }
+  if (panelsQueued) return;
+  panelsQueued = true;
+  requestAnimationFrame(function () { panelsQueued = false; updatePanels(); renderAutosellInfo(); });
 }
 </script>
 
@@ -2633,11 +2837,14 @@ const RED_NUMS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34,
 
 function $c(id) { return document.getElementById(id); }
 
+const CASINO_TABS = ["roulette", "slots", "blackjack"];
 function switchCasinoTab(tab) {
-  ["roulette", "slots", "blackjack"].forEach(t => {
-    $c("view-" + t).style.display = (t === tab ? "block" : "none");
-    $c("tab-btn-" + t).className = "casino-tab-btn" + (t === tab ? " active" : "");
+  CASINO_TABS.forEach(t => {
+    const v = $c("view-" + t), b = $c("tab-btn-" + t);
+    if (v) v.style.display = (t === tab ? "block" : "none");
+    if (b) b.className = "casino-tab-btn" + (t === tab ? " active" : "");
   });
+  window.dispatchEvent(new Event("resize"));
 }
 
 // ==========================================================================
@@ -2721,6 +2928,7 @@ function evaluateRouletteResult(num, betType, wager) {
   else if (betType === "high" && num >= 19 && num <= 36) mult = 2;
 
   const colorName = num === 0 ? "GREEN" : (isRed ? "RED" : "BLACK");
+  if (window.pushRouletteHistory) pushRouletteHistory({ user: gameState.ldap, num: String(num), color: colorName });
   const box = $c("roulette-result");
   if (mult > 0) {
     const payout = wager * mult;
@@ -2731,6 +2939,7 @@ function evaluateRouletteResult(num, betType, wager) {
   } else {
     box.innerHTML = `<span style="color:var(--crimson);">[${num} ${colorName}] LOSS -${wager.toLocaleString()} GC</span>`;
     log(`Roulette rolled [${num} ${colorName}]. Lost ${wager.toLocaleString()} GC.`, "error");
+    TT.announce(String(num), colorName, wager, 0);
   }
 }
 
@@ -2863,6 +3072,7 @@ function bjHit() {
   $c("btn-bj-double").disabled = true;
   const s = calculateHandScore(bjPlayerHand);
   if (s > 21) { renderBjCards(false); endBlackjack("BUST", false); }
+  else if (bjPlayerHand.length >= 5) { renderBjCards(false); endBlackjack(`FIVE-CARD CHARLIE (${s})`, true); }
   else if (s === 21) bjStand();
 }
 
@@ -2911,77 +3121,101 @@ function endBlackjack(msg, outcome, natural) {
 
 // ==========================================================================
 // CONSULT ESCALATION
+// Výsledek se losuje PŘEDEM a animace na něm přesně skončí (dřív radar "doskočil" o 1-2 pole jinam).
+// Auto-roll: opakuje consulty, dokud nepadne BUG (nebo dojde scrap). Bulk ×5: 5 consultů najednou bez animace.
 // ==========================================================================
 function randInt(a, b) { return a + Math.floor(TT.rnd() * (b - a + 1)); }
+const CONSULT_ZONES = ["emea", "apac", "hindi"];
+let consultAuto = false, consultStats = null;
+
+function rollConsult() {
+  const r = TT.rnd() * 100;
+  const zone = r < 25 ? "emea" : (r < 60 ? "apac" : "hindi");
+  const r2 = TT.rnd() * 100;
+  const winT = zone === "emea" ? 55 : (zone === "apac" ? 45 : 35);
+  return { zone: zone, outcome: r2 < winT ? "win" : (r2 < 90 ? "loss" : "bug") };
+}
+
+function consultFast() { return consultAuto; }
 
 function launchConsultEscalation() {
   if (isConsultActive) return;
   if (gameState.scrap < CONSULT_COST_SCRAP) {
     log(`Insufficient scrap: consult requires ${CONSULT_COST_SCRAP.toLocaleString()} Scrap.`, "warning");
+    if (consultAuto) stopConsultAuto("out of scrap");
     return;
   }
   gameState.scrap -= CONSULT_COST_SCRAP;
   isConsultActive = true;
-  $c("btn-consult-launch").disabled = true;
+  consultButtons();
   $c("consult-bug-box").style.display = "none";
   updateUI();
 
+  const res = rollConsult();
   const display = $c("consult-display");
-  display.innerText = "ESCALATING TO SME NODES - INITIALIZING QUANTUM RADAR...";
-  const zones = ["emea", "apac", "hindi"];
-  let step = 0, delay = 80;
+  display.innerText = consultAuto ? `AUTO-ROLL #${consultStats.n + 1} // SCANNING FOR A BUG...` : "ESCALATING TO SME NODES - INITIALIZING QUANTUM RADAR...";
+  const target = CONSULT_ZONES.indexOf(res.zone);
+  const fast = consultFast();
+  let steps = (fast ? 6 : 18) + ((target - (fast ? 6 : 18)) % 3 + 3) % 3;   // poslední bliknutí = vybraná zóna
+  let step = 0, delay = fast ? 40 : 80;
 
   function stepRadar() {
-    zones.forEach(z => { $c("zone-" + z).className = "consult-zone-card"; });
-    $c("zone-" + zones[step % 3]).className = "consult-zone-card flicker";
-    step++;
-    if (step < 20) { delay += 12; setTimeout(stepRadar, delay); return; }
-    const r = TT.rnd() * 100;
-    const zone = r < 25 ? "emea" : (r < 60 ? "apac" : "hindi");
-    zones.forEach(z => { $c("zone-" + z).className = "consult-zone-card"; });
-    $c("zone-" + zone).className = "consult-zone-card selected";
-    display.innerText = `LOCKED ONTO [${zone.toUpperCase()} SME NODE] // DECRYPTING TICKET OUTCOME...`;
-    setTimeout(() => startOutcomeScan(zone), 1200);
+    CONSULT_ZONES.forEach(z => { $c("zone-" + z).className = "consult-zone-card"; });
+    $c("zone-" + CONSULT_ZONES[step % 3]).className = "consult-zone-card flicker";
+    if (step < steps) { step++; delay += fast ? 4 : 12; setTimeout(stepRadar, delay); return; }
+    CONSULT_ZONES.forEach(z => { $c("zone-" + z).className = "consult-zone-card"; });
+    $c("zone-" + res.zone).className = "consult-zone-card selected";
+    display.innerText = `LOCKED ONTO [${res.zone.toUpperCase()} SME NODE] // DECRYPTING TICKET OUTCOME...`;
+    setTimeout(() => startOutcomeScan(res), fast ? 250 : 1200);
   }
   stepRadar();
 }
 
-function startOutcomeScan(zone) {
+function startOutcomeScan(res) {
   const display = $c("consult-display");
   let blinks = 0;
+  const fast = consultFast();
   const iv = setInterval(() => {
     blinks++;
     display.innerText = `SCANNING NODE CHANNELS: 0x${Math.random().toString(16).substr(2, 6).toUpperCase()}...`;
-    if (blinks >= 8) { clearInterval(iv); evaluateConsultOutcome(zone); }
-  }, 200);
+    if (blinks >= (fast ? 3 : 8)) { clearInterval(iv); evaluateConsultOutcome(res); }
+  }, fast ? 90 : 200);
 }
 
-function evaluateConsultOutcome(zone) {
-  const display = $c("consult-display");
-  const r = TT.rnd() * 100;
-  const winT = zone === "emea" ? 55 : (zone === "apac" ? 45 : 35);
-  const outcome = r < winT ? "win" : (r < 90 ? "loss" : "bug");
+/** Vyplatí výhru/prohru (bez animace). Vrací text pro displej. */
+function applyConsult(res) {
   const rate = calculateAutoGcRate();
-
-  if (outcome === "win") {
+  if (res.outcome === "win") {
     const minutes = randInt(CONSULT_WIN_MIN, CONSULT_WIN_MAX);
     const reward = Math.max(CONSULT_MIN_WIN, Math.floor(rate * 60 * minutes));
     gameState.coins += reward;
-    display.innerHTML = `<span style="color:var(--emerald);">SUCCESS! ${minutes} MIN OF AUTO GC (+${reward.toLocaleString()} GC)</span>`;
-    log(`CONSULT WIN [${zone.toUpperCase()}]: ${minutes} min of Auto GC = +${reward.toLocaleString()} GC!`, "special");
-    finishConsult();
-  } else if (outcome === "loss") {
-    const minutes = randInt(CONSULT_LOSS_MIN, CONSULT_LOSS_MAX);
-    const penalty = Math.min(gameState.coins, Math.max(CONSULT_MIN_LOSS, Math.floor(rate * 60 * minutes)));
-    gameState.coins = Math.max(0, gameState.coins - penalty);
-    display.innerHTML = `<span style="color:var(--crimson);">FAILED // ${minutes} MIN LOST (-${Math.floor(penalty).toLocaleString()} GC)</span>`;
-    log(`CONSULT FAILURE [${zone.toUpperCase()}]: drained ${Math.floor(penalty).toLocaleString()} GC (${minutes} min).`, "error");
-    finishConsult();
-  } else {
-    display.innerHTML = `<span style="color:var(--amber);">CRITICAL FIRMWARE BUG // OPENING 50/50 OVERDRIVE CHAMBER!</span>`;
-    log(`CRITICAL BUG in ${zone.toUpperCase()} node! Launching 50/50 chamber.`, "special");
-    setTimeout(startBugChamber, 1500);
+    return { gc: reward, html: `<span style="color:var(--emerald);">SUCCESS! ${minutes} MIN OF AUTO GC (+${reward.toLocaleString()} GC)</span>`,
+      log: `CONSULT WIN [${res.zone.toUpperCase()}]: ${minutes} min of Auto GC = +${reward.toLocaleString()} GC!`, type: "special" };
   }
+  const minutes = randInt(CONSULT_LOSS_MIN, CONSULT_LOSS_MAX);
+  const penalty = Math.min(gameState.coins, Math.max(CONSULT_MIN_LOSS, Math.floor(rate * 60 * minutes)));
+  gameState.coins = Math.max(0, gameState.coins - penalty);
+  return { gc: -penalty, html: `<span style="color:var(--crimson);">FAILED // ${minutes} MIN LOST (-${Math.floor(penalty).toLocaleString()} GC)</span>`,
+    log: `CONSULT FAILURE [${res.zone.toUpperCase()}]: drained ${Math.floor(penalty).toLocaleString()} GC (${minutes} min).`, type: "error" };
+}
+
+function evaluateConsultOutcome(res) {
+  const display = $c("consult-display");
+  if (res.outcome === "bug") {
+    if (consultAuto) { log(`AUTO-ROLL: BUG found after ${consultStats.n + 1} consult(s)!`, "special"); stopConsultAuto(null, true); }
+    display.innerHTML = `<span style="color:var(--amber);">CRITICAL FIRMWARE BUG // OPENING 50/50 OVERDRIVE CHAMBER!</span>`;
+    log(`CRITICAL BUG in ${res.zone.toUpperCase()} node! Launching 50/50 chamber.`, "special");
+    setTimeout(startBugChamber, 1500);
+    return;
+  }
+  const out = applyConsult(res);
+  display.innerHTML = out.html;
+  if (consultAuto) {
+    consultStats.n++; consultStats.gc += out.gc;
+    display.innerHTML += `<br><span style="font-size:11px;color:var(--text-dim);">AUTO-ROLL: ${consultStats.n} consults, net ${consultStats.gc >= 0 ? "+" : ""}${Math.floor(consultStats.gc).toLocaleString()} GC</span>`;
+  } else log(out.log, out.type);
+  finishConsult();
+  if (consultAuto) setTimeout(() => { if (consultAuto) launchConsultEscalation(); }, 450);
 }
 
 function startBugChamber() {
@@ -2989,17 +3223,16 @@ function startBugChamber() {
   const winCard = $c("bug-card-win"), lossCard = $c("bug-card-loss");
   const display = $c("consult-display");
   box.style.display = "grid";
+  const isWinner = TT.rnd() < 0.5;
+  const total = 18 + (isWinner ? 0 : 1);     // poslední zvýraznění = skutečný výsledek
   let count = 0, delay = 100;
 
   function alt() {
     count++;
     winCard.className = "bug-card" + (count % 2 === 0 ? " highlight" : "");
     lossCard.className = "bug-card" + (count % 2 === 1 ? " highlight" : "");
-    if (count < 18) { delay += 15; setTimeout(alt, delay); return; }
+    if (count < total) { delay += 15; setTimeout(alt, delay); return; }
 
-    const isWinner = TT.rnd() < 0.5;
-    winCard.className = "bug-card" + (isWinner ? " highlight" : "");
-    lossCard.className = "bug-card" + (!isWinner ? " highlight" : "");
     if (isWinner) {
       const mult = Math.round((CONSULT_BUG_WIN_MIN + TT.rnd() * (CONSULT_BUG_WIN_MAX - CONSULT_BUG_WIN_MIN)) * 10) / 10;
       display.innerHTML = `<span style="color:var(--emerald);">OVERDRIVE: ×${mult.toFixed(1)} CLICK POWER FOR 60 SECONDS!</span>`;
@@ -3015,12 +3248,417 @@ function startBugChamber() {
   alt();
 }
 
+/** ×5 najednou bez animace. BUG zastaví sérii a pustí normální 50/50 komoru. */
+function consultBulk(n) {
+  if (isConsultActive || consultAuto) return;
+  let done = 0, net = 0, wins = 0, losses = 0, bug = null;
+  for (let i = 0; i < n; i++) {
+    if (gameState.scrap < CONSULT_COST_SCRAP) break;
+    gameState.scrap -= CONSULT_COST_SCRAP;
+    done++;
+    const res = rollConsult();
+    if (res.outcome === "bug") { bug = res; break; }
+    const out = applyConsult(res);
+    net += out.gc;
+    if (out.gc >= 0) wins++; else losses++;
+  }
+  if (!done) { log(`Insufficient scrap: consult requires ${CONSULT_COST_SCRAP.toLocaleString()} Scrap.`, "warning"); return; }
+  const sum = `BULK ×${done}: ${wins} win · ${losses} loss · net ${net >= 0 ? "+" : ""}${Math.floor(net).toLocaleString()} GC${bug ? " · 🐞 BUG!" : ""}`;
+  log(sum, net >= 0 ? "special" : "error");
+  $c("consult-display").innerHTML = `<span style="color:${net >= 0 ? "var(--emerald)" : "var(--crimson)"};">${sum}</span>`;
+  updateUI();
+  TT.saveSoon();
+  if (bug) {
+    isConsultActive = true;
+    consultButtons();
+    setTimeout(() => evaluateConsultOutcome(bug), 600);
+  }
+}
+
+function toggleConsultAuto() {
+  if (consultAuto) { stopConsultAuto("stopped"); return; }
+  if (isConsultActive) return;
+  if (gameState.scrap < CONSULT_COST_SCRAP) { log(`Insufficient scrap: consult requires ${CONSULT_COST_SCRAP.toLocaleString()} Scrap.`, "warning"); return; }
+  consultAuto = true;
+  consultStats = { n: 0, gc: 0 };
+  log("CONSULT AUTO-ROLL started: rolling until a BUG drops.", "special");
+  consultButtons();
+  launchConsultEscalation();
+}
+
+function stopConsultAuto(reason, silent) {
+  if (!consultAuto) return;
+  consultAuto = false;
+  if (!silent && consultStats) log(`CONSULT AUTO-ROLL ${reason}: ${consultStats.n} consults, net ${consultStats.gc >= 0 ? "+" : ""}${Math.floor(consultStats.gc).toLocaleString()} GC.`, "warning");
+  consultButtons();
+}
+
+function consultButtons() {
+  const b1 = $c("btn-consult-launch"), b5 = $c("btn-consult-bulk"), ba = $c("btn-consult-auto");
+  if (b1) b1.disabled = isConsultActive || consultAuto;
+  if (b5) b5.disabled = isConsultActive || consultAuto;
+  if (ba) { ba.disabled = isConsultActive && !consultAuto; ba.innerText = consultAuto ? "⏹ STOP AUTO-ROLL" : "🐞 BUGROLL (AUTO UNTIL BUG)"; ba.className = "btn " + (consultAuto ? "btn-crimson" : "btn-gold"); }
+}
+
 function finishConsult() {
   isConsultActive = false;
-  $c("btn-consult-launch").disabled = false;
+  consultButtons();
   updateUI();
   TT.saveSoon();
 }
+</script>
+
+<style>
+/* ===== CASINO 2: Mega 5x5 sloty, Crash, sdílená historie rulety ===== */
+.r-hist { display: flex; gap: 4px; align-items: center; justify-content: center; margin: 4px 0 6px; min-height: 22px; }
+.r-hist-lbl { font: 700 9px 'Orbitron', monospace; color: var(--text-dim); margin-right: 4px; }
+.r-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 700 9px 'Orbitron', monospace; color: #fff; border: 1px solid rgba(255,255,255,.2); position: relative; }
+.r-dot.RED { background: #c8102e; } .r-dot.BLACK { background: #1a1e28; } .r-dot.GREEN { background: #008744; }
+.r-dot.new { animation: rDotIn .5s ease-out; }
+@keyframes rDotIn { from { transform: scale(0); } to { transform: scale(1); } }
+
+.mega-wrap { position: relative; margin-bottom: 6px; }
+.mega-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #070a10; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px; }
+.mega-cell { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; font-size: 26px; background: #121826; border-radius: 6px; transition: transform .15s, box-shadow .15s, background .15s; user-select: none; }
+.mega-cell.spin { animation: megaSpin .09s linear infinite; filter: blur(1px); }
+.mega-cell.land { animation: megaLand .25s ease-out; }
+.mega-cell.hit { background: rgba(255,184,0,.22); box-shadow: 0 0 12px rgba(255,184,0,.7) inset, 0 0 8px rgba(255,184,0,.5); transform: scale(1.06); }
+.mega-cell.sc { background: rgba(0,255,136,.2); box-shadow: 0 0 14px rgba(0,255,136,.8) inset; }
+@keyframes megaSpin { 0% { transform: translateY(-5px); } 50% { transform: translateY(5px); } 100% { transform: translateY(-5px); } }
+@keyframes megaLand { 0% { transform: translateY(-10px); } 70% { transform: translateY(3px); } 100% { transform: none; } }
+.mega-lines { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); pointer-events: none; }
+.mega-lines polyline { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; opacity: .85; filter: drop-shadow(0 0 4px currentColor); }
+.mega-banner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; pointer-events: none; font: 900 30px 'Orbitron', monospace; letter-spacing: 2px; opacity: 0; text-shadow: 0 0 18px currentColor, 0 2px 0 #000; }
+.mega-banner small { font-size: 16px; letter-spacing: 1px; }
+.mega-banner.go { animation: megaBanner 2.2s ease-out forwards; }
+@keyframes megaBanner { 0% { opacity: 0; transform: scale(.4) rotate(-6deg); } 15% { opacity: 1; transform: scale(1.15) rotate(2deg); } 30% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
+.mega-shake { animation: megaShake .5s linear; }
+@keyframes megaShake { 0%,100% { transform: none; } 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, -1px); } 80% { transform: translate(3px, 1px); } }
+
+.crash-wrap { position: relative; background: #05070b; border: 1px solid var(--border-subtle); border-radius: 6px; margin-bottom: 6px; overflow: hidden; }
+#crash-canvas { width: 100%; height: auto; display: block; }
+.crash-mult { position: absolute; top: 10px; left: 0; right: 0; text-align: center; font: 900 34px 'Orbitron', monospace; color: var(--emerald); text-shadow: 0 0 14px rgba(0,255,136,.6); pointer-events: none; }
+.crash-mult.dead { color: var(--crimson); text-shadow: 0 0 14px rgba(255,23,68,.7); }
+.crash-mult.cashed { color: var(--amber); }
+.crash-hist { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; margin-bottom: 6px; min-height: 18px; }
+.crash-hist span { font: 700 9px 'Orbitron', monospace; padding: 2px 6px; border-radius: 8px; background: #1a1e28; }
+.crash-hist span.hi { color: var(--emerald); } .crash-hist span.lo { color: var(--crimson); }
+html.m .mega-cell { font-size: 22px; }
+html.m .crash-mult { font-size: 28px; }
+</style>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Math.floor(n).toLocaleString();
+  if (typeof CASINO_TABS !== "undefined") { CASINO_TABS.push("mega", "crash"); }
+
+  // ======================================================================
+  // SDÍLENÁ HISTORIE RULETY (posledních 6 výsledků všech hráčů)
+  // ======================================================================
+  let rHist = [], rSeen = "";
+  function renderRHist(newest) {
+    const box = $("r-hist"); if (!box) return;
+    box.innerHTML = '<span class="r-hist-lbl">LAST 6</span>' + rHist.slice(0, 6).map((h, i) =>
+      `<span class="r-dot ${h.color} ${i === 0 && newest ? "new" : ""}" title="${escapeHtml(h.user || "")}: ${escapeHtml(h.num)}">${escapeHtml(h.num)}</span>`).join("");
+  }
+  window.pushRouletteHistory = function (h) { rHist.unshift(h); rHist = rHist.slice(0, 12); renderRHist(true); };
+  window.setRouletteHistory = function (list) {
+    if (!Array.isArray(list)) return;
+    const sig = JSON.stringify(list.slice(0, 6));
+    if (sig === rSeen) return;
+    rSeen = sig;
+    rHist = list.filter(h => h && /^(RED|BLACK|GREEN)$/.test(h.color)).slice(0, 12);
+    renderRHist(false);
+  };
+
+  // ======================================================================
+  // MEGA 5x5 SLOTY - 10 linií, wild, scatter. RTP ~95.8 %, nějaká výhra ve ~42 % spinů
+  // (často menší než sázka = "fake win" s efekty), 💰×5 = 250× jackpot (~1 : 5 000)
+  // ======================================================================
+  const SYM = { C: "🍒", L: "🍋", B: "🔔", K: "🍀", S: "7️⃣", D: "💎", W: "⭐", $: "💰" };
+  const WEIGHTS = [["C", 30], ["L", 26], ["B", 18], ["K", 12], ["S", 7], ["D", 4], ["W", 3], ["$", 2.2]];
+  const PAY = { C: [1, 3, 8], L: [1.5, 4, 10], B: [2, 6, 15], K: [3, 10, 25], S: [5, 20, 60], D: [10, 50, 200] };
+  const LINE_K = 4.4 / 10;                                   // výplata linie = PAY × sázka × 0.44
+  const SCATTER = { 3: 4, 4: 20, 5: 250 };
+  const LINES = [[0,0,0,0,0],[1,1,1,1,1],[2,2,2,2,2],[3,3,3,3,3],[4,4,4,4,4],[0,1,2,3,4],[4,3,2,1,0],[0,1,2,1,0],[4,3,2,3,4],[2,1,2,3,2]];
+  const LINE_COLORS = ["#ffb800", "#00f0ff", "#00ff88", "#ff4dff", "#f43f5e", "#a855f7", "#fbbf24", "#22d3ee", "#84cc16", "#fb7185"];
+  const WSUM = WEIGHTS.reduce((a, w) => a + w[1], 0);
+  function rollSym() { let r = TT.rnd() * WSUM; for (const w of WEIGHTS) { if (r < w[1]) return w[0]; r -= w[1]; } return "C"; }
+
+  const mega = { busy: false, grid: null, autoLeft: 0 };
+  let megaBusyFlag = false;
+
+  function buildGrid() {
+    const g = $("mega-grid"); if (!g || g.children.length) return;
+    let h = "";
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) h += `<div class="mega-cell" id="mc-${c}-${r}">${SYM[rollSym()]}</div>`;
+    g.innerHTML = h;
+  }
+  function cell(c, r) { return $("mc-" + c + "-" + r); }
+
+  function evaluate(g, bet) {
+    const wins = [];
+    let total = 0;
+    LINES.forEach((ln, li) => {
+      const syms = ln.map((r, c) => g[c][r]);
+      const first = syms.find(x => x !== "W") || "D";
+      if (first === "$") return;
+      let n = 0;
+      for (const x of syms) { if (x === first || x === "W") n++; else break; }
+      if (n >= 3) {
+        const w = PAY[first][n - 3] * bet * LINE_K;
+        total += w;
+        wins.push({ line: li, n: n, sym: first, win: w });
+      }
+    });
+    const sc = [];
+    for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) if (g[c][r] === "$") sc.push([c, r]);
+    let scWin = 0;
+    if (sc.length >= 3) { scWin = SCATTER[Math.min(5, sc.length)] * bet; total += scWin; }
+    return { total: total, wins: wins, sc: sc, scWin: scWin };
+  }
+
+  function getBet() {
+    const max = Math.max(10, Math.min(TT.maxBet(), Math.floor(gameState.coins)));
+    return TT.cleanBet($("mega-bet").value, 10, max);
+  }
+
+  function setBusy(b) {
+    mega.busy = b;
+    $("mega-spin").disabled = b && !mega.autoLeft;
+    $("mega-spin").innerText = mega.autoLeft ? `STOP (${mega.autoLeft} left)` : (b ? "SPINNING..." : "SPIN");
+    $("mega-auto").disabled = b || mega.autoLeft > 0;
+    $("mega-auto25").disabled = b || mega.autoLeft > 0;
+  }
+
+  function spin() {
+    if (mega.autoLeft && !mega.busy) { mega.autoLeft = 0; setBusy(false); return; }
+    if (mega.autoLeft && mega.busy) { mega.autoLeft = 0; return; }       // STOP během autospinu
+    if (mega.busy) return;
+    doSpin();
+  }
+
+  function doSpin() {
+    buildGrid();
+    const bet = getBet();
+    $("mega-bet").value = bet;
+    if (!TT.spend(bet)) { msg("Not enough GC.", "var(--crimson)"); mega.autoLeft = 0; setBusy(false); return; }
+    setBusy(true);
+    clearLines();
+    const g = [];
+    for (let c = 0; c < 5; c++) { g.push([]); for (let r = 0; r < 5; r++) g[c].push(rollSym()); }
+    mega.grid = g;
+    const fast = mega.autoLeft > 0;
+    for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) { const el = cell(c, r); el.className = "mega-cell spin"; }
+    const iv = setInterval(() => {
+      for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) { const el = cell(c, r); if (el.classList.contains("spin")) el.textContent = SYM[rollSym()]; }
+    }, 70);
+    for (let c = 0; c < 5; c++) {
+      setTimeout(() => {
+        for (let r = 0; r < 5; r++) { const el = cell(c, r); el.className = "mega-cell land"; el.textContent = SYM[g[c][r]]; }
+        if (c === 4) { clearInterval(iv); finish(bet); }
+      }, (fast ? 260 : 520) + c * (fast ? 110 : 190));
+    }
+  }
+
+  function clearLines() { const svg = $("mega-lines"); if (svg) svg.innerHTML = ""; }
+
+  function drawLine(li) {
+    const svg = $("mega-lines"); if (!svg) return;
+    const pts = LINES[li].map((r, c) => `${50 + c * 100},${50 + r * 100}`).join(" ");
+    svg.insertAdjacentHTML("beforeend", `<polyline points="${pts}" stroke="${LINE_COLORS[li]}" color="${LINE_COLORS[li]}"/>`);
+  }
+
+  function msg(t, color) { const m = $("mega-msg"); if (m) { m.style.color = color || ""; m.innerHTML = t; } }
+
+  function banner(text, sub, color) {
+    const b = $("mega-banner"); if (!b) return;
+    b.style.color = color;
+    b.innerHTML = text + (sub ? `<small>${sub}</small>` : "");
+    b.classList.remove("go"); void b.offsetWidth; b.classList.add("go");
+  }
+
+  function finish(bet) {
+    const res = evaluate(mega.grid, bet);
+    res.wins.forEach(w => {
+      drawLine(w.line);
+      for (let c = 0; c < w.n; c++) cell(c, LINES[w.line][c]).classList.add("hit");
+    });
+    res.sc.forEach(([c, r]) => cell(c, r).classList.add("sc"));
+    const payout = Math.floor(res.total);
+    const x = payout / bet;
+    if (payout > 0) {
+      TT.win(payout);
+      // "výhra" i když je menší než sázka - efekty jako v online kasinu, ale čísla jsou poctivá
+      const parts = res.wins.map(w => `${SYM[w.sym]}×${w.n}`).concat(res.sc.length >= 3 ? [`💰×${res.sc.length}`] : []);
+      msg(`WIN ${fmt(payout)} GC (${x.toFixed(2)}×) · ${parts.join(" ")}`, x >= 1 ? "var(--emerald)" : "var(--amber)");
+      if (res.sc.length >= 5) { banner("JACKPOT!!!", fmt(payout) + " GC", "#ff4dff"); shake(); TT.announce("MEGA 💰×5", "SLOTS", bet, payout); }
+      else if (x >= 50) { banner("MEGA WIN", fmt(payout) + " GC", "#f43f5e"); shake(); TT.announce("MEGA x" + x.toFixed(0), "SLOTS", bet, payout); }
+      else if (x >= 10) { banner("BIG WIN", fmt(payout) + " GC", "#ffb800"); }
+      else if (res.wins.length >= 3 || res.sc.length >= 3) banner("NICE!", "+" + fmt(payout), "#00ff88");
+      else if (x < 1) banner("WIN!", "+" + fmt(payout), "#00f0ff");
+      if (x >= 10) TT.log(`MEGA SLOTS: ${x.toFixed(1)}× → +${fmt(payout)} GC!`, "special");
+    } else {
+      msg(`No win this time. -${fmt(bet)} GC`, "var(--text-dim)");
+    }
+    setTimeout(() => {
+      if (mega.autoLeft > 0) {
+        mega.autoLeft--;
+        if (mega.autoLeft > 0 && gameState.coins >= bet) { setBusy(true); doSpin(); return; }
+        mega.autoLeft = 0;
+      }
+      setBusy(false);
+    }, payout > 0 ? (mega.autoLeft ? 700 : 300) : (mega.autoLeft ? 350 : 100));
+  }
+
+  function shake() { const w = document.querySelector(".mega-wrap"); if (!w) return; w.classList.remove("mega-shake"); void w.offsetWidth; w.classList.add("mega-shake"); }
+
+  function auto(n) {
+    if (mega.busy || mega.autoLeft) return;
+    mega.autoLeft = n;
+    doSpin();
+  }
+
+  function betMul(f) { $("mega-bet").value = TT.cleanBet(Math.floor((Number($("mega-bet").value) || 10) * f), 10, Math.max(10, Math.min(TT.maxBet(), Math.floor(gameState.coins)))); }
+
+  function payTable() {
+    const rows = Object.keys(PAY).map(k => `${SYM[k]} 3/4/5 in a row: <b>${PAY[k].map(v => (v * LINE_K).toFixed(2) + "×").join(" / ")}</b>`).join("<br>");
+    msg(`${rows}<br>⭐ wild replaces anything except 💰 · 💰 anywhere 3/4/5: <b>4× / 20× / 250×</b> · paid per line, × your bet`, "var(--text-main)");
+  }
+
+  window.Mega = { spin: spin, auto: auto, betMul: betMul, payTable: payTable, evaluate: evaluate, isBusy: () => mega.busy || mega.autoLeft > 0 };
+
+  // ======================================================================
+  // CRASH - P(crash ≥ m) = 0.97 / m  → RTP 97 % pro jakýkoli cíl, strop 1000×
+  // ======================================================================
+  const CR_GROW = 0.11;                     // m(t) = e^(0.11 t)   → 2× za ~6 s, 10× za ~21 s
+  const crash = { phase: "idle", bet: 0, point: 1, t0: 0, cashed: 0, raf: 0, hist: [], pts: [] };
+
+  function crashPoint() {
+    const u = TT.rnd();
+    return Math.min(1000, Math.max(1, Math.floor(0.97 / (1 - u) * 100) / 100));
+  }
+  function multAt(ms) { return Math.max(1, Math.floor(Math.exp(CR_GROW * ms / 1000) * 100) / 100); }
+
+  function crashBtn() {
+    const b = $("crash-btn"); if (!b) return;
+    if (crash.phase === "run") { b.className = "btn btn-gold"; b.innerText = `CASH OUT ${fmt(crash.bet * multAt(performance.now() - crash.t0))} GC`; b.disabled = false; }
+    else { b.className = "btn btn-crimson"; b.innerText = "START (BET)"; b.disabled = false; }
+  }
+
+  function press() {
+    if (crash.phase === "run") { cashOut(false); return; }
+    const max = Math.max(10, Math.min(TT.maxBet(), Math.floor(gameState.coins)));
+    const bet = TT.cleanBet($("crash-bet").value, 10, max);
+    $("crash-bet").value = bet;
+    if (!TT.spend(bet)) { crashMsg("Not enough GC.", "var(--crimson)"); return; }
+    crash.phase = "run"; crash.bet = bet; crash.point = crashPoint(); crash.t0 = performance.now(); crash.cashed = 0; crash.pts = [];
+    $("crash-mult").className = "crash-mult";
+    crashMsg("Rising... cash out in time!", "var(--cyan)");
+    tick();
+  }
+
+  function cashOut(auto) {
+    if (crash.phase !== "run" || crash.cashed) return;
+    const m = Math.min(multAt(performance.now() - crash.t0), crash.point);
+    if (m >= crash.point && !auto) return;      // už spadlo (tick to dořeší)
+    crash.cashed = m;
+    const payout = Math.floor(crash.bet * m);
+    TT.win(payout);
+    crashMsg(`CASHED OUT at ${m.toFixed(2)}× → +${fmt(payout)} GC${auto ? " (auto)" : ""}`, "var(--amber)");
+    TT.log(`CRASH: cashed out at ${m.toFixed(2)}× → +${fmt(payout)} GC`, m >= 2 ? "special" : "success");
+    if (m >= 20) TT.announce("CRASH x" + m.toFixed(1), "CRASH", crash.bet, payout);
+    $("crash-mult").className = "crash-mult cashed";
+    crashBtn();
+  }
+
+  function tick() {
+    cancelAnimationFrame(crash.raf);
+    const now = performance.now();
+    const el = now - crash.t0;
+    let m = multAt(el);
+    const autoAt = Number($("crash-auto").value) || 0;
+    if (!crash.cashed && autoAt >= 1.01 && m >= autoAt && autoAt < crash.point) { cashOutAt(autoAt); }
+    if (m >= crash.point) {
+      m = crash.point;
+      crash.phase = "idle";
+      $("crash-mult").innerText = m.toFixed(2) + "×";
+      $("crash-mult").className = "crash-mult dead";
+      if (!crash.cashed) {
+        crashMsg(`💥 CRASHED at ${m.toFixed(2)}×. -${fmt(crash.bet)} GC`, "var(--crimson)");
+        TT.log(`CRASH: crashed at ${m.toFixed(2)}× - lost ${fmt(crash.bet)} GC.`, "error");
+      }
+      crash.hist.unshift(m); crash.hist = crash.hist.slice(0, 12);
+      $("crash-hist").innerHTML = crash.hist.map(x => `<span class="${x >= 2 ? "hi" : "lo"}">${x.toFixed(2)}×</span>`).join("");
+      draw(el, true);
+      crashBtn();
+      return;
+    }
+    $("crash-mult").innerText = m.toFixed(2) + "×";
+    draw(el, false);
+    if (crash.phase === "run" && !crash.cashed) crashBtn();
+    else if (crash.cashed) { const b = $("crash-btn"); if (b) { b.disabled = true; b.innerText = "WAITING FOR CRASH..."; } }
+    crash.raf = requestAnimationFrame(tick);
+  }
+
+  function cashOutAt(m) {
+    crash.cashed = m;
+    const payout = Math.floor(crash.bet * m);
+    TT.win(payout);
+    crashMsg(`AUTO CASH-OUT at ${m.toFixed(2)}× → +${fmt(payout)} GC`, "var(--amber)");
+    TT.log(`CRASH: auto cash-out at ${m.toFixed(2)}× → +${fmt(payout)} GC`, "success");
+  }
+
+  // výsledek se dopočítá i při skrytém tabu (rAF stojí)
+  setInterval(() => { if (crash.phase === "run" && document.hidden) tick(); }, 500);
+
+  function draw(el, dead) {
+    const cv = $("crash-canvas"); if (!cv) return;
+    const ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    const tMax = Math.max(8, el / 1000 * 1.15);
+    const mMax = Math.max(2, Math.exp(CR_GROW * tMax));
+    ctx.strokeStyle = "rgba(255,255,255,.06)"; ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(0, H * i / 4); ctx.lineTo(W, H * i / 4); ctx.stroke(); }
+    ctx.beginPath();
+    const steps = 60;
+    let lx = 0, ly = H;
+    for (let i = 0; i <= steps; i++) {
+      const t = (el / 1000) * i / steps;
+      const m = Math.exp(CR_GROW * t);
+      const x = 10 + (W - 30) * (t / tMax);
+      const y = H - 12 - (H - 30) * ((m - 1) / (mMax - 1));
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      lx = x; ly = y;
+    }
+    ctx.strokeStyle = dead ? "#ff1744" : (crash.cashed ? "#ffb800" : "#00ff88");
+    ctx.lineWidth = 3; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.font = "22px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(dead ? "💥" : "🚀", lx, ly);
+  }
+
+  function crashMsg(t, c) { const m = $("crash-msg"); if (m) { m.style.color = c || ""; m.innerText = t; } }
+
+  window.Crash = { press: press, isBusy: () => crash.phase === "run" };
+
+  function boot() {
+    if (!window.TT) { setTimeout(boot, 50); return; }
+    buildGrid();
+    draw(0, false);
+    // zůstatky v nových záložkách
+    setInterval(() => {
+      const t = Math.floor(gameState.coins).toLocaleString() + " GC";
+      const a = $("bal-mega"), b = $("bal-crash");
+      if (a && a.textContent !== t) a.textContent = t;
+      if (b && b.textContent !== t) b.textContent = t;
+    }, 400);
+    const prev = TT.isBusy;
+    TT.isBusy = function () { return prev() || Mega.isBusy() || Crash.isBusy(); };
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
 </script>
 
   <script>
@@ -3034,44 +3672,43 @@ function finishConsult() {
 // ==========================================================================
 const TUTORIAL_STEPS = [
   { t: "WELCOME TO IDLE ROYALE", b: `
-    <p>Grind <b>Tickets</b>, turn them into <b>Scrap</b>, open the <b>Company Chest</b> for gear, <b>Prestige</b> for permanent bonuses and gamble your <b>Google Coins (GC)</b>.</p>
-    <ul><li>3 currencies: <b>Tickets</b>, <b>Scrap</b>, <b>GC</b> (+ <b>Legacy Points</b> from prestige)</li>
-    <li>Cloud save every 12 s and after every bet</li>
+    <p>Grind <b>Tickets</b>, turn them into <b>Scrap</b>, open the <b>Company Chest</b> for gear, gamble your <b>Google Coins (GC)</b>, <b>Prestige</b> for permanent bonuses and fight IT bosses in the <b>Incident Dungeon</b>.</p>
+    <ul><li>Currencies: <b>Tickets</b>, <b>Scrap</b>, <b>GC</b>, <b>Legacy Points</b> (prestige) and dungeon <b>keys</b> 🔑</li>
+    <li>Cloud save every few seconds, after every bet and when you leave the app</li>
     <li>Season wipes reset everyone, the Top 10 is ranked by a score that never drops</li></ul>` },
-  { t: "1) CLICKING & CPS", b: `
-    <p><b>RESOLVE TICKET</b> gives <b>Click Power</b> (1 + gear) × <b>Net Multiplier</b>. Decimals count: 1.75 per click is real.</p>
-    <ul><li>Live CPS is measured over the last 2 seconds</li><li>Peak CPS = your record</li></ul>` },
+  { t: "1) CLICKING", b: `
+    <p><b>RESOLVE TICKET</b> gives <b>Click Power</b> × <b>Net Multiplier</b>. <b>5% of clicks are CRITS</b> (×3).</p>
+    <ul><li>Your first click also starts the <b>45 min Autogen</b> automatically</li>
+    <li>🌡 <b>CPU heat</b>: clicking faster than ~15 CPS heats it up. At 100% it <b>overheats</b> and clicks do nothing for 8 s - slow down!</li></ul>` },
   { t: "2) AUTOCLICKER BATTERY", b: `
     <p>Every <b>50 manual clicks = +1 second</b> of battery (max 10 min). It remembers your average CPS (cap 15).</p>
-    <ul><li>A pause longer than 1.5 s breaks the series and the unfinished 50 clicks are dropped</li>
-    <li>It keeps running if you switch to another window, and survives page refreshes</li>
-    <li>Clicks faster than 35 ms apart do not count for charging</li></ul>` },
+    <ul><li>A pause longer than 1.5 s breaks the series</li><li>Clicks faster than 35 ms apart do not count for charging</li></ul>` },
   { t: "3) SCRAP & COMPANY CHEST", b: `
-    <p>10 Tickets = 1 Scrap. Opening costs Scrap (grows ×1.2 per prestige). Open ×1 or ×10.</p>
-    <ul><li>Upgrade the chest with GC for better odds (no empty drops from level 90)</li>
-    <li>🎟 <b>Slot Token</b> (rare drop): you choose the body slot, then rarity is rolled (min. Rare). Use it with a real mouse click - the keyboard is ignored on purpose</li></ul>` },
-  { t: "4) GEAR, STACKS & MERGE", b: `
-    <p>There is one item per slot and rarity, so equal items <b>stack</b>. 6 slots: HEAD, RIG, TOOL, AUGMENT, OS, RELIC.</p>
-    <ul><li><b>Merge 3 identical → +1 level</b> (10% crit +2, 5% fail = half the scrap back). Each level adds +60% of the base stats</li>
-    <li>"Upgrades only" shows items better than what you wear, green/red arrows compare them</li>
-    <li>Scrap by rarity has a preview and a confirm click; it protects merged items and upgrades</li></ul>` },
-  { t: "5) AUTOGEN & GOOGLE COINS", b: `
-    <p><b>45M Focus Autogen</b> makes GC per second from the Auto stat of your gear. GC also come from consults and the casino.</p>
-    <ul><li>Active bonuses are shown as chips under the click button</li></ul>` },
-  { t: "6) PRESTIGE & LEGACY POINTS", b: `
-    <p>Prestige <b>resets your run</b> (tickets, scrap, GC, chest, gear) but raises the multiplier (+0.25 each) and gives <b>Legacy Points</b>.</p>
-    <ul><li>Spend LP in the Legacy Shop: click/auto bonuses, cheaper chests, start GC and <b>Heirloom</b> (keep your best equipped items at half tier &amp; merge level)</li>
-    <li>You have to click twice to confirm a prestige</li></ul>` },
-  { t: "7) CASINO", b: `
-    <p><b>Roulette</b> (30 s cooldown), <b>Slots</b>, <b>Blackjack</b> (blackjack pays 2.5×). Use the 10% / 25% / 50% / MAX buttons for bets.</p>
-    <ul><li>Your gambling profit/loss is shown in the leaderboard (GAMBLE)</li></ul>` },
-  { t: "8) MINIGAMES", b: `
-    <p><b>Chicken Road</b>: every jump has 50% to die, the multiplier grows ×1.92. <b>Pachinko</b>: buy balls, edge bins pay up to 500×.</p>
-    <p><b>Showdown (PvP)</b>: rock-paper-scissors, best of 3. Set your 3 moves, create a challenge with a stake or accept someone else's. Winner takes 95% of the pot.</p>` },
-  { t: "9) CONSULT", b: `
-    <p>5,000 Scrap to dispatch a consult. Win = 5-30 min of Auto GC, loss = 1-10 min. A BUG (10%) opens the 50/50 chamber: ×5-10 click power or -50% for 60 s.</p>` },
-  { t: "10) SCORE", b: `
-    <p>Score = prestige × 1,000,000 + log of lifetime tickets + 5,000 × best chest level. It never goes down - not even when you prestige.</p>
+    <p>10 Tickets = 1 Scrap. Opening costs Scrap (×1.2 per prestige). Upgrade the chest with GC for better odds.</p>
+    <ul><li>From chest <b>level 20</b> opening costs ×2, then ×1.5 every 10 levels</li>
+    <li><b>Mythic (T5)</b> only drops from chest level 40. <b>Quantum (T6)</b> only drops from dungeon bosses</li>
+    <li>🎟 <b>Slot Token</b> (rare): pick a body slot and roll its rarity - or turn it into 3 dungeon keys</li></ul>` },
+  { t: "4) GEAR, MERGE & AUTOSELL", b: `
+    <p>Equal items <b>stack</b>. <b>Merge 3 identical → +1 level</b> (+60% base stats per level). <b>MERGE ALL</b> merges everything at once.</p>
+    <ul><li><b>Autosell</b> (up to T4): new drops at or below the chosen tier become scrap instantly, but <b>upgrades are always kept</b></li>
+    <li>Scrap by rarity has a preview and a confirm click</li></ul>` },
+  { t: "5) AUTOGEN, PRESTIGE & LEGACY", b: `
+    <p><b>45M Autogen</b> makes GC from the Auto stat of your gear. <b>Prestige</b> resets your run (tickets, scrap, GC, chest, gear) but raises the multiplier and gives <b>Legacy Points</b>.</p>
+    <ul><li>LP shop: click/auto bonuses, cheaper chests, start GC, <b>Heirloom</b> (keep best items at half tier & merge level)</li>
+    <li>Max bets grow ×2 with every prestige</li></ul>` },
+  { t: "6) CASINO", b: `
+    <p><b>Roulette</b> (shows the last 6 results of everyone), <b>Slots</b>, <b>Blackjack</b> (2.5× blackjack, <b>Five-Card Charlie</b> = 5 cards without bust wins), <b>MEGA 5×5</b> (10 lines, ⭐ wild, 💰×5 = 250× jackpot, auto-spin) and <b>CRASH</b> (cash out before the rocket explodes, set an auto cash-out).</p>` },
+  { t: "7) MINIGAMES & CONSULT", b: `
+    <p><b>Chicken Road</b>, <b>Pachinko</b> (shows your profit after a multi-drop) and <b>Showdown</b> PvP (the tab glows when someone challenged you).</p>
+    <p><b>Consult</b> (5,000 scrap): win/lose minutes of Auto GC, 10% BUG chamber. <b>×5 INSTANT</b> rolls 5 at once, <b>BUGROLL</b> keeps rolling until a bug drops.</p>` },
+  { t: "8) ⚔ INCIDENT DUNGEON", b: `
+    <p>Unlocks at <b>Prestige 1</b>. Pick a class (SysAdmin, Engineer, Cyber), fight IT bosses floor by floor. Each boss has its own trick.</p>
+    <ul><li>Every hit is a <b>slot machine</b>: SAFE = steady, ALL-IN = rare <b>JACKPOT</b> or <b>BACKFIRE</b>. Same average - different risk. Underdog? Go all-in</li>
+    <li>Weapons (TOOL/AUGMENT/RELIC) = ATK, armor (HEAD/RIG/OS) = HP. Level, career, floors and artifacts <b>survive prestige</b></li>
+    <li>Every new floor = <b>+2% permanent multiplier</b> for the office. Beat HR bosses to get promoted</li>
+    <li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC. Set a defense stance for when they attack you</li></ul>` },
+  { t: "9) SCORE", b: `
+    <p>Score = prestige, lifetime tickets, best chest level and best dungeon floor. It never goes down. Click a player in the Top 10 to see their card.</p>
     <p>Reopen this guide anytime with <b>? HOW TO PLAY</b>.</p>` }
 ];
 let tutorialIdx = 0;
@@ -3107,13 +3744,15 @@ function refreshLeaderboard() {
       if (!data) return;
 
       if (data.leaderboard) {
+        window.__lbRows = data.leaderboard;
         document.getElementById("lb-body").innerHTML = data.leaderboard.map((u, i) => {
           const isMe = (u.ldap === gameState.ldap);
           const gn = u.gambleNet || 0;
-          return `<tr class="${isMe ? "me" : ""}">
+          return `<tr class="${isMe ? "me" : ""}" onclick="window.Dungeon && Dungeon.showProfile(window.__lbRows[${i}])" title="Click for player card">
             <td>${i + 1}</td><td>${escapeHtml(u.ldap)}</td>
             <td style="color:var(--crimson);">${u.prestige || 0}</td>
             <td style="color:var(--cyan);">${u.chestLvl || 1}</td>
+            <td style="color:#ff4d6d;">${(u.dungeon && u.dungeon.best) || 0}</td>
             <td style="color:var(--amber);">${Math.floor(u.score || 0).toLocaleString()}</td>
             <td style="color:${gn >= 0 ? "var(--emerald)" : "var(--crimson)"};">${gn >= 0 ? "+" : ""}${Math.floor(gn).toLocaleString()}</td>
           </tr>`;
@@ -3142,6 +3781,8 @@ function refreshLeaderboard() {
         document.getElementById("ticker-top").innerHTML = `<span>${t || "No jackpots recorded yet."}</span>`;
       }
       if (data.chat) renderChatMessages(data.chat);
+      if (data.rouletteHistory && window.setRouletteHistory) setRouletteHistory(data.rouletteHistory);
+      if (window.Dungeon && Dungeon.onLeaderboard) Dungeon.onLeaderboard(data);
     })
     .getLeaderboardAndRoulette();
 }
@@ -3168,7 +3809,8 @@ function buildPayload() {
     tutorialDone: g.tutorialDone, slotTokens: g.slotTokens,
     lp: g.lp, lpUp: g.lpUp,
     autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
-    pachinko: g.pachinko, pcPending: g.pcPending
+    pachinko: g.pachinko, pcPending: g.pcPending,
+    dungeon: window.Dungeon ? Dungeon.payload() : g.dungeon
   });
 }
 
@@ -3296,7 +3938,7 @@ function applyLoaded(l) {
 
   g.loadout = migrateLoadout(l.loadout);
   g.inventory = migrateInventory(l.inventory);
-  g.autosellTier = l.autosellTier !== undefined ? Math.max(0, Math.min(3, Math.floor(nv(l.autosellTier, 0)))) : (l.autosellGrey ? 1 : 0);
+  g.autosellTier = l.autosellTier !== undefined ? Math.max(0, Math.min(4, Math.floor(nv(l.autosellTier, 0)))) : (l.autosellGrey ? 1 : 0);
   g.focusAutogenActive = !!l.focusAutogenActive;
   g.focusAutogenRemaining = Math.max(0, nv(l.focusAutogenRemaining, 0));
   g.tutorialDone = !!l.tutorialDone;
@@ -3321,6 +3963,8 @@ function applyLoaded(l) {
 
   if (l.pachinko) Object.keys(g.pachinko).forEach(k => { g.pachinko[k] = Math.max(0, Math.floor(nv(l.pachinko[k], 0))); });
   g.pcPending = Array.isArray(l.pcPending) ? l.pcPending.filter(p => p && nv(p.value, 0) > 0) : [];
+  g.dungeon = (l.dungeon && typeof l.dungeon === "object") ? l.dungeon : {};
+  if (window.Dungeon) Dungeon.state();          // ošetří a doplní hodnoty
 }
 
 function finishLoading() {
@@ -3335,7 +3979,28 @@ function finishLoading() {
     try { _loadedCallbacks.shift()(); } catch (e) { console.error(e); }
   }
   if (!gameState.tutorialDone) openTutorial();
+  checkWipeNotice();
   startVersionWatch();
+}
+
+/** Po wipe (nová sezóna) jednou ukáže omluvnou hlášku. */
+function checkWipeNotice() {
+  const key = "ir_season_seen_" + String(gameState.ldap || "").toLowerCase();
+  let seen = 0;
+  try { seen = Number(localStorage.getItem(key)) || 0; } catch (e) {}
+  const cur = Number(gameState.season) || 0;
+  try { localStorage.setItem(key, String(cur)); } catch (e) {}
+  if (!seen || !cur || cur <= seen) return;
+  const d = document.createElement("div");
+  d.className = "tt-overlay open";
+  d.style.zIndex = 10001;
+  d.innerHTML = `<div class="tt-modal" style="text-align:center;border-color:var(--amber);">
+    <h2 style="color:var(--amber);font-size:20px;">⚠ WIPE HAS BEEN DONE!</h2>
+    <div class="tt-body" style="min-height:0;">Sorry, it was necessary :(<br><br>
+      Season <b>${cur}</b> starts now - everyone begins from zero with the new economy, the dungeon and new casino games.
+      Check <b>? HOW TO PLAY</b> for what's new.</div>
+    <button class="btn btn-gold" style="padding:10px 22px;margin-top:10px;" onclick="this.closest('.tt-overlay').remove()">LET'S GO</button></div>`;
+  document.body.appendChild(d);
 }
 
 function loadFromServer() {
@@ -3473,8 +4138,17 @@ window.__startGame = initGame;
 .cr-stats .stat-box { text-align: center; }
 .cr-msg { text-align: center; font-family: 'Orbitron', monospace; font-size: 12px; min-height: 18px; margin-bottom: 6px; }
 
-.pc-canvas-wrap { background: #05070b; border: 1px solid var(--border-subtle); border-radius: 4px; margin-bottom: 8px; }
-#pc-canvas { width: 100%; height: auto; display: block; }
+.pc-canvas-wrap { position: relative; background: radial-gradient(ellipse at 50% 0%, #121a2c 0%, #05070b 70%); border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+#pc-canvas { width: 100%; height: auto; display: block; aspect-ratio: 360 / 400; }
+.pc-risk { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; }
+.pc-risk .btn { padding: 5px 0; font-size: 10px; }
+.pc-risk .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.pc-pops { position: absolute; inset: 0; pointer-events: none; }
+.pc-pop { position: absolute; transform: translateX(-50%); font: 900 13px 'Orbitron', monospace; white-space: nowrap; text-shadow: 0 0 8px currentColor, 0 1px 0 #000; animation: pcPop 1.2s ease-out forwards; }
+.pc-pop.big { font-size: 20px; }
+@keyframes pcPop { 0% { opacity: 0; transform: translate(-50%, 8px) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -4px) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -48px) scale(1); } }
+.pc-live { display: flex; justify-content: space-between; font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin-bottom: 6px; min-height: 14px; }
+.pc-live b { color: var(--amber); }
 
 .sd-picker { background: var(--bg-panel-elevated); border-radius: 4px; padding: 8px; margin-bottom: 8px; }
 .sd-pick-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
@@ -3500,9 +4174,15 @@ window.__startGame = initGame;
   const CR_MAX_JUMPS = 15, CR_GROWTH = 1.92, CR_MAX_BET = 100000, CR_JACKPOT_MULT = 50;
   const PC_ROWS = 12;
   const PC_VALUES = ["10", "50", "100", "500"];
-  const PC_MULTS = [500, 25, 4, 1.2, 0.5, 0.3, 0.3, 0.3, 0.5, 1.2, 4, 25, 500];
-  const PC_MAX_ACTIVE = 15;
-  const W = 320, H = 340, HS = 12, TOP = 30, DY = 21, SEG_MS = 140;
+  // RTP: low 96.7 % (77 % košů ≥1×), medium 95.3 %, high 95.3 % (okraje 500×)
+  const PC_RISKS = {
+    low:    [10, 3, 1.6, 1.4, 1.1, 1, 0.4, 1, 1.1, 1.4, 1.6, 3, 10],
+    medium: [33, 11, 4, 2, 1.2, 0.5, 0.2, 0.5, 1.2, 2, 4, 11, 33],
+    high:   [500, 25, 4, 1.2, 0.5, 0.3, 0.3, 0.3, 0.5, 1.2, 4, 25, 500]
+  };
+  let PC_MULTS = PC_RISKS.high;
+  const PC_MAX_ACTIVE = 25;
+  const W = 360, H = 400, HS = 13.5, TOP = 46, DY = 24, SEG_MS = 165, PEG_R = 3.2, BALL_R = 5.2, BIN_Y = 344, BIN_H = 40;
   const SD_ICON = { R: "✊", P: "✋", S: "✌️" };
   const SD_MIN = 10, SD_MAX = 100000;
 
@@ -3510,7 +4190,7 @@ window.__startGame = initGame;
   const fmt = (n) => Math.floor(n).toLocaleString();
   function crMult(n) { return Math.round(Math.pow(CR_GROWTH, n) * 100) / 100; }
   function binom(n, k) { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
-  function pcRtp() { let s = 0; for (let k = 0; k <= PC_ROWS; k++) s += (binom(PC_ROWS, k) / Math.pow(2, PC_ROWS)) * PC_MULTS[k]; return s; }
+  function pcRtp(t) { t = t || PC_MULTS; let s = 0; for (let k = 0; k <= PC_ROWS; k++) s += (binom(PC_ROWS, k) / Math.pow(2, PC_ROWS)) * t[k]; return s; }
 
   // ===== UI =====
   function buildUi() {
@@ -3549,8 +4229,14 @@ window.__startGame = initGame;
 
         <div id="adv-view-pachinko" style="display:none;">
           <div class="adv-bal">Balance: <span id="bal-pachinko">0 GC</span></div>
-          <div class="adv-info" style="margin-bottom:6px;">Buy balls, drop them. Edge bins pay up to <b>500×</b>, the middle only <b>0.3×</b>. RTP: <b id="pc-rtp">--</b></div>
-          <div class="pc-canvas-wrap"><canvas id="pc-canvas" width="${W}" height="${H}"></canvas></div>
+          <div class="adv-info" style="margin-bottom:6px;">Buy balls, drop them. Pick your risk: <b>LOW</b> pays often, <b>HIGH</b> has <b>500×</b> edges. RTP: <b id="pc-rtp">--</b></div>
+          <div class="pc-risk" id="pc-risk">
+            <button class="btn" data-r="low" onclick="AdvMini.pcRisk('low')">🟢 LOW</button>
+            <button class="btn" data-r="medium" onclick="AdvMini.pcRisk('medium')">🟡 MEDIUM</button>
+            <button class="btn" data-r="high" onclick="AdvMini.pcRisk('high')">🔴 HIGH</button>
+          </div>
+          <div class="pc-canvas-wrap"><canvas id="pc-canvas"></canvas><div class="pc-pops" id="pc-pops"></div></div>
+          <div class="pc-live" id="pc-live"></div>
           <div class="adv-row">
             <span style="font-size:11px;">BALL VALUE:</span>
             <select class="adv-select" id="pc-value" onchange="AdvMini.pcRefresh()">${PC_VALUES.map(v => `<option value="${v}">${v} GC</option>`).join("")}</select>
@@ -3564,7 +4250,8 @@ window.__startGame = initGame;
           <div class="adv-row">
             <button class="btn btn-crimson" style="flex:1;" onclick="AdvMini.pcDrop(1)">DROP 1</button>
             <button class="btn btn-crimson" style="flex:1;" onclick="AdvMini.pcDrop(5)">DROP 5</button>
-            <button class="btn btn-cyan" style="flex:1;" onclick="AdvMini.pcDrop(99)">DROP MAX</button>
+            <button class="btn btn-cyan" style="flex:1;" onclick="AdvMini.pcDrop(10)">DROP 10</button>
+            <button class="btn btn-gold" style="flex:1;" id="pc-auto" onclick="AdvMini.pcAuto()">AUTO ▶</button>
           </div>
           <div class="cr-msg" id="pc-msg">Buy some balls to start.</div>
         </div>
@@ -3629,7 +4316,7 @@ window.__startGame = initGame;
   function crStart() {
     if (cr.phase === "run") return;
     const input = $("cr-bet");
-    const bet = TT.cleanBet(input.value, 10, CR_MAX_BET);
+    const bet = TT.cleanBet(input.value, 10, TT.maxBet ? TT.maxBet() : CR_MAX_BET);
     input.value = bet;
     if (!TT.spend(bet)) { $("cr-msg").style.color = "var(--crimson)"; $("cr-msg").innerText = "Not enough GC."; return; }
     cr.phase = "run"; cr.jumps = 0; cr.bet = bet; cr.deadAt = -1;
@@ -3672,7 +4359,9 @@ window.__startGame = initGame;
   }
 
   // ===== PACHINKO =====
-  const pc = { balls: [], raf: 0, ctx: null, flash: [], seq: 0 };
+  // Výsledek (koš) se losuje poctivě (12× vlevo/vpravo = binomické rozdělení), animace pak míček "fyzikálně"
+  // provede po kolících: parabolické odskoky s gravitací, stopa, záblesk kolíku, odraz v koši.
+  const pc = { balls: [], raf: 0, ctx: null, flash: [], pegHits: {}, binHits: {}, seq: 0, batches: {}, auto: false, autoT: 0, risk: "high", dpr: 1, session: { n: 0, spent: 0, back: 0 } };
 
   function pcStock() {
     const g = TT.state();
@@ -3685,6 +4374,19 @@ window.__startGame = initGame;
     const a = $("pc-stock"), b = $("pc-play");
     if (a) a.innerText = fmt(pcStock()[pcValue()] || 0);
     if (b) b.innerText = pc.balls.length;
+    const l = $("pc-live");
+    if (l) {
+      const s = pc.session, net = s.back - s.spent;
+      l.innerHTML = s.n ? `<span>SESSION: <b>${s.n}</b> balls</span><span>spent <b>${fmt(s.spent)}</b></span><span>back <b>${fmt(s.back)}</b></span><span style="color:${net >= 0 ? "var(--emerald)" : "var(--crimson)"};">${net >= 0 ? "+" : ""}${fmt(net)}</span>` : "";
+    }
+  }
+  function pcRisk(r) {
+    if (!PC_RISKS[r]) return;
+    pc.risk = r; PC_MULTS = PC_RISKS[r];
+    try { localStorage.setItem("ir_pc_risk", r); } catch (e) {}
+    document.querySelectorAll("#pc-risk .btn").forEach(b => b.classList.toggle("sel", b.getAttribute("data-r") === r));
+    const el = $("pc-rtp"); if (el) el.innerText = (pcRtp() * 100).toFixed(1) + "%";
+    if (pc.ctx && !pc.raf) pcDrawBoard(pc.ctx, performance.now());
   }
 
   function pcBuy(n) {
@@ -3699,47 +4401,72 @@ window.__startGame = initGame;
   function pcDrop(n) {
     const key = pcValue(), stock = pcStock();
     let dropped = 0;
+    const batch = n > 1 ? "b" + (pc.seq++) : null;
     for (let i = 0; i < n; i++) {
       if (stock[key] <= 0 || pc.balls.length >= PC_MAX_ACTIVE) break;
       stock[key] -= 1;
-      pcLaunch(Number(key));
+      pcLaunch(Number(key), batch, i * 110);
       dropped++;
     }
+    if (batch && dropped > 1) pc.batches[batch] = { n: dropped, left: dropped, spent: dropped * Number(key), back: 0, best: 0 };
     if (dropped === 0) {
       $("pc-msg").style.color = "var(--amber)";
       $("pc-msg").innerText = stock[key] <= 0 ? "No balls in stock - buy some!" : `Max ${PC_MAX_ACTIVE} balls in play at once.`;
+      if (pc.auto && stock[key] <= 0) pcAuto();
     }
     pcRefresh();
     TT.saveSoon();
+    return dropped;
   }
 
-  function pcLaunch(value) {
+  function pcAuto() {
+    pc.auto = !pc.auto;
+    const b = $("pc-auto");
+    if (b) { b.innerText = pc.auto ? "STOP ■" : "AUTO ▶"; b.className = "btn " + (pc.auto ? "btn-crimson" : "btn-gold"); }
+    clearInterval(pc.autoT);
+    if (pc.auto) pc.autoT = setInterval(() => { if (pc.balls.length < PC_MAX_ACTIVE - 2) pcDrop(1); }, 380);
+  }
+
+  function pegX(row, k) { return W / 2 + k * HS; }      // k = posun (-row..row po 2)
+  function pegY(row) { return TOP + row * DY; }
+
+  function pcLaunch(value, batch, delay) {
+    const R = () => TT.rnd();
     const offs = [0];
     let o = 0;
-    for (let i = 0; i < PC_ROWS; i++) { o += (TT.rnd() < 0.5) ? -1 : 1; offs.push(o); }
+    for (let i = 0; i < PC_ROWS; i++) { o += (R() < 0.5) ? -1 : 1; offs.push(o); }
     const bin = (o + PC_ROWS) / 2;
-    const pts = [{ x: 0, y: 8 }];
-    for (let i = 0; i < PC_ROWS; i++) pts.push({ x: offs[i], y: TOP + i * DY - 8 });
-    pts.push({ x: offs[PC_ROWS], y: 306 });
+    // body dopadu na kolíky: na řádku i míček ťukne do kolíku offs[i] a odskočí na stranu offs[i+1]
+    const pts = [{ x: W / 2 + (R() - 0.5) * 4, y: 6, peg: null }];
+    for (let i = 0; i < PC_ROWS; i++) pts.push({ x: pegX(i, offs[i]) + (offs[i + 1] - offs[i]) * (PEG_R + BALL_R - 2) * 0.55 + (R() - 0.5) * 1.6, y: pegY(i) - PEG_R - BALL_R + 1, peg: i + ":" + offs[i] });
+    pts.push({ x: W / 2 + (2 * bin - PC_ROWS) * HS, y: BIN_Y + BIN_H - BALL_R - 4, peg: null, bin: bin });
     const id = Date.now() + "_" + (pc.seq++);
-    // míček v letu se ukládá do savu -> při reloadu se vyplatí (dřív propadl)
-    TT.state().pcPending.push({ id: id, value: value, bin: bin });
-    pc.balls.push({ id: id, value: value, bin: bin, pts: pts, t0: performance.now(), dur: (pts.length - 1) * SEG_MS });
+    const risk = pc.risk;
+    TT.state().pcPending.push({ id: id, value: value, bin: bin, risk: risk });     // míček v letu je v savu
+    pc.session.n++; pc.session.spent += value;
+    const t0 = performance.now() + (delay || 0);
+    const segs = pts.length - 1;
+    const durs = [];
+    for (let i = 0; i < segs; i++) durs.push(i === 0 ? 260 : (i === segs - 1 ? 300 : SEG_MS * (0.9 + R() * 0.2)));
+    pc.balls.push({ id: id, value: value, bin: bin, risk: risk, pts: pts, durs: durs, t0: t0, dur: durs.reduce((a, b) => a + b, 0), batch: batch, trail: [], lastSeg: -1, hue: 40 + R() * 20 });
     pcKick();
   }
 
   function pcKick() { if (!pc.raf) pc.raf = requestAnimationFrame(pcFrame); }
 
+  /** pozice míčku: vodorovně plynule, svisle parabola (vyskočí a gravitací spadne na další kolík) */
   function pcBallPos(b, now) {
-    const el = now - b.t0;
-    const seg = Math.min(b.pts.length - 2, Math.floor(el / SEG_MS));
-    const f = Math.min(1, (el - seg * SEG_MS) / SEG_MS);
+    let el = now - b.t0;
+    if (el < 0) return null;
+    let seg = 0;
+    while (seg < b.durs.length - 1 && el > b.durs[seg]) { el -= b.durs[seg]; seg++; }
+    const f = Math.min(1, el / b.durs[seg]);
     const p = b.pts[seg], q = b.pts[seg + 1];
-    const e = f * f * (3 - 2 * f);
-    const x = W / 2 + (p.x + (q.x - p.x) * e) * HS;
-    let y = p.y + (q.y - p.y) * f;
-    if (seg > 0 && seg < b.pts.length - 2) y -= 7 * Math.sin(Math.PI * f);
-    return { x: x, y: y };
+    const ex = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+    const x = p.x + (q.x - p.x) * (seg === 0 ? f : ex);
+    const hop = seg === 0 ? 0 : (seg === b.durs.length - 1 ? 10 : 9);
+    const y = p.y + (q.y - p.y) * f * f - hop * 4 * f * (1 - f) * (1 - f * 0.3);
+    return { x: x, y: y, seg: seg };
   }
 
   /** Logika přistání - nezávislá na vykreslování (běží i v neviditelném tabu přes watchdog). */
@@ -3751,7 +4478,7 @@ window.__startGame = initGame;
       else rest.push(b);
     }
     pc.balls = rest;
-    pc.flash = pc.flash.filter(f => now - f.t < 600);
+    pc.flash = pc.flash.filter(f => now - f.t < 700);
     if (!pc.balls.length && !pc.flash.length) pc.raf = 0;
     pcRefresh();
   }
@@ -3760,41 +4487,75 @@ window.__startGame = initGame;
     try {
       pcTick();
       const ctx = pc.ctx;
-      pcDrawBoard(ctx);
+      pcDrawBoard(ctx, now);
       for (const b of pc.balls) {
         const pos = pcBallPos(b, now);
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffd54a";
-        ctx.fill();
-      }
-      for (const f of pc.flash) {
-        const x = W / 2 + (2 * f.bin - PC_ROWS) * HS;
-        ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - (now - f.t) / 600)})`;
-        ctx.fillRect(x - HS, 300, HS * 2, 34);
+        if (!pos) continue;
+        if (pos.seg !== b.lastSeg) {               // nový segment = náraz do kolíku
+          b.lastSeg = pos.seg;
+          const pg = b.pts[pos.seg].peg;
+          if (pg) pc.pegHits[pg] = now;
+        }
+        b.trail.push([pos.x, pos.y]); if (b.trail.length > 7) b.trail.shift();
+        for (let i = 0; i < b.trail.length - 1; i++) {
+          const t = b.trail[i], a = (i + 1) / b.trail.length;
+          ctx.beginPath(); ctx.arc(t[0], t[1], BALL_R * a * 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${b.hue},100%,60%,${0.25 * a})`; ctx.fill();
+        }
+        const g = ctx.createRadialGradient(pos.x - 1.6, pos.y - 1.8, 0.5, pos.x, pos.y, BALL_R);
+        g.addColorStop(0, "#fffbe6"); g.addColorStop(0.45, `hsl(${b.hue},100%,58%)`); g.addColorStop(1, `hsl(${b.hue - 15},90%,32%)`);
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, BALL_R, 0, Math.PI * 2);
+        ctx.shadowColor = `hsla(${b.hue},100%,60%,.8)`; ctx.shadowBlur = 10;
+        ctx.fillStyle = g; ctx.fill(); ctx.shadowBlur = 0;
       }
     } catch (e) { console.error(e); }
     if (pc.balls.length || pc.flash.length) pc.raf = requestAnimationFrame(pcFrame);
-    else { pc.raf = 0; try { pcDrawBoard(pc.ctx); } catch (e) {} }
+    else { pc.raf = 0; try { pcDrawBoard(pc.ctx, performance.now()); } catch (e) {} }
+  }
+
+  function pcPop(bin, text, color, big) {
+    const box = $("pc-pops"); if (!box || document.hidden) return;
+    const el = document.createElement("div");
+    el.className = "pc-pop" + (big ? " big" : "");
+    el.style.left = ((W / 2 + (2 * bin - PC_ROWS) * HS) / W * 100) + "%";
+    el.style.top = (BIN_Y / H * 100 - 6) + "%";
+    el.style.color = color; el.textContent = text;
+    box.appendChild(el);
+    setTimeout(() => el.remove(), 1250);
   }
 
   function pcLand(b) {
     const st = TT.state();
     st.pcPending = (st.pcPending || []).filter(p => p.id !== b.id);
-    const mult = PC_MULTS[b.bin];
+    const table = PC_RISKS[b.risk] || PC_RISKS.high;
+    const mult = table[b.bin];
     const payout = Math.floor(b.value * mult);
-    pc.flash.push({ bin: b.bin, t: performance.now() });
+    pc.flash.push({ bin: b.bin, t: performance.now(), mult: mult });
+    pc.binHits[b.bin] = performance.now();
+    pc.session.back += payout;
     if (payout > 0) TT.win(payout);
+    pcPop(b.bin, mult + "×", pcColor(mult), mult >= 25);
     const msg = $("pc-msg");
     if (mult >= 1) {
       msg.style.color = mult >= 25 ? "var(--amber)" : "var(--emerald)";
       msg.innerText = `Ball @${b.value} → ${mult}× = +${fmt(payout)} GC!`;
-      TT.log(`PACHINKO: ball (${b.value} GC) hit ${mult}× → +${fmt(payout)} GC`, mult >= 25 ? "special" : "success");
+      if (mult >= 10) TT.log(`PACHINKO: ball (${b.value} GC) hit ${mult}× → +${fmt(payout)} GC`, mult >= 25 ? "special" : "success");
     } else {
       msg.style.color = "var(--text-dim)";
       msg.innerText = `Ball @${b.value} → ${mult}× (${fmt(payout)} GC back).`;
     }
     if (mult >= 25) TT.announce("PACHINKO x" + mult, "BALL", b.value, payout);
+    const bt = b.batch && pc.batches[b.batch];
+    if (bt) {
+      bt.left--; bt.back += payout; bt.best = Math.max(bt.best, mult);
+      if (bt.left <= 0) {
+        delete pc.batches[b.batch];
+        const net = bt.back - bt.spent;
+        msg.style.color = net >= 0 ? "var(--emerald)" : "var(--crimson)";
+        msg.innerText = `${bt.n} BALLS: spent ${fmt(bt.spent)} → got ${fmt(bt.back)} GC (${net >= 0 ? "+" : ""}${fmt(net)}) · best ${bt.best}×`;
+        TT.log(`PACHINKO ×${bt.n}: spent ${fmt(bt.spent)}, got back ${fmt(bt.back)} GC → net ${net >= 0 ? "+" : ""}${fmt(net)}.`, net >= 0 ? "success" : "error");
+      }
+    }
   }
 
   function pcResolvePending() {
@@ -3802,29 +4563,69 @@ window.__startGame = initGame;
     const list = st.pcPending || [];
     if (!list.length) return;
     let total = 0;
-    list.forEach(p => { total += Math.floor(p.value * (PC_MULTS[p.bin] || 0)); });
+    list.forEach(p => { total += Math.floor(p.value * ((PC_RISKS[p.risk] || PC_RISKS.high)[p.bin] || 0)); });
     st.pcPending = [];
     if (total > 0) TT.win(total);
     TT.log(`Pachinko: ${list.length} ball(s) from your last session were resolved (+${fmt(total)} GC).`, "special");
   }
 
-  function pcColor(m) { return m >= 100 ? "#f43f5e" : m >= 20 ? "#fbbf24" : m >= 4 ? "#a855f7" : m >= 1 ? "#2563eb" : "#2a3245"; }
+  function pcColor(m) { return m >= 100 ? "#ff4dff" : m >= 20 ? "#f43f5e" : m >= 4 ? "#fbbf24" : m >= 1.5 ? "#22c55e" : m >= 1 ? "#2563eb" : "#3b4560"; }
 
-  function pcDrawBoard(ctx) {
+  function setupCanvas() {
+    const cv = $("pc-canvas"); if (!cv) return null;
+    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    pc.dpr = dpr;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+
+  function pcDrawBoard(ctx, now) {
+    if (!ctx) return;
+    now = now || performance.now();
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#8b9bb4";
+    // trychtýř nahoře
+    ctx.strokeStyle = "rgba(0,240,255,.25)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(W / 2 - 22, 0); ctx.lineTo(W / 2 - 8, 18); ctx.moveTo(W / 2 + 22, 0); ctx.lineTo(W / 2 + 8, 18); ctx.stroke();
+    // kolíky (záblesk po nárazu)
     for (let r = 0; r < PC_ROWS; r++) {
-      for (let k = -r; k <= r; k += 2) { ctx.beginPath(); ctx.arc(W / 2 + k * HS, TOP + r * DY, 2.6, 0, Math.PI * 2); ctx.fill(); }
+      for (let k = -r; k <= r; k += 2) {
+        const x = pegX(r, k), y = pegY(r);
+        const hit = pc.pegHits[r + ":" + k];
+        const a = hit ? Math.max(0, 1 - (now - hit) / 350) : 0;
+        if (a > 0) {
+          ctx.beginPath(); ctx.arc(x, y, PEG_R + 6 * a, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,220,120,${0.35 * a})`; ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(x, y, PEG_R + a, 0, Math.PI * 2);
+        ctx.fillStyle = a > 0 ? `rgb(${180 + 75 * a},${200 + 40 * a},${230 - 80 * a})` : "#8b9bb4";
+        ctx.fill();
+        ctx.beginPath(); ctx.arc(x - 0.9, y - 0.9, 1, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fill();
+      }
     }
-    ctx.font = "bold 9px Orbitron, monospace";
-    ctx.textAlign = "center";
+    // koše
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (let k = 0; k <= PC_ROWS; k++) {
       const x = W / 2 + (2 * k - PC_ROWS) * HS;
-      ctx.fillStyle = pcColor(PC_MULTS[k]);
-      ctx.fillRect(x - HS + 1, 300, HS * 2 - 2, 34);
+      const hit = pc.binHits[k];
+      const a = hit ? Math.max(0, 1 - (now - hit) / 600) : 0;
+      const bounce = a > 0 ? Math.sin(a * Math.PI) * 5 : 0;
+      const c = pcColor(PC_MULTS[k]);
+      ctx.fillStyle = c;
+      ctx.shadowColor = c; ctx.shadowBlur = a > 0 ? 18 * a : 0;
+      roundRect(ctx, x - HS + 1.5, BIN_Y + bounce, HS * 2 - 3, BIN_H - 6, 4);
+      ctx.fill(); ctx.shadowBlur = 0;
+      if (a > 0) { ctx.fillStyle = `rgba(255,255,255,${0.45 * a})`; roundRect(ctx, x - HS + 1.5, BIN_Y + bounce, HS * 2 - 3, BIN_H - 6, 4); ctx.fill(); }
       ctx.fillStyle = "#fff";
-      ctx.fillText(PC_MULTS[k] + "×", x, 321);
+      const lbl = PC_MULTS[k] >= 100 ? PC_MULTS[k] + "" : PC_MULTS[k] + "×";
+      ctx.font = (PC_MULTS[k] >= 100 ? "bold 8.5px " : "bold 8px ") + "Orbitron, monospace";
+      ctx.fillText(lbl, x, BIN_Y + bounce + (BIN_H - 6) / 2);
     }
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
   setInterval(pcTick, 700);     // watchdog: míčky se vždy dopočítají i když rAF stojí
@@ -3875,7 +4676,7 @@ window.__startGame = initGame;
     if (sd.busy) return;
     const moves = sdMovesStr();
     if (!moves) { sdMsg("Pick all 3 moves first.", "var(--amber)"); return; }
-    const stake = TT.cleanBet($("sd-stake").value, SD_MIN, SD_MAX);
+    const stake = TT.cleanBet($("sd-stake").value, SD_MIN, Math.min(10000000, TT.maxBet ? TT.maxBet() : SD_MAX));
     $("sd-stake").value = stake;
     if (!TT.spend(stake)) { sdMsg("Not enough GC.", "var(--crimson)"); return; }
     sd.busy = true;
@@ -3931,11 +4732,17 @@ window.__startGame = initGame;
       .pvpCancel(id);
   }
 
+  function sdGlow(on) {
+    const t = $("adv-tab-showdown");
+    if (t) t.classList.toggle("glow", !!on);
+    document.documentElement.classList.toggle("sd-glow", !!on);
+  }
   function sdVisible() { const v = $("adv-view-showdown"); return v && v.style.display !== "none"; }
 
   function sdPoll(forceList) {
     if (typeof google === "undefined" || !google.script || !google.script.run) return;
-    const wantList = !!forceList || sdVisible();
+    const wantList = !!forceList || sdVisible() || (Date.now() - (sd.lastList || 0) > 60000);
+    if (wantList) sd.lastList = Date.now();
     google.script.run.withSuccessHandler(res => {
       if (!res || !res.ok) return;
       if (res.claimed && res.claimed.length) {
@@ -3958,7 +4765,10 @@ window.__startGame = initGame;
           }
         });
         sdRenderLists();
+        const others = sd.open.filter(c => !c.mine).length;
+        sdGlow(others > 0 && !sdVisible());
       }
+      if (res.claimed && res.claimed.length && !sdVisible()) sdGlow(true);
     }).pvpPoll(wantList);
   }
 
@@ -3974,14 +4784,16 @@ window.__startGame = initGame;
       $("adv-tab-" + n).className = "casino-tab-btn" + (n === t ? " active" : "");
     });
     if (t === "pachinko") pcRefresh();
-    if (t === "showdown") sdPoll(true);
+    if (t === "showdown") { sdGlow(false); sdPoll(true); }
   }
 
   function init() {
     if (!buildUi()) return;
-    pc.ctx = $("pc-canvas").getContext("2d");
+    pc.ctx = setupCanvas();
+    let r = "high"; try { r = localStorage.getItem("ir_pc_risk") || "high"; } catch (e) {}
+    pcRisk(PC_RISKS[r] ? r : "high");
     pcDrawBoard(pc.ctx);
-    $("pc-rtp").innerText = (pcRtp() * 100).toFixed(1) + "%";
+    window.addEventListener("resize", () => { const d = Math.min(2.5, window.devicePixelRatio || 1); if (d !== pc.dpr) { pc.ctx = setupCanvas(); pcDrawBoard(pc.ctx); } });
     crRender();
     pcRefresh();
     sdRenderPicker();
@@ -3990,7 +4802,7 @@ window.__startGame = initGame;
   window.AdvMini = {
     tab: tab,
     crStart: crStart, crJump: crJump, crCash: function () { crCash(false); },
-    pcBuy: pcBuy, pcDrop: pcDrop, pcRefresh: pcRefresh,
+    pcBuy: pcBuy, pcDrop: pcDrop, pcRefresh: pcRefresh, pcRisk: pcRisk, pcAuto: pcAuto,
     sdSet: sdSet, sdRandom: sdRandom, sdCreate: sdCreate, sdAccept: sdAccept, sdCancel: sdCancel,
     isBusy: function () { return cr.phase === "run" || pc.balls.length > 0 || sd.busy; }
   };
@@ -4045,6 +4857,8 @@ window.__startGame = initGame;
   opacity: 0; will-change: transform, opacity;
 }
 .fx-float.go { animation: fxFloat .75s var(--fx-ease) forwards; }
+.fx-float.crit { color: var(--amber); font-size: 20px; text-shadow: 0 0 10px rgba(255,184,0,.9), 0 1px 0 #000; }
+.fx-float.hot { color: var(--crimson); font-size: 13px; text-shadow: 0 0 8px rgba(255,23,68,.8); }
 @keyframes fxFloat {
   0%   { opacity: 0; transform: translate(var(--fx-x), var(--fx-y)) scale(.7); }
   15%  { opacity: 1; transform: translate(var(--fx-x), calc(var(--fx-y) - 14px)) scale(1.15); }
@@ -4158,11 +4972,17 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function spawnFloat(x, y) {
     if (!canFx()) return;
     var now = performance.now();
-    if (now - lastFloat < 70) return;           // max ~14 / s
+    var crit = window.__lastCrit;
+    if (now - lastFloat < 70 && !crit) return;           // max ~14 / s (crit se ukáže vždy)
     lastFloat = now;
     var cv = $("click-val");
     var el = POOL[poolIdx++ % POOL.length];
-    el.textContent = "+" + (cv ? cv.textContent.trim() : "1");
+    var base = cv ? cv.textContent.trim() : "1";
+    if (crit === "heat") el.textContent = "🔥 TOO HOT";
+    else if (crit) { var n = Number(base.replace(/,/g, "")); el.textContent = "CRIT +" + (isFinite(n) ? (Math.round(n * 3 * 100) / 100).toLocaleString() : base); }
+    else el.textContent = "+" + base;
+    el.classList.toggle("crit", !!crit && crit !== "heat");
+    el.classList.toggle("hot", crit === "heat");
     el.style.setProperty("--fx-x", (x - 14) + "px");
     el.style.setProperty("--fx-y", (y - 24) + "px");
     el.style.setProperty("--fx-dx", (Math.random() * 40 - 20).toFixed(0) + "px");
@@ -4274,6 +5094,1290 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 })();
 </script>
 
+  <script>
+/**
+ * IDLE ROYALE - DUNGEON ENGINE (čistá logika bez DOM; stejný kód běží ve hře i v simulaci pro ladění čísel)
+ * Tahový souboj: hráč udeří (útok se losuje z tabulky podle třídy a postoje), pak boss.
+ * Každý postoj má průměr (EV) přesně 1.00× ATK - postoj mění jen riziko, ne průměrný damage.
+ */
+(function (root) {
+  "use strict";
+
+  // ------------------------------------------------------------------ RNG (seedovatelný, přehratelný)
+  function rng(seed) {
+    let a = (seed >>> 0) || 1;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ------------------------------------------------------------------ TABULKY ÚTOKŮ
+  // řádek: [šance, násobek ATK, typ] ; typ: "low" | "mid" | "high" | "jp" (jackpot) | "bf" (backfire = rána do sebe)
+  const RAW = {
+    sysadmin: {
+      safe:   [[0.25, 0.70, "low"], [0.55, 1.00, "mid"], [0.20, 1.38, "high"]],
+      normal: [[0.15, 0.40, "low"], [0.50, 0.90, "mid"], [0.30, 1.30, "high"], [0.05, 3.00, "jp"]],
+      allin:  [[0.03, 0, "bf"], [0.30, 0.15, "low"], [0.30, 0.70, "mid"], [0.32, 1.60, "high"], [0.05, 5.50, "jp"]]
+    },
+    engineer: {
+      safe:   [[0.30, 0.60, "low"], [0.45, 1.00, "mid"], [0.25, 1.55, "high"]],
+      normal: [[0.25, 0.30, "low"], [0.40, 0.85, "mid"], [0.28, 1.60, "high"], [0.07, 3.50, "jp"]],
+      allin:  [[0.04, 0, "bf"], [0.33, 0.10, "low"], [0.25, 0.60, "mid"], [0.31, 1.80, "high"], [0.07, 8.00, "jp"]]
+    },
+    cyber: {
+      safe:   [[0.25, 0.60, "low"], [0.50, 1.00, "mid"], [0.25, 1.50, "high"]],
+      normal: [[0.25, 0.30, "low"], [0.42, 0.90, "mid"], [0.27, 1.50, "high"], [0.06, 3.00, "jp"]],
+      allin:  [[0.03, 0, "bf"], [0.30, 0.10, "low"], [0.30, 0.60, "mid"], [0.31, 1.70, "high"], [0.06, 7.00, "jp"]]
+    }
+  };
+  const BACKFIRE_SELF = { sysadmin: 1.2, engineer: 1.5, cyber: 1.2 };   // backfire = tolik × vlastní ATK do sebe
+  const TABLES = {};
+  Object.keys(RAW).forEach(c => {
+    TABLES[c] = {};
+    Object.keys(RAW[c]).forEach(s => {
+      const rows = RAW[c][s];
+      const ev = rows.reduce((a, r) => a + r[0] * r[1], 0);
+      TABLES[c][s] = rows.map(r => ({ p: r[0], m: Math.round(r[1] / ev * 1000) / 1000, k: r[2] }));   // normalizace na EV = 1.00
+    });
+  });
+  function tableEV(rows) { return rows.reduce((a, r) => a + r.p * r.m, 0); }
+
+  // ------------------------------------------------------------------ TŘÍDY + KARIÉRA
+  const CLASSES = {
+    sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. Low variance, +4% HP and a small shield (4% HP) at the start of every fight.",
+      tiers: ["Junior Helpdesk Agent", "System Administrator", "Senior Infrastructure Engineer"],
+      branches: { a: "Site Reliability Engineer", b: "Cloud Infrastructure Architect" },
+      perks: ["Power Cycle: once per fight you survive a lethal hit with 10% HP.",
+              "Reboot Script: in SAFE stance, hits of 1.0× or more heal 4% max HP.",
+              "HA Cluster: backfire self-damage is halved and turns into a shield.",
+              "SRE - SLO Breach Counter: after a heavy boss hit (>12% HP) the next one is halved.",
+              "Cloud Architect - Elastic Auto-Scaling: jackpots add 2× your current shield as damage, +8% starting shield."] },
+    engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. High variance, +18% ATK, +5% HP, big jackpots. +1% click crit chance per career tier.",
+      tiers: ["Intern Developer", "Full-Stack Developer", "Lead Software Architect"],
+      branches: { a: "Algorithmic Quant Dev", b: "Principal Systems Engineer" },
+      perks: ["StackOverflow Copy-Paste: 8% chance to repeat your previous good hit.",
+              "Unit Test Coverage: backfire self-damage -30%.",
+              "CI Burst: every hit of 1.0× or more in a row adds +1.5% jackpot chance (max +6%).",
+              "Quant Dev - HFT: jackpots hit ×1.35 harder, but backfire chance +1%.",
+              "Principal - Zero-Cost Abstraction: your weakest hits are never below 0.6×."] },
+    cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. 17% dodge, +10% boss loot.",
+      tiers: ["Script Kiddie", "SOC Security Analyst", "Senior Red Teamer"],
+      branches: { a: "CISO", b: "Black-Hat Mercenary" },
+      perks: ["Lucky Port Scan: 4% of your weakest hits become strong hits.",
+              "Threat Intel: a dodge reflects 40% of the boss attack back.",
+              "Zero-Day Payload: jackpots infect the boss - 0.4× ATK damage for 3 turns.",
+              "CISO - Corporate Insurance: boss loot ×1.5 and 35% chance a won fight costs no key.",
+              "Black-Hat - Ghost in the Shell: after a dodge your next hit can't backfire and deals +40%."] }
+  };
+
+  // ------------------------------------------------------------------ ARTEFAKTY (aditivní %, každý má protiváhu)
+  const ARTIFACTS = [
+    { id: "key",    name: "Master Admin Key",     icon: "🗝", fx: { atk: 0.12, hp: -0.08 } },
+    { id: "token",  name: "Quantum Token",        icon: "🪙", fx: { hp: 0.08, jp: 0.015 } },
+    { id: "pen",    name: "Cyber Pen",            icon: "🖊", fx: { dodge: 0.08, atk: -0.05 } },
+    { id: "drive",  name: "Encrypted Hard Drive", icon: "💽", fx: { hp: 0.15, atk: -0.05 } },
+    { id: "usb",    name: "Zero-Day USB",         icon: "🔌", fx: { atk: 0.08, bf: 0.01 } },
+    { id: "mug",    name: "SME Coffee Mug",       icon: "☕", fx: { hp: 0.10, safeDef: 0.10 } },
+    { id: "gpu",    name: "Overclocked GPU",      icon: "🎛", fx: { atk: 0.15, bfDmg: 0.25 } },
+    { id: "node",   name: "Decentralized Node",   icon: "🛰", fx: { loot: 0.15, atk: 0.03 } },
+    { id: "fw",     name: "Shadow Firewall",      icon: "🧱", fx: { dodge: 0.05, hp: 0.05 } },
+    { id: "coin",   name: "Coin Toss Token",      icon: "🎲", fx: { coin: 1 } },
+    { id: "bounty", name: "Bug Bounty Badge",     icon: "🏅", fx: { loot: 0.20, jp: 0.01 } },
+    { id: "relic",  name: "Mainframe Relic",      icon: "🗄", fx: { hp: 0.20, dodge: -0.06 } }
+  ];
+  const ARTIFACT_BY_ID = {}; ARTIFACTS.forEach(a => { ARTIFACT_BY_ID[a.id] = a; });
+  function artifactText(a, lvl) {
+    const f = 1 + 0.25 * ((lvl || 1) - 1), o = [];
+    const pct = (v) => (v > 0 ? "+" : "") + Math.round(v * f * 1000) / 10 + "%";
+    const fx = a.fx;
+    if (fx.atk) o.push(pct(fx.atk) + " ATK");
+    if (fx.hp) o.push(pct(fx.hp) + " HP");
+    if (fx.dodge) o.push(pct(fx.dodge) + " dodge");
+    if (fx.jp) o.push(pct(fx.jp) + " jackpot chance");
+    if (fx.bf) o.push(pct(fx.bf) + " backfire chance (All-in)");
+    if (fx.bfDmg) o.push(pct(fx.bfDmg) + " backfire self-damage");
+    if (fx.safeDef) o.push(pct(-fx.safeDef) + " damage taken in SAFE");
+    if (fx.loot) o.push(pct(fx.loot) + " boss loot");
+    if (fx.coin) o.push("fight start: 50% +25% ATK or 50% -15% ATK");
+    return o.join(", ");
+  }
+
+  // ------------------------------------------------------------------ BOSSOVÉ (20 pater, pak se opakují jako Mk II, Mk III ...)
+  const BOSSES = [
+    { name: "Unplugged Router",          icon: "📡", mech: "router",   txt: "Cable Glitch: every 4th turn the signal drops and it skips its attack." },
+    { name: "The Great \"I\"",          icon: "🅸", mech: "dust",     txt: "The Great I: hits weaker as it loses HP, but dodges more (up to 25%) - it's just one letter, how hard can it be?" },
+    { name: "Printer Spooler Ghost",     icon: "🖨", mech: "printer",  txt: "Paper Jam: its hits have a 25% chance to jam your next attack (0 damage)." },
+    { name: "Rogue Cron Job",            icon: "⏰", mech: "cron",     txt: "Scheduled Run: weak hits, but every 4th turn a massive batch job (×2.6)." },
+    { name: "Memory Leak Java App",      icon: "☕", mech: "leak",     txt: "OutOfMemory: its attack grows +8% every turn. End it fast." },
+    { name: "Legacy COBOL Mainframe",    icon: "🖥", mech: "cobol",    txt: "Tape Backup: every 4th turn it restores 12% of its max HP." },
+    { name: "DDoS Botnet Cluster",       icon: "🕸", mech: "ddos",     txt: "Packet Storm: attacks 3× per turn with weak hits (dodge each one)." },
+    { name: "Shadow IT Spreadsheet",     icon: "📊", mech: "excel",    txt: "VLOOKUP Crash: 15% chance to reflect 30% of your damage back at you." },
+    { name: "Crypto-Miner Trojan",       icon: "⛏", mech: "miner",    txt: "Resource Theft: its hits halve your jackpot chance for 2 turns." },
+    { name: "Rogue LLM Agent",           icon: "🤖", mech: "llm",      txt: "Hallucination Counter: after your strong hit or jackpot it counterattacks instantly." },
+    { name: "Spaghetti Cabling Rack",    icon: "🍝", mech: "spaghetti",txt: "Cable Trap: every 5th turn your stance is locked for 2 turns." },
+    { name: "Zero-Day Broker",           icon: "🕵", mech: "broker",   txt: "Exposed Vulnerability: each of your weak hits makes you take +10% damage (max +50%)." },
+    { name: "Public S3 Leak",            icon: "🪣", mech: "s3",       txt: "Data Siphon: your strong hits give it a shield of 20% of that damage." },
+    { name: "Deprecated API Dependency", icon: "🧩", mech: "api",      txt: "Breaking Change: below 50% HP its attack is ×1.4." },
+    { name: "Ransomware Executive",      icon: "🔒", mech: "ransom",   txt: "Equipment Encryption: every 5th turn your ATK -20% until you land a 1.3×+ hit." },
+    { name: "Corporate Audit Bot",       icon: "📋", mech: "audit",    txt: "Bureaucratic Brake: all your hits are pulled halfway towards average (All-in is weaker)." },
+    { name: "Rogue Microservice Mesh",   icon: "🧬", mech: "mesh",     txt: "Cascade Failure: after hitting you 3 turns in a row its next hit is ×2." },
+    { name: "Unstable Staging Env",      icon: "🧪", mech: "staging",  txt: "Environment Reset: every 4th turn it wipes all shields, buffs and debuffs." },
+    { name: "Legacy Monolith Architect", icon: "🏛", mech: "monolith", txt: "Monolithic Armor: your hits under 1.0× only deal 40% damage." },
+    { name: "The Big Massi",            icon: "👑", mech: "darkweb",  txt: "FINAL BOSS - Executive Override: below 30% HP his attack is ×2, but he burns 5% max HP per turn. The best boss you could ever ask for." }
+  ];
+  const PROMOS = [
+    { id: "lead",  name: "Micromanager Team Lead",   icon: "📣", lvl: 10, mech: "lead",  reward: "tier2",   txt: "Quick Sync: every 4th turn ALL-IN is disabled for 2 turns.", unlock: "Unlocks career tier 2" },
+    { id: "hr",    name: "HR Compliance Specialist", icon: "🧑‍💼", lvl: 15, mech: "hr",   reward: "slot",    txt: "Mandatory Team Building: after your strong hit or jackpot you are forced into SAFE for 1 turn.", unlock: "+1 artifact slot" },
+    { id: "board", name: "Technical Board Review",   icon: "🧾", lvl: 20, mech: "board", reward: "tier3",   txt: "Budget Cuts: below 50% HP it cuts your ATK by 25%.", unlock: "Unlocks career tier 3" },
+    { id: "cto",   name: "The CTO",                  icon: "🎩", lvl: 25, mech: "cto",   reward: "branch",  txt: "AI Paradigm Shift: every 3 turns it demands a stance - if you are not in it, it hits +60% harder.", unlock: "Choose your career branch" },
+    { id: "bod",   name: "Board of Directors",       icon: "🏦", lvl: 30, mech: "bod",   reward: "exec",    txt: "Quarterly Goals: defeat it within 18 turns or the contract is terminated.", unlock: "EXECUTIVE title: +10% ATK/HP, +5% ticket multiplier" }
+  ];
+
+  function roman(n) { return n <= 1 ? "" : (["", "", " Mk II", " Mk III", " Mk IV", " Mk V", " Mk VI", " Mk VII", " Mk VIII", " Mk IX", " Mk X"][n] || (" Mk " + n)); }
+
+  // Statistiky bosse pro patro F (vyladěno simulací: referenční hráč na patře F vyhrává ~65 %)
+  // Referenční hráč: level = F, gear ATK/HP násobek = 1 + 0.06·F, bez artefaktů, kariéra tier 1, postoj NORMAL.
+  // [HP, ATK] pro patra 1-100, vygenerováno simulací (tune.js); nad 100 exponenciálně
+  let BOSS_TABLE = [[215,11.9],[295,14.6],[382,12.2],[477,19.3],[579,18],[688,19.6],[805,28.4],[929,36.3],[1060,43.8],[1199,53],[1345,58.9],[1498,55.7],[1658,71.9],[1826,66.1],[2001,83.7],[2183,99.1],[2372,82.3],[2569,113.2],[2773,85.7],[2985,124.7],[3204,175.9],[3430,173.2],[3663,121.3],[3903,161.4],[4151,127.7],[4406,121.5],[4669,165.3],[4939,194.8],[5216,212.5],[5500,240],[5792,256.4],[6090,220.6],[6397,271.1],[6710,242.1],[7031,286],[7359,328.2],[7694,270.8],[8037,348.2],[8387,261.5],[8744,366.1],[9108,495.2],[9480,473.4],[9859,326.5],[10246,422.9],[10639,325.3],[11040,306.9],[11449,413.5],[11864,461.3],[12287,505.2],[12717,557.3],[13154,573.2],[13599,483.2],[14051,589.4],[14510,523.8],[14977,604.7],[15451,690.8],[15932,558.2],[16420,714.4],[16916,515.2],[17419,720.5],[17929,1004.7],[18447,932],[18972,618.8],[19504,812.5],[20043,621.7],[20590,572.8],[21144,760.9],[21706,855],[22274,900.9],[22850,1003.3],[23433,1031],[24024,891.2],[24622,1033.6],[25227,915.3],[25839,1072.2],[26459,1184],[27086,951.6],[27720,1212],[28361,889.6],[29010,1222],[29666,1637.7],[30330,1552.7],[31000,1031.1],[31678,1326.7],[32364,998.3],[33056,921.1],[33756,1211.2],[34463,1360.1],[35177,1446.6],[35899,1560.7],[36628,1589],[37364,1349.6],[38108,1645.2],[38859,1400],[39617,1606.4],[40383,1816.3],[41155,1421.9],[41935,1865.9],[42723,1318.9],[43517,1807.7]];
+  function bossFor(floor) {
+    const b = BOSSES[(floor - 1) % 20];
+    const t = bossStats(floor);
+    return { floor: floor, name: b.name + roman(Math.ceil(floor / 20)), icon: b.icon, mech: b.mech, txt: b.txt, hp: t.hp, atk: t.atk, sprite: (floor - 1) % 20 };
+  }
+  const EASE = [0.72, 0.8, 0.87, 0.93, 0.97];          // první patra mírnější (nováček ještě nemá gear)
+  function bossStats(floor) {
+    if (BOSS_TABLE && floor <= BOSS_TABLE.length) { const r = BOSS_TABLE[floor - 1], e = EASE[floor - 1] || 1; return { hp: Math.round(r[0] * e), atk: Math.round(r[1] * e * 10) / 10 }; }
+    // nad tabulkou: vezme vyladěné patro se STEJNÝM bossem z posledních 20 a přeškáluje ho podle síly referenčního hráče
+    const N = BOSS_TABLE.length;
+    const F0 = N - 20 + ((floor - 1) % 20) + 1;
+    const refA = (F) => (15 + 4.5 * (F - 1)) * (1 + 0.06 * F), refH = (F) => (100 + 30 * (F - 1)) * (1 + 0.06 * F);
+    const r = BOSS_TABLE[F0 - 1];
+    return { hp: Math.round(r[0] * refA(floor) / refA(F0)), atk: Math.round(r[1] * refH(floor) / refH(F0) * 10) / 10 };
+  }
+  let PROMO_TABLE = {"lead":[1288,51.7],"hr":[2149,86.5],"board":[3206,110.5],"cto":[4459,125.1],"bod":[4481,300.9]};
+  function promoBoss(id) {
+    const p = PROMOS.find(x => x.id === id);
+    const t = (PROMO_TABLE && PROMO_TABLE[id]) ? { hp: PROMO_TABLE[id][0], atk: PROMO_TABLE[id][1] } : bossStats(p.lvl);
+    return { floor: 0, promo: p.id, name: p.name, icon: p.icon, mech: p.mech, txt: p.txt, hp: t.hp, atk: t.atk, sprite: 20 + PROMOS.indexOf(p) };
+  }
+
+  // ------------------------------------------------------------------ HRÁČ
+  /** gear: { atk: násobek ze zbraní (TOOL/AUGMENT/RELIC), hp: násobek ze zbroje (HEAD/RIG/OS) } */
+  function gearSlotValue(tier, lvl) { return 0.1 * Math.pow(tier, 1.3) * (1 + 0.2 * (lvl || 0)); }
+
+  function buildPlayer(d, gear) {
+    const L = Math.max(1, d.level || 1);
+    const cls = d.cls || "sysadmin";
+    const tier = d.tier || 1, branch = d.branch || "";
+    const fx = { atk: 0, hp: 0, dodge: 0, jp: 0, bf: 0, bfDmg: 0, safeDef: 0, loot: 0, coin: 0 };
+    (d.equipped || []).forEach(id => {
+      const a = ARTIFACT_BY_ID[id]; if (!a) return;
+      const f = 1 + 0.25 * (((d.artifacts || {})[id] || 1) - 1);
+      Object.keys(a.fx).forEach(k => { fx[k] += a.fx[k] * (k === "coin" ? 1 : f); });
+    });
+    let atkMul = 1 + fx.atk, hpMul = 1 + fx.hp;
+    if (cls === "engineer") { atkMul += 0.18; hpMul += 0.05; }
+    if (cls === "sysadmin") hpMul += 0.04;
+    if (d.exec) { atkMul += 0.10; hpMul += 0.10; }
+    const maxHp = Math.round((100 + 30 * (L - 1)) * (gear ? gear.hp : 1) * hpMul);
+    const atk = (15 + 4.5 * (L - 1)) * (gear ? gear.atk : 1) * atkMul;
+    let dodge = (cls === "cyber" ? 0.17 : 0) + fx.dodge;
+    dodge = Math.max(0, Math.min(0.35, dodge));
+    return { cls: cls, tier: tier, branch: branch, level: L, maxHp: maxHp, atk: atk, dodge: dodge, fx: fx,
+      shieldPct: cls === "sysadmin" ? 0.04 + (branch === "b" && tier >= 4 ? 0.08 : 0) : 0,
+      loot: fx.loot + (cls === "cyber" ? 0.10 : 0) + (cls === "cyber" && tier >= 4 && branch === "a" ? 0.5 : 0) };
+  }
+
+  // ------------------------------------------------------------------ SOUBOJ
+  function newFight(player, boss, seed) {
+    const R = rng(seed || 1);
+    const f = {
+      R: R, p: player, b: boss, turn: 0, over: false, win: false, events: [],
+      php: player.maxHp, shield: Math.round(player.maxHp * player.shieldPct),
+      bhp: boss.hp, bmax: boss.hp, bshield: 0,
+      atkBuff: 1, jam: false, jpDebuff: 0, weakStacks: 0, ransom: false, hitStreak: 0, lockLeft: 0, lockedStance: null,
+      forceSafe: 0, ctoWant: null, sreHalf: false, revived: false, ciStacks: 0, prevMult: 0, dot: 0, ghost: false, allinBlock: 0,
+      coin: 0
+    };
+    if (player.fx.coin) { f.coin = R() < 0.5 ? 0.25 : -0.15; f.atkBuff *= 1 + f.coin; }
+    return f;
+  }
+
+  /** Které postoje teď smí hráč použít (zámky bossů). */
+  function allowedStances(f) {
+    if (f.lockLeft > 0) return [f.lockedStance];
+    if (f.forceSafe > 0) return ["safe"];
+    if (f.allinBlock > 0) return ["safe", "normal"];
+    return ["safe", "normal", "allin"];
+  }
+
+  function rollRow(f, stance) {
+    const p = f.p, R = f.R;
+    let rows = TABLES[p.cls][stance].map(r => ({ p: r.p, m: r.m, k: r.k }));
+    const take = (fromK, toK, amt) => {
+      const a = rows.find(r => r.k === fromK), b = rows.find(r => r.k === toK);
+      if (!a || !b) return;
+      const x = Math.min(a.p, amt); a.p -= x; b.p += x;
+    };
+    // jackpot bonusy (artefakty, CI Burst) berou pravděpodobnost z nejslabšího řádku
+    let jp = p.fx.jp + (p.cls === "engineer" && p.tier >= 3 ? f.ciStacks * 0.015 : 0);
+    if (f.jpDebuff > 0) { const j = rows.find(r => r.k === "jp"); if (j) { const half = j.p / 2; j.p -= half; rows.find(r => r.k === "low").p += half; } }
+    if (jp > 0) take("low", "jp", jp);
+    if (p.cls === "cyber") take("low", "high", 0.04);
+    if (stance === "allin") {
+      let bf = p.fx.bf + (p.cls === "engineer" && p.tier >= 4 && p.branch === "a" ? 0.01 : 0);
+      if (bf > 0) take("low", "bf", bf);
+    }
+    let r = R(), row = rows[rows.length - 1];
+    for (const x of rows) { if (r < x.p) { row = x; break; } r -= x.p; }
+    let m = row.m, k = row.k;
+    if (p.cls === "engineer" && f.prevMult >= 1 && R() < 0.08) { m = f.prevMult; k = "copy"; }
+    if (k === "jp" && p.cls === "engineer" && p.tier >= 4 && p.branch === "a") m *= 1.35;
+    if (k === "low" && p.cls === "engineer" && p.tier >= 4 && p.branch === "b") m = Math.max(m, 0.6);
+    if (k === "bf" && f.ghost) { k = "mid"; m = 1; }
+    return { m: m, k: k };
+  }
+
+  function ev(f, type, val, extra) { const e = { t: f.turn, type: type, val: val }; if (extra) Object.assign(e, extra); f.events.push(e); return e; }
+
+  function damagePlayer(f, dmg, src) {
+    const p = f.p;
+    if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && f.sreHalf) { dmg *= 0.5; f.sreHalf = false; }
+    dmg = Math.round(dmg);
+    const s = Math.min(f.shield, dmg); f.shield -= s; dmg -= s;
+    f.php -= dmg;
+    if (f.php <= 0 && p.cls === "sysadmin" && !f.revived) { f.revived = true; f.php = Math.round(p.maxHp * 0.10); ev(f, "revive", f.php); }
+    if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg + s > p.maxHp * 0.12) f.sreHalf = true;
+    ev(f, "phit", dmg + s, { src: src, absorbed: s });
+    return dmg + s;
+  }
+
+  function damageBoss(f, dmg, label) {
+    dmg = Math.max(0, Math.round(dmg));
+    const s = Math.min(f.bshield, dmg); f.bshield -= s;
+    f.bhp -= (dmg - s);
+    return dmg;
+  }
+
+  /** Jeden tah. stance = "safe" | "normal" | "allin". Vrací nové eventy. */
+  function step(f, stance) {
+    if (f.over) return [];
+    const start = f.events.length;
+    const p = f.p, b = f.b, R = f.R;
+    f.turn++;
+    const allowed = allowedStances(f);
+    if (allowed.indexOf(stance) < 0) stance = allowed.indexOf("normal") >= 0 ? "normal" : allowed[0];
+    const mech = b.mech;
+
+    // --- začátek tahu: mechaniky
+    if (mech === "staging" && f.turn % 4 === 0) {
+      f.shield = 0; f.bshield = 0; f.atkBuff = 1 + f.coin; f.jam = false; f.jpDebuff = 0; f.weakStacks = 0; f.ransom = false; f.dot = 0; f.ghost = false;
+      ev(f, "mech", 0, { msg: "ENVIRONMENT RESET - all buffs and shields wiped!" });
+    }
+    if (mech === "spaghetti" && f.turn % 5 === 0 && f.lockLeft <= 0) { f.lockLeft = 2; f.lockedStance = stance; ev(f, "mech", 0, { msg: "CABLE TRAP - stance locked for 2 turns!" }); }
+    if (mech === "ransom" && f.turn % 5 === 0 && !f.ransom) { f.ransom = true; ev(f, "mech", 0, { msg: "EQUIPMENT ENCRYPTED - your ATK -20% until you land a 1.3× hit!" }); }
+    if (mech === "lead" && f.turn % 4 === 0) { f.allinBlock = 2; ev(f, "mech", 0, { msg: "QUICK SYNC - ALL-IN disabled for 2 turns!" }); }
+    if (mech === "cto" && f.turn % 3 === 1) { f.ctoWant = ["safe", "normal", "allin"][Math.floor(R() * 3)]; ev(f, "mech", 0, { msg: "CTO demands: " + f.ctoWant.toUpperCase() + "!", want: f.ctoWant }); }
+    if (f.dot > 0) { const d = damageBoss(f, p.atk * 0.4); f.dot--; ev(f, "dot", d); }
+
+    // --- útok hráče
+    let mult = 0, kind = "mid", self = 0;
+    if (f.jam) { f.jam = false; kind = "jam"; ev(f, "pattack", 0, { kind: "jam", stance: stance }); }
+    else {
+      const r = rollRow(f, stance);
+      mult = r.m; kind = r.k;
+      if (mech === "audit") mult = 1 + (mult - 1) * 0.5;
+      let atk = p.atk * f.atkBuff * (f.ransom ? 0.8 : 1);
+      if (mech === "board" && f.bhp < f.bmax * 0.5) atk *= 0.75;
+      if (f.ghost) { atk *= 1.4; f.ghost = false; }
+      let dmg = atk * mult;
+      if (mech === "monolith" && mult < 1) dmg *= 0.4;
+      if (mech === "dust") { const bd = 0.25 * (1 - f.bhp / f.bmax); if (R() < bd) { dmg = 0; kind = "bdodge"; } }
+      if (kind === "bf") {
+        self = p.atk * BACKFIRE_SELF[p.cls] * (1 + p.fx.bfDmg);
+        if (p.cls === "engineer" && p.tier >= 2) self *= 0.7;
+        if (p.cls === "sysadmin" && p.tier >= 3) { self *= 0.5; f.shield += Math.round(self); }
+      }
+      if (kind === "jp" && p.cls === "sysadmin" && p.tier >= 4 && p.branch === "b") dmg += f.shield * 2;
+      const dealt = damageBoss(f, dmg);
+      ev(f, "pattack", dealt, { kind: kind, mult: Math.round(mult * 100) / 100, stance: stance });
+      if (self > 0) damagePlayer(f, self, "backfire");
+      if (kind === "jp" && p.cls === "cyber" && p.tier >= 3) { f.dot = 3; ev(f, "mech", 0, { msg: "ZERO-DAY PAYLOAD injected!" }); }
+      if (p.cls === "sysadmin" && p.tier >= 2 && stance === "safe" && mult >= 1) { const h = Math.round(p.maxHp * 0.04); f.php = Math.min(p.maxHp, f.php + h); ev(f, "heal", h); }
+      if (p.cls === "engineer" && p.tier >= 3) f.ciStacks = mult >= 1 ? Math.min(4, f.ciStacks + 1) : 0;
+      f.prevMult = mult >= 1 ? mult : 0;
+      if (mech === "excel" && dealt > 0 && R() < 0.15) damagePlayer(f, dealt * 0.3, "reflect");
+      if (mech === "broker" && mult < 0.8) f.weakStacks = Math.min(5, f.weakStacks + 1);
+      if (mech === "s3" && mult >= 1.5) { f.bshield += Math.round(dealt * 0.2); ev(f, "mech", 0, { msg: "DATA SIPHON - boss gains a shield!" }); }
+      if (mech === "ransom" && mult >= 1.3 && f.ransom) { f.ransom = false; ev(f, "mech", 0, { msg: "Decrypted! ATK restored." }); }
+      if (mech === "hr" && (kind === "jp" || mult >= 1.6)) { f.forceSafe = 2; ev(f, "mech", 0, { msg: "MANDATORY TEAM BUILDING - forced into SAFE!" }); }
+      if (mech === "llm" && (kind === "jp" || mult >= 1.6) && f.bhp > 0) { ev(f, "mech", 0, { msg: "HALLUCINATION COUNTER!" }); bossHit(f, b.atk * (0.5 + R()), "counter", stance); }
+    }
+    if (f.php <= 0) return finish(f, false, start);
+    if (f.bhp <= 0) return finish(f, true, start);
+
+    // --- útok bosse
+    let skip = false;
+    if (mech === "router" && f.turn % 4 === 0) { skip = true; ev(f, "mech", 0, { msg: "Signal dropped - the router skips its attack." }); }
+    if (!skip) {
+      if (mech === "ddos") { for (let i = 0; i < 3; i++) bossHit(f, b.atk * 0.4, "packet", stance); }
+      else {
+        let a = b.atk;
+        if (mech === "dust") a *= 0.5 + 0.5 * (f.bhp / f.bmax);
+        if (mech === "cron") a *= (f.turn % 4 === 0 ? 2.6 : 0.6);
+        if (mech === "leak") a *= 1 + 0.08 * (f.turn - 1);
+        if (mech === "api" && f.bhp < f.bmax * 0.5) a *= 1.4;
+        if (mech === "darkweb" && f.bhp < f.bmax * 0.3) a *= 2;
+        if (mech === "mesh" && f.hitStreak >= 3) { a *= 2; f.hitStreak = 0; ev(f, "mech", 0, { msg: "CASCADE FAILURE!" }); }
+        if (mech === "cto" && f.ctoWant && stance !== f.ctoWant) a *= 1.6;
+        bossHit(f, a, "hit", stance);
+      }
+    }
+    if (mech === "cobol" && f.turn % 4 === 0) { const h = Math.round(f.bmax * 0.12); f.bhp = Math.min(f.bmax, f.bhp + h); ev(f, "bheal", h); }
+    if (mech === "darkweb" && f.bhp < f.bmax * 0.3) { const d = Math.round(f.bmax * 0.05); f.bhp -= d; ev(f, "mech", d, { msg: "Self-destruct: the boss burns " + d + " HP." }); }
+
+    // --- konec tahu
+    if (f.lockLeft > 0) f.lockLeft--;
+    if (f.forceSafe > 0) f.forceSafe--;
+    if (f.allinBlock > 0) f.allinBlock--;
+    if (f.jpDebuff > 0) f.jpDebuff--;
+    if (f.php <= 0) return finish(f, false, start);
+    if (f.bhp <= 0) return finish(f, true, start);
+    if (mech === "bod" && f.turn >= 18) { ev(f, "mech", 0, { msg: "QUARTERLY GOALS MISSED - contract terminated!" }); return finish(f, false, start); }
+    if (f.turn >= 60) { ev(f, "mech", 0, { msg: "Overtime - the boss escaped." }); return finish(f, false, start); }
+    return f.events.slice(start);
+  }
+
+  function bossHit(f, a, src, stance) {
+    const p = f.p, R = f.R;
+    if (R() < p.dodge) {
+      ev(f, "dodge", 0, { src: src });
+      if (p.cls === "cyber" && p.tier >= 2) { const d = damageBoss(f, a * 0.4); ev(f, "reflect", d); }
+      if (p.cls === "cyber" && p.tier >= 4 && p.branch === "b") f.ghost = true;
+      f.hitStreak = 0;
+      return;
+    }
+    let d = a * (0.85 + 0.3 * R());
+    if (f.b.mech === "broker") d *= 1 + 0.1 * f.weakStacks;
+    if (stance === "safe" && p.fx.safeDef) d *= 1 - p.fx.safeDef;
+    damagePlayer(f, d, src);
+    f.hitStreak++;
+    if (f.b.mech === "printer" && R() < 0.25) { f.jam = true; ev(f, "mech", 0, { msg: "PAPER JAM - your next attack is blocked!" }); }
+    if (f.b.mech === "miner") f.jpDebuff = 2;
+  }
+
+  function finish(f, win, start) {
+    f.over = true; f.win = win;
+    f.php = Math.max(0, f.php); f.bhp = Math.max(0, f.bhp);
+    ev(f, win ? "win" : "lose", 0);
+    return f.events.slice(start);
+  }
+
+  /** Celý souboj s pevnou strategií (pro simulace). policy(f) -> stance */
+  function simulate(player, boss, seed, policy) {
+    const f = newFight(player, boss, seed);
+    while (!f.over) step(f, typeof policy === "function" ? policy(f) : (policy || "normal"));
+    return f;
+  }
+
+  // ------------------------------------------------------------------ ARÉNA: duel hráč vs hráč (počítá server, klient jen přehrává)
+  const PVP_HP = 2.0;                       // v aréně mají oba víc HP, ať duel trvá ~10-16 akcí
+  function duel(A, B, seed, stA, stB) {
+    const R = rng(seed || 1);
+    const mk = (p, st) => {
+      const hp = Math.round(p.maxHp * PVP_HP);
+      return { p: p, R: R, stance: st || "normal", hp: hp, max: hp, shield: Math.round(hp * p.shieldPct), ciStacks: 0, prevMult: 0, ghost: false,
+        jpDebuff: 0, revived: false, dot: 0, sreHalf: false, atkBuff: p.fx.coin ? (R() < 0.5 ? 1.25 : 0.85) : 1 };
+    };
+    const S = [mk(A, stA), mk(B, stB)];
+    const events = [];
+    const snap = () => [Math.max(0, S[0].hp), Math.max(0, S[1].hp)];
+    const shs = () => [S[0].shield, S[1].shield];
+    const push = (e) => { e.hp = snap(); e.sh = shs(); events.push(e); };
+    const hurt = (side, dmg) => {
+      const p = side.p;
+      if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && side.sreHalf) { dmg *= 0.5; side.sreHalf = false; }
+      dmg = Math.round(dmg);
+      const sh = Math.min(side.shield, dmg); side.shield -= sh; side.hp -= dmg - sh;
+      let revived = false;
+      if (side.hp <= 0 && p.cls === "sysadmin" && !side.revived) { side.revived = true; side.hp = Math.round(side.max * 0.10); revived = true; }
+      if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg > side.max * 0.12) side.sreHalf = true;
+      return { dmg: dmg, absorbed: sh, revived: revived };
+    };
+    let turn = 0, cur = R() < 0.5 ? 0 : 1;
+    const first = cur;
+    while (turn < 60) {
+      turn++;
+      const a = S[cur], d = S[1 - cur];
+      if (d.dot > 0) { d.dot--; const x = hurt(d, a.p.atk * 0.4); push({ t: turn, i: cur, type: "dot", val: x.dmg }); if (d.hp <= 0) break; }
+      const r = rollRow(a, a.stance);
+      if (r.k === "bf") {
+        let self = a.p.atk * BACKFIRE_SELF[a.p.cls] * (1 + a.p.fx.bfDmg);
+        if (a.p.cls === "engineer" && a.p.tier >= 2) self *= 0.7;
+        if (a.p.cls === "sysadmin" && a.p.tier >= 3) { self *= 0.5; a.shield += Math.round(self); }
+        const x = hurt(a, self);
+        push({ t: turn, i: cur, type: "bf", val: x.dmg, rev: x.revived });
+        a.prevMult = 0; a.ciStacks = 0;
+      } else if (r.m > 0 && R() < d.p.dodge) {
+        push({ t: turn, i: cur, type: "dodge" });
+        if (d.p.cls === "cyber" && d.p.tier >= 2) { const x = hurt(a, a.p.atk * r.m * 0.4); push({ t: turn, i: 1 - cur, type: "reflect", val: x.dmg }); }
+        if (d.p.cls === "cyber" && d.p.tier >= 4 && d.p.branch === "b") d.ghost = true;
+      } else {
+        let atk = a.p.atk * a.atkBuff;
+        if (a.ghost) { atk *= 1.4; a.ghost = false; }
+        let dmg = atk * r.m;
+        if (r.k === "jp" && a.p.cls === "sysadmin" && a.p.tier >= 4 && a.p.branch === "b") dmg += a.shield * 2;
+        const x = hurt(d, dmg);
+        push({ t: turn, i: cur, type: "hit", val: x.dmg, kind: r.k, mult: Math.round(r.m * 100) / 100, abs: x.absorbed, rev: x.revived });
+        if (r.k === "jp" && a.p.cls === "cyber" && a.p.tier >= 3) d.dot = 3;
+        if (a.p.cls === "sysadmin" && a.p.tier >= 2 && a.stance === "safe" && r.m >= 1) { const h = Math.round(a.max * 0.04); a.hp = Math.min(a.max, a.hp + h); push({ t: turn, i: cur, type: "heal", val: h }); }
+        if (a.p.cls === "engineer" && a.p.tier >= 3) a.ciStacks = r.m >= 1 ? Math.min(4, a.ciStacks + 1) : 0;
+        a.prevMult = r.m >= 1 ? r.m : 0;
+      }
+      if (S[0].hp <= 0 || S[1].hp <= 0) break;
+      cur = 1 - cur;
+    }
+    let winner;
+    if (S[0].hp <= 0 && S[1].hp <= 0) winner = 1;              // oba padli (backfire) - vyhrává obránce
+    else if (S[0].hp <= 0) winner = 1;
+    else if (S[1].hp <= 0) winner = 0;
+    else winner = (S[0].hp / S[0].max >= S[1].hp / S[1].max) ? 0 : 1;   // limit tahů: rozhodne % HP
+    return { win: winner === 0, winner: winner, first: first, turns: turn, events: events, max: [S[0].max, S[1].max], hp: snap() };
+  }
+
+  /** síla postavy (pro řazení soupeřů v aréně) */
+  function power(p) { return Math.round(Math.sqrt(p.atk * p.maxHp) * (1 + p.dodge)); }
+
+  // ------------------------------------------------------------------ PROGRESE
+  function xpToNext(L) { return 75 + 30 * L; }
+  function winXp(floor, first) { return Math.round((30 + 12 * floor) * (first ? 2.5 : 1)); }
+  function refGear(floor) { return 1 + 0.06 * floor; }
+
+  const api = {
+    rng: rng, TABLES: TABLES, tableEV: tableEV, CLASSES: CLASSES, ARTIFACTS: ARTIFACTS, ARTIFACT_BY_ID: ARTIFACT_BY_ID, artifactText: artifactText,
+    BOSSES: BOSSES, PROMOS: PROMOS, bossFor: bossFor, bossStats: bossStats, promoBoss: promoBoss, setBossTable: function (t, pt) { BOSS_TABLE = t; if (pt) PROMO_TABLE = pt; },
+    gearSlotValue: gearSlotValue, buildPlayer: buildPlayer, newFight: newFight, step: step, allowedStances: allowedStances, simulate: simulate,
+    xpToNext: xpToNext, winXp: winXp, refGear: refGear, duel: duel, power: power, PVP_HP: PVP_HP
+  };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.DungeonEngine = api;
+})(typeof window !== "undefined" ? window : this);
+
+</script>
+<style>
+/* ===================== INCIDENT DUNGEON (samostatná obrazovka ve stejné stránce, žádný iframe) ===================== */
+#dg-screen { position: fixed; inset: 0; z-index: 200; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #1a0b14 0%, var(--bg-core, #07090e) 55%); color: var(--text-main); }
+#dg-screen.open { display: flex; }
+html.m #dg-screen { height: var(--app-h, 100%); }
+.dg-top { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
+.dg-top h1 { font: 900 15px 'Orbitron', monospace; letter-spacing: 2px; color: var(--crimson); margin: 0; flex: 1; text-shadow: 0 0 10px rgba(255,23,68,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-keys { font: 700 11px 'Orbitron', monospace; color: var(--amber); white-space: nowrap; }
+.dg-tabs { flex: none; display: flex; gap: 4px; padding: 6px 12px; }
+.dg-tabs button { flex: 1; }
+.dg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
+.dg-inner { max-width: 980px; margin: 0 auto; }
+.dg-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.dg-h { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--cyan); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.dg-dim { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+.dg-dim b { color: var(--amber); }
+
+.dg-arena { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; padding: 10px 6px; background: linear-gradient(180deg, #0b0f18, #10070c); border: 1px solid rgba(255,23,68,.25); border-radius: 8px; overflow: hidden; }
+.dg-side { text-align: center; min-width: 0; }
+.dg-name { font: 700 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-sub { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-sprite { width: 96px; height: 96px; margin: 6px auto; image-rendering: pixelated; display: block; transition: transform .12s; }
+.dg-sprite.hit { animation: dgHit .3s; }
+.dg-sprite.atk-l { animation: dgAtkL .35s; }
+.dg-sprite.atk-r { animation: dgAtkR .35s; }
+.dg-sprite.dead { filter: grayscale(1) brightness(.4); transform: rotate(8deg) translateY(8px); }
+@keyframes dgHit { 0%,100% { transform: none; filter: none; } 30% { transform: translateX(-5px); filter: brightness(2) sepia(1) hue-rotate(-40deg); } 60% { transform: translateX(4px); } }
+@keyframes dgAtkL { 50% { transform: translateX(26px) scale(1.06); } }
+@keyframes dgAtkR { 50% { transform: translateX(-26px) scale(1.06); } }
+.dg-vs { font: 900 18px 'Orbitron', monospace; color: var(--text-dim); }
+.dg-bar { height: 10px; background: #000; border: 1px solid var(--border-subtle); border-radius: 5px; overflow: hidden; position: relative; }
+.dg-bar > div { height: 100%; transition: width .25s; }
+.dg-bar .hp-p { background: linear-gradient(90deg, #00c070, #00ff88); }
+.dg-bar .hp-b { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
+.dg-bar .sh { position: absolute; top: 0; left: 0; height: 100%; background: rgba(0,240,255,.55); }
+.dg-hpt { font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin-top: 2px; }
+.dg-float { position: absolute; pointer-events: none; font: 900 18px 'Orbitron', monospace; text-shadow: 0 0 8px currentColor, 0 1px 0 #000; animation: dgFloat 1.1s ease-out forwards; white-space: nowrap; z-index: 3; }
+.dg-float.big { font-size: 26px; }
+@keyframes dgFloat { 0% { opacity: 0; transform: translateY(6px) scale(.6); } 15% { opacity: 1; transform: translateY(-6px) scale(1.15); } 100% { opacity: 0; transform: translateY(-46px) scale(1); } }
+.dg-mech { font-size: 11px; color: var(--amber); text-align: center; margin-top: 6px; min-height: 15px; }
+.dg-stances { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+.dg-stances button { padding: 9px 4px; font-size: 11px; line-height: 1.25; }
+.dg-stances button small { display: block; font-size: 9px; opacity: .75; font-family: inherit; }
+.dg-stances button.sel { box-shadow: 0 0 0 2px var(--amber) inset, 0 0 12px rgba(255,184,0,.4); color: var(--amber); }
+.dg-stances button.want { animation: tabGlow .6s ease-in-out infinite alternate; }
+.dg-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dg-row .btn { padding: 8px 10px; }
+.dg-log { height: 150px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,.45); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px 8px; display: flex; flex-direction: column-reverse; gap: 2px; }
+.dg-log div { line-height: 1.25; color: #8b9bb4; }
+.dg-log .g { color: var(--emerald); } .dg-log .r { color: var(--crimson); } .dg-log .y { color: var(--amber); } .dg-log .c { color: var(--cyan); }
+.dg-floor { display: flex; align-items: center; gap: 8px; }
+.dg-floor .num { font: 900 22px 'Orbitron', monospace; color: var(--crimson); min-width: 54px; text-align: center; }
+.dg-xp { height: 6px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.dg-xp div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--emerald)); }
+.dg-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dg-tier { padding: 6px 8px; border-left: 3px solid #2a3245; margin-bottom: 4px; font-size: 11px; background: rgba(255,255,255,.02); border-radius: 0 4px 4px 0; }
+.dg-tier.on { border-left-color: var(--emerald); }
+.dg-tier.next { border-left-color: var(--amber); }
+.dg-tier b { font-family: 'Orbitron', monospace; font-size: 10px; }
+.dg-art { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-panel-elevated); border-radius: 6px; margin-bottom: 4px; font-size: 11px; }
+.dg-art .ic { font-size: 22px; width: 28px; text-align: center; }
+.dg-art .t { flex: 1; min-width: 0; }
+.dg-art.eq { box-shadow: 0 0 0 1px var(--amber) inset; }
+.dg-classes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.dg-class { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; }
+.dg-class:hover { border-color: var(--cyan); }
+.dg-class .ic { font-size: 30px; }
+.dg-lock { text-align: center; padding: 30px 12px; }
+.dg-lock .big { font-size: 46px; }
+.dg-promo { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-panel-elevated); border-radius: 6px; margin-bottom: 4px; font-size: 11px; }
+.dg-promo .ic { font-size: 22px; }
+.dg-promo.done { opacity: .55; }
+#dg-open-btn { padding: 3px 9px; font-size: 11px; }
+html.m #dg-open-btn { display: none; }
+.lb-table tbody tr { cursor: pointer; }
+@media (max-width: 700px) {
+  .dg-grid2, .dg-classes { grid-template-columns: 1fr; }
+  .dg-sprite { width: 76px; height: 76px; }
+}
+</style>
+
+<div id="dg-screen">
+  <div class="dg-top">
+    <button class="btn btn-cyan" onclick="Dungeon.close()">◀ OFFICE</button>
+    <h1>⚔ INCIDENT DUNGEON</h1>
+    <span class="dg-keys" id="dg-keys">🔑 -</span>
+  </div>
+  <div class="dg-tabs">
+    <button class="casino-tab-btn active" id="dg-t-fight" onclick="Dungeon.tab('fight')">⚔ FIGHT</button>
+    <button class="casino-tab-btn" id="dg-t-career" onclick="Dungeon.tab('career')">📈 CAREER</button>
+    <button class="casino-tab-btn" id="dg-t-arena" onclick="Dungeon.tab('arena')">🏟 ARENA</button>
+    <button class="casino-tab-btn" id="dg-t-arts" onclick="Dungeon.tab('arts')">🗝 ARTIFACTS</button>
+  </div>
+  <div class="dg-body"><div class="dg-inner" id="dg-inner"></div></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const E = window.DungeonEngine;
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Math.floor(n).toLocaleString();
+  const KEY_MAX = 8, KEY_MS = 15 * 60 * 1000, TOKEN_KEYS = 1, UNLOCK_PRESTIGE = 1;
+  const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
+  const STANCE_TXT = { safe: ["SAFE", "steady hits"], normal: ["NORMAL", "balanced"], allin: ["ALL-IN", "jackpot or backfire"] };
+
+  let view = "fight", sel = { floor: 0 }, fight = null, fightTimer = 0, speed = 1, open = false;
+
+  // ------------------------------------------------------------------ STAV
+  function D() {
+    const g = gameState;
+    if (!g.dungeon || typeof g.dungeon !== "object") g.dungeon = {};
+    const d = g.dungeon;
+    if (d.cls !== "sysadmin" && d.cls !== "engineer" && d.cls !== "cyber") d.cls = null;
+    d.level = Math.max(1, Math.floor(Number(d.level) || 1));
+    d.xp = Math.max(0, Number(d.xp) || 0);
+    d.tier = Math.max(1, Math.min(4, Math.floor(Number(d.tier) || 1)));
+    if (d.branch !== "a" && d.branch !== "b") d.branch = "";
+    d.best = Math.max(0, Math.floor(Number(d.best) || 0));
+    if (typeof d.keys !== "number" || !isFinite(d.keys)) { d.keys = KEY_MAX; d.keysAt = Date.now(); }
+    if (!d.keysAt) d.keysAt = Date.now();
+    if (!d.artifacts || typeof d.artifacts !== "object") d.artifacts = {};
+    if (!Array.isArray(d.equipped)) d.equipped = [];
+    d.equipped = d.equipped.filter(id => d.artifacts[id]).slice(0, artSlots(d));
+    if (!d.promos || typeof d.promos !== "object") d.promos = {};
+    d.exec = !!d.promos.bod;
+    d.wins = Math.max(0, Number(d.wins) || 0); d.losses = Math.max(0, Number(d.losses) || 0);
+    if (d.stance !== "safe" && d.stance !== "normal" && d.stance !== "allin") d.stance = "normal";
+    if (d.arenaStance !== "safe" && d.arenaStance !== "normal" && d.arenaStance !== "allin") d.arenaStance = "normal";
+    return d;
+  }
+  function artSlots(d) { return Math.min(6, 2 + (d.promos && d.promos.hr ? 1 : 0) + (d.best >= 25 ? 1 : 0) + (d.best >= 50 ? 1 : 0) + (d.best >= 75 ? 1 : 0)); }
+  function unlocked() { const d = D(); return (gameState.prestige || 0) >= UNLOCK_PRESTIGE || d.best > 0 || d.cls; }
+
+  function regenKeys() {
+    const d = D(), now = Date.now();
+    if (d.keys >= KEY_MAX) { d.keysAt = now; return; }
+    const n = Math.floor((now - d.keysAt) / KEY_MS);
+    if (n > 0) { d.keys = Math.min(KEY_MAX, d.keys + n); d.keysAt = d.keys >= KEY_MAX ? now : d.keysAt + n * KEY_MS; }
+  }
+
+  function gear() {
+    const lo = gameState.loadout || {};
+    let a = 1, h = 1;
+    WEAPON.forEach(s => { const it = lo[s]; if (it) a += E.gearSlotValue(it.tier, it.lvl); });
+    ARMOR.forEach(s => { const it = lo[s]; if (it) h += E.gearSlotValue(it.tier, it.lvl); });
+    return { atk: a, hp: h };
+  }
+  function player() { const d = D(); return E.buildPlayer(d, gear()); }
+  function title(d) {
+    d = d || D();
+    if (!d.cls) return "Unassigned";
+    const c = E.CLASSES[d.cls];
+    const t = d.tier >= 4 && d.branch ? c.branches[d.branch] : c.tiers[Math.min(3, d.tier) - 1];
+    return (d.exec ? "Executive " : "") + t;
+  }
+
+  // ------------------------------------------------------------------ ODKAZY DO EKONOMIKY
+  /** Každé poprvé vyčištěné patro = trvalých +2 % k násobiči (tickety i GC), Executive +5 %. Přežije prestiž. */
+  function netMultBonus() { const d = D(); return 1 + 0.02 * d.best + (d.exec ? 0.05 : 0); }
+  function clickCritBonus() { const d = D(); return d.cls === "engineer" ? 0.01 * d.tier : 0; }
+
+  // ------------------------------------------------------------------ PIXEL ART (procedurální, symetrický, vlastní)
+  const PALETTES = [
+    ["#00f0ff", "#0a5f7a", "#ffffff"], ["#9aa5b1", "#4b5563", "#ffb800"], ["#e5e7eb", "#6b7280", "#a855f7"], ["#fbbf24", "#92400e", "#ff1744"],
+    ["#f97316", "#7c2d12", "#fde68a"], ["#22c55e", "#14532d", "#bbf7d0"], ["#ef4444", "#450a0a", "#fca5a5"], ["#10b981", "#064e3b", "#f8fafc"],
+    ["#eab308", "#422006", "#00f0ff"], ["#a855f7", "#3b0764", "#00ff88"], ["#f59e0b", "#78350f", "#fb7185"], ["#64748b", "#0f172a", "#ff1744"],
+    ["#38bdf8", "#0c4a6e", "#fef08a"], ["#f472b6", "#500724", "#ffffff"], ["#dc2626", "#1c1917", "#fbbf24"], ["#94a3b8", "#1e293b", "#22d3ee"],
+    ["#c084fc", "#2e1065", "#4ade80"], ["#84cc16", "#1a2e05", "#f43f5e"], ["#d6d3d1", "#44403c", "#fb923c"], ["#ffd700", "#7c2d12", "#ffffff"],
+    ["#fbbf24", "#1f2937", "#ef4444"], ["#f472b6", "#3f3f46", "#fef3c7"], ["#60a5fa", "#172554", "#fde047"], ["#e5e7eb", "#111827", "#a855f7"], ["#ffd700", "#3b0764", "#ffffff"]
+  ];
+  const spriteCache = {};
+  function sprite(idx, kind) {
+    const key = kind + idx;
+    if (spriteCache[key]) return spriteCache[key];
+    if (kind === "b" && idx === 1) {   // The Great "I" - opravdu písmeno I (patkové písmo, ať to není l)
+      return (spriteCache[key] = `<svg class="dg-sprite" viewBox="0 0 12 12"><rect width="12" height="12" rx="1.5" fill="#101826"/><text x="6" y="10" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="11" fill="#00f0ff" stroke="#ffffff" stroke-width=".25">I</text></svg>`);
+    }
+    const R = E.rng(9001 + idx * 7919 + (kind === "p" ? 31337 : 0));
+    const N = 12, half = 6, pal = kind === "p" ? [["#00f0ff", "#075985", "#ffffff"], ["#ffb800", "#7c2d12", "#ffffff"], ["#00ff88", "#064e3b", "#ff4dff"]][idx] : PALETTES[idx % PALETTES.length];
+    const px = [];
+    for (let y = 0; y < N; y++) for (let x = 0; x < half; x++) {
+      const dx = (half - 1 - x) / half, dy = Math.abs(y - N / 2 + 0.5) / (N / 2);
+      const p = 0.82 - dx * 0.55 - dy * 0.35;
+      if (R() < p) { const c = R() < 0.18 ? 2 : (R() < 0.7 ? 0 : 1); px.push([x, y, c]); px.push([N - 1 - x, y, c]); }
+    }
+    // oči
+    const ey = 3 + Math.floor(R() * 3);
+    [[3, ey], [8, ey]].forEach(([x, y]) => { px.push([x, y, 3]); });
+    const cols = pal.concat(["#ffffff"]);
+    let svg = `<svg class="dg-sprite" viewBox="0 0 ${N} ${N}" shape-rendering="crispEdges">`;
+    px.forEach(([x, y, c]) => { svg += `<rect x="${x}" y="${y}" width="1" height="1" fill="${cols[c]}"/>`; });
+    svg += `<rect x="3" y="${ey}" width="1" height="1" fill="#fff"/><rect x="8" y="${ey}" width="1" height="1" fill="#fff"/><rect x="3" y="${ey + 1}" width="1" height="1" fill="#000"/><rect x="8" y="${ey + 1}" width="1" height="1" fill="#000"/></svg>`;
+    spriteCache[key] = svg;
+    return svg;
+  }
+  function playerSprite() { const d = D(); return sprite(["sysadmin", "engineer", "cyber"].indexOf(d.cls || "sysadmin"), "p"); }
+
+  // ------------------------------------------------------------------ OTEVŘENÍ / ZAVŘENÍ
+  function openScreen() {
+    open = true;
+    $("dg-screen").classList.add("open");
+    regenKeys();
+    render();
+  }
+  function closeScreen() {
+    open = false;
+    $("dg-screen").classList.remove("open");
+    if (window.__dgBack) window.__dgBack();
+  }
+  function tab(t) {
+    view = t;
+    ["fight", "career", "arena", "arts"].forEach(x => { const b = $("dg-t-" + x); if (b) b.className = "casino-tab-btn" + (x === t ? " active" : ""); });
+    render();
+  }
+
+  // ------------------------------------------------------------------ RENDER
+  function render() {
+    if (!open) return;
+    const d = D();
+    regenKeys();
+    renderKeys();
+    const box = $("dg-inner");
+    if (!unlocked()) { box.innerHTML = lockedHtml(); return; }
+    if (!d.cls) { box.innerHTML = classPickHtml(false); return; }
+    if (d.tier >= 4 && !d.branch) { box.innerHTML = branchPickHtml(); return; }
+    if (view === "career") box.innerHTML = careerHtml();
+    else if (view === "arena") { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); }
+    else if (view === "arts") box.innerHTML = artsHtml();
+    else { box.innerHTML = fightHtml(); restoreFightView(); }
+  }
+
+  function renderKeys() {
+    const d = D(), el = $("dg-keys");
+    if (!el) return;
+    const next = d.keys >= KEY_MAX ? "" : " · +1 in " + fmtT(KEY_MS - (Date.now() - d.keysAt));
+    el.textContent = `🔑 ${d.keys}/${KEY_MAX}${next}`;
+  }
+  function fmtT(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+
+  function lockedHtml() {
+    const preview = E.BOSSES.slice(0, 5).map((b, i) => `<span title="${b.name}">${b.icon}</span>`).join(" ");
+    return `<div class="dg-card dg-lock"><div class="big">🔒</div>
+      <div style="font:800 15px Orbitron,monospace;color:var(--crimson);margin:8px 0;">EXECUTIVE LAYER LOCKED</div>
+      <div class="dg-dim">Reach <b>Prestige ${UNLOCK_PRESTIGE}</b> to unlock the Incident Dungeon: pick a class, fight IT bosses floor by floor with gamble attacks,
+      get promoted and collect artifacts. Your dungeon progress is <b>never reset</b> by prestige.<br><br>Bosses waiting for you: ${preview} ...</div></div>`;
+  }
+
+  function classPickHtml(respec) {
+    const cost = respecCost();
+    return `<div class="dg-card"><div class="dg-h">${respec ? "CHANGE CLASS (" + fmt(cost) + " GC)" : "CHOOSE YOUR CLASS"}</div>
+      <div class="dg-dim" style="margin-bottom:8px;">Your class decides your attack tables (how risky your hits are) and your career perks. ${respec ? "Level, floors and artifacts stay. Career branch is reset." : "You can change it later for GC."}</div>
+      <div class="dg-classes">${Object.keys(E.CLASSES).map(k => {
+        const c = E.CLASSES[k];
+        return `<div class="dg-class" onclick="Dungeon.pickClass('${k}')">${sprite(["sysadmin", "engineer", "cyber"].indexOf(k), "p")}<div class="ic">${c.icon}</div>
+          <div style="font:800 12px Orbitron,monospace;margin:4px 0;">${c.name}</div><div class="dg-dim">${c.desc}</div></div>`;
+      }).join("")}</div>
+      ${respec ? `<div style="text-align:right;margin-top:8px;"><button class="btn" onclick="Dungeon.tab('career')">CANCEL</button></div>` : ""}</div>`;
+  }
+
+  function branchPickHtml() {
+    const d = D(), c = E.CLASSES[d.cls];
+    return `<div class="dg-card"><div class="dg-h">THE CTO APPROVED YOUR PROMOTION - CHOOSE YOUR PATH</div>
+      <div class="dg-dim" style="margin-bottom:8px;">This choice is permanent (only a class change resets it).</div>
+      <div class="dg-grid2">${["a", "b"].map((k, i) => `<div class="dg-class" onclick="Dungeon.pickBranch('${k}')"><div style="font:800 13px Orbitron,monospace;color:var(--amber);margin-bottom:6px;">${c.branches[k]}</div><div class="dg-dim">${c.perks[3 + i]}</div></div>`).join("")}</div></div>`;
+  }
+
+  function statLine() {
+    const p = player(), g = gear(), d = D();
+    return `❤ <b>${fmt(p.maxHp)}</b> HP · ⚔ <b>${fmt(p.atk)}</b> ATK · 🌀 <b>${Math.round(p.dodge * 100)}%</b> dodge · gear ⚔×${g.atk.toFixed(2)} ❤×${g.hp.toFixed(2)}`;
+  }
+
+  function fightTarget() {
+    const d = D();
+    if (sel.promo) return E.promoBoss(sel.promo);
+    const f = Math.max(1, Math.min(d.best + 1, sel.floor || d.best + 1));   // výchozí = nejbližší nové patro
+    sel.floor = f;
+    return E.bossFor(f);
+  }
+
+  function fightHtml() {
+    const d = D(), p = player(), b = fightTarget();
+    const first = !b.promo && b.floor === d.best + 1;
+    const xpNeed = E.xpToNext(d.level);
+    const busy = !!(fight && !fight.over);
+    return `<div class="dg-card">
+      <div class="dg-h"><span>${E.CLASSES[d.cls].icon} ${escapeHtml(gameState.ldap)} · LV ${d.level} · ${escapeHtml(title())}</span><span style="color:var(--text-dim);">BEST FLOOR ${d.best}</span></div>
+      <div class="dg-dim">${statLine()} · bonus to office: <b>×${netMultBonus().toFixed(2)}</b> multiplier</div>
+      <div class="dg-xp"><div style="width:${Math.min(100, d.xp / xpNeed * 100)}%"></div></div>
+      <div class="dg-dim" style="text-align:right;">XP ${fmt(d.xp)} / ${fmt(xpNeed)}</div>
+    </div>
+    <div class="dg-card">
+      <div class="dg-floor">
+        <button class="btn" ${busy ? "disabled" : ""} onclick="Dungeon.floor(-1)">◀</button>
+        <div class="num">${b.promo ? b.icon : b.floor}</div>
+        <div style="flex:1;min-width:0;"><div class="dg-name" style="color:${b.promo ? "var(--amber)" : "var(--crimson)"};">${b.icon} ${escapeHtml(b.name)}</div>
+          <div class="dg-sub">${b.promo ? "PROMOTION REVIEW · " + E.PROMOS.find(x => x.id === b.promo).unlock : (first ? "NEW FLOOR · first clear bonus ×2.5 XP" : "farm · cleared")}</div></div>
+        <button class="btn" ${busy || sel.promo || b.floor > d.best ? "disabled" : ""} onclick="Dungeon.floor(1)">▶</button>
+      </div>
+      <div class="dg-dim" style="margin-top:6px;">⚙ ${escapeHtml(b.txt)}</div>
+    </div>
+    <div class="dg-arena" id="dg-arena">
+      <div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${E.CLASSES[d.cls].name}</div>
+        <div id="dg-ps">${playerSprite()}</div>
+        <div class="dg-bar"><div class="hp-p" id="dg-php" style="width:100%"></div><div class="sh" id="dg-psh" style="width:0%"></div></div>
+        <div class="dg-hpt" id="dg-phpt">${fmt(p.maxHp)} / ${fmt(p.maxHp)}</div></div>
+      <div class="dg-vs">VS</div>
+      <div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(b.name)}</div><div class="dg-sub">${b.promo ? "PROMOTION" : "FLOOR " + b.floor}</div>
+        <div id="dg-bs">${sprite(b.sprite, "b")}</div>
+        <div class="dg-bar"><div class="hp-b" id="dg-bhp" style="width:100%"></div><div class="sh" id="dg-bsh" style="width:0%"></div></div>
+        <div class="dg-hpt" id="dg-bhpt">${fmt(b.hp)} / ${fmt(b.hp)} · ⚔ ${fmt(b.atk)}</div></div>
+    </div>
+    <div class="dg-mech" id="dg-mech"></div>
+    <div class="dg-stances" id="dg-stances">${["safe", "normal", "allin"].map(s => `<button class="btn ${s === "allin" ? "btn-crimson" : (s === "safe" ? "btn-cyan" : "")} ${d.stance === s ? "sel" : ""}" id="dg-st-${s}" onclick="Dungeon.stance('${s}')">${STANCE_TXT[s][0]}<small>${STANCE_TXT[s][1]}</small></button>`).join("")}</div>
+    <div class="dg-row">
+      <button class="btn btn-gold" id="dg-go" style="flex:2;padding:11px;" ${busy ? "disabled" : ""} onclick="Dungeon.fight()">${busy ? "FIGHTING..." : "⚔ FIGHT (🔑 1)"}</button>
+      <button class="btn" id="dg-speed" style="flex:1;" onclick="Dungeon.speed()">SPEED ×${speed}</button>
+      <button class="btn" style="flex:1;" ${busy ? "" : "disabled"} id="dg-skip" onclick="Dungeon.skip()">SKIP ⏭</button>
+    </div>
+    <div class="dg-row" style="margin-top:6px;">
+      <button class="btn btn-cyan" style="flex:1;" ${gameState.slotTokens > 0 && d.keys < KEY_MAX ? "" : "disabled"} onclick="Dungeon.tokenKeys()">🎟 SLOT TOKEN → +${TOKEN_KEYS} 🔑 (${gameState.slotTokens})</button>
+      ${sel.promo ? `<button class="btn" style="flex:1;" ${busy ? "disabled" : ""} onclick="Dungeon.back()">BACK TO FLOORS</button>` : ""}
+    </div>
+    <div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>
+    <div class="dg-card"><div class="dg-dim">
+      <b>How it works:</b> each turn you hit, then the boss hits. Your hit is rolled like a slot machine from your class table.
+      <b>SAFE</b> = steady, <b>NORMAL</b> = balanced, <b>ALL-IN</b> = mostly weak hits but rare huge JACKPOTS and a small chance of BACKFIRE (you hit yourself).
+      All stances deal the same damage on average - only the risk differs. Favourite? play SAFE. Underdog? go ALL-IN. You can switch stance during the fight.
+      Weapons (TOOL, AUGMENT, RELIC) raise ATK, armor (HEAD, RIG, OS) raises HP. A new key every 15 min (max ${KEY_MAX}).</div></div>`;
+  }
+
+  function careerHtml() {
+    const d = D(), c = E.CLASSES[d.cls];
+    const tiers = [
+      { t: 1, name: c.tiers[0], perk: c.perks[0], req: "start" },
+      { t: 2, name: c.tiers[1], perk: c.perks[1], req: "LV 10 + beat Micromanager Team Lead" },
+      { t: 3, name: c.tiers[2], perk: c.perks[2], req: "LV 20 + beat Technical Board Review" },
+      { t: 4, name: d.branch ? c.branches[d.branch] : c.branches.a + " / " + c.branches.b, perk: d.branch ? c.perks[d.branch === "a" ? 3 : 4] : c.perks[3] + "<br>" + c.perks[4], req: "LV 25 + beat The CTO" }
+    ];
+    const promos = E.PROMOS.map((p, i) => {
+      const done = !!d.promos[p.id];
+      const prevOk = i === 0 || d.promos[E.PROMOS[i - 1].id];
+      const can = !done && d.level >= p.lvl && prevOk;
+      return `<div class="dg-promo ${done ? "done" : ""}"><span class="ic">${p.icon}</span><div style="flex:1;min-width:0;"><b>${p.name}</b> · LV ${p.lvl}<div class="dg-dim">${p.unlock} · ${p.txt}</div></div>
+        ${done ? "✔" : `<button class="btn ${can ? "btn-gold" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.promo('${p.id}')">${can ? "CHALLENGE" : "🔒"}</button>`}</div>`;
+    }).join("");
+    return `<div class="dg-grid2">
+      <div class="dg-card"><div class="dg-h"><span>${c.icon} ${c.name}</span><span>LV ${d.level}</span></div>
+        <div class="dg-dim" style="margin-bottom:6px;">${c.desc}<br>Wins ${d.wins} · Losses ${d.losses} · Best floor ${d.best}</div>
+        ${tiers.map(t => `<div class="dg-tier ${d.tier >= t.t ? "on" : (d.tier + 1 === t.t ? "next" : "")}"><b>T${t.t} ${t.name}</b> ${d.tier >= t.t ? "✔" : "🔒 " + t.req}<div class="dg-dim">${t.perk}</div></div>`).join("")}
+        ${d.exec ? `<div class="dg-tier on"><b>EXECUTIVE</b> ✔<div class="dg-dim">+10% ATK & HP, +5% office multiplier.</div></div>` : ""}
+        <button class="btn" style="margin-top:6px;width:100%;" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div>
+      <div class="dg-card"><div class="dg-h">PROMOTION REVIEWS</div>${promos}
+        <div class="dg-dim" style="margin-top:6px;">Each review costs 🔑 1. Losing costs nothing else - try again.</div></div>
+    </div>`;
+  }
+
+  function artsHtml() {
+    const d = D(), slots = artSlots(d);
+    const owned = E.ARTIFACTS.filter(a => d.artifacts[a.id]);
+    const rows = owned.length ? owned.map(a => {
+      const lvl = d.artifacts[a.id], eq = d.equipped.indexOf(a.id) >= 0;
+      return `<div class="dg-art ${eq ? "eq" : ""}"><span class="ic">${a.icon}</span><div class="t"><b>${a.name}</b> <span style="color:var(--amber);">LV ${lvl}/5</span><div class="dg-dim">${E.artifactText(a, lvl)}</div></div>
+        <button class="btn ${eq ? "btn-crimson" : "btn-cyan"}" ${!eq && d.equipped.length >= slots ? "disabled" : ""} onclick="Dungeon.equip('${a.id}')">${eq ? "REMOVE" : "EQUIP"}</button></div>`;
+    }).join("") : `<div class="dg-dim">No artifacts yet. Bosses drop them (every 5th floor guaranteed on first clear). Duplicates level them up (max LV 5, +25% effect per level).</div>`;
+    return `<div class="dg-card"><div class="dg-h"><span>ARTIFACTS</span><span>SLOTS ${d.equipped.length} / ${slots}</span></div>
+      <div class="dg-dim" style="margin-bottom:8px;">Slots: 2 base, +1 HR review, +1 at floor 25, 50 and 75 (max 6). Artifacts survive prestige. Every artifact has a trade-off.</div>${rows}</div>
+      <div class="dg-card"><div class="dg-h">ALL ARTIFACTS</div>${E.ARTIFACTS.map(a => `<div class="dg-dim">${d.artifacts[a.id] ? a.icon : "❔"} <b>${d.artifacts[a.id] ? a.name : "???"}</b> ${d.artifacts[a.id] ? "" : "- " + E.artifactText(a, 1)}</div>`).join("")}</div>`;
+  }
+
+  // ------------------------------------------------------------------ AKCE
+  function respecCost() { return 50000 * (1 + (gameState.prestige || 0)); }
+  function pickClass(k) {
+    const d = D();
+    if (d.cls && d.cls !== k) {
+      const cost = respecCost();
+      if (gameState.coins < cost) { log(`Changing class costs ${fmt(cost)} GC.`, "warning"); return; }
+      gameState.coins -= cost;
+      d.branch = "";
+      log(`CLASS CHANGED to ${E.CLASSES[k].name} (-${fmt(cost)} GC).`, "special");
+    } else if (!d.cls) log(`DUNGEON: you are now a ${E.CLASSES[k].name}. Good luck, ${escapeHtml(gameState.ldap)}!`, "special");
+    d.cls = k;
+    respecMode = false;
+    TT.saveSoon(); updateUI(); render();
+  }
+  let respecMode = false;
+  function respec() { respecMode = true; $("dg-inner").innerHTML = classPickHtml(true); }
+  function pickBranch(k) { const d = D(); d.branch = k; log(`CAREER: you became ${E.CLASSES[d.cls].branches[k]}!`, "special"); TT.saveSoon(); render(); }
+  function setStance(s) {
+    const d = D();
+    if (fight && !fight.over && E.allowedStances(fight).indexOf(s) < 0) { dlog("Stance locked by the boss!", "y"); return; }
+    d.stance = s;
+    ["safe", "normal", "allin"].forEach(x => { const b = $("dg-st-" + x); if (b) b.classList.toggle("sel", x === s); });
+  }
+  function floorNav(delta) { if (fight && !fight.over) return; const d = D(); sel.promo = null; sel.floor = Math.max(1, Math.min(d.best + 1, (sel.floor || 1) + delta)); render(); }
+  function back() { if (fight && !fight.over) return; sel.promo = null; sel.floor = D().best + 1; render(); }
+  function promo(id) { if (fight && !fight.over) return; sel.promo = id; view = "fight"; tab("fight"); }
+  function tokenKeys() {
+    const d = D();
+    if (gameState.slotTokens < 1 || d.keys >= KEY_MAX) return;
+    gameState.slotTokens -= 1;
+    d.keys = Math.min(KEY_MAX + TOKEN_KEYS, d.keys + TOKEN_KEYS);
+    log(`🎟 Slot Token converted into ${TOKEN_KEYS} dungeon keys.`, "special");
+    TT.saveSoon(); updateUI(); render();
+  }
+  function equip(id) {
+    const d = D();
+    const i = d.equipped.indexOf(id);
+    if (i >= 0) d.equipped.splice(i, 1);
+    else if (d.equipped.length < artSlots(d) && d.artifacts[id]) d.equipped.push(id);
+    TT.saveSoon(); render();
+  }
+  function cycleSpeed() { speed = speed === 1 ? 2 : (speed === 2 ? 4 : 1); const b = $("dg-speed"); if (b) b.innerText = "SPEED ×" + speed; }
+
+  // ------------------------------------------------------------------ SOUBOJ (UI)
+  let fightLog = [];
+  function dlog(t, cls) {
+    fightLog.unshift({ t: t, c: cls || "" });
+    fightLog = fightLog.slice(0, 60);
+    const el = $("dg-log"); if (!el) return;
+    const div = document.createElement("div"); if (cls) div.className = cls; div.innerHTML = t;
+    el.prepend(div);
+    while (el.childNodes.length > 60) el.removeChild(el.lastChild);
+  }
+  function restoreFightView() {
+    const el = $("dg-log"); if (!el) return;
+    el.innerHTML = fightLog.slice().reverse().map(x => `<div class="${x.c}">${x.t}</div>`).join("");
+    if (fight) bars();
+  }
+
+  function startFight() {
+    if (fight && !fight.over) return;
+    const d = D();
+    regenKeys();
+    if (d.keys < 1) { dlog("No keys left. A new key arrives every 15 min (or convert a Slot Token).", "r"); return; }
+    const boss = fightTarget();
+    d.keys -= 1;
+    if (d.keys < KEY_MAX && d.keys + 1 >= KEY_MAX) d.keysAt = Date.now();
+    const seed = Math.floor(TT.rnd() * 2147483647) + 1;
+    fight = E.newFight(player(), boss, seed);
+    fight.firstClear = !boss.promo && boss.floor === d.best + 1;
+    fightLog = [];
+    render();
+    dlog(`⚔ ${escapeHtml(boss.name)} appears! (${fmt(boss.hp)} HP, ${fmt(boss.atk)} ATK)`, "y");
+    if (fight.coin) dlog(fight.coin > 0 ? "🎲 Coin Toss: +25% ATK this fight!" : "🎲 Coin Toss: -15% ATK this fight...", fight.coin > 0 ? "g" : "r");
+    TT.saveSoon();
+    scheduleTurn(500);
+  }
+
+  function scheduleTurn(ms) { clearTimeout(fightTimer); fightTimer = setTimeout(turn, ms); }
+
+  function turn() {
+    if (!fight || fight.over) return;
+    const d = D();
+    const allowed = E.allowedStances(fight);
+    if (allowed.indexOf(d.stance) < 0) setStance(allowed.indexOf("normal") >= 0 ? "normal" : allowed[0]);
+    const evs = E.step(fight, d.stance);
+    playEvents(evs);
+    bars();
+    if (fight.over) { endFight(); return; }
+    scheduleTurn(document.hidden ? 50 : Math.round(750 / speed));
+  }
+
+  function skipFight() {
+    if (!fight || fight.over) return;
+    clearTimeout(fightTimer);
+    let guard = 0;
+    while (!fight.over && guard++ < 200) { const evs = E.step(fight, D().stance); evs.forEach(e => logEvent(e)); }
+    bars();
+    endFight();
+  }
+
+  function playEvents(evs) {
+    evs.forEach(e => {
+      logEvent(e);
+      if (e.type === "pattack") {
+        anim("dg-ps", "atk-l");
+        if (e.val > 0) { anim("dg-bs", "hit"); }
+        const label = e.kind === "jp" ? "JACKPOT " + fmt(e.val) : e.kind === "bf" ? "BACKFIRE" : e.kind === "jam" ? "JAMMED" : e.kind === "bdodge" ? "MISS" : fmt(e.val);
+        float(label, "b", e.kind === "jp" ? "#ffb800" : e.kind === "bf" ? "#ff1744" : (e.mult >= 1.5 ? "#00ff88" : "#ffffff"), e.kind === "jp");
+      } else if (e.type === "phit") { anim("dg-bs", "atk-r"); anim("dg-ps", "hit"); float("-" + fmt(e.val), "p", "#ff4d6d", e.val > fight.p.maxHp * 0.2); }
+      else if (e.type === "dodge") float("DODGE", "p", "#00f0ff");
+      else if (e.type === "heal") float("+" + fmt(e.val), "p", "#00ff88");
+      else if (e.type === "bheal") float("+" + fmt(e.val), "b", "#00ff88");
+      else if (e.type === "reflect" || e.type === "dot") float(fmt(e.val), "b", "#a855f7");
+      else if (e.type === "revive") float("POWER CYCLE!", "p", "#ffb800", true);
+      else if (e.type === "mech") { const m = $("dg-mech"); if (m) m.textContent = e.msg; if (e.want) document.querySelectorAll(".dg-stances button").forEach(b => b.classList.toggle("want", b.id === "dg-st-" + e.want)); }
+    });
+  }
+
+  function logEvent(e) {
+    const T = `<span style="color:#556;">T${e.t}</span> `;
+    if (e.type === "pattack") {
+      if (e.kind === "jam") dlog(T + "📄 Paper jam - your attack was blocked.", "r");
+      else if (e.kind === "bdodge") dlog(T + "The boss dodged your hit.", "r");
+      else if (e.kind === "bf") dlog(T + `💥 <b>BACKFIRE!</b> (${e.stance})`, "r");
+      else dlog(T + `${e.kind === "jp" ? "🎰 <b>JACKPOT</b>" : "You hit"} <b>${fmt(e.val)}</b> (${e.mult}× · ${e.stance})`, e.kind === "jp" ? "y" : (e.mult >= 1.4 ? "g" : ""));
+    } else if (e.type === "phit") dlog(T + `${e.src === "backfire" ? "You hurt yourself" : e.src === "reflect" ? "Reflected damage" : "Boss hits you"} for <b>${fmt(e.val)}</b>${e.absorbed ? " (" + fmt(e.absorbed) + " absorbed by shield)" : ""}`, "r");
+    else if (e.type === "dodge") dlog(T + "🌀 You dodged!", "c");
+    else if (e.type === "heal") dlog(T + `Reboot Script heals ${fmt(e.val)}.`, "g");
+    else if (e.type === "bheal") dlog(T + `Boss restores ${fmt(e.val)} HP.`, "y");
+    else if (e.type === "reflect") dlog(T + `Threat Intel reflects ${fmt(e.val)}.`, "c");
+    else if (e.type === "dot") dlog(T + `Zero-Day payload ticks ${fmt(e.val)}.`, "c");
+    else if (e.type === "revive") dlog(T + "🔌 POWER CYCLE - you survive!", "y");
+    else if (e.type === "mech") dlog(T + "⚙ " + escapeHtml(e.msg), "y");
+  }
+
+  function anim(id, cls) { const el = $(id); const s = el && el.firstElementChild; if (!s) return; s.classList.remove(cls); void s.getBoundingClientRect(); s.classList.add(cls); setTimeout(() => s.classList.remove(cls), 400); }
+  function float(txt, side, color, big) {
+    const ar = $("dg-arena"); if (!ar || document.hidden) return;
+    const el = document.createElement("div");
+    el.className = "dg-float" + (big ? " big" : "");
+    el.textContent = txt; el.style.color = color;
+    el.style.left = (side === "b" ? 66 + Math.random() * 12 : 12 + Math.random() * 12) + "%";
+    el.style.top = (30 + Math.random() * 20) + "%";
+    ar.appendChild(el);
+    setTimeout(() => el.remove(), 1150);
+  }
+  function bars() {
+    if (!fight) return;
+    const f = fight;
+    const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+    set("dg-php", f.php / f.p.maxHp * 100);
+    set("dg-psh", f.shield / f.p.maxHp * 100);
+    set("dg-bhp", f.bhp / f.bmax * 100);
+    set("dg-bsh", f.bshield / f.bmax * 100);
+    const a = $("dg-phpt"); if (a) a.textContent = `${fmt(Math.max(0, f.php))} / ${fmt(f.p.maxHp)}${f.shield ? " · 🛡" + fmt(f.shield) : ""}`;
+    const b = $("dg-bhpt"); if (b) b.textContent = `${fmt(Math.max(0, f.bhp))} / ${fmt(f.bmax)}${f.bshield ? " · 🛡" + fmt(f.bshield) : ""} · ⚔ ${fmt(f.b.atk)}`;
+  }
+
+  // ------------------------------------------------------------------ KONEC SOUBOJE + ODMĚNY
+  function endFight() {
+    const f = fight, d = D(), b = f.b;
+    const p = f.p;
+    if (f.win) {
+      d.wins++;
+      const floorEq = b.promo ? E.PROMOS.find(x => x.id === b.promo).lvl : b.floor;
+      let xp = b.promo ? E.winXp(floorEq, true) : E.winXp(floorEq, f.firstClear);
+      const lootMul = 1 + p.loot;
+      const gc = Math.floor((150 * Math.pow(floorEq, 1.6) + 200) * lootMul * (f.firstClear ? 2 : 1));
+      const scrap = Math.floor((40 * floorEq + 60) * (1 + 0.5 * (gameState.prestige || 0)) * lootMul);
+      gameState.coins += gc; gameState.scrap += scrap;
+      const lines = [`+${fmt(xp)} XP`, `+${fmt(gc)} GC`, `+${fmt(scrap)} scrap`];
+      if (f.firstClear) { d.best = b.floor; lines.push(`floor bonus: office ×${netMultBonus().toFixed(2)}`); }
+      // artefakt
+      const artChance = f.firstClear ? (b.floor % 5 === 0 ? 1 : 0.3) : (b.promo ? 0.5 : 0.05);
+      if (TT.rnd() < artChance) { const a = E.ARTIFACTS[Math.floor(TT.rnd() * E.ARTIFACTS.length)]; const was = d.artifacts[a.id] || 0; d.artifacts[a.id] = Math.min(5, was + 1); lines.push(`${a.icon} ${a.name}${was ? " → LV " + d.artifacts[a.id] : " (NEW!)"}`); if (!was && d.equipped.length < artSlots(d)) d.equipped.push(a.id); }
+      // Quantum (T6) gear - jediný zdroj
+      const qChance = f.firstClear && b.floor % 10 === 0 ? 1 : (!b.promo && b.floor >= 15 ? 0.015 : 0);
+      if (qChance && TT.rnd() < qChance) {
+        const slot = SLOTS[Math.floor(TT.rnd() * SLOTS.length)];
+        if (invFind(slot, 6, 0) || gameState.inventory.length < INV_MAX_STACKS) { invAdd(slot, 6, 0, 1); lines.push(`🌌 QUANTUM ${ITEM_TYPES[slot][5]} (T6)!`); log(`🌌 DUNGEON DROP: Quantum ${ITEM_TYPES[slot][5]} (T6)!`, "special"); }
+      }
+      // povýšení
+      if (b.promo) {
+        d.promos[b.promo] = 1;
+        if (b.promo === "lead") d.tier = Math.max(d.tier, 2);
+        if (b.promo === "board") d.tier = Math.max(d.tier, 3);
+        if (b.promo === "cto") d.tier = Math.max(d.tier, 4);
+        if (b.promo === "bod") d.exec = true;
+        lines.push("🎉 " + E.PROMOS.find(x => x.id === b.promo).unlock.toUpperCase());
+        sel.promo = null;
+      }
+      // CISO: výhra zadarmo
+      if (p.cls === "cyber" && p.tier >= 4 && p.branch === "a" && TT.rnd() < 0.35) { d.keys = Math.min(KEY_MAX + TOKEN_KEYS, d.keys + 1); lines.push("CISO insurance: key refunded"); }
+      gainXp(xp, lines);
+      dlog(`🏆 <b>VICTORY</b> in ${f.turn} turns: ${lines.join(" · ")}`, "g");
+      log(`⚔ DUNGEON: beat ${escapeHtml(b.name)}${b.promo ? "" : " (floor " + b.floor + ")"} - ${lines.join(", ")}`, "special");
+      if (window.TT && TT.announce && (f.firstClear && b.floor % 10 === 0 || b.promo)) TT.announce(b.promo ? "PROMOTED" : "FLOOR " + b.floor, "DUNGEON", 0, gc);
+      if (f.firstClear) sel.floor = d.best + 1;
+    } else {
+      d.losses++;
+      const xp = Math.round(E.winXp(b.promo ? 10 : b.floor, false) * 0.25);
+      gainXp(xp, []);
+      dlog(`☠ <b>DEFEAT</b> after ${f.turn} turns. +${fmt(xp)} XP. Level up, improve your gear or try another stance.`, "r");
+    }
+    const ps = document.querySelector(f.win ? "#dg-bs .dg-sprite" : "#dg-ps .dg-sprite"); if (ps) ps.classList.add("dead");
+    TT.saveSoon();
+    updateUI();
+    const go = $("dg-go"); if (go) { go.disabled = false; go.innerText = "⚔ FIGHT AGAIN (🔑 1)"; }
+    const sk = $("dg-skip"); if (sk) sk.disabled = true;
+    setTimeout(() => { if (open && fight && fight.over) { const keep = fightLog; render(); fightLog = keep; restoreFightView(); } }, 1600);
+  }
+
+  function gainXp(xp, lines) {
+    const d = D();
+    d.xp += xp;
+    let ups = 0;
+    while (d.xp >= E.xpToNext(d.level)) { d.xp -= E.xpToNext(d.level); d.level++; ups++; }
+    if (ups) { lines.push(`⬆ LEVEL ${d.level}!`); log(`⬆ DUNGEON LEVEL ${d.level}!`, "special"); }
+  }
+
+  // ------------------------------------------------------------------ ARÉNA (PvP proti postavám ostatních, počítá server)
+  const arena = { data: null, loading: false, err: "", atkStance: "normal", replay: null, timer: 0, busy: false };
+  const CLS_IDX = { sysadmin: 0, engineer: 1, cyber: 2 };
+
+  function arenaLoad() {
+    if (arena.loading) return;
+    arena.loading = true; arena.err = "";
+    google.script.run.withSuccessHandler(r => {
+      arena.loading = false;
+      if (r && r.ok) arena.data = r; else arena.err = "Could not load the arena.";
+      if (open && view === "arena" && !arena.replay) $("dg-inner").innerHTML = arenaHtml();
+    }).withFailureHandler(e => { arena.loading = false; arena.err = String(e && e.message || e); if (open && view === "arena") $("dg-inner").innerHTML = arenaHtml(); }).arenaList();
+  }
+
+  function stanceBtns(cur, fn) {
+    return ["safe", "normal", "allin"].map(s => `<button class="btn ${s === "allin" ? "btn-crimson" : (s === "safe" ? "btn-cyan" : "")} ${cur === s ? "sel" : ""}" onclick="Dungeon.${fn}('${s}')">${STANCE_TXT[s][0]}<small>${STANCE_TXT[s][1]}</small></button>`).join("");
+  }
+
+  function ago(ts) { const m = Math.max(0, Math.floor((Date.now() - ts) / 60000)); return m < 60 ? m + "m" : (m < 1440 ? Math.floor(m / 60) + "h" : Math.floor(m / 1440) + "d"); }
+
+  function arenaHtml() {
+    const d = D(), a = arena.data;
+    if (arena.replay) return arenaReplayHtml();
+    const me = a ? a.me : null;
+    const myPow = E.power(player());
+    let opp = "";
+    if (!a) opp = `<div class="dg-dim">${arena.err ? "⚠ " + escapeHtml(arena.err) : "Loading opponents..."}</div>`;
+    else if (!a.opponents.length) opp = `<div class="dg-dim">No opponents yet. Your friends need a dungeon class first (Prestige 1).</div>`;
+    else opp = a.opponents.map(o => {
+      const ratio = o.power / Math.max(1, myPow);
+      const tag = ratio > 1.25 ? `<span style="color:var(--crimson);">STRONGER</span>` : ratio < 0.8 ? `<span style="color:var(--emerald);">WEAKER</span>` : `<span style="color:var(--amber);">EVEN</span>`;
+      const cd = o.cooldown > 0;
+      const can = me && me.left > 0 && !cd && !arena.busy;
+      return `<div class="dg-art"><div style="width:44px;flex:none;">${sprite(CLS_IDX[o.cls] || 0, "p").replace('class="dg-sprite"', 'class="dg-sprite" style="width:40px;height:40px;margin:0;"')}</div>
+        <div class="t"><b>${escapeHtml(o.nick)}</b> · ${E.CLASSES[o.cls] ? E.CLASSES[o.cls].icon : ""} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
+          <div class="dg-dim">${escapeHtml(o.title || "")} · power ${fmt(o.power)} ${tag} · floor ${o.best} · ${o.wins}W/${o.losses}L</div></div>
+        <button class="btn ${can ? "btn-crimson" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.arenaAttack('${escapeHtml(o.nick).replace(/'/g, "")}')">${cd ? "⏳ " + fmtT(o.cooldown) : "⚔ ATTACK"}</button></div>`;
+    }).join("");
+    const log = a && a.log.length ? a.log.map(l => {
+      const iAtt = l.attacker === gameState.ldap, won = l.winner === gameState.ldap;
+      return `<div class="dg-dim"><span style="color:${won ? "var(--emerald)" : "var(--crimson)"};">${won ? "WIN" : "LOSS"}</span> · ${iAtt ? "you attacked <b>" + escapeHtml(l.defender) + "</b>" : "<b>" + escapeHtml(l.attacker) + "</b> attacked you"} · ${l.delta >= 0 ? "+" : ""}${l.delta} honor · ${ago(l.time)} ago</div>`;
+    }).join("") : `<div class="dg-dim">No arena fights yet.</div>`;
+    return `<div class="dg-grid2">
+      <div class="dg-card"><div class="dg-h"><span>🏟 YOUR ARENA CARD</span><button class="btn" style="padding:3px 8px;font-size:10px;" onclick="Dungeon.arenaRefresh()">↻</button></div>
+        <div class="dg-dim">Honor <b style="font-size:14px;">${me ? me.honor : "-"}</b> · ${me ? me.wins + "W / " + me.losses + "L" : ""} · attacks left today <b>${me ? me.left + " / " + me.perDay : "-"}</b> · your power <b>${fmt(myPow)}</b></div>
+        <div class="dg-h" style="margin-top:10px;">ATTACK STANCE</div>
+        <div class="dg-stances" style="margin:0;">${stanceBtns(arena.atkStance, "arenaAtkStance")}</div>
+        <div class="dg-h" style="margin-top:10px;">DEFENSE STANCE <span class="dg-dim" style="font-family:inherit;">(used when others attack you)</span></div>
+        <div class="dg-stances" style="margin:0;">${stanceBtns(d.arenaStance, "arenaDefStance")}</div>
+        <div class="dg-dim" style="margin-top:8px;">Fights are simulated by the server with your <b>saved</b> gear, level, class and artifacts - your friends fight your build even when you are offline.
+          Win = honor + GC. Same opponent once per 20 min. Honor works like chess Elo: beating stronger players gives more.</div></div>
+      <div class="dg-card"><div class="dg-h">RECENT FIGHTS</div>${log}</div>
+    </div>
+    <div class="dg-card"><div class="dg-h"><span>OPPONENTS</span><span class="dg-dim">sorted by honor</span></div>${opp}</div>`;
+  }
+
+  function arenaAtkStance(s) { arena.atkStance = s; $("dg-inner").innerHTML = arenaHtml(); }
+  function arenaDefStance(s) { D().arenaStance = s; TT.saveSoon(); $("dg-inner").innerHTML = arenaHtml(); }
+
+  function arenaAttack(nick) {
+    if (arena.busy) return;
+    arena.busy = true;
+    $("dg-inner").innerHTML = arenaHtml();
+    const go = () => google.script.run.withSuccessHandler(r => {
+      arena.busy = false;
+      if (!r || !r.ok) {
+        const why = { limit: "No attacks left today.", cooldown: "You fought this player recently.", target: "Opponent not available.", missing: "Save not found - try again in a few seconds.", noclass: "Pick a dungeon class first.", busy: "Server busy, try again." }[r && r.reason] || "Fight failed.";
+        arena.err = why; log("ARENA: " + why, "warning"); arenaLoad(); return;
+      }
+      gameState.coins += r.reward;              // odměna hned (i kdyby se replay nedokoukal)
+      TT.saveSoon(); updateUI();
+      log(`🏟 ARENA ${r.win ? "WIN" : "LOSS"} vs ${escapeHtml(r.opp.nick)}: ${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}), +${fmt(r.reward)} GC.`, r.win ? "special" : "error");
+      arena.replay = { r: r, idx: 0, hp: [r.max[0], r.max[1]], sh: [0, 0], lines: [] };
+      $("dg-inner").innerHTML = arenaReplayHtml();
+      arenaStep();
+    }).withFailureHandler(e => { arena.busy = false; arena.err = String(e && e.message || e); arenaLoad(); }).arenaFight(nick, arena.atkStance);
+    saveGame(() => go());                      // nejdřív uložit aktuální build, server bojuje s uloženým
+  }
+
+  function arenaReplayHtml() {
+    const rp = arena.replay, r = rp.r, d = D();
+    return `<div class="dg-arena" id="dg-arena">
+      <div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${E.CLASSES[d.cls].name} · ${STANCE_TXT[arena.atkStance][0]}</div>
+        <div id="ar-a">${playerSprite()}</div>
+        <div class="dg-bar"><div class="hp-p" id="ar-ahp" style="width:100%"></div><div class="sh" id="ar-ash" style="width:0%"></div></div><div class="dg-hpt" id="ar-ahpt"></div></div>
+      <div class="dg-vs">VS</div>
+      <div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(r.opp.nick)}</div><div class="dg-sub">${E.CLASSES[r.opp.cls] ? E.CLASSES[r.opp.cls].name : ""} LV ${r.opp.level} · ${STANCE_TXT[r.defStance][0]}</div>
+        <div id="ar-b">${sprite(CLS_IDX[r.opp.cls] || 0, "p")}</div>
+        <div class="dg-bar"><div class="hp-b" id="ar-bhp" style="width:100%"></div><div class="sh" id="ar-bsh" style="width:0%"></div></div><div class="dg-hpt" id="ar-bhpt"></div></div>
+    </div>
+    <div class="dg-mech" id="ar-res">${r.first === 0 ? "You strike first!" : escapeHtml(r.opp.nick) + " strikes first!"}</div>
+    <div class="dg-row"><button class="btn" style="flex:1;" id="ar-skip" onclick="Dungeon.arenaSkip()">SKIP ⏭</button>
+      <button class="btn btn-gold" style="flex:1;" id="ar-back" disabled onclick="Dungeon.arenaBack()">BACK TO ARENA</button></div>
+    <div class="dg-card" style="margin-top:10px;"><div class="dg-h">FIGHT LOG</div><div class="dg-log" id="ar-log"></div></div>`;
+  }
+
+  function arenaBars() {
+    const rp = arena.replay; if (!rp) return;
+    const m = rp.r.max;
+    const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+    set("ar-ahp", rp.hp[0] / m[0] * 100); set("ar-bhp", rp.hp[1] / m[1] * 100);
+    set("ar-ash", rp.sh[0] / m[0] * 100); set("ar-bsh", rp.sh[1] / m[1] * 100);
+    const a = $("ar-ahpt"); if (a) a.textContent = fmt(rp.hp[0]) + " / " + fmt(m[0]);
+    const b = $("ar-bhpt"); if (b) b.textContent = fmt(rp.hp[1]) + " / " + fmt(m[1]);
+  }
+
+  function arenaLine(e) {
+    const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">T${e.t}</span> `;
+    if (e.type === "hit") return [T + `${nm(e.i)} ${e.kind === "jp" ? "🎰 <b>JACKPOT</b>" : "hit"} <b>${fmt(e.val)}</b> (${e.mult}×)${e.rev ? " - 🔌 POWER CYCLE!" : ""}`, e.i === 0 ? (e.kind === "jp" ? "y" : "g") : "r"];
+    if (e.type === "bf") return [T + `💥 ${nm(e.i)} BACKFIRED for ${fmt(e.val)}`, e.i === 0 ? "r" : "g"];
+    if (e.type === "dodge") return [T + `🌀 ${nm(1 - e.i)} dodged`, e.i === 0 ? "r" : "c"];
+    if (e.type === "reflect") return [T + `${nm(e.i)} reflected ${fmt(e.val)}`, "c"];
+    if (e.type === "heal") return [T + `${nm(e.i)} healed ${fmt(e.val)}`, "g"];
+    if (e.type === "dot") return [T + `Zero-day payload ticks ${fmt(e.val)}`, "c"];
+    return [T + e.type, ""];
+  }
+
+  function arenaApply(e, animate) {
+    const rp = arena.replay;
+    rp.hp = e.hp.slice(); rp.sh = e.sh.slice();
+    const ln = arenaLine(e); rp.lines.unshift(ln);
+    const el = $("ar-log"); if (el) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
+    if (animate && !document.hidden) {
+      const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a";
+      if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit") anim(def, "hit"); }
+      if (e.type === "bf") anim(atk, "hit");
+      const side = (e.type === "hit" || e.type === "dot") ? (e.i === 0 ? "b" : "p") : (e.type === "bf" || e.type === "heal") ? (e.i === 0 ? "p" : "b") : (e.type === "dodge" ? (e.i === 0 ? "b" : "p") : (e.i === 0 ? "b" : "p"));
+      const txt = e.type === "hit" ? (e.kind === "jp" ? "JACKPOT " + fmt(e.val) : fmt(e.val)) : e.type === "bf" ? "BACKFIRE" : e.type === "dodge" ? "DODGE" : e.type === "heal" ? "+" + fmt(e.val) : fmt(e.val || 0);
+      float(txt, side, e.type === "hit" ? (e.kind === "jp" ? "#ffb800" : "#ffffff") : e.type === "bf" ? "#ff1744" : e.type === "dodge" ? "#00f0ff" : "#00ff88", e.kind === "jp");
+    }
+    arenaBars();
+  }
+
+  function arenaStep() {
+    const rp = arena.replay; if (!rp) return;
+    clearTimeout(arena.timer);
+    if (rp.idx >= rp.r.events.length) { arenaEnd(); return; }
+    arenaApply(rp.r.events[rp.idx++], true);
+    arena.timer = setTimeout(arenaStep, document.hidden ? 30 : 520);
+  }
+  function arenaSkip() { const rp = arena.replay; if (!rp) return; clearTimeout(arena.timer); while (rp.idx < rp.r.events.length) arenaApply(rp.r.events[rp.idx++], false); arenaEnd(); }
+  function arenaEnd() {
+    const rp = arena.replay, r = rp.r;
+    rp.done = true;
+    const res = $("ar-res");
+    if (res) res.innerHTML = `<span style="font:900 18px Orbitron,monospace;color:${r.win ? "var(--emerald)" : "var(--crimson)"};">${r.win ? "🏆 VICTORY" : "☠ DEFEAT"}</span><br>${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}) · +${fmt(r.reward)} GC · ${r.left} attacks left today`;
+    const loser = document.querySelector(r.win ? "#ar-b .dg-sprite" : "#ar-a .dg-sprite"); if (loser) loser.classList.add("dead");
+    const b = $("ar-back"); if (b) b.disabled = false;
+    const s = $("ar-skip"); if (s) s.disabled = true;
+  }
+  function arenaRestore() {
+    $("dg-inner").innerHTML = arenaReplayHtml();
+    const rp = arena.replay;
+    const el = $("ar-log"); if (el) el.innerHTML = rp.lines.slice().reverse().map(l => `<div class="${l[1]}">${l[0]}</div>`).join("");
+    arenaBars();
+    if (rp.done) arenaEnd();
+  }
+  function arenaBack() { clearTimeout(arena.timer); arena.replay = null; arena.data = null; render(); }
+
+  // ------------------------------------------------------------------ PROFIL HRÁČE (leaderboard)
+  function showProfile(u) {
+    if (!u) return;
+    const dg = u.dungeon || {};
+    const cls = dg.cls && E.CLASSES[dg.cls];
+    const old = $("dg-profile"); if (old) old.remove();
+    const el = document.createElement("div");
+    el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
+    el.onclick = (e) => { if (e.target === el) el.remove(); };
+    el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
+      <h2 style="color:var(--cyan);">${escapeHtml(u.ldap)}</h2>
+      <div style="display:flex;gap:12px;align-items:center;">
+        ${cls ? sprite(["sysadmin", "engineer", "cyber"].indexOf(dg.cls), "p") : '<div style="font-size:48px;">👤</div>'}
+        <div class="tt-body" style="min-height:0;font-size:13px;">
+          ${cls ? `<b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "No dungeon class yet<br>"}
+          Best floor: <b>${dg.best || 0}</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
+          Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
+          Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
+          ${u.gear ? `<br>Gear: ${u.gear}` : ""}
+        </div></div>
+      <div style="text-align:right;margin-top:10px;"><button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
+    document.body.appendChild(el);
+  }
+
+  /** data pro uložení / leaderboard */
+  function payload() {
+    const d = D();
+    return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), tier: d.tier, branch: d.branch, best: d.best, keys: d.keys, keysAt: d.keysAt,
+      artifacts: d.artifacts, equipped: d.equipped, promos: d.promos, wins: d.wins, losses: d.losses, stance: d.stance, arenaStance: d.arenaStance, title: title(d) };
+  }
+
+  // ------------------------------------------------------------------ BOOT
+  window.Dungeon = {
+    open: openScreen, close: closeScreen, tab: tab, fight: startFight, skip: skipFight, speed: cycleSpeed, stance: setStance,
+    floor: floorNav, back: back, promo: promo, pickClass: pickClass, pickBranch: pickBranch, respec: respec, tokenKeys: tokenKeys, equip: equip,
+    arenaAttack: arenaAttack, arenaAtkStance: arenaAtkStance, arenaDefStance: arenaDefStance, arenaSkip: arenaSkip, arenaBack: arenaBack,
+    arenaRefresh: function () { arena.data = null; render(); },
+    netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, showProfile: showProfile, state: D, unlocked: unlocked,
+    isBusy: () => !!(fight && !fight.over) || arena.busy || !!(arena.replay && !arena.replay.done), onLeaderboard: function () {}
+  };
+
+  function boot() {
+    if (!window.TT || typeof gameState === "undefined") { setTimeout(boot, 50); return; }
+    // tlačítko v horní liště (PC)
+    const badge = document.querySelector(".user-badge");
+    if (badge && !$("dg-open-btn")) {
+      const b = document.createElement("button");
+      b.id = "dg-open-btn"; b.className = "btn btn-crimson"; b.textContent = "⚔ DUNGEON";
+      b.onclick = openScreen;
+      badge.insertBefore(b, badge.firstChild);
+    }
+    const prev = TT.isBusy;
+    TT.isBusy = function () { return prev() || Dungeon.isBusy(); };
+    setInterval(() => { if (open) { regenKeys(); renderKeys(); } }, 1000);
+    document.addEventListener("keydown", (e) => { if (open && e.key === "Escape" && !Dungeon.isBusy()) closeScreen(); });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+
   <style>
 /* ======================= MOBILNÍ REŽIM (html.m) =======================
    Stejná hra, jen jiné rozložení: horní lišta + mini HUD + obsah jedné záložky + spodní lišta.
@@ -4338,8 +6442,12 @@ html.m #m-tabs button {
   flex: 1; padding: 9px 2px 8px; background: none; border: 0; border-top: 2px solid transparent; color: var(--text-dim);
   font: 700 9px 'Orbitron', monospace; letter-spacing: .5px; cursor: pointer;
 }
-html.m #m-tabs button span { display: block; font-size: 18px; margin-bottom: 2px; }
+html.m #m-tabs button span { display: block; font-size: 17px; margin-bottom: 2px; }
 html.m #m-tabs button.active { color: var(--cyan); border-top-color: var(--cyan); background: rgba(0,240,255,.06); }
+html.m #m-tabs button { position: relative; }
+html.m #m-tabs button[data-go="fight"] { color: #ff4d6d; }
+html.has-unread #m-tabs button[data-go="more"]::after,
+html.sd-glow #m-tabs button[data-go="casino"]::after { content: ""; position: absolute; top: 5px; right: 22%; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 6px var(--crimson); }
 
 html.m #fx-toggle, html.m #ir-logout { display: none !important; }
 html.m .panel { padding: 10px; }
@@ -4372,6 +6480,7 @@ html.m body[data-mtab="more"] #m-settings { display: block; }
   <button data-go="chest"><span>📦</span>CHEST</button>
   <button data-go="bag"><span>🎒</span>BAG</button>
   <button data-go="casino"><span>🎰</span>CASINO</button>
+  <button data-go="fight"><span>⚔</span>FIGHT</button>
   <button data-go="more"><span>☰</span>MORE</button>
 </nav>
 <div class="panel" id="m-settings" data-tab="more">
@@ -4423,10 +6532,14 @@ html.m body[data-mtab="more"] #m-settings { display: block; }
     for (var i = 0; i < bs.length; i++) bs[i].classList.toggle("active", bs[i].getAttribute("data-go") === t);
     var mw = document.querySelector(".main-wrapper"); if (mw) mw.scrollTop = 0;
     try { localStorage.setItem("ir_tab", t); } catch (e) {}
+    if (t === "more" && typeof chatVisible === "function" && chatVisible() && typeof chatUnread !== "undefined" && chatUnread) { chatUnread = 0; renderChatUnread(); }
     window.dispatchEvent(new Event("resize"));      // ruleta si přepočítá šířku
   }
   document.getElementById("m-tabs").addEventListener("click", function (ev) {
-    var b = ev.target.closest("button[data-go]"); if (b) setTab(b.getAttribute("data-go"));
+    var b = ev.target.closest("button[data-go]"); if (!b) return;
+    var go = b.getAttribute("data-go");
+    if (go === "fight") { if (window.Dungeon) Dungeon.open(); return; }
+    setTab(go);
   });
 
   function setAppH() {
