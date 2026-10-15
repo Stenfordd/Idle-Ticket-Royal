@@ -3705,7 +3705,8 @@ const TUTORIAL_STEPS = [
     <p>Unlocks at <b>Prestige 1</b>. Pick a class (SysAdmin, Engineer, Cyber), fight IT bosses floor by floor. Each boss has its own trick.</p>
     <ul><li>Every hit is a <b>slot machine</b>: SAFE = steady, ALL-IN = rare <b>JACKPOT</b> or <b>BACKFIRE</b>. Same average - different risk. Underdog? Go all-in</li>
     <li>Weapons (TOOL/AUGMENT/RELIC) = ATK, armor (HEAD/RIG/OS) = HP. Level, career, floors and artifacts <b>survive prestige</b></li>
-    <li>Every new floor = <b>+2% permanent multiplier</b> for the office. Beat HR bosses to get promoted</li></ul>` },
+    <li>Every new floor = <b>+2% permanent multiplier</b> for the office. Beat HR bosses to get promoted</li>
+    <li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC. Set a defense stance for when they attack you</li></ul>` },
   { t: "9) SCORE", b: `
     <p>Score = prestige, lifetime tickets, best chest level and best dungeon floor. It never goes down. Click a player in the Top 10 to see their card.</p>
     <p>Reopen this guide anytime with <b>? HOW TO PLAY</b>.</p>` }
@@ -4137,8 +4138,17 @@ window.__startGame = initGame;
 .cr-stats .stat-box { text-align: center; }
 .cr-msg { text-align: center; font-family: 'Orbitron', monospace; font-size: 12px; min-height: 18px; margin-bottom: 6px; }
 
-.pc-canvas-wrap { background: #05070b; border: 1px solid var(--border-subtle); border-radius: 4px; margin-bottom: 8px; }
-#pc-canvas { width: 100%; height: auto; display: block; }
+.pc-canvas-wrap { position: relative; background: radial-gradient(ellipse at 50% 0%, #121a2c 0%, #05070b 70%); border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+#pc-canvas { width: 100%; height: auto; display: block; aspect-ratio: 360 / 400; }
+.pc-risk { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; }
+.pc-risk .btn { padding: 5px 0; font-size: 10px; }
+.pc-risk .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.pc-pops { position: absolute; inset: 0; pointer-events: none; }
+.pc-pop { position: absolute; transform: translateX(-50%); font: 900 13px 'Orbitron', monospace; white-space: nowrap; text-shadow: 0 0 8px currentColor, 0 1px 0 #000; animation: pcPop 1.2s ease-out forwards; }
+.pc-pop.big { font-size: 20px; }
+@keyframes pcPop { 0% { opacity: 0; transform: translate(-50%, 8px) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -4px) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -48px) scale(1); } }
+.pc-live { display: flex; justify-content: space-between; font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin-bottom: 6px; min-height: 14px; }
+.pc-live b { color: var(--amber); }
 
 .sd-picker { background: var(--bg-panel-elevated); border-radius: 4px; padding: 8px; margin-bottom: 8px; }
 .sd-pick-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
@@ -4164,9 +4174,15 @@ window.__startGame = initGame;
   const CR_MAX_JUMPS = 15, CR_GROWTH = 1.92, CR_MAX_BET = 100000, CR_JACKPOT_MULT = 50;
   const PC_ROWS = 12;
   const PC_VALUES = ["10", "50", "100", "500"];
-  const PC_MULTS = [500, 25, 4, 1.2, 0.5, 0.3, 0.3, 0.3, 0.5, 1.2, 4, 25, 500];
-  const PC_MAX_ACTIVE = 15;
-  const W = 320, H = 340, HS = 12, TOP = 30, DY = 21, SEG_MS = 140;
+  // RTP: low 96.7 % (77 % košů ≥1×), medium 95.3 %, high 95.3 % (okraje 500×)
+  const PC_RISKS = {
+    low:    [10, 3, 1.6, 1.4, 1.1, 1, 0.4, 1, 1.1, 1.4, 1.6, 3, 10],
+    medium: [33, 11, 4, 2, 1.2, 0.5, 0.2, 0.5, 1.2, 2, 4, 11, 33],
+    high:   [500, 25, 4, 1.2, 0.5, 0.3, 0.3, 0.3, 0.5, 1.2, 4, 25, 500]
+  };
+  let PC_MULTS = PC_RISKS.high;
+  const PC_MAX_ACTIVE = 25;
+  const W = 360, H = 400, HS = 13.5, TOP = 46, DY = 24, SEG_MS = 165, PEG_R = 3.2, BALL_R = 5.2, BIN_Y = 344, BIN_H = 40;
   const SD_ICON = { R: "✊", P: "✋", S: "✌️" };
   const SD_MIN = 10, SD_MAX = 100000;
 
@@ -4174,7 +4190,7 @@ window.__startGame = initGame;
   const fmt = (n) => Math.floor(n).toLocaleString();
   function crMult(n) { return Math.round(Math.pow(CR_GROWTH, n) * 100) / 100; }
   function binom(n, k) { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
-  function pcRtp() { let s = 0; for (let k = 0; k <= PC_ROWS; k++) s += (binom(PC_ROWS, k) / Math.pow(2, PC_ROWS)) * PC_MULTS[k]; return s; }
+  function pcRtp(t) { t = t || PC_MULTS; let s = 0; for (let k = 0; k <= PC_ROWS; k++) s += (binom(PC_ROWS, k) / Math.pow(2, PC_ROWS)) * t[k]; return s; }
 
   // ===== UI =====
   function buildUi() {
@@ -4213,8 +4229,14 @@ window.__startGame = initGame;
 
         <div id="adv-view-pachinko" style="display:none;">
           <div class="adv-bal">Balance: <span id="bal-pachinko">0 GC</span></div>
-          <div class="adv-info" style="margin-bottom:6px;">Buy balls, drop them. Edge bins pay up to <b>500×</b>, the middle only <b>0.3×</b>. RTP: <b id="pc-rtp">--</b></div>
-          <div class="pc-canvas-wrap"><canvas id="pc-canvas" width="${W}" height="${H}"></canvas></div>
+          <div class="adv-info" style="margin-bottom:6px;">Buy balls, drop them. Pick your risk: <b>LOW</b> pays often, <b>HIGH</b> has <b>500×</b> edges. RTP: <b id="pc-rtp">--</b></div>
+          <div class="pc-risk" id="pc-risk">
+            <button class="btn" data-r="low" onclick="AdvMini.pcRisk('low')">🟢 LOW</button>
+            <button class="btn" data-r="medium" onclick="AdvMini.pcRisk('medium')">🟡 MEDIUM</button>
+            <button class="btn" data-r="high" onclick="AdvMini.pcRisk('high')">🔴 HIGH</button>
+          </div>
+          <div class="pc-canvas-wrap"><canvas id="pc-canvas"></canvas><div class="pc-pops" id="pc-pops"></div></div>
+          <div class="pc-live" id="pc-live"></div>
           <div class="adv-row">
             <span style="font-size:11px;">BALL VALUE:</span>
             <select class="adv-select" id="pc-value" onchange="AdvMini.pcRefresh()">${PC_VALUES.map(v => `<option value="${v}">${v} GC</option>`).join("")}</select>
@@ -4228,7 +4250,8 @@ window.__startGame = initGame;
           <div class="adv-row">
             <button class="btn btn-crimson" style="flex:1;" onclick="AdvMini.pcDrop(1)">DROP 1</button>
             <button class="btn btn-crimson" style="flex:1;" onclick="AdvMini.pcDrop(5)">DROP 5</button>
-            <button class="btn btn-cyan" style="flex:1;" onclick="AdvMini.pcDrop(99)">DROP MAX</button>
+            <button class="btn btn-cyan" style="flex:1;" onclick="AdvMini.pcDrop(10)">DROP 10</button>
+            <button class="btn btn-gold" style="flex:1;" id="pc-auto" onclick="AdvMini.pcAuto()">AUTO ▶</button>
           </div>
           <div class="cr-msg" id="pc-msg">Buy some balls to start.</div>
         </div>
@@ -4336,7 +4359,9 @@ window.__startGame = initGame;
   }
 
   // ===== PACHINKO =====
-  const pc = { balls: [], raf: 0, ctx: null, flash: [], seq: 0, batches: {} };
+  // Výsledek (koš) se losuje poctivě (12× vlevo/vpravo = binomické rozdělení), animace pak míček "fyzikálně"
+  // provede po kolících: parabolické odskoky s gravitací, stopa, záblesk kolíku, odraz v koši.
+  const pc = { balls: [], raf: 0, ctx: null, flash: [], pegHits: {}, binHits: {}, seq: 0, batches: {}, auto: false, autoT: 0, risk: "high", dpr: 1, session: { n: 0, spent: 0, back: 0 } };
 
   function pcStock() {
     const g = TT.state();
@@ -4349,6 +4374,19 @@ window.__startGame = initGame;
     const a = $("pc-stock"), b = $("pc-play");
     if (a) a.innerText = fmt(pcStock()[pcValue()] || 0);
     if (b) b.innerText = pc.balls.length;
+    const l = $("pc-live");
+    if (l) {
+      const s = pc.session, net = s.back - s.spent;
+      l.innerHTML = s.n ? `<span>SESSION: <b>${s.n}</b> balls</span><span>spent <b>${fmt(s.spent)}</b></span><span>back <b>${fmt(s.back)}</b></span><span style="color:${net >= 0 ? "var(--emerald)" : "var(--crimson)"};">${net >= 0 ? "+" : ""}${fmt(net)}</span>` : "";
+    }
+  }
+  function pcRisk(r) {
+    if (!PC_RISKS[r]) return;
+    pc.risk = r; PC_MULTS = PC_RISKS[r];
+    try { localStorage.setItem("ir_pc_risk", r); } catch (e) {}
+    document.querySelectorAll("#pc-risk .btn").forEach(b => b.classList.toggle("sel", b.getAttribute("data-r") === r));
+    const el = $("pc-rtp"); if (el) el.innerText = (pcRtp() * 100).toFixed(1) + "%";
+    if (pc.ctx && !pc.raf) pcDrawBoard(pc.ctx, performance.now());
   }
 
   function pcBuy(n) {
@@ -4367,45 +4405,68 @@ window.__startGame = initGame;
     for (let i = 0; i < n; i++) {
       if (stock[key] <= 0 || pc.balls.length >= PC_MAX_ACTIVE) break;
       stock[key] -= 1;
-      pcLaunch(Number(key), batch);
+      pcLaunch(Number(key), batch, i * 110);
       dropped++;
     }
     if (batch && dropped > 1) pc.batches[batch] = { n: dropped, left: dropped, spent: dropped * Number(key), back: 0, best: 0 };
     if (dropped === 0) {
       $("pc-msg").style.color = "var(--amber)";
       $("pc-msg").innerText = stock[key] <= 0 ? "No balls in stock - buy some!" : `Max ${PC_MAX_ACTIVE} balls in play at once.`;
+      if (pc.auto && stock[key] <= 0) pcAuto();
     }
     pcRefresh();
     TT.saveSoon();
+    return dropped;
   }
 
-  function pcLaunch(value, batch) {
+  function pcAuto() {
+    pc.auto = !pc.auto;
+    const b = $("pc-auto");
+    if (b) { b.innerText = pc.auto ? "STOP ■" : "AUTO ▶"; b.className = "btn " + (pc.auto ? "btn-crimson" : "btn-gold"); }
+    clearInterval(pc.autoT);
+    if (pc.auto) pc.autoT = setInterval(() => { if (pc.balls.length < PC_MAX_ACTIVE - 2) pcDrop(1); }, 380);
+  }
+
+  function pegX(row, k) { return W / 2 + k * HS; }      // k = posun (-row..row po 2)
+  function pegY(row) { return TOP + row * DY; }
+
+  function pcLaunch(value, batch, delay) {
+    const R = () => TT.rnd();
     const offs = [0];
     let o = 0;
-    for (let i = 0; i < PC_ROWS; i++) { o += (TT.rnd() < 0.5) ? -1 : 1; offs.push(o); }
+    for (let i = 0; i < PC_ROWS; i++) { o += (R() < 0.5) ? -1 : 1; offs.push(o); }
     const bin = (o + PC_ROWS) / 2;
-    const pts = [{ x: 0, y: 8 }];
-    for (let i = 0; i < PC_ROWS; i++) pts.push({ x: offs[i], y: TOP + i * DY - 8 });
-    pts.push({ x: offs[PC_ROWS], y: 306 });
+    // body dopadu na kolíky: na řádku i míček ťukne do kolíku offs[i] a odskočí na stranu offs[i+1]
+    const pts = [{ x: W / 2 + (R() - 0.5) * 4, y: 6, peg: null }];
+    for (let i = 0; i < PC_ROWS; i++) pts.push({ x: pegX(i, offs[i]) + (offs[i + 1] - offs[i]) * (PEG_R + BALL_R - 2) * 0.55 + (R() - 0.5) * 1.6, y: pegY(i) - PEG_R - BALL_R + 1, peg: i + ":" + offs[i] });
+    pts.push({ x: W / 2 + (2 * bin - PC_ROWS) * HS, y: BIN_Y + BIN_H - BALL_R - 4, peg: null, bin: bin });
     const id = Date.now() + "_" + (pc.seq++);
-    // míček v letu se ukládá do savu -> při reloadu se vyplatí (dřív propadl)
-    TT.state().pcPending.push({ id: id, value: value, bin: bin });
-    pc.balls.push({ id: id, value: value, bin: bin, pts: pts, t0: performance.now(), dur: (pts.length - 1) * SEG_MS, batch: batch });
+    const risk = pc.risk;
+    TT.state().pcPending.push({ id: id, value: value, bin: bin, risk: risk });     // míček v letu je v savu
+    pc.session.n++; pc.session.spent += value;
+    const t0 = performance.now() + (delay || 0);
+    const segs = pts.length - 1;
+    const durs = [];
+    for (let i = 0; i < segs; i++) durs.push(i === 0 ? 260 : (i === segs - 1 ? 300 : SEG_MS * (0.9 + R() * 0.2)));
+    pc.balls.push({ id: id, value: value, bin: bin, risk: risk, pts: pts, durs: durs, t0: t0, dur: durs.reduce((a, b) => a + b, 0), batch: batch, trail: [], lastSeg: -1, hue: 40 + R() * 20 });
     pcKick();
   }
 
   function pcKick() { if (!pc.raf) pc.raf = requestAnimationFrame(pcFrame); }
 
+  /** pozice míčku: vodorovně plynule, svisle parabola (vyskočí a gravitací spadne na další kolík) */
   function pcBallPos(b, now) {
-    const el = now - b.t0;
-    const seg = Math.min(b.pts.length - 2, Math.floor(el / SEG_MS));
-    const f = Math.min(1, (el - seg * SEG_MS) / SEG_MS);
+    let el = now - b.t0;
+    if (el < 0) return null;
+    let seg = 0;
+    while (seg < b.durs.length - 1 && el > b.durs[seg]) { el -= b.durs[seg]; seg++; }
+    const f = Math.min(1, el / b.durs[seg]);
     const p = b.pts[seg], q = b.pts[seg + 1];
-    const e = f * f * (3 - 2 * f);
-    const x = W / 2 + (p.x + (q.x - p.x) * e) * HS;
-    let y = p.y + (q.y - p.y) * f;
-    if (seg > 0 && seg < b.pts.length - 2) y -= 7 * Math.sin(Math.PI * f);
-    return { x: x, y: y };
+    const ex = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+    const x = p.x + (q.x - p.x) * (seg === 0 ? f : ex);
+    const hop = seg === 0 ? 0 : (seg === b.durs.length - 1 ? 10 : 9);
+    const y = p.y + (q.y - p.y) * f * f - hop * 4 * f * (1 - f) * (1 - f * 0.3);
+    return { x: x, y: y, seg: seg };
   }
 
   /** Logika přistání - nezávislá na vykreslování (běží i v neviditelném tabu přes watchdog). */
@@ -4417,7 +4478,7 @@ window.__startGame = initGame;
       else rest.push(b);
     }
     pc.balls = rest;
-    pc.flash = pc.flash.filter(f => now - f.t < 600);
+    pc.flash = pc.flash.filter(f => now - f.t < 700);
     if (!pc.balls.length && !pc.flash.length) pc.raf = 0;
     pcRefresh();
   }
@@ -4426,36 +4487,59 @@ window.__startGame = initGame;
     try {
       pcTick();
       const ctx = pc.ctx;
-      pcDrawBoard(ctx);
+      pcDrawBoard(ctx, now);
       for (const b of pc.balls) {
         const pos = pcBallPos(b, now);
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffd54a";
-        ctx.fill();
-      }
-      for (const f of pc.flash) {
-        const x = W / 2 + (2 * f.bin - PC_ROWS) * HS;
-        ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - (now - f.t) / 600)})`;
-        ctx.fillRect(x - HS, 300, HS * 2, 34);
+        if (!pos) continue;
+        if (pos.seg !== b.lastSeg) {               // nový segment = náraz do kolíku
+          b.lastSeg = pos.seg;
+          const pg = b.pts[pos.seg].peg;
+          if (pg) pc.pegHits[pg] = now;
+        }
+        b.trail.push([pos.x, pos.y]); if (b.trail.length > 7) b.trail.shift();
+        for (let i = 0; i < b.trail.length - 1; i++) {
+          const t = b.trail[i], a = (i + 1) / b.trail.length;
+          ctx.beginPath(); ctx.arc(t[0], t[1], BALL_R * a * 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${b.hue},100%,60%,${0.25 * a})`; ctx.fill();
+        }
+        const g = ctx.createRadialGradient(pos.x - 1.6, pos.y - 1.8, 0.5, pos.x, pos.y, BALL_R);
+        g.addColorStop(0, "#fffbe6"); g.addColorStop(0.45, `hsl(${b.hue},100%,58%)`); g.addColorStop(1, `hsl(${b.hue - 15},90%,32%)`);
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, BALL_R, 0, Math.PI * 2);
+        ctx.shadowColor = `hsla(${b.hue},100%,60%,.8)`; ctx.shadowBlur = 10;
+        ctx.fillStyle = g; ctx.fill(); ctx.shadowBlur = 0;
       }
     } catch (e) { console.error(e); }
     if (pc.balls.length || pc.flash.length) pc.raf = requestAnimationFrame(pcFrame);
-    else { pc.raf = 0; try { pcDrawBoard(pc.ctx); } catch (e) {} }
+    else { pc.raf = 0; try { pcDrawBoard(pc.ctx, performance.now()); } catch (e) {} }
+  }
+
+  function pcPop(bin, text, color, big) {
+    const box = $("pc-pops"); if (!box || document.hidden) return;
+    const el = document.createElement("div");
+    el.className = "pc-pop" + (big ? " big" : "");
+    el.style.left = ((W / 2 + (2 * bin - PC_ROWS) * HS) / W * 100) + "%";
+    el.style.top = (BIN_Y / H * 100 - 6) + "%";
+    el.style.color = color; el.textContent = text;
+    box.appendChild(el);
+    setTimeout(() => el.remove(), 1250);
   }
 
   function pcLand(b) {
     const st = TT.state();
     st.pcPending = (st.pcPending || []).filter(p => p.id !== b.id);
-    const mult = PC_MULTS[b.bin];
+    const table = PC_RISKS[b.risk] || PC_RISKS.high;
+    const mult = table[b.bin];
     const payout = Math.floor(b.value * mult);
-    pc.flash.push({ bin: b.bin, t: performance.now() });
+    pc.flash.push({ bin: b.bin, t: performance.now(), mult: mult });
+    pc.binHits[b.bin] = performance.now();
+    pc.session.back += payout;
     if (payout > 0) TT.win(payout);
+    pcPop(b.bin, mult + "×", pcColor(mult), mult >= 25);
     const msg = $("pc-msg");
     if (mult >= 1) {
       msg.style.color = mult >= 25 ? "var(--amber)" : "var(--emerald)";
       msg.innerText = `Ball @${b.value} → ${mult}× = +${fmt(payout)} GC!`;
-      TT.log(`PACHINKO: ball (${b.value} GC) hit ${mult}× → +${fmt(payout)} GC`, mult >= 25 ? "special" : "success");
+      if (mult >= 10) TT.log(`PACHINKO: ball (${b.value} GC) hit ${mult}× → +${fmt(payout)} GC`, mult >= 25 ? "special" : "success");
     } else {
       msg.style.color = "var(--text-dim)";
       msg.innerText = `Ball @${b.value} → ${mult}× (${fmt(payout)} GC back).`;
@@ -4479,29 +4563,69 @@ window.__startGame = initGame;
     const list = st.pcPending || [];
     if (!list.length) return;
     let total = 0;
-    list.forEach(p => { total += Math.floor(p.value * (PC_MULTS[p.bin] || 0)); });
+    list.forEach(p => { total += Math.floor(p.value * ((PC_RISKS[p.risk] || PC_RISKS.high)[p.bin] || 0)); });
     st.pcPending = [];
     if (total > 0) TT.win(total);
     TT.log(`Pachinko: ${list.length} ball(s) from your last session were resolved (+${fmt(total)} GC).`, "special");
   }
 
-  function pcColor(m) { return m >= 100 ? "#f43f5e" : m >= 20 ? "#fbbf24" : m >= 4 ? "#a855f7" : m >= 1 ? "#2563eb" : "#2a3245"; }
+  function pcColor(m) { return m >= 100 ? "#ff4dff" : m >= 20 ? "#f43f5e" : m >= 4 ? "#fbbf24" : m >= 1.5 ? "#22c55e" : m >= 1 ? "#2563eb" : "#3b4560"; }
 
-  function pcDrawBoard(ctx) {
+  function setupCanvas() {
+    const cv = $("pc-canvas"); if (!cv) return null;
+    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    pc.dpr = dpr;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+
+  function pcDrawBoard(ctx, now) {
+    if (!ctx) return;
+    now = now || performance.now();
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#8b9bb4";
+    // trychtýř nahoře
+    ctx.strokeStyle = "rgba(0,240,255,.25)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(W / 2 - 22, 0); ctx.lineTo(W / 2 - 8, 18); ctx.moveTo(W / 2 + 22, 0); ctx.lineTo(W / 2 + 8, 18); ctx.stroke();
+    // kolíky (záblesk po nárazu)
     for (let r = 0; r < PC_ROWS; r++) {
-      for (let k = -r; k <= r; k += 2) { ctx.beginPath(); ctx.arc(W / 2 + k * HS, TOP + r * DY, 2.6, 0, Math.PI * 2); ctx.fill(); }
+      for (let k = -r; k <= r; k += 2) {
+        const x = pegX(r, k), y = pegY(r);
+        const hit = pc.pegHits[r + ":" + k];
+        const a = hit ? Math.max(0, 1 - (now - hit) / 350) : 0;
+        if (a > 0) {
+          ctx.beginPath(); ctx.arc(x, y, PEG_R + 6 * a, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,220,120,${0.35 * a})`; ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(x, y, PEG_R + a, 0, Math.PI * 2);
+        ctx.fillStyle = a > 0 ? `rgb(${180 + 75 * a},${200 + 40 * a},${230 - 80 * a})` : "#8b9bb4";
+        ctx.fill();
+        ctx.beginPath(); ctx.arc(x - 0.9, y - 0.9, 1, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fill();
+      }
     }
-    ctx.font = "bold 9px Orbitron, monospace";
-    ctx.textAlign = "center";
+    // koše
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (let k = 0; k <= PC_ROWS; k++) {
       const x = W / 2 + (2 * k - PC_ROWS) * HS;
-      ctx.fillStyle = pcColor(PC_MULTS[k]);
-      ctx.fillRect(x - HS + 1, 300, HS * 2 - 2, 34);
+      const hit = pc.binHits[k];
+      const a = hit ? Math.max(0, 1 - (now - hit) / 600) : 0;
+      const bounce = a > 0 ? Math.sin(a * Math.PI) * 5 : 0;
+      const c = pcColor(PC_MULTS[k]);
+      ctx.fillStyle = c;
+      ctx.shadowColor = c; ctx.shadowBlur = a > 0 ? 18 * a : 0;
+      roundRect(ctx, x - HS + 1.5, BIN_Y + bounce, HS * 2 - 3, BIN_H - 6, 4);
+      ctx.fill(); ctx.shadowBlur = 0;
+      if (a > 0) { ctx.fillStyle = `rgba(255,255,255,${0.45 * a})`; roundRect(ctx, x - HS + 1.5, BIN_Y + bounce, HS * 2 - 3, BIN_H - 6, 4); ctx.fill(); }
       ctx.fillStyle = "#fff";
-      ctx.fillText(PC_MULTS[k] + "×", x, 321);
+      const lbl = PC_MULTS[k] >= 100 ? PC_MULTS[k] + "" : PC_MULTS[k] + "×";
+      ctx.font = (PC_MULTS[k] >= 100 ? "bold 8.5px " : "bold 8px ") + "Orbitron, monospace";
+      ctx.fillText(lbl, x, BIN_Y + bounce + (BIN_H - 6) / 2);
     }
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
   setInterval(pcTick, 700);     // watchdog: míčky se vždy dopočítají i když rAF stojí
@@ -4665,9 +4789,11 @@ window.__startGame = initGame;
 
   function init() {
     if (!buildUi()) return;
-    pc.ctx = $("pc-canvas").getContext("2d");
+    pc.ctx = setupCanvas();
+    let r = "high"; try { r = localStorage.getItem("ir_pc_risk") || "high"; } catch (e) {}
+    pcRisk(PC_RISKS[r] ? r : "high");
     pcDrawBoard(pc.ctx);
-    $("pc-rtp").innerText = (pcRtp() * 100).toFixed(1) + "%";
+    window.addEventListener("resize", () => { const d = Math.min(2.5, window.devicePixelRatio || 1); if (d !== pc.dpr) { pc.ctx = setupCanvas(); pcDrawBoard(pc.ctx); } });
     crRender();
     pcRefresh();
     sdRenderPicker();
@@ -4676,7 +4802,7 @@ window.__startGame = initGame;
   window.AdvMini = {
     tab: tab,
     crStart: crStart, crJump: crJump, crCash: function () { crCash(false); },
-    pcBuy: pcBuy, pcDrop: pcDrop, pcRefresh: pcRefresh,
+    pcBuy: pcBuy, pcDrop: pcDrop, pcRefresh: pcRefresh, pcRisk: pcRisk, pcAuto: pcAuto,
     sdSet: sdSet, sdRandom: sdRandom, sdCreate: sdCreate, sdAccept: sdAccept, sdCancel: sdCancel,
     isBusy: function () { return cr.phase === "run" || pc.balls.length > 0 || sd.busy; }
   };
@@ -5021,7 +5147,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
   // ------------------------------------------------------------------ TŘÍDY + KARIÉRA
   const CLASSES = {
-    sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. Low variance, starts every fight with a small shield (7% HP).",
+    sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. Low variance, +4% HP and a small shield (4% HP) at the start of every fight.",
       tiers: ["Junior Helpdesk Agent", "System Administrator", "Senior Infrastructure Engineer"],
       branches: { a: "Site Reliability Engineer", b: "Cloud Infrastructure Architect" },
       perks: ["Power Cycle: once per fight you survive a lethal hit with 10% HP.",
@@ -5154,13 +5280,14 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     });
     let atkMul = 1 + fx.atk, hpMul = 1 + fx.hp;
     if (cls === "engineer") { atkMul += 0.18; hpMul += 0.05; }
+    if (cls === "sysadmin") hpMul += 0.04;
     if (d.exec) { atkMul += 0.10; hpMul += 0.10; }
     const maxHp = Math.round((100 + 30 * (L - 1)) * (gear ? gear.hp : 1) * hpMul);
     const atk = (15 + 4.5 * (L - 1)) * (gear ? gear.atk : 1) * atkMul;
     let dodge = (cls === "cyber" ? 0.17 : 0) + fx.dodge;
     dodge = Math.max(0, Math.min(0.35, dodge));
     return { cls: cls, tier: tier, branch: branch, level: L, maxHp: maxHp, atk: atk, dodge: dodge, fx: fx,
-      shieldPct: cls === "sysadmin" ? 0.07 + (branch === "b" && tier >= 4 ? 0.08 : 0) : 0,
+      shieldPct: cls === "sysadmin" ? 0.04 + (branch === "b" && tier >= 4 ? 0.08 : 0) : 0,
       loot: fx.loot + (cls === "cyber" ? 0.10 : 0) + (cls === "cyber" && tier >= 4 && branch === "a" ? 0.5 : 0) };
   }
 
@@ -5356,6 +5483,74 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     return f;
   }
 
+  // ------------------------------------------------------------------ ARÉNA: duel hráč vs hráč (počítá server, klient jen přehrává)
+  const PVP_HP = 2.0;                       // v aréně mají oba víc HP, ať duel trvá ~10-16 akcí
+  function duel(A, B, seed, stA, stB) {
+    const R = rng(seed || 1);
+    const mk = (p, st) => {
+      const hp = Math.round(p.maxHp * PVP_HP);
+      return { p: p, R: R, stance: st || "normal", hp: hp, max: hp, shield: Math.round(hp * p.shieldPct), ciStacks: 0, prevMult: 0, ghost: false,
+        jpDebuff: 0, revived: false, dot: 0, sreHalf: false, atkBuff: p.fx.coin ? (R() < 0.5 ? 1.25 : 0.85) : 1 };
+    };
+    const S = [mk(A, stA), mk(B, stB)];
+    const events = [];
+    const snap = () => [Math.max(0, S[0].hp), Math.max(0, S[1].hp)];
+    const shs = () => [S[0].shield, S[1].shield];
+    const push = (e) => { e.hp = snap(); e.sh = shs(); events.push(e); };
+    const hurt = (side, dmg) => {
+      const p = side.p;
+      if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && side.sreHalf) { dmg *= 0.5; side.sreHalf = false; }
+      dmg = Math.round(dmg);
+      const sh = Math.min(side.shield, dmg); side.shield -= sh; side.hp -= dmg - sh;
+      let revived = false;
+      if (side.hp <= 0 && p.cls === "sysadmin" && !side.revived) { side.revived = true; side.hp = Math.round(side.max * 0.10); revived = true; }
+      if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg > side.max * 0.12) side.sreHalf = true;
+      return { dmg: dmg, absorbed: sh, revived: revived };
+    };
+    let turn = 0, cur = R() < 0.5 ? 0 : 1;
+    const first = cur;
+    while (turn < 60) {
+      turn++;
+      const a = S[cur], d = S[1 - cur];
+      if (d.dot > 0) { d.dot--; const x = hurt(d, a.p.atk * 0.4); push({ t: turn, i: cur, type: "dot", val: x.dmg }); if (d.hp <= 0) break; }
+      const r = rollRow(a, a.stance);
+      if (r.k === "bf") {
+        let self = a.p.atk * BACKFIRE_SELF[a.p.cls] * (1 + a.p.fx.bfDmg);
+        if (a.p.cls === "engineer" && a.p.tier >= 2) self *= 0.7;
+        if (a.p.cls === "sysadmin" && a.p.tier >= 3) { self *= 0.5; a.shield += Math.round(self); }
+        const x = hurt(a, self);
+        push({ t: turn, i: cur, type: "bf", val: x.dmg, rev: x.revived });
+        a.prevMult = 0; a.ciStacks = 0;
+      } else if (r.m > 0 && R() < d.p.dodge) {
+        push({ t: turn, i: cur, type: "dodge" });
+        if (d.p.cls === "cyber" && d.p.tier >= 2) { const x = hurt(a, a.p.atk * r.m * 0.4); push({ t: turn, i: 1 - cur, type: "reflect", val: x.dmg }); }
+        if (d.p.cls === "cyber" && d.p.tier >= 4 && d.p.branch === "b") d.ghost = true;
+      } else {
+        let atk = a.p.atk * a.atkBuff;
+        if (a.ghost) { atk *= 1.4; a.ghost = false; }
+        let dmg = atk * r.m;
+        if (r.k === "jp" && a.p.cls === "sysadmin" && a.p.tier >= 4 && a.p.branch === "b") dmg += a.shield * 2;
+        const x = hurt(d, dmg);
+        push({ t: turn, i: cur, type: "hit", val: x.dmg, kind: r.k, mult: Math.round(r.m * 100) / 100, abs: x.absorbed, rev: x.revived });
+        if (r.k === "jp" && a.p.cls === "cyber" && a.p.tier >= 3) d.dot = 3;
+        if (a.p.cls === "sysadmin" && a.p.tier >= 2 && a.stance === "safe" && r.m >= 1) { const h = Math.round(a.max * 0.04); a.hp = Math.min(a.max, a.hp + h); push({ t: turn, i: cur, type: "heal", val: h }); }
+        if (a.p.cls === "engineer" && a.p.tier >= 3) a.ciStacks = r.m >= 1 ? Math.min(4, a.ciStacks + 1) : 0;
+        a.prevMult = r.m >= 1 ? r.m : 0;
+      }
+      if (S[0].hp <= 0 || S[1].hp <= 0) break;
+      cur = 1 - cur;
+    }
+    let winner;
+    if (S[0].hp <= 0 && S[1].hp <= 0) winner = 1;              // oba padli (backfire) - vyhrává obránce
+    else if (S[0].hp <= 0) winner = 1;
+    else if (S[1].hp <= 0) winner = 0;
+    else winner = (S[0].hp / S[0].max >= S[1].hp / S[1].max) ? 0 : 1;   // limit tahů: rozhodne % HP
+    return { win: winner === 0, winner: winner, first: first, turns: turn, events: events, max: [S[0].max, S[1].max], hp: snap() };
+  }
+
+  /** síla postavy (pro řazení soupeřů v aréně) */
+  function power(p) { return Math.round(Math.sqrt(p.atk * p.maxHp) * (1 + p.dodge)); }
+
   // ------------------------------------------------------------------ PROGRESE
   function xpToNext(L) { return 75 + 30 * L; }
   function winXp(floor, first) { return Math.round((30 + 12 * floor) * (first ? 2.5 : 1)); }
@@ -5365,7 +5560,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     rng: rng, TABLES: TABLES, tableEV: tableEV, CLASSES: CLASSES, ARTIFACTS: ARTIFACTS, ARTIFACT_BY_ID: ARTIFACT_BY_ID, artifactText: artifactText,
     BOSSES: BOSSES, PROMOS: PROMOS, bossFor: bossFor, bossStats: bossStats, promoBoss: promoBoss, setBossTable: function (t, pt) { BOSS_TABLE = t; if (pt) PROMO_TABLE = pt; },
     gearSlotValue: gearSlotValue, buildPlayer: buildPlayer, newFight: newFight, step: step, allowedStances: allowedStances, simulate: simulate,
-    xpToNext: xpToNext, winXp: winXp, refGear: refGear
+    xpToNext: xpToNext, winXp: winXp, refGear: refGear, duel: duel, power: power, PVP_HP: PVP_HP
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.DungeonEngine = api;
@@ -5462,6 +5657,7 @@ html.m #dg-open-btn { display: none; }
   <div class="dg-tabs">
     <button class="casino-tab-btn active" id="dg-t-fight" onclick="Dungeon.tab('fight')">⚔ FIGHT</button>
     <button class="casino-tab-btn" id="dg-t-career" onclick="Dungeon.tab('career')">📈 CAREER</button>
+    <button class="casino-tab-btn" id="dg-t-arena" onclick="Dungeon.tab('arena')">🏟 ARENA</button>
     <button class="casino-tab-btn" id="dg-t-arts" onclick="Dungeon.tab('arts')">🗝 ARTIFACTS</button>
   </div>
   <div class="dg-body"><div class="dg-inner" id="dg-inner"></div></div>
@@ -5499,6 +5695,7 @@ html.m #dg-open-btn { display: none; }
     d.exec = !!d.promos.bod;
     d.wins = Math.max(0, Number(d.wins) || 0); d.losses = Math.max(0, Number(d.losses) || 0);
     if (d.stance !== "safe" && d.stance !== "normal" && d.stance !== "allin") d.stance = "normal";
+    if (d.arenaStance !== "safe" && d.arenaStance !== "normal" && d.arenaStance !== "allin") d.arenaStance = "normal";
     return d;
   }
   function artSlots(d) { return Math.min(6, 2 + (d.promos && d.promos.hr ? 1 : 0) + (d.best >= 25 ? 1 : 0) + (d.best >= 50 ? 1 : 0) + (d.best >= 75 ? 1 : 0)); }
@@ -5582,7 +5779,7 @@ html.m #dg-open-btn { display: none; }
   }
   function tab(t) {
     view = t;
-    ["fight", "career", "arts"].forEach(x => { const b = $("dg-t-" + x); if (b) b.className = "casino-tab-btn" + (x === t ? " active" : ""); });
+    ["fight", "career", "arena", "arts"].forEach(x => { const b = $("dg-t-" + x); if (b) b.className = "casino-tab-btn" + (x === t ? " active" : ""); });
     render();
   }
 
@@ -5597,6 +5794,7 @@ html.m #dg-open-btn { display: none; }
     if (!d.cls) { box.innerHTML = classPickHtml(false); return; }
     if (d.tier >= 4 && !d.branch) { box.innerHTML = branchPickHtml(); return; }
     if (view === "career") box.innerHTML = careerHtml();
+    else if (view === "arena") { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); }
     else if (view === "arts") box.innerHTML = artsHtml();
     else { box.innerHTML = fightHtml(); restoreFightView(); }
   }
@@ -5961,6 +6159,165 @@ html.m #dg-open-btn { display: none; }
     if (ups) { lines.push(`⬆ LEVEL ${d.level}!`); log(`⬆ DUNGEON LEVEL ${d.level}!`, "special"); }
   }
 
+  // ------------------------------------------------------------------ ARÉNA (PvP proti postavám ostatních, počítá server)
+  const arena = { data: null, loading: false, err: "", atkStance: "normal", replay: null, timer: 0, busy: false };
+  const CLS_IDX = { sysadmin: 0, engineer: 1, cyber: 2 };
+
+  function arenaLoad() {
+    if (arena.loading) return;
+    arena.loading = true; arena.err = "";
+    google.script.run.withSuccessHandler(r => {
+      arena.loading = false;
+      if (r && r.ok) arena.data = r; else arena.err = "Could not load the arena.";
+      if (open && view === "arena" && !arena.replay) $("dg-inner").innerHTML = arenaHtml();
+    }).withFailureHandler(e => { arena.loading = false; arena.err = String(e && e.message || e); if (open && view === "arena") $("dg-inner").innerHTML = arenaHtml(); }).arenaList();
+  }
+
+  function stanceBtns(cur, fn) {
+    return ["safe", "normal", "allin"].map(s => `<button class="btn ${s === "allin" ? "btn-crimson" : (s === "safe" ? "btn-cyan" : "")} ${cur === s ? "sel" : ""}" onclick="Dungeon.${fn}('${s}')">${STANCE_TXT[s][0]}<small>${STANCE_TXT[s][1]}</small></button>`).join("");
+  }
+
+  function ago(ts) { const m = Math.max(0, Math.floor((Date.now() - ts) / 60000)); return m < 60 ? m + "m" : (m < 1440 ? Math.floor(m / 60) + "h" : Math.floor(m / 1440) + "d"); }
+
+  function arenaHtml() {
+    const d = D(), a = arena.data;
+    if (arena.replay) return arenaReplayHtml();
+    const me = a ? a.me : null;
+    const myPow = E.power(player());
+    let opp = "";
+    if (!a) opp = `<div class="dg-dim">${arena.err ? "⚠ " + escapeHtml(arena.err) : "Loading opponents..."}</div>`;
+    else if (!a.opponents.length) opp = `<div class="dg-dim">No opponents yet. Your friends need a dungeon class first (Prestige 1).</div>`;
+    else opp = a.opponents.map(o => {
+      const ratio = o.power / Math.max(1, myPow);
+      const tag = ratio > 1.25 ? `<span style="color:var(--crimson);">STRONGER</span>` : ratio < 0.8 ? `<span style="color:var(--emerald);">WEAKER</span>` : `<span style="color:var(--amber);">EVEN</span>`;
+      const cd = o.cooldown > 0;
+      const can = me && me.left > 0 && !cd && !arena.busy;
+      return `<div class="dg-art"><div style="width:44px;flex:none;">${sprite(CLS_IDX[o.cls] || 0, "p").replace('class="dg-sprite"', 'class="dg-sprite" style="width:40px;height:40px;margin:0;"')}</div>
+        <div class="t"><b>${escapeHtml(o.nick)}</b> · ${E.CLASSES[o.cls] ? E.CLASSES[o.cls].icon : ""} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
+          <div class="dg-dim">${escapeHtml(o.title || "")} · power ${fmt(o.power)} ${tag} · floor ${o.best} · ${o.wins}W/${o.losses}L</div></div>
+        <button class="btn ${can ? "btn-crimson" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.arenaAttack('${escapeHtml(o.nick).replace(/'/g, "")}')">${cd ? "⏳ " + fmtT(o.cooldown) : "⚔ ATTACK"}</button></div>`;
+    }).join("");
+    const log = a && a.log.length ? a.log.map(l => {
+      const iAtt = l.attacker === gameState.ldap, won = l.winner === gameState.ldap;
+      return `<div class="dg-dim"><span style="color:${won ? "var(--emerald)" : "var(--crimson)"};">${won ? "WIN" : "LOSS"}</span> · ${iAtt ? "you attacked <b>" + escapeHtml(l.defender) + "</b>" : "<b>" + escapeHtml(l.attacker) + "</b> attacked you"} · ${l.delta >= 0 ? "+" : ""}${l.delta} honor · ${ago(l.time)} ago</div>`;
+    }).join("") : `<div class="dg-dim">No arena fights yet.</div>`;
+    return `<div class="dg-grid2">
+      <div class="dg-card"><div class="dg-h"><span>🏟 YOUR ARENA CARD</span><button class="btn" style="padding:3px 8px;font-size:10px;" onclick="Dungeon.arenaRefresh()">↻</button></div>
+        <div class="dg-dim">Honor <b style="font-size:14px;">${me ? me.honor : "-"}</b> · ${me ? me.wins + "W / " + me.losses + "L" : ""} · attacks left today <b>${me ? me.left + " / " + me.perDay : "-"}</b> · your power <b>${fmt(myPow)}</b></div>
+        <div class="dg-h" style="margin-top:10px;">ATTACK STANCE</div>
+        <div class="dg-stances" style="margin:0;">${stanceBtns(arena.atkStance, "arenaAtkStance")}</div>
+        <div class="dg-h" style="margin-top:10px;">DEFENSE STANCE <span class="dg-dim" style="font-family:inherit;">(used when others attack you)</span></div>
+        <div class="dg-stances" style="margin:0;">${stanceBtns(d.arenaStance, "arenaDefStance")}</div>
+        <div class="dg-dim" style="margin-top:8px;">Fights are simulated by the server with your <b>saved</b> gear, level, class and artifacts - your friends fight your build even when you are offline.
+          Win = honor + GC. Same opponent once per 20 min. Honor works like chess Elo: beating stronger players gives more.</div></div>
+      <div class="dg-card"><div class="dg-h">RECENT FIGHTS</div>${log}</div>
+    </div>
+    <div class="dg-card"><div class="dg-h"><span>OPPONENTS</span><span class="dg-dim">sorted by honor</span></div>${opp}</div>`;
+  }
+
+  function arenaAtkStance(s) { arena.atkStance = s; $("dg-inner").innerHTML = arenaHtml(); }
+  function arenaDefStance(s) { D().arenaStance = s; TT.saveSoon(); $("dg-inner").innerHTML = arenaHtml(); }
+
+  function arenaAttack(nick) {
+    if (arena.busy) return;
+    arena.busy = true;
+    $("dg-inner").innerHTML = arenaHtml();
+    const go = () => google.script.run.withSuccessHandler(r => {
+      arena.busy = false;
+      if (!r || !r.ok) {
+        const why = { limit: "No attacks left today.", cooldown: "You fought this player recently.", target: "Opponent not available.", missing: "Save not found - try again in a few seconds.", noclass: "Pick a dungeon class first.", busy: "Server busy, try again." }[r && r.reason] || "Fight failed.";
+        arena.err = why; log("ARENA: " + why, "warning"); arenaLoad(); return;
+      }
+      gameState.coins += r.reward;              // odměna hned (i kdyby se replay nedokoukal)
+      TT.saveSoon(); updateUI();
+      log(`🏟 ARENA ${r.win ? "WIN" : "LOSS"} vs ${escapeHtml(r.opp.nick)}: ${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}), +${fmt(r.reward)} GC.`, r.win ? "special" : "error");
+      arena.replay = { r: r, idx: 0, hp: [r.max[0], r.max[1]], sh: [0, 0], lines: [] };
+      $("dg-inner").innerHTML = arenaReplayHtml();
+      arenaStep();
+    }).withFailureHandler(e => { arena.busy = false; arena.err = String(e && e.message || e); arenaLoad(); }).arenaFight(nick, arena.atkStance);
+    saveGame(() => go());                      // nejdřív uložit aktuální build, server bojuje s uloženým
+  }
+
+  function arenaReplayHtml() {
+    const rp = arena.replay, r = rp.r, d = D();
+    return `<div class="dg-arena" id="dg-arena">
+      <div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${E.CLASSES[d.cls].name} · ${STANCE_TXT[arena.atkStance][0]}</div>
+        <div id="ar-a">${playerSprite()}</div>
+        <div class="dg-bar"><div class="hp-p" id="ar-ahp" style="width:100%"></div><div class="sh" id="ar-ash" style="width:0%"></div></div><div class="dg-hpt" id="ar-ahpt"></div></div>
+      <div class="dg-vs">VS</div>
+      <div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(r.opp.nick)}</div><div class="dg-sub">${E.CLASSES[r.opp.cls] ? E.CLASSES[r.opp.cls].name : ""} LV ${r.opp.level} · ${STANCE_TXT[r.defStance][0]}</div>
+        <div id="ar-b">${sprite(CLS_IDX[r.opp.cls] || 0, "p")}</div>
+        <div class="dg-bar"><div class="hp-b" id="ar-bhp" style="width:100%"></div><div class="sh" id="ar-bsh" style="width:0%"></div></div><div class="dg-hpt" id="ar-bhpt"></div></div>
+    </div>
+    <div class="dg-mech" id="ar-res">${r.first === 0 ? "You strike first!" : escapeHtml(r.opp.nick) + " strikes first!"}</div>
+    <div class="dg-row"><button class="btn" style="flex:1;" id="ar-skip" onclick="Dungeon.arenaSkip()">SKIP ⏭</button>
+      <button class="btn btn-gold" style="flex:1;" id="ar-back" disabled onclick="Dungeon.arenaBack()">BACK TO ARENA</button></div>
+    <div class="dg-card" style="margin-top:10px;"><div class="dg-h">FIGHT LOG</div><div class="dg-log" id="ar-log"></div></div>`;
+  }
+
+  function arenaBars() {
+    const rp = arena.replay; if (!rp) return;
+    const m = rp.r.max;
+    const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+    set("ar-ahp", rp.hp[0] / m[0] * 100); set("ar-bhp", rp.hp[1] / m[1] * 100);
+    set("ar-ash", rp.sh[0] / m[0] * 100); set("ar-bsh", rp.sh[1] / m[1] * 100);
+    const a = $("ar-ahpt"); if (a) a.textContent = fmt(rp.hp[0]) + " / " + fmt(m[0]);
+    const b = $("ar-bhpt"); if (b) b.textContent = fmt(rp.hp[1]) + " / " + fmt(m[1]);
+  }
+
+  function arenaLine(e) {
+    const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">T${e.t}</span> `;
+    if (e.type === "hit") return [T + `${nm(e.i)} ${e.kind === "jp" ? "🎰 <b>JACKPOT</b>" : "hit"} <b>${fmt(e.val)}</b> (${e.mult}×)${e.rev ? " - 🔌 POWER CYCLE!" : ""}`, e.i === 0 ? (e.kind === "jp" ? "y" : "g") : "r"];
+    if (e.type === "bf") return [T + `💥 ${nm(e.i)} BACKFIRED for ${fmt(e.val)}`, e.i === 0 ? "r" : "g"];
+    if (e.type === "dodge") return [T + `🌀 ${nm(1 - e.i)} dodged`, e.i === 0 ? "r" : "c"];
+    if (e.type === "reflect") return [T + `${nm(e.i)} reflected ${fmt(e.val)}`, "c"];
+    if (e.type === "heal") return [T + `${nm(e.i)} healed ${fmt(e.val)}`, "g"];
+    if (e.type === "dot") return [T + `Zero-day payload ticks ${fmt(e.val)}`, "c"];
+    return [T + e.type, ""];
+  }
+
+  function arenaApply(e, animate) {
+    const rp = arena.replay;
+    rp.hp = e.hp.slice(); rp.sh = e.sh.slice();
+    const ln = arenaLine(e); rp.lines.unshift(ln);
+    const el = $("ar-log"); if (el) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
+    if (animate && !document.hidden) {
+      const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a";
+      if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit") anim(def, "hit"); }
+      if (e.type === "bf") anim(atk, "hit");
+      const side = (e.type === "hit" || e.type === "dot") ? (e.i === 0 ? "b" : "p") : (e.type === "bf" || e.type === "heal") ? (e.i === 0 ? "p" : "b") : (e.type === "dodge" ? (e.i === 0 ? "b" : "p") : (e.i === 0 ? "b" : "p"));
+      const txt = e.type === "hit" ? (e.kind === "jp" ? "JACKPOT " + fmt(e.val) : fmt(e.val)) : e.type === "bf" ? "BACKFIRE" : e.type === "dodge" ? "DODGE" : e.type === "heal" ? "+" + fmt(e.val) : fmt(e.val || 0);
+      float(txt, side, e.type === "hit" ? (e.kind === "jp" ? "#ffb800" : "#ffffff") : e.type === "bf" ? "#ff1744" : e.type === "dodge" ? "#00f0ff" : "#00ff88", e.kind === "jp");
+    }
+    arenaBars();
+  }
+
+  function arenaStep() {
+    const rp = arena.replay; if (!rp) return;
+    clearTimeout(arena.timer);
+    if (rp.idx >= rp.r.events.length) { arenaEnd(); return; }
+    arenaApply(rp.r.events[rp.idx++], true);
+    arena.timer = setTimeout(arenaStep, document.hidden ? 30 : 520);
+  }
+  function arenaSkip() { const rp = arena.replay; if (!rp) return; clearTimeout(arena.timer); while (rp.idx < rp.r.events.length) arenaApply(rp.r.events[rp.idx++], false); arenaEnd(); }
+  function arenaEnd() {
+    const rp = arena.replay, r = rp.r;
+    rp.done = true;
+    const res = $("ar-res");
+    if (res) res.innerHTML = `<span style="font:900 18px Orbitron,monospace;color:${r.win ? "var(--emerald)" : "var(--crimson)"};">${r.win ? "🏆 VICTORY" : "☠ DEFEAT"}</span><br>${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}) · +${fmt(r.reward)} GC · ${r.left} attacks left today`;
+    const loser = document.querySelector(r.win ? "#ar-b .dg-sprite" : "#ar-a .dg-sprite"); if (loser) loser.classList.add("dead");
+    const b = $("ar-back"); if (b) b.disabled = false;
+    const s = $("ar-skip"); if (s) s.disabled = true;
+  }
+  function arenaRestore() {
+    $("dg-inner").innerHTML = arenaReplayHtml();
+    const rp = arena.replay;
+    const el = $("ar-log"); if (el) el.innerHTML = rp.lines.slice().reverse().map(l => `<div class="${l[1]}">${l[0]}</div>`).join("");
+    arenaBars();
+    if (rp.done) arenaEnd();
+  }
+  function arenaBack() { clearTimeout(arena.timer); arena.replay = null; arena.data = null; render(); }
+
   // ------------------------------------------------------------------ PROFIL HRÁČE (leaderboard)
   function showProfile(u) {
     if (!u) return;
@@ -5976,7 +6333,7 @@ html.m #dg-open-btn { display: none; }
         ${cls ? sprite(["sysadmin", "engineer", "cyber"].indexOf(dg.cls), "p") : '<div style="font-size:48px;">👤</div>'}
         <div class="tt-body" style="min-height:0;font-size:13px;">
           ${cls ? `<b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "No dungeon class yet<br>"}
-          Best floor: <b>${dg.best || 0}</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0}<br>
+          Best floor: <b>${dg.best || 0}</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
           Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
           Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
           ${u.gear ? `<br>Gear: ${u.gear}` : ""}
@@ -5989,15 +6346,17 @@ html.m #dg-open-btn { display: none; }
   function payload() {
     const d = D();
     return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), tier: d.tier, branch: d.branch, best: d.best, keys: d.keys, keysAt: d.keysAt,
-      artifacts: d.artifacts, equipped: d.equipped, promos: d.promos, wins: d.wins, losses: d.losses, stance: d.stance, title: title(d) };
+      artifacts: d.artifacts, equipped: d.equipped, promos: d.promos, wins: d.wins, losses: d.losses, stance: d.stance, arenaStance: d.arenaStance, title: title(d) };
   }
 
   // ------------------------------------------------------------------ BOOT
   window.Dungeon = {
     open: openScreen, close: closeScreen, tab: tab, fight: startFight, skip: skipFight, speed: cycleSpeed, stance: setStance,
     floor: floorNav, back: back, promo: promo, pickClass: pickClass, pickBranch: pickBranch, respec: respec, tokenKeys: tokenKeys, equip: equip,
+    arenaAttack: arenaAttack, arenaAtkStance: arenaAtkStance, arenaDefStance: arenaDefStance, arenaSkip: arenaSkip, arenaBack: arenaBack,
+    arenaRefresh: function () { arena.data = null; render(); },
     netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, showProfile: showProfile, state: D, unlocked: unlocked,
-    isBusy: () => !!(fight && !fight.over), onLeaderboard: function () {}
+    isBusy: () => !!(fight && !fight.over) || arena.busy || !!(arena.replay && !arena.replay.done), onLeaderboard: function () {}
   };
 
   function boot() {
