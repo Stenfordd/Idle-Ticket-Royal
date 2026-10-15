@@ -5082,7 +5082,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   // ------------------------------------------------------------------ BOSSOVÉ (20 pater, pak se opakují jako Mk II, Mk III ...)
   const BOSSES = [
     { name: "Unplugged Router",          icon: "📡", mech: "router",   txt: "Cable Glitch: every 4th turn the signal drops and it skips its attack." },
-    { name: "Dust Bucket Rack",          icon: "🗄", mech: "dust",     txt: "Thermal Throttling: hits weaker as it loses HP, but dodges more (up to 25%)." },
+    { name: "The Great \"I\"",          icon: "🅸", mech: "dust",     txt: "The Great I: hits weaker as it loses HP, but dodges more (up to 25%) - it's just one letter, how hard can it be?" },
     { name: "Printer Spooler Ghost",     icon: "🖨", mech: "printer",  txt: "Paper Jam: its hits have a 25% chance to jam your next attack (0 damage)." },
     { name: "Rogue Cron Job",            icon: "⏰", mech: "cron",     txt: "Scheduled Run: weak hits, but every 4th turn a massive batch job (×2.6)." },
     { name: "Memory Leak Java App",      icon: "☕", mech: "leak",     txt: "OutOfMemory: its attack grows +8% every turn. End it fast." },
@@ -5100,7 +5100,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     { name: "Rogue Microservice Mesh",   icon: "🧬", mech: "mesh",     txt: "Cascade Failure: after hitting you 3 turns in a row its next hit is ×2." },
     { name: "Unstable Staging Env",      icon: "🧪", mech: "staging",  txt: "Environment Reset: every 4th turn it wipes all shields, buffs and debuffs." },
     { name: "Legacy Monolith Architect", icon: "🏛", mech: "monolith", txt: "Monolithic Armor: your hits under 1.0× only deal 40% damage." },
-    { name: "Dark Web Syndicate Core",   icon: "💀", mech: "darkweb",  txt: "Self-Destruct Protocol: below 30% HP its attack is ×2, but it loses 5% max HP per turn." }
+    { name: "The Big Massi",            icon: "👑", mech: "darkweb",  txt: "FINAL BOSS - Executive Override: below 30% HP his attack is ×2, but he burns 5% max HP per turn. The best boss you could ever ask for." }
   ];
   const PROMOS = [
     { id: "lead",  name: "Micromanager Team Lead",   icon: "📣", lvl: 10, mech: "lead",  reward: "tier2",   txt: "Quick Sync: every 4th turn ALL-IN is disabled for 2 turns.", unlock: "Unlocks career tier 2" },
@@ -5473,7 +5473,7 @@ html.m #dg-open-btn { display: none; }
   const E = window.DungeonEngine;
   const $ = (id) => document.getElementById(id);
   const fmt = (n) => Math.floor(n).toLocaleString();
-  const KEY_MAX = 8, KEY_MS = 15 * 60 * 1000, TOKEN_KEYS = 3, UNLOCK_PRESTIGE = 1;
+  const KEY_MAX = 8, KEY_MS = 15 * 60 * 1000, TOKEN_KEYS = 1, UNLOCK_PRESTIGE = 1;
   const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
   const STANCE_TXT = { safe: ["SAFE", "steady hits"], normal: ["NORMAL", "balanced"], allin: ["ALL-IN", "jackpot or backfire"] };
 
@@ -5538,13 +5538,16 @@ html.m #dg-open-btn { display: none; }
     ["#f97316", "#7c2d12", "#fde68a"], ["#22c55e", "#14532d", "#bbf7d0"], ["#ef4444", "#450a0a", "#fca5a5"], ["#10b981", "#064e3b", "#f8fafc"],
     ["#eab308", "#422006", "#00f0ff"], ["#a855f7", "#3b0764", "#00ff88"], ["#f59e0b", "#78350f", "#fb7185"], ["#64748b", "#0f172a", "#ff1744"],
     ["#38bdf8", "#0c4a6e", "#fef08a"], ["#f472b6", "#500724", "#ffffff"], ["#dc2626", "#1c1917", "#fbbf24"], ["#94a3b8", "#1e293b", "#22d3ee"],
-    ["#c084fc", "#2e1065", "#4ade80"], ["#84cc16", "#1a2e05", "#f43f5e"], ["#d6d3d1", "#44403c", "#fb923c"], ["#ff1744", "#000000", "#ff4dff"],
+    ["#c084fc", "#2e1065", "#4ade80"], ["#84cc16", "#1a2e05", "#f43f5e"], ["#d6d3d1", "#44403c", "#fb923c"], ["#ffd700", "#7c2d12", "#ffffff"],
     ["#fbbf24", "#1f2937", "#ef4444"], ["#f472b6", "#3f3f46", "#fef3c7"], ["#60a5fa", "#172554", "#fde047"], ["#e5e7eb", "#111827", "#a855f7"], ["#ffd700", "#3b0764", "#ffffff"]
   ];
   const spriteCache = {};
   function sprite(idx, kind) {
     const key = kind + idx;
     if (spriteCache[key]) return spriteCache[key];
+    if (kind === "b" && idx === 1) {   // The Great "I" - opravdu písmeno I (patkové písmo, ať to není l)
+      return (spriteCache[key] = `<svg class="dg-sprite" viewBox="0 0 12 12"><rect width="12" height="12" rx="1.5" fill="#101826"/><text x="6" y="10" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="11" fill="#00f0ff" stroke="#ffffff" stroke-width=".25">I</text></svg>`);
+    }
     const R = E.rng(9001 + idx * 7919 + (kind === "p" ? 31337 : 0));
     const N = 12, half = 6, pal = kind === "p" ? [["#00f0ff", "#075985", "#ffffff"], ["#ffb800", "#7c2d12", "#ffffff"], ["#00ff88", "#064e3b", "#ff4dff"]][idx] : PALETTES[idx % PALETTES.length];
     const px = [];
