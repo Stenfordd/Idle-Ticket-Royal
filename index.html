@@ -193,7 +193,20 @@ body {
 .click-btn-wrap {
   text-align: center;
   margin: 10px 0;
+  position: relative;
 }
+/* Battery ring: nabíjení autoclickeru (50 kliků = +1 s) kolem hlavního tlačítka */
+#click-ring { position: absolute; left: -5px; top: -5px; width: calc(100% + 10px); height: calc(100% + 10px); pointer-events: none; overflow: visible; z-index: 2; }
+#click-ring rect { fill: none; stroke-width: 3; }
+#click-ring .trk { stroke: rgba(255,255,255,.07); }
+#click-ring .prg { stroke: var(--amber); stroke-linecap: round; filter: drop-shadow(0 0 4px rgba(255,184,0,.8)); transition: stroke-dasharray .12s linear, stroke .3s, opacity .4s; }
+#click-ring.run .prg { stroke: var(--cyan); filter: drop-shadow(0 0 5px rgba(0,240,255,.9)); animation: ringPulse 1s ease-in-out infinite; }
+#click-ring.full .prg { stroke: var(--emerald); filter: drop-shadow(0 0 5px rgba(0,255,136,.9)); }
+#click-ring.flash .prg { stroke: #fff; filter: drop-shadow(0 0 10px #fff); }
+@keyframes ringPulse { 50% { opacity: .55; } }
+#click-ring-pop { position: absolute; right: 8px; top: -14px; font: 900 13px 'Orbitron', monospace; color: var(--amber); text-shadow: 0 0 8px rgba(255,184,0,.8); pointer-events: none; opacity: 0; z-index: 3; }
+#click-ring-pop.go { animation: ringPop .9s ease-out; }
+@keyframes ringPop { 0% { opacity: 0; transform: translateY(6px) scale(.7); } 20% { opacity: 1; transform: translateY(-2px) scale(1.15); } 100% { opacity: 0; transform: translateY(-18px); } }
 .btn-primary-action {
   width: 100%;
   padding: 16px 12px;
@@ -940,6 +953,8 @@ body {
             <button class="btn-primary-action" id="btn-click" onclick="handleManualClick(event)">
               RESOLVE TICKET (+<span id="click-val">1</span>)
             </button>
+            <svg id="click-ring" aria-hidden="true"><rect class="trk"/><rect class="prg" pathLength="100"/></svg>
+            <span id="click-ring-pop"></span>
           </div>
 
           <div class="heat-row"><span>🌡 CPU</span><div class="heat-bar"><div class="heat-fill" id="heat-fill"></div></div><b id="heat-txt">0%</b></div>
@@ -1938,6 +1953,7 @@ function handleManualClick(ev) {
     const cps = getLiveCps();
     if (clickTimes.length >= 8 && cps > gameState.peakCps) gameState.peakCps = cps;
     registerAutoclickerCharge(now);
+    updateClickRing();
   }
   updateHud();
 }
@@ -1951,6 +1967,40 @@ function sanitizeAc() {
   ac.activeMs = Math.max(0, num(ac.activeMs));
   ac.lastClick = Math.max(0, num(ac.lastClick));
 }
+
+// ---- Battery ring kolem RESOLVE TICKET: jantarová = kliky do dalšího +1 s, azurová = běžící autoclicker, zelená = plná baterie
+let ringW = 0, ringH = 0, ringLast = "";
+function updateClickRing() {
+  const svg = document.getElementById("click-ring");
+  if (!svg) return;
+  const w = svg.clientWidth, h = svg.clientHeight;
+  if (!w || !h) return;
+  if (w !== ringW || h !== ringH) {
+    ringW = w; ringH = h;
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.querySelectorAll("rect").forEach(r => { r.setAttribute("x", 1.5); r.setAttribute("y", 1.5); r.setAttribute("width", w - 3); r.setAttribute("height", h - 3); r.setAttribute("rx", 9); });
+  }
+  if (svg.classList.contains("flash")) return;
+  const ac = gameState.autoclicker;
+  let p, mode;
+  if (ac.running) { p = ac.charge / AC_MAX_CHARGE * 100; mode = "run"; }
+  else if (ac.charge >= AC_MAX_CHARGE) { p = 100; mode = "full"; }
+  else { p = (ac.lastClick && Date.now() - ac.lastClick > AC_IDLE_GAP) ? 0 : ac.clicks / AC_CLICKS_PER_SEC * 100; mode = ""; }
+  p = Math.max(0, Math.min(100, p));
+  const key = mode + "|" + p.toFixed(1);
+  if (key === ringLast) return;
+  ringLast = key;
+  svg.setAttribute("class", mode);
+  const prg = svg.querySelector(".prg");
+  prg.setAttribute("stroke-dasharray", p.toFixed(2) + " 100");
+  prg.style.opacity = p > 0 ? 1 : 0;
+}
+function ringCharged(sec) {
+  const svg = document.getElementById("click-ring"), pop = document.getElementById("click-ring-pop");
+  if (svg) { svg.setAttribute("class", "flash"); const prg = svg.querySelector(".prg"); prg.setAttribute("stroke-dasharray", "100 100"); prg.style.opacity = 1; setTimeout(() => { svg.setAttribute("class", ""); ringLast = ""; updateClickRing(); }, 180); }
+  if (pop && !document.hidden) { pop.textContent = "+" + sec + "s 🔋"; pop.classList.remove("go"); void pop.offsetWidth; pop.classList.add("go"); }
+}
+window.addEventListener("resize", () => { ringW = 0; ringLast = ""; });
 
 function registerAutoclickerCharge(now) {
   const ac = gameState.autoclicker;
@@ -1973,6 +2023,7 @@ function registerAutoclickerCharge(now) {
       if (earned > 0) {
         ac.avgCps = ((ac.avgCps * ac.charge) + sessionAvg * earned) / (ac.charge + earned);
         ac.charge += earned;
+        ringCharged(earned);
         if (ac.charge >= AC_MAX_CHARGE) log("Autoclicker battery FULL (" + AC_MAX_CHARGE + "s).", "special");
       }
     }
@@ -2746,6 +2797,7 @@ function updateHud() {
   const barN = document.getElementById("ac-next-fill");
   if (barN) barN.style.width = Math.min(100, ac.clicks / AC_CLICKS_PER_SEC * 100) + "%";
   setTxt("ac-avg", ac.avgCps.toFixed(1));
+  updateClickRing();
   const btnAc = document.getElementById("btn-autoclick");
   if (btnAc) {
     setTxt("btn-autoclick", ac.running ? `STOP AUTOCLICKER (${Math.floor(ac.charge)}s left)` : (ac.charge >= 1 ? "START AUTOCLICKER" : `AUTOCLICKER (${AC_CLICKS_PER_SEC} CLICKS = +1s)`));
