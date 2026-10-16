@@ -726,7 +726,10 @@ var API_ALLOWED_ = {
   wbState: function () { return wbState(); },
   wbSubmit: function (a) { return wbSubmit(a[0], a[1]); },
   weeklyState: function () { return weeklyState(); },
-  weeklySubmit: function (a) { return weeklySubmit(a[0], a[1]); }
+  weeklySubmit: function (a) { return weeklySubmit(a[0], a[1]); },
+  benchPoll: function (a) { return benchPoll(a[0], a[1]); },
+  benchMove: function (a) { return benchMove(a[0]); },
+  benchClean: function () { return benchClean(); }
 };
 
 function doPost(e) {
@@ -1213,6 +1216,51 @@ function weeklySubmit(cat, val) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ==========================================================================
+// SERVER LOAD TEST (v8.2.3) - simuluje stůl Prší: stav stolu v CacheService + záloha v Script Properties,
+// tah pod zámkem, polling "změnilo se něco?". Klíče bn_* se po testu smažou (benchClean).
+// ==========================================================================
+function benchState_(t) {
+  var c = CacheService.getScriptCache(), raw = c.get('bn_' + t), src = 'cache';
+  if (!raw) { raw = PropertiesService.getScriptProperties().getProperty('bn_' + t); src = 'props'; }
+  return { s: raw ? JSON.parse(raw) : null, src: src };
+}
+function benchPoll(t, rev) {
+  var t0 = Date.now();
+  t = String(t || '0').replace(/[^0-9a-z]/gi, '').slice(0, 8);
+  var st = benchState_(t), s = st.s;
+  var changed = !!s && s.rev !== Number(rev);
+  return { rev: s ? s.rev : 0, changed: changed, hand: changed ? s.hands[0] : null, src: st.src, ms: Date.now() - t0 };
+}
+function benchMove(t) {
+  var t0 = Date.now();
+  t = String(t || '0').replace(/[^0-9a-z]/gi, '').slice(0, 8);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { ok: false, reason: 'busy', ms: Date.now() - t0 };
+  var tl = Date.now() - t0;
+  try {
+    var s = benchState_(t).s;
+    if (!s) {                                                  // nový stůl: zamíchaný balíček 32 karet, 4 ruce
+      var deck = []; for (var i = 0; i < 32; i++) deck.push(i);
+      for (var j = deck.length - 1; j > 0; j--) { var k = Math.floor(Math.random() * (j + 1)), x = deck[j]; deck[j] = deck[k]; deck[k] = x; }
+      s = { rev: 0, deck: deck.slice(17), pile: [deck[16]], hands: [deck.slice(0, 4), deck.slice(4, 8), deck.slice(8, 12), deck.slice(12, 16)], turn: 0, pen: 0, suit: -1, log: [], seats: ['a', 'b', 'c', 'd'], pot: 4000000 };
+    }
+    s.rev++; s.turn = (s.turn + 1) % 4;
+    s.log.push({ p: s.turn, a: 'play', c: s.pile[s.pile.length - 1], at: Date.now() }); if (s.log.length > 30) s.log.shift();
+    if (s.deck.length) s.pile.push(s.deck.pop()); else { s.deck = s.pile.slice(0, -1); s.pile = s.pile.slice(-1); }
+    var json = JSON.stringify(s);
+    CacheService.getScriptCache().put('bn_' + t, json, 21600);
+    PropertiesService.getScriptProperties().setProperty('bn_' + t, json);
+    return { ok: true, rev: s.rev, bytes: json.length, lockMs: tl, ms: Date.now() - t0 };
+  } finally { lock.releaseLock(); }
+}
+function benchClean() {
+  var p = PropertiesService.getScriptProperties(), keys = p.getKeys().filter(function (k) { return k.indexOf('bn_') === 0; });
+  keys.forEach(function (k) { p.deleteProperty(k); });
+  CacheService.getScriptCache().removeAll(keys);
+  return { removed: keys.length };
 }
 
 

@@ -5782,12 +5782,48 @@ html.m #mt-screen { height: var(--app-h, 100%); }
       <div class="mt-card"><div class="mt-h"><span>SCHEDULE</span></div>${up.map(u => { const now = Date.now() >= u.start;
         return `<div class="mt-ev ${now ? "now" : ""}"><span class="ic">${u.ev.icon}</span><div style="flex:1;"><b>${u.ev.name}</b><br><span class="mt-dim">${esc(u.ev.txt)}</span></div>
           <span class="mt-dim" style="text-align:right;">${new Date(u.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<br>${now ? "<b>NOW</b>" : "in " + fmtWhen(u.start - Date.now())}</span></div>`; }).join("")}</div>
+      ${benchHtml()}
       <div class="mt-card"><div class="mt-h"><span>ALL EVENTS</span></div>${EVENTS.map(e => `<div class="mt-ev"><span class="ic">${e.icon}</span><div><b>${e.name}</b><br><span class="mt-dim">${esc(e.txt)}</span></div></div>`).join("")}</div>`;
   }
 
+
+  // ================================================================== SERVER LOAD TEST (simulace stolů Prší: polling 1,2 s + tahy pod zámkem)
+  const bn = { running: false, res: [], cur: "" };
+  function pct(a, q) { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(q * b.length))]; }
+  async function benchScenario(tables, secs) {
+    const call = window.__irCall, end = Date.now() + secs * 1000, poll = [], move = [], srvP = [], srvM = [], lockW = [];
+    let errs = 0, calls = 0, props = 0;
+    const tag = (n) => "t" + Date.now().toString(36).slice(-4) + n;
+    const T = []; for (let i = 0; i < tables; i++) T.push(tag(i));
+    const one = async (fn, args, arr, srvArr) => { const t0 = performance.now(); calls++;
+      try { const r = await call(fn, args); arr.push(performance.now() - t0); if (r && srvArr) srvArr.push(r.ms || 0); if (r && r.lockMs != null) lockW.push(r.lockMs); if (r && r.src === "props") props++; if (r && r.ok === false) errs++; return r; }
+      catch (e) { errs++; return null; } };
+    const player = async (t, seat) => { let rev = -1; while (Date.now() < end) { const r = await one("benchPoll", [t, rev], poll, srvP); if (r) rev = r.rev; await new Promise(z => setTimeout(z, 1200)); } };
+    const dealer = async (t) => { while (Date.now() < end) { await one("benchMove", [t], move, srvM); bn.cur = `${tables} table${tables > 1 ? "s" : ""}: ${calls} requests, ${errs} errors`; if (isOpen) render(); await new Promise(z => setTimeout(z, 2500 + Math.random() * 1500)); } };
+    await Promise.all(T.flatMap(t => [dealer(t), player(t, 0), player(t, 1), player(t, 2), player(t, 3)]));
+    return { tables: tables, players: tables * 4, secs: secs, calls: calls, errs: errs, props: props,
+      poll: [pct(poll, .5), pct(poll, .9), Math.max(0, ...poll)].map(Math.round), move: [pct(move, .5), pct(move, .9), Math.max(0, ...move)].map(Math.round),
+      srvPoll: Math.round(pct(srvP, .5)), srvMove: Math.round(pct(srvM, .5)), lock: Math.round(pct(lockW, .9)), rps: (calls / secs).toFixed(1) };
+  }
+  async function bench() {
+    if (bn.running || !window.__irCall) return;
+    bn.running = true; bn.res = []; view = "events"; if (!isOpen) open("events"); render();
+    try {
+      for (const [t, sec] of [[1, 25], [2, 25], [4, 30]]) { bn.cur = `running ${t} table${t > 1 ? "s" : ""}...`; render(); bn.res.push(await benchScenario(t, sec)); render(); }
+      await window.__irCall("benchClean", []).catch(() => {});
+      log("🧪 SERVER TEST done: " + bn.res.map(r => `${r.players}p poll ${r.poll[0]}/${r.poll[1]} ms, move ${r.move[0]}/${r.move[1]} ms, ${r.errs} err`).join(" · "), "special");
+    } finally { bn.running = false; bn.cur = ""; render(); }
+  }
+  function benchHtml() {
+    const rows = bn.res.map(r => `<tr><td>${r.tables} · ${r.players}p</td><td>${r.poll[0]} / ${r.poll[1]} / ${r.poll[2]}</td><td>${r.move[0]} / ${r.move[1]} / ${r.move[2]}</td><td>${r.srvPoll} / ${r.srvMove}</td><td>${r.lock}</td><td>${r.rps}</td><td style="color:${r.errs ? "var(--crimson)" : "var(--emerald)"};">${r.errs}</td></tr>`).join("");
+    return `<div class="mt-card"><div class="mt-h"><span>🧪 SERVER LOAD TEST (Prší)</span><button class="btn btn-gold" style="padding:4px 10px;" ${bn.running ? "disabled" : ""} onclick="Meta.bench()">${bn.running ? "RUNNING..." : "RUN (~90 s)"}</button></div>
+      <div class="mt-dim">Simulates card tables on the real server: 4 players per table asking for changes every 1.2 s, plus a move every ~3 s under a lock. Runs 1, 2 and 4 tables. Times in ms (median / 90% / max).</div>
+      ${bn.cur ? `<div class="mt-dim" style="margin-top:6px;color:var(--amber);">${esc(bn.cur)}</div>` : ""}
+      ${rows ? `<div style="overflow-x:auto;"><table class="lb-table" style="width:100%;font-size:11px;margin-top:8px;"><thead><tr><th>TABLES</th><th>POLL ms</th><th>MOVE ms</th><th>SERVER ms</th><th>LOCK ms</th><th>REQ/s</th><th>ERR</th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}</div>`;
+  }
   window.Meta = { open: open, close: close, tab: tab, mult: mult, current: current, upcoming: upcoming, active: active, chip: chip, EVENTS: EVENTS,
     onFight: onFight, onWb: onWb, onClimb: onClimb, onShift: onShift, onCasinoWin: onCasinoWin, check: check, badgesHtml: badgesHtml, ACH: ALL,
-    isOpen: () => isOpen, weeklyLoad: wkLoad };
+    isOpen: () => isOpen, weeklyLoad: wkLoad, bench: bench, benchResults: () => bn.res };
 
   function boot() {
     if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
@@ -5809,7 +5845,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
     TT.onLoaded(() => { setTimeout(check, 2500); setTimeout(() => wkLoad(true), 6000); });
     setInterval(tickEvent, 1000); tickEvent();
     setInterval(check, 5000);
-    setInterval(() => { if (isOpen && view === "events") render(); }, 1000);
+    setInterval(() => { if (isOpen && view === "events" && !bn.running) render(); }, 1000);
     document.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") close(); });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
