@@ -1125,7 +1125,7 @@ body {
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t3);">🟣 Epic T3</div><div class="odds-val" id="odd-t3" style="color:var(--rarity-t3);">0.20%</div></div>
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t4);">🟡 Legendary T4</div><div class="odds-val" id="odd-t4" style="color:var(--rarity-t4);">0.01%</div></div>
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t5);">🔴 Mythic T5</div><div class="odds-val" id="odd-t5" style="color:var(--rarity-t5);">0.001%</div></div>
-            <div class="odds-cell odds-t6" title="Prismatic (T6): every HIGH STAKES chapter boss unlocks T6 drops for one body slot (chest LV 30+)"><div class="odds-name" style="color:#ff4dff;">🌌 Prismatic T6</div><div class="odds-val" id="odd-t6" style="color:#ff4dff;">🔒 BOSS</div></div>
+            <div class="odds-cell odds-t6" title="Prismatic (T6): every HIGH STAKES chapter boss unlocks T6 drops for one body slot (chest LV 50+)"><div class="odds-name" style="color:#ff4dff;">🌌 Prismatic T6</div><div class="odds-val" id="odd-t6" style="color:#ff4dff;">🔒 BOSS</div></div>
           </div>
 
           <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;" id="chest-next-info"></div>
@@ -2265,7 +2265,8 @@ function getChestScrapCost() {
   const base = 100 * Math.pow(1.15, gameState.prestige || 0) * (1 - 0.03 * gameState.lpUp.scrap) * chestLevelCostFactor(gameState.chestLevel) * (window.Meta ? Meta.mult("chest") : 1);
   return Math.max(10, Math.floor(base));
 }
-const T5_UNLOCK_LVL = 40;          // Mythic padá až od bedny lvl 40, Quantum (T6) až když ho boss v HIGH STAKES odemkne
+const T5_UNLOCK_LVL = 40;          // Mythic padá až od bedny lvl 40
+const T6_UNLOCK_LVL = 50;          // Quantum (T6) od bedny lvl 50, jen pro části těla odemčené bossem v HIGH STAKES
 
 function getChestOdds(lvl) {
   const l = Math.max(1, lvl);
@@ -2274,9 +2275,9 @@ function getChestOdds(lvl) {
   const t3 = Math.min(25.0, 0.20 + (l - 1) * 0.15);
   const t4 = Math.min(10.0, 0.01 + (l - 1) * 0.03);
   const t5 = l < T5_UNLOCK_LVL ? 0 : Math.min(0.75, 0.025 + (l - T5_UNLOCK_LVL) * 0.003);   // v8.2: poloviční šance na Mythic
-  // Prismatic (T6): jen pro části těla odemčené bossy v HIGH STAKES, od bedny LV 30
+  // Prismatic (T6): jen pro části těla odemčené bossy v HIGH STAKES, od bedny LV 50 (v8.2.2: až po Mythicu a vždy vzácnější než Mythic)
   const t6n = window.Dungeon && Dungeon.t6Slots ? Dungeon.t6Slots().length : 0;
-  const t6 = l < 30 || !t6n ? 0 : Math.min(0.4, 0.01 + (l - 30) * 0.004) * t6n / 6;
+  const t6 = l < T6_UNLOCK_LVL || !t6n ? 0 : Math.min(0.3, 0.005 + (l - T6_UNLOCK_LVL) * 0.002) * t6n / 6;
   const t1 = Math.max(0, 100.0 - (trash + t2 + t3 + t4 + t5 + t6));
   return { trash, t1, t2, t3, t4, t5, t6 };
 }
@@ -2868,7 +2869,7 @@ function updateHud() {
   setTxt("odd-t2", o.t2.toFixed(1) + "%");
   setTxt("odd-t3", o.t3.toFixed(2) + "%");
   setTxt("odd-t4", o.t4.toFixed(2) + "%");
-  setTxt("odd-t6", o.t6 > 0 ? o.t6.toFixed(3) + "%" : (g.chestLevel < 30 && window.Dungeon && Dungeon.t6Slots && Dungeon.t6Slots().length ? "🔒 LVL 30" : "🔒 BOSS"));
+  setTxt("odd-t6", o.t6 > 0 ? o.t6.toFixed(3) + "%" : (g.chestLevel < T6_UNLOCK_LVL && window.Dungeon && Dungeon.t6Slots && Dungeon.t6Slots().length ? "🔒 LVL " + T6_UNLOCK_LVL : "🔒 BOSS"));
   setTxt("odd-t5", g.chestLevel < T5_UNLOCK_LVL ? "🔒 LVL " + T5_UNLOCK_LVL : o.t5.toFixed(3) + "%");
   const nf = chestLevelCostFactor(g.chestLevel + 1), cf = chestLevelCostFactor(g.chestLevel);
   setTxt("chest-next-info", (o.trash > 0
@@ -2876,7 +2877,7 @@ function updateHud() {
     : "Level 90+: 0% empty drops.") +
     (nf > cf ? ` ⚠ Next level makes opening ×${(nf / cf).toFixed(2)} more expensive.` : "") +
     (o.t6 > 0 ? ` 🌌 Prismatic T6: ${o.t6.toFixed(2)}% (${Dungeon.t6Slots().join(", ")}).`
-      : " 🌌 Prismatic T6: beat HIGH STAKES chapter bosses to unlock body slots (drops from chest LV 30+)."));
+      : " 🌌 Prismatic T6: beat HIGH STAKES chapter bosses to unlock body slots (drops from chest LV 50+)."));
   const btnTok = document.getElementById("btn-token");
   if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `🎟 USE SLOT TOKEN (${g.slotTokens})`); }
 
@@ -3786,7 +3787,7 @@ const TUTORIAL_STEPS = [
     <p>10 Tickets = 1 Scrap. Opening costs Scrap (×1.15 per prestige, ×1.25 per 10 chest levels from LV20). Upgrade the chest with GC for better odds.</p>
     <ul><li>From chest <b>level 20</b> opening costs ×2, then ×1.5 every 10 levels</li>
     <li><b>Mythic (T5)</b> only drops from chest level 40</li>
-    <li>🌌 <b>Prismatic / Quantum (T6)</b>: every HIGH STAKES <b>chapter boss</b> unlocks T6 for one body slot (Great "I" = HEAD, Pookie = RIG, Ransomware = OS, LLM = AUGMENT, Massi = TOOL, Compliance = RELIC). From then on that slot can drop T6 from the chest (LV 30+), even after prestige. The 🌌 T6 cell in the odds table shows your chance</li>
+    <li>🌌 <b>Prismatic / Quantum (T6)</b>: every HIGH STAKES <b>chapter boss</b> unlocks T6 for one body slot (Great "I" = HEAD, Pookie = RIG, Ransomware = OS, LLM = AUGMENT, Massi = TOOL, Compliance = RELIC). From then on that slot can drop T6 from the chest (LV 50+, always rarer than Mythic), even after prestige. Beating the boss gives no free T6 item. The 🌌 T6 cell in the odds table shows your chance</li>
     <li>🎟 <b>Slot Token</b> (rare): +1 merge level to the item equipped in a slot you pick (or a new item if the slot is empty) - or turn it into 4 HIGH STAKES energy</li></ul>` },
   { t: "4) GEAR, MERGE & AUTOSELL", b: `
     <p>Equal items <b>stack</b>. <b>Merge 3 identical → +1 level</b> (+60% base stats per level). <b>MERGE ALL</b> merges everything at once.</p>
@@ -7966,11 +7967,10 @@ html.m #dg-open-btn { display: none; }
       d.sm[m.id] = newMask; d.stars[m.id] = total;
       // lektvary
       if ((first && TT.rnd() < 0.5) || (total === 3 && prev < 3) || TT.rnd() < 0.12) { const ks = Object.keys(H.ITEMS); const k = ks[Math.floor(TT.rnd() * ks.length)]; d.items[k]++; lines.push(`${H.ITEMS[k].icon} ${H.ITEMS[k].name}`); }
-      // Quantum (T6) za první poražení bosse kapitoly + odemčení T6 té části těla v bedně (navždy)
+      // první poražení bosse kapitoly odemkne T6 té části těla v bedně (navždy); v8.2.2: item zdarma už nedává
       if (first && (m.kind === "boss" || m.kind === "secret")) {
         const slot = C.BOSS_SLOT[m.id] || SLOTS[Math.floor(TT.rnd() * SLOTS.length)];
-        if (invFind(slot, 6, 0) || gameState.inventory.length < INV_MAX_STACKS) { invAdd(slot, 6, 0, 1); lines.push(`🌌 QUANTUM ${ITEM_TYPES[slot][5]}`); }
-        if (!d.t6[slot]) { d.t6[slot] = true; lines.push(`🔓 Prismatic ${slot} can now drop from chests`); log(`🌌 PRISMATIC UNLOCK: Quantum ${slot} items can now drop from the Company Chest (chest LV 30+).`, "special"); }
+        if (!d.t6[slot]) { d.t6[slot] = true; lines.push(`🔓 Prismatic ${slot} can now drop from chests`); log(`🌌 PRISMATIC UNLOCK: Quantum ${slot} items can now drop from the Company Chest (chest LV 50+).`, "special"); }
         if (m.id === 49) TT.announce("BEAT THE BIG MASSI", "HIGH STAKES", 0, gc);
       }
       gainXp(xp, lines);
