@@ -365,6 +365,7 @@ function buildLeaderboard_(db, currentSeason) {
         peakCps: Number(s.peakCps) || 0,
         gear: cleanTxt_(gear.join(' '), 80),
         dungeon: { cls: cleanTxt_(dg.cls, 12), level: Number(dg.level) || 0, best: Number(dg.best) || 0, wins: Number(dg.wins) || 0, losses: Number(dg.losses) || 0, title: cleanTxt_(dg.title, 40), honor: arenaHonorOf_(saves[i][0]) },
+        ach: (function () { var u = s.hs && s.hs.ach && s.hs.ach.u; if (!u || typeof u !== 'object') return []; return Object.keys(u).slice(0, 60).map(function (k) { return cleanTxt_(k, 20); }); })(),
         score: computeScore_(s),
         presence: presenceOf_(s).presence,
         seen: presenceOf_(s).seen
@@ -381,7 +382,7 @@ function getLeaderboardAndRoulette() {
   var currentSeason = Number(config[0][1]) || 1;
 
   var cache = CacheService.getScriptCache();
-  var key = 'tt_lb_v3_s' + currentSeason;
+  var key = 'tt_lb_v4_s' + currentSeason;
   var leaderboard = null;
   try {
     var cached = cache.get(key);
@@ -721,7 +722,11 @@ var API_ALLOWED_ = {
   pvpAccept: function (a) { return pvpAccept(a[0], a[1], a[2]); },
   pvpPoll: function (a) { return pvpPoll(a[0]); },
   arenaList: function () { return arenaList(); },
-  arenaFight: function (a) { return arenaFight(a[0], a[1]); }
+  arenaFight: function (a) { return arenaFight(a[0], a[1]); },
+  wbState: function () { return wbState(); },
+  wbSubmit: function (a) { return wbSubmit(a[0], a[1]); },
+  weeklyState: function () { return weeklyState(); },
+  weeklySubmit: function (a) { return weeklySubmit(a[0], a[1]); }
 };
 
 function doPost(e) {
@@ -1070,6 +1075,146 @@ function arenaFight(target, stance) {
     lock.releaseLock();
   }
 }
+
+// ==========================================================================
+// WORLD BOSS (v8) - "Quarterly Review": jeden boss na týden pro celou firmu, sdílené HP.
+// Souboj (10 kol) se hraje u klienta, server hlídá cooldown, rozumný strop damage a sčítá.
+// Max HP roste s každým novým účastníkem (podle jeho síly), takže je boss stejně těžký pro 2 i 20 hráčů.
+// ==========================================================================
+var WB_COOLDOWN_MS = 60 * 60 * 1000;
+var WB_COUNT = 6;
+var WB_BASE_HP = 3000;
+var WB_CONTRIB = 100;
+var WB_MK_HP = 1.6;            // v8.2: po zabití hned naskočí MK.II, MK.III... (HP ×1.6 za každý MK)
+
+function wbWeek_() { return Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000)); }
+function wbSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName('World_Boss');
+  if (!sh) { sh = ss.insertSheet('World_Boss'); sh.appendRow(['Week', 'Data']); sh.setFrozenRows(1); }
+  return sh;
+}
+function wbLoad_(sh, week) {
+  var last = sh.getLastRow();
+  if (last >= 2) {
+    var rows = sh.getRange(2, 1, last - 1, 2).getValues();
+    for (var i = rows.length - 1; i >= 0; i--) if (Number(rows[i][0]) === week) return { row: i + 2, data: safeJson_(rows[i][1], null) };
+  }
+  return { row: 0, data: null };
+}
+function wbFresh_(week) { return { week: week, idx: week % WB_COUNT, maxHp: WB_BASE_HP, baseHp: WB_BASE_HP, mk: 1, kills: [], dmg: 0, killedAt: 0, killer: '', players: {} }; }
+function wbFix_(d) {
+  if (!d.mk) d.mk = d.killedAt ? 2 : 1;
+  if (!d.baseHp) d.baseHp = d.maxHp;
+  if (!d.kills) d.kills = d.killedAt ? [{ mk: 1, killer: d.killer, at: d.killedAt }] : [];
+  if (d.killedAt && d.mk === 2 && d.dmg >= d.maxHp) { d.dmg = 0; d.maxHp = Math.round(d.baseHp * WB_MK_HP); }
+  return d;
+}
+function wbMkMult_(mk) { return Math.pow(WB_MK_HP, mk - 1); }
+function wbPublic_(d, me) {
+  var list = Object.keys(d.players).map(function (n) { var p = d.players[n]; return { nick: n, dmg: p.dmg, n: p.n }; });
+  list.sort(function (a, b) { return b.dmg - a.dmg; });
+  var mine = d.players[me] || { dmg: 0, n: 0, last: 0 };
+  return { week: d.week, idx: d.idx, maxHp: d.maxHp, dmg: d.dmg, mk: d.mk, kills: d.kills, killedAt: d.killedAt, killer: d.killer, players: list.slice(0, 30),
+    me: { dmg: mine.dmg, n: mine.n, wait: Math.max(0, WB_COOLDOWN_MS - (Date.now() - (mine.last || 0))) } };
+}
+function wbState() {
+  var me = getUserLdap(), sh = wbSheet_(), w = wbWeek_();
+  var cur = wbFix_(wbLoad_(sh, w).data || wbFresh_(w));
+  var prev = wbLoad_(sh, w - 1).data;
+  if (prev) wbFix_(prev);
+  var last = null;
+  if (prev) {
+    var top = Object.keys(prev.players).sort(function (a, b) { return prev.players[b].dmg - prev.players[a].dmg; })[0] || '';
+    last = { week: prev.week, idx: prev.idx, killed: !!prev.killedAt, kills: prev.kills.length, mk: prev.mk, top: top, myDmg: (prev.players[me] || {}).dmg || 0, participants: Object.keys(prev.players).length };
+  }
+  return { ok: true, now: Date.now(), cooldown: WB_COOLDOWN_MS, cur: wbPublic_(cur, me), last: last };
+}
+function wbSubmit(dmg, atk) {
+  var me = getUserLdap();
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(8000)) return { ok: false, reason: 'busy' };
+  try {
+    var sh = wbSheet_(), w = wbWeek_(), got = wbLoad_(sh, w), d = wbFix_(got.data || wbFresh_(w));
+    var p = d.players[me];
+    if (p && Date.now() - (p.last || 0) < WB_COOLDOWN_MS) return { ok: false, reason: 'cooldown' };
+    atk = Math.max(1, Math.min(1000000, Number(atk) || 1));
+    dmg = Math.max(0, Math.min(Math.floor(Number(dmg) || 0), Math.round(atk * 45)));
+    if (!p) { p = d.players[me] = { dmg: 0, n: 0, last: 0, contrib: Math.round(atk * WB_CONTRIB) }; d.baseHp += p.contrib; d.maxHp += Math.round(p.contrib * wbMkMult_(d.mk)); }
+    var before = d.dmg, mkBefore = d.mk;
+    dmg = Math.min(dmg, d.maxHp - d.dmg);                      // přebytek se nepřenáší do dalšího MK
+    p.dmg += dmg; p.n++; p.last = Date.now();
+    d.dmg += dmg;
+    var kill = false;
+    if (d.dmg >= d.maxHp) {
+      kill = true;
+      if (!d.killedAt) { d.killedAt = Date.now(); d.killer = me; }
+      d.kills.push({ mk: d.mk, killer: me, at: Date.now() });
+      d.mk++; d.dmg = 0; d.maxHp = Math.round(d.baseHp * wbMkMult_(d.mk));
+      try { getDb_().chat.appendRow([new Date(), '📢 QUARTERLY REVIEW', me + ' took down MK.' + (d.mk - 1) + '! MK.' + d.mk + ' just walked in - the weekly reward grows.']); } catch (e) {}
+    }
+    var json = JSON.stringify(d);
+    if (got.row) sh.getRange(got.row, 2).setValue(json); else sh.appendRow([w, json]);
+    if (sh.getLastRow() > 30) sh.deleteRows(2, sh.getLastRow() - 30);
+    return { ok: true, dmg: dmg, kill: kill, mk: mkBefore, counted: dmg, state: wbPublic_(d, me) };
+  } catch (e) {
+    return { ok: false, reason: 'error', msg: String(e) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ==========================================================================
+// WEEKLY BOARDS (v8.2) - týdenní žebříčky: výška v Corporate Climb, nejlepší Shift, damage na world bosse, největší výhra v kasinu.
+// Klient posílá jen zlepšení; top 3 si odměnu (tokeny) vyzvedne sám po konci týdne.
+// ==========================================================================
+var WEEKLY_CATS = { climb: 200, shift: 999, casino: 1e18 };
+function weeklySheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName('Weekly');
+  if (!sh) { sh = ss.insertSheet('Weekly'); sh.appendRow(['Week', 'Data']); sh.setFrozenRows(1); }
+  return sh;
+}
+function weeklyTop_(map, n) {
+  return Object.keys(map || {}).map(function (k) { return { nick: k, v: Number(map[k]) || 0 }; })
+    .filter(function (x) { return x.v > 0; }).sort(function (a, b) { return b.v - a.v; }).slice(0, n);
+}
+function weeklyBoards_(w) {
+  var d = wbLoad_(weeklySheet_(), w).data || {};
+  var wb = wbLoad_(wbSheet_(), w).data, dmg = {};
+  if (wb && wb.players) Object.keys(wb.players).forEach(function (k) { dmg[k] = wb.players[k].dmg || 0; });
+  return { climb: d.climb || {}, shift: d.shift || {}, casino: d.casino || {}, wbdmg: dmg };
+}
+function weeklyState() {
+  var me = getUserLdap(), w = wbWeek_(), cur = weeklyBoards_(w), prev = weeklyBoards_(w - 1), out = { ok: true, week: w, cur: {}, last: {}, mine: {} };
+  Object.keys(cur).forEach(function (c) {
+    out.cur[c] = weeklyTop_(cur[c], 10);
+    out.last[c] = weeklyTop_(prev[c], 3);
+    out.mine[c] = Number(cur[c][me]) || 0;
+  });
+  return out;
+}
+function weeklySubmit(cat, val) {
+  var me = getUserLdap();
+  if (!WEEKLY_CATS.hasOwnProperty(cat)) return { ok: false, reason: 'cat' };
+  val = Math.max(0, Math.min(WEEKLY_CATS[cat], Number(val) || 0));
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(8000)) return { ok: false, reason: 'busy' };
+  try {
+    var sh = weeklySheet_(), w = wbWeek_(), got = wbLoad_(sh, w), d = got.data || {};
+    d[cat] = d[cat] || {};
+    var old = Number(d[cat][me]) || 0;
+    if (val <= old) return { ok: true, best: old };
+    d[cat][me] = val;
+    var json = JSON.stringify(d);
+    if (got.row) sh.getRange(got.row, 2).setValue(json); else sh.appendRow([w, json]);
+    if (sh.getLastRow() > 20) sh.deleteRows(2, sh.getLastRow() - 20);
+    return { ok: true, best: val };
+  } catch (e) {
+    return { ok: false, reason: 'error', msg: String(e) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 
 
 // ===================== DUNGEON ENGINE (vygenerováno build.py ze src/dungeon_engine.js - neupravovat ručně) =====================
