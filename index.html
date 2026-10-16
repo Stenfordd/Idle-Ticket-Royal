@@ -9001,7 +9001,7 @@ html.m #dg-open-btn { display: none; }
       ${b >= 100 ? `<div class="dg-card dg-lock"><div class="big">🏆</div><div style="font:800 14px Orbitron,monospace;color:var(--amber);">TOWER CONQUERED</div><div class="dg-dim">All 100 floors cleared. Respect.</div></div>` :
       `<div class="dg-card"><div class="dg-h"><span>NEXT: ${esc(m.name)}</span><span>⚡1</span></div>
         <div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}<br>
-        Reward: ${fmt(towerXp(next))} XP, ${fmt(towerGc(next))} GC${next % 10 === 0 ? ", an item and +1% permanent power" : ""}<br>Your stats: ${A.statLine()}</div></div>
+        Reward: ${fmt(towerXp(next))} XP, ${fmt(towerGc(next))} GC${next % 10 === 0 ? ", a GC bonus and +1% permanent power" : ""}<br>Your stats: ${A.statLine()}</div></div>
         <button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.towerGo()">⚔ CLIMB TO FLOOR ${next} (⚡1)</button></div>`}
       <div class="dg-card"><div class="dg-h">FLOORS</div><div class="tw-grid">${cells.join("")}</div></div>`;
   }
