@@ -5357,7 +5357,8 @@ window.__startGame = initGame;
   const $ = (id) => document.getElementById(id);
   const fmt = (n) => Math.floor(n).toLocaleString();
   const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
-  const short = (n) => n >= 1e9 ? (n / 1e9) + "B" : n >= 1e6 ? (n / 1e6) + "M" : n >= 1e3 ? (n / 1e3) + "K" : String(n);
+  const trim = (x) => x.toFixed(2).replace(/\.?0+$/, "");
+  const short = (n) => n >= 1e9 ? trim(n / 1e9) + "B" : n >= 1e6 ? trim(n / 1e6) + "M" : n >= 1e4 ? trim(n / 1e3) + "K" : Math.floor(n).toLocaleString();
   const SUITS = ["Hearts", "Bells", "Leaves", "Acorns"], RANKS = ["7", "8", "9", "10", "U", "O", "K", "A"], RANK_N = ["7", "8", "9", "10", "Under", "Over", "King", "Ace"];
   // vlastní ikony barev (mariášové karty)
   const ICON = [
@@ -5439,7 +5440,9 @@ window.__startGame = initGame;
   // ---------- akce
   async function create() {
     if (P.busy) return;
-    const stake = Number($("pr-stake").value), seats = Number($("pr-seats").value);
+    const L = P.list || {}, stake = TT.cleanBet($("pr-stake").value, L.minStake || 10, Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9)), seats = Number($("pr-seats").value);
+    $("pr-stake").value = stake; P.lastStake = stake;
+    if (!(stake > 0)) { say("Enter a stake.", "var(--crimson)"); return; }
     if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
     P.busy = true; TT.spend(stake);
     try {
@@ -5496,6 +5499,8 @@ window.__startGame = initGame;
   // ---------- vykreslení
   function render() {
     const box = $("prs-mount"); if (!box) return;
+    const ae = document.activeElement;
+    if (!P.id && ae && box.contains(ae) && /INPUT|SELECT/.test(ae.tagName)) return;   // nepřepisovat, když hráč zrovna píše vklad
     box.innerHTML = P.id && P.view ? tableHtml(P.view) : P.id ? `<div class="pr-info">Loading the table...</div>` : lobbyHtml();
     const h = box.querySelector(".pr-hand"); if (h && P.handScroll) h.scrollLeft = P.handScroll;
   }
@@ -5507,13 +5512,13 @@ window.__startGame = initGame;
   function lobbyHtml() {
     const L = P.list;
     if (!L) return rulesHtml() + `<div class="pr-info">Loading tables...</div>`;
-    const stakes = (L.stakes && L.stakes.length ? L.stakes : [100000, 1000000, 10000000, 100000000, 1000000000]);
     const active = L.tables.length;
     const rows = L.tables.map(t => `<div class="pr-trow"><div class="t">♣ <b>${short(t.stake)} GC</b> · ${esc(t.host)}'s table · ${t.players.length}/${t.seats} players<br><span style="color:var(--text-dim);font-size:10px;">${t.players.map(esc).join(", ")}</span></div>
       ${t.status === "wait" && t.players.length < t.seats ? `<button class="btn btn-gold" ${gameState.coins >= t.stake && !P.busy ? "" : "disabled"} onclick="Prsi.join('${t.id}',${t.stake})">JOIN (${short(t.stake)})</button>` : `<span style="color:var(--text-dim);font-size:10px;">${t.status === "play" ? "PLAYING" : "FULL"}</span>`}</div>`).join("");
     return rulesHtml() + `<div class="pr-create">
-        <select id="pr-stake">${stakes.map(s => `<option value="${s}" ${s === P.lastStake ? "selected" : ""}>${short(s)} GC</option>`).join("")}</select>
-        <select id="pr-seats"><option value="2">2 players</option><option value="3">3 players</option><option value="4" selected>4 players</option></select>
+        <span style="font-size:11px;">STAKE:</span><input type="number" class="adv-input" id="pr-stake" min="${L.minStake || 10}" step="10" value="${P.lastStake || 1000}" style="width:120px;" oninput="Prsi._st(this.value)">
+        <span style="font-size:10px;color:var(--text-dim);">max ${short(Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9))}</span>
+        <select id="pr-seats" onchange="Prsi._se(this.value)">${[2, 3, 4].map(n => `<option value="${n}" ${n === (P.lastSeats || 4) ? "selected" : ""}>${n} players</option>`).join("")}</select>
         <button class="btn btn-crimson" ${active >= (L.max || 2) || P.busy ? "disabled" : ""} onclick="Prsi.create()">♣ OPEN A TABLE</button>
         <button class="btn" onclick="Prsi.refresh()">↻</button></div>
       ${P.msg ? `<div class="pr-info" style="color:${P.msgC || "var(--amber)"};">${esc(P.msg)}</div>` : ""}
@@ -5579,7 +5584,7 @@ window.__startGame = initGame;
     else if (!P.id && Date.now() - P.lastList > 5000) loadList();
   }
   window.Prsi = { show: show, create: create, join: join, start: start, leave: leave, play: play, draw: draw,
-    suit: function (s) { if (s === -2) { P.pick = -1; render(); return; } pickSuit(s); }, refresh: loadList, _sc: function (el) { P.handScroll = el.scrollLeft; },
+    suit: function (s) { if (s === -2) { P.pick = -1; render(); return; } pickSuit(s); }, refresh: loadList, _st: function (v) { P.lastStake = Math.floor(Number(v)) || 0; }, _se: function (v) { P.lastSeats = Number(v) || 4; }, _sc: function (el) { P.handScroll = el.scrollLeft; },
     state: () => P, playable: playable };
   function boot() {
     if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 200); return; }

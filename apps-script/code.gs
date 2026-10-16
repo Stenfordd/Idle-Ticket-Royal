@@ -1227,7 +1227,7 @@ function weeklySubmit(cat, val) {
 // Vklad strhává klient (jako u Showdownu), server drží bank a výhry vyplácí přes prsPoll (Script Properties "pr_pay").
 // Karty 0-31: barva = floor(c/8) (0 srdce, 1 kule, 2 listy, 3 žaludy), hodnota = c%8 (0=7,1=8,2=9,3=10,4=spodek,5=svršek,6=král,7=eso)
 // ==========================================================================
-var PRS_STAKES = [100000, 1000000, 10000000, 100000000, 1000000000];
+var PRS_MIN_STAKE = 10, PRS_MAX_STAKE = 1000000000;   // vklad si volí zakladatel (jako u Showdownu)
 var PRS_MAX_TABLES = 2, PRS_TURN_MS = 30000, PRS_WAIT_MS = 120000, PRS_IDLE_MS = 30 * 60000, PRS_RAKE = 0.05, PRS_MAX_MISS = 3;
 
 function prsProps_() { return PropertiesService.getScriptProperties(); }
@@ -1374,14 +1374,14 @@ function prsList() {
   try {
     var ts = prsLoadAll_(), mine = '';
     ts.forEach(function (t) { if (t.players.indexOf(me) >= 0 && t.status !== 'gone' && !(t.status === 'done' && t.seen && t.seen[me])) mine = t.id; });
-    return { ok: true, tables: ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).map(prsPublic_), mine: mine, max: PRS_MAX_TABLES, stakes: PRS_STAKES, pay: prsTakePay_(me) };
+    return { ok: true, tables: ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).map(prsPublic_), mine: mine, max: PRS_MAX_TABLES, minStake: PRS_MIN_STAKE, maxStake: PRS_MAX_STAKE, pay: prsTakePay_(me) };
   } finally { lock.releaseLock(); }
 }
 function prsCreate(stake, seats) {
   var me = getUserLdap(), lock = prsLock_();
   try {
-    stake = Number(stake); seats = Math.max(2, Math.min(4, Number(seats) || 4));
-    if (PRS_STAKES.indexOf(stake) < 0) return { ok: false, reason: 'stake' };
+    stake = Math.floor(Number(stake)); seats = Math.max(2, Math.min(4, Number(seats) || 4));
+    if (!(stake >= PRS_MIN_STAKE && stake <= PRS_MAX_STAKE)) return { ok: false, reason: 'stake' };
     var ts = prsLoadAll_();
     if (ts.some(function (t) { return t.players.indexOf(me) >= 0 && (t.status === 'wait' || t.status === 'play'); })) return { ok: false, reason: 'already' };
     if (ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).length >= PRS_MAX_TABLES) return { ok: false, reason: 'full' };
