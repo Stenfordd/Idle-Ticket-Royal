@@ -5788,7 +5788,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
 
 
   // ================================================================== SERVER LOAD TEST (simulace stolů Prší: polling 1,2 s + tahy pod zámkem)
-  const bn = { running: false, res: [], cur: "" };
+  const bn = { running: false, res: [], cur: "", err: "" };
   function pct(a, q) { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(q * b.length))]; }
   async function benchScenario(tables, secs) {
     const call = window.__irCall, end = Date.now() + secs * 1000, poll = [], move = [], srvP = [], srvM = [], lockW = [];
@@ -5797,7 +5797,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
     const T = []; for (let i = 0; i < tables; i++) T.push(tag(i));
     const one = async (fn, args, arr, srvArr) => { const t0 = performance.now(); calls++;
       try { const r = await call(fn, args); arr.push(performance.now() - t0); if (r && srvArr) srvArr.push(r.ms || 0); if (r && r.lockMs != null) lockW.push(r.lockMs); if (r && r.src === "props") props++; if (r && r.ok === false) errs++; return r; }
-      catch (e) { errs++; return null; } };
+      catch (e) { errs++; bn.err = String(e && e.message || e); return null; } };
     const player = async (t, seat) => { let rev = -1; while (Date.now() < end) { const r = await one("benchPoll", [t, rev], poll, srvP); if (r) rev = r.rev; await new Promise(z => setTimeout(z, 1200)); } };
     const dealer = async (t) => { while (Date.now() < end) { await one("benchMove", [t], move, srvM); bn.cur = `${tables} table${tables > 1 ? "s" : ""}: ${calls} requests, ${errs} errors`; if (isOpen) render(); await new Promise(z => setTimeout(z, 2500 + Math.random() * 1500)); } };
     await Promise.all(T.flatMap(t => [dealer(t), player(t, 0), player(t, 1), player(t, 2), player(t, 3)]));
@@ -5807,7 +5807,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
   }
   async function bench() {
     if (bn.running || !window.__irCall) return;
-    bn.running = true; bn.res = []; view = "events"; if (!isOpen) open("events"); render();
+    bn.running = true; bn.res = []; bn.err = ""; view = "events"; if (!isOpen) open("events"); render();
     try {
       for (const [t, sec] of [[1, 25], [2, 25], [4, 30]]) { bn.cur = `running ${t} table${t > 1 ? "s" : ""}...`; render(); bn.res.push(await benchScenario(t, sec)); render(); }
       await window.__irCall("benchClean", []).catch(() => {});
@@ -5819,6 +5819,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
     return `<div class="mt-card"><div class="mt-h"><span>🧪 SERVER LOAD TEST (Prší)</span><button class="btn btn-gold" style="padding:4px 10px;" ${bn.running ? "disabled" : ""} onclick="Meta.bench()">${bn.running ? "RUNNING..." : "RUN (~90 s)"}</button></div>
       <div class="mt-dim">Simulates card tables on the real server: 4 players per table asking for changes every 1.2 s, plus a move every ~3 s under a lock. Runs 1, 2 and 4 tables. Times in ms (median / 90% / max).</div>
       ${bn.cur ? `<div class="mt-dim" style="margin-top:6px;color:var(--amber);">${esc(bn.cur)}</div>` : ""}
+      ${bn.err ? `<div class="mt-dim" style="margin-top:6px;color:var(--crimson);">Last error: ${esc(bn.err)}${/unknown function/.test(bn.err) ? " - the server does not have the test yet, wait for the updater (Config row 9)" : ""}</div>` : ""}
       ${rows ? `<div style="overflow-x:auto;"><table class="lb-table" style="width:100%;font-size:11px;margin-top:8px;"><thead><tr><th>TABLES</th><th>POLL ms</th><th>MOVE ms</th><th>SERVER ms</th><th>LOCK ms</th><th>REQ/s</th><th>ERR</th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}</div>`;
   }
   window.Meta = { open: open, close: close, tab: tab, mult: mult, current: current, upcoming: upcoming, active: active, chip: chip, EVENTS: EVENTS,
