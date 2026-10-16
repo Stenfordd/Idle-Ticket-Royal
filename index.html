@@ -3806,7 +3806,7 @@ const TUTORIAL_STEPS = [
   { t: "6) CASINO", b: `
     <p><b>Roulette</b> (shows the last 6 results of everyone), <b>Slots</b>, <b>Blackjack</b> (2.5× blackjack, <b>Five-Card Charlie</b> = 5 cards without bust wins), <b>MEGA 5×5</b> (10 lines, ⭐ wild, 💰×5 = 250× jackpot, auto-spin) and <b>CRASH</b> (cash out before the rocket explodes, set an auto cash-out).</p>` },
   { t: "7) MINIGAMES & CONSULT", b: `
-    <p><b>Chicken Road</b>, <b>Pachinko</b> (shows your profit after a multi-drop) and <b>Showdown</b> PvP (the tab glows when someone challenged you) and <b>♣ PRŠÍ</b>: the Czech card game for 2-4 players, everyone puts in the same stake and the winner takes the pot (7 = +2, Ace = stand, Over changes the suit).</p>
+    <p><b>Chicken Road</b>, <b>Pachinko</b> (shows your profit after a multi-drop) and <b>Showdown</b> PvP (the tab glows when someone challenged you) and <b>♣ PRŠÍ</b>: the Czech card game for 2-4 players, everyone puts in the same stake and the winner takes the pot (7 = +2, Ace = stand, Queen = svršek changes the suit).</p>
     <p><b>Consult</b> (5,000 scrap): win/lose minutes of Auto GC, 10% BUG chamber. <b>×5 INSTANT</b> rolls 5 at once, <b>BUGROLL</b> keeps rolling until a bug drops.</p>` },
   { t: "8) 🎰 HIGH STAKES", b: `
     <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
@@ -5359,7 +5359,7 @@ window.__startGame = initGame;
   const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
   const trim = (x) => x.toFixed(2).replace(/\.?0+$/, "");
   const short = (n) => n >= 1e9 ? trim(n / 1e9) + "B" : n >= 1e6 ? trim(n / 1e6) + "M" : n >= 1e4 ? trim(n / 1e3) + "K" : Math.floor(n).toLocaleString();
-  const SUITS = ["Hearts", "Bells", "Leaves", "Acorns"], RANKS = ["7", "8", "9", "10", "U", "O", "K", "A"], RANK_N = ["7", "8", "9", "10", "Under", "Over", "King", "Ace"];
+  const SUITS = ["Hearts", "Bells", "Leaves", "Acorns"], RANKS = ["7", "8", "9", "10", "J", "Q", "K", "A"], RANK_N = ["7", "8", "9", "10", "Jack (spodek)", "Queen (svršek)", "King", "Ace"];
   // vlastní ikony barev (mariášové karty)
   const ICON = [
     '<svg viewBox="0 0 32 32"><path d="M16 29 C10 23 3 18 3 11 C3 6.5 6.5 3.5 10.5 3.5 C13 3.5 15 5 16 7 C17 5 19 3.5 21.5 3.5 C25.5 3.5 29 6.5 29 11 C29 18 22 23 16 29Z" fill="#d61f3c" stroke="#7a0c1e" stroke-width="1.2"/><path d="M9 8 C7 9 6 11 6.5 13" stroke="#ff9aa9" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
@@ -5506,7 +5506,7 @@ window.__startGame = initGame;
   }
   function rulesHtml() {
     return `<div class="pr-info">2-4 players, everyone puts in the same stake, <b>the winner takes the pot</b> (-5%). 4 cards each, play the same <b>suit</b> or <b>rank</b>, or draw 1.
-      <b>7</b> = next player takes 2 (stack 7s: 4, 6, 8...). <b>Ace</b> = next player stands (only an ace beats it). <b>Over</b> goes on anything and changes the suit.
+      <b>7</b> = next player takes 2 (stack 7s: 4, 6, 8...). <b>Ace</b> = next player stands (only an ace beats it). <b>Queen</b> (Q = svršek) goes on anything and changes the suit. J = spodek.
       First one out of cards wins. 30 s per turn - 3 timeouts in a row and you are out.</div>`;
   }
   function lobbyHtml() {
@@ -5570,7 +5570,7 @@ window.__startGame = initGame;
       if (!has) html += `<div class="pr-info" style="text-align:center;color:#ffd700;margin:4px 0 0;">No card fits - ${v.pen > 0 ? "take the cards" : v.skip ? "you stand this turn" : "draw one"}.</div>`;
     }
     if (P.msg) html += `<div class="pr-info" style="text-align:center;color:${P.msgC || "var(--amber)"};margin-top:4px;">${esc(P.msg)}</div>`;
-    if (P.pick >= 0) html += `<div class="pr-pick"><div style="font:800 13px Orbitron,monospace;color:#ffd700;">OVER: PICK THE NEW SUIT</div><div class="row">${[0, 1, 2, 3].map(s => `<button onclick="Prsi.suit(${s})">${ICON[s]}${SUITS[s].toUpperCase()}</button>`).join("")}</div><button class="btn" onclick="Prsi.suit(-2)">CANCEL</button></div>`;
+    if (P.pick >= 0) html += `<div class="pr-pick"><div style="font:800 13px Orbitron,monospace;color:#ffd700;">QUEEN: PICK THE NEW SUIT</div><div class="row">${[0, 1, 2, 3].map(s => `<button onclick="Prsi.suit(${s})">${ICON[s]}${SUITS[s].toUpperCase()}</button>`).join("")}</div><button class="btn" onclick="Prsi.suit(-2)">CANCEL</button></div>`;
     return html + logHtml(v) + `</div>`;
   }
   function logHtml(v) { return `<div class="pr-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div>`; }

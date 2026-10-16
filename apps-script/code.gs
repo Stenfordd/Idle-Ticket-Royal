@@ -1264,7 +1264,7 @@ function prsShuffle_(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.
 function prsSuit_(c) { return Math.floor(c / 8); }
 function prsRank_(c) { return c % 8; }
 function prsLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 40) t.log.shift(); }
-var PRS_SUITS = ['Hearts', 'Bells', 'Leaves', 'Acorns'], PRS_RANKS = ['7', '8', '9', '10', 'Under', 'Over', 'King', 'Ace'];
+var PRS_SUITS = ['Hearts', 'Bells', 'Leaves', 'Acorns'], PRS_RANKS = ['7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'];
 function prsName_(c) { return PRS_RANKS[prsRank_(c)] + ' of ' + PRS_SUITS[prsSuit_(c)]; }
 function prsTop_(t) { return t.pile[t.pile.length - 1]; }
 function prsPlayable_(t, c) {
