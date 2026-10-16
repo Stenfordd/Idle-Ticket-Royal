@@ -3813,7 +3813,7 @@ const TUTORIAL_STEPS = [
   { t: "8) 🎰 HIGH STAKES", b: `
     <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
     <ul><li>⚔ Quick / 🗡 Strike = safe hits. 💥 <b>Power</b> = stop the needle in the green zone (1.9×) or gold (2.5×), then 2 turns cooldown. 🎰 <b>Gamble</b> = a mini slot machine (777 = 6×, 💀💀💀 = backfire)</li>
-    <li>🛡 Block a HEAVY and tap in time = <b>PARRY</b> (no damage, counter, stun). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. Items: ☕ 🥤 🩹 🪙 (2 per fight)</li>
+    <li>🛡 Block a HEAVY and tap in time = <b>PARRY</b> (no damage, counter, stun). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. During POWER and PARRY you can tap <b>anywhere</b> on the screen</li>
     <li>Campaign: 5 chapters, 50 missions. Each mission has 3 separate stars: ★ win, ★ win with 50%+ HP, ★ the bonus goal <b>or</b> a win within 3 turns. Stars you earn stay - you can collect them over several runs. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min, or turn a Slot Token into +4 ⚡ with the button at the top)</li>
     <li>📋 <b>Compliance audits</b>: every turn a form asks for one move. Do it = bonus damage. Ignore it = RED TAPE (-ATK, -dodge, stacks). Dodging twice in a row works less often</li>
     <li>🗼 <b>TOWER</b>: 100 floors, every 10 = +1% power. 📟 <b>SHIFT</b>: roguelite run with perks, HP carries over. 📊 <b>BOSS</b>: weekly company-wide boss, 1 attack per hour - kill it together for ×1.10 income next week. Kill it and a stronger MK.II spawns right away (then MK.III...) - the higher the MK, the bigger the weekly reward</li>
@@ -7292,13 +7292,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     dodge:  { name: "DODGE", icon: "💨", sta: 10, hit: 0,    mult: 0,    txt: "big chance to avoid the hit" },
     skill:  { name: "SKILL", icon: "✨", sta: 0,  hit: 1,    mult: 0,    txt: "100 focus" }
   };
-  const ITEMS = {
-    coffee: { name: "Coffee", icon: "☕", txt: "Heal 35% HP" },
-    energy: { name: "Energy Drink", icon: "🥤", txt: "+60 stamina, +25 focus" },
-    hotfix: { name: "Hotfix Patch", icon: "🩹", txt: "Next hit ×2" },
-    coin:   { name: "Coin Toss", icon: "🪙", txt: "50%: +40% ATK for 3 turns, 50%: -20%" }
-  };
-  const MAX_ITEMS_PER_FIGHT = 2;
+  const ITEMS = {};                      // v8.5: consumables (coffee, energy drink, hotfix, coin) odstraněny
+  const MAX_ITEMS_PER_FIGHT = 0;
 
   const REELS = [["🍒", 30], ["🔔", 22], ["⭐", 12], ["7️⃣", 8], ["💀", 14]];
 
@@ -7322,7 +7317,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       staRegen: 10 + S("end") * 0.4,                                // v8.2: 12/tah na startu (dřív 18.5)
       zone: Math.min(0.45, 0.16 + S("luck") * 0.0035 + (cls === "engineer" ? 0.06 : 0)),   // šířka zeleného pole u timingu
       luckReel: S("luck") + (cls === "cyber" ? 10 : 0),
-      items: Object.assign({}, h.items || {})
+      items: {}
     };
   }
 
@@ -7445,16 +7440,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
 
   /** Použití lektvaru (nestojí tah). */
-  function useItem(f, id) {
-    if (f.over || !ITEMS[id] || !(f.h.items[id] > 0) || f.itemsUsed >= MAX_ITEMS_PER_FIGHT) return null;
-    f.h.items[id]--; f.itemsUsed++; f.st.usedItem++;
-    const start = f.events.length;
-    if (id === "coffee") { const h = Math.round(f.h.maxHp * 0.35); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "heal", { val: h, src: "coffee" }); }
-    if (id === "energy") { f.sta = Math.min(f.h.staMax, f.sta + 60); f.focus = Math.min(100, f.focus + 25); ev(f, "item", { id: id, msg: "+60 stamina, +25 focus" }); }
-    if (id === "hotfix") { f.hotfix = true; ev(f, "item", { id: id, msg: "next hit ×2" }); }
-    if (id === "coin") { const good = f.R() < 0.5; f.coin = good ? 0.4 : -0.2; f.coinTurns = 3; ev(f, "item", { id: id, msg: good ? "HEADS: +40% ATK for 3 turns!" : "TAILS: -20% ATK for 3 turns", good: good }); }
-    return f.events.slice(start);
-  }
+  function useItem() { return null; }                // v8.5: žádné consumables
+
 
   /** Jeden tah. timing = "perfect" | "good" | "none" (jen u POWER). */
   function step(f, action, timing) {
@@ -7665,7 +7652,6 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function autoPolicy(f, R) {
     const h = f.h, k = f.intent.k;
     if (f.demand && allowed(f, f.demand) && (f.demand === "block" || !(k === "heavy" || k === "unleash"))) return f.demand;
-    if (f.hp < h.maxHp * 0.35 && h.items.coffee > 0 && f.itemsUsed < MAX_ITEMS_PER_FIGHT) useItem(f, "coffee");
     if (k === "heavy" || k === "unleash") return "block";
     if (k === "charge" && allowed(f, "strike")) return allowed(f, "power") ? "power" : "strike";
     if (allowed(f, "skill")) return "skill";
@@ -7710,7 +7696,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "The Printer Is On Fire", e: "Jammed Printer", i: "🖨", p: "turtle", b: { type: "noGamble" }, t: "PC LOAD LETTER. What does that even mean? Fix it with violence." },
       { n: "Have You Tried Turning It Off", e: "Frozen Laptop", i: "💻", p: "normal", b: { type: "perfectBlock" }, t: "It's been loading since 2019. Time to hold the power button." },
       { n: "Reply-All Storm", e: "Email Chain Monster", i: "📧", p: "brute", k: "elite", b: { type: "hp", pct: 70 }, t: "347 people replied \"please remove me from this list\". The inbox has become self-aware." },
-      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noItem" }, t: "Management says Compliance Control arrives today. Their Vanguard brings forms: do what the form says (bonus damage) or drown in red tape." },
+      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "Management says Compliance Control arrives today. Their Vanguard brings forms: do what the form says (bonus damage) or drown in red tape." },
       { n: "Mouse Has Gone Rogue", e: "Wireless Mouse", i: "🖱", p: "normal", b: { type: "crits", n: 2 }, t: "Battery at 1%. It's moving on its own. It's angry." },
       { n: "Ticket Avalanche", e: "Ticket Golem", i: "🎫", p: "brute", b: { type: "turns", n: 9 }, t: "Monday, 9:01 AM. 214 new tickets. All marked URGENT." },
       { n: "The Coffee Machine", e: "Possessed Espresso Maker", i: "☕", p: "caster", mech: "heal", k: "elite", b: { type: "skill" }, t: "It brews despair and heals itself with every sip." },
@@ -7722,7 +7708,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Overheated Rack", e: "Thermal Rack", i: "🔥", p: "brute", b: { type: "perfectBlock" }, t: "The AC broke in 2017. The rack has been angry ever since." },
       { n: "RAID Is Not A Backup", e: "Degraded RAID Array", i: "💽", p: "caster", mech: "heal", b: { type: "turns", n: 10 }, t: "Two disks failed. The third is making clicking noises." },
       { n: "The Forbidden UPS", e: "Beeping UPS", i: "🔋", p: "normal", k: "elite", b: { type: "hp", pct: 70 }, t: "It beeps every 30 seconds. For six years. Nobody knows why." },
-      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noItem" }, t: "This time it's REAL. Compliance Control is coming to inspect the server room. Their Vanguard brings forms - comply or drown in red tape." },
+      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "This time it's REAL. Compliance Control is coming to inspect the server room. Their Vanguard brings forms - comply or drown in red tape." },
       { n: "Rogue Cron Job", e: "Cron Job at 3 AM", i: "⏰", p: "brute", b: { type: "crits", n: 2 }, t: "It runs every night at 3:00 and deletes something important." },
       { n: "Memory Leak", e: "Java Heap Monster", i: "🧠", p: "caster", mech: "drain", b: { type: "skill" }, t: "It eats RAM. Then it eats your stamina. Then it eats your soul." },
       { n: "Legacy COBOL", e: "Legacy COBOL Mainframe", i: "🖥", p: "turtle", mech: "heal", k: "elite", b: { type: "noBlock" }, t: "Written in 1974. Runs payroll. Do NOT turn it off." },
@@ -7734,7 +7720,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Sticky Note Password", e: "Post-it Note", i: "📝", p: "turtle", b: { type: "turns", n: 9 }, t: "Password123! - written on the monitor. Security level: maximum." },
       { n: "USB In The Parking Lot", e: "Mystery USB Stick", i: "🔌", p: "caster", mech: "drain", b: { type: "jackpot" }, t: "Labeled \"SALARIES 2026\". Someone plugged it in. Obviously." },
       { n: "Botnet", e: "DDoS Botnet", i: "🕸", p: "brute", k: "elite", b: { type: "perfectBlock" }, t: "10 000 smart fridges are attacking the website." },
-      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noItem" }, t: "After the breach, Compliance Control is DEFINITELY coming. Fill out the incident report - every form you ignore adds red tape." },
+      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "After the breach, Compliance Control is DEFINITELY coming. Fill out the incident report - every form you ignore adds red tape." },
       { n: "Crypto Miner", e: "Crypto-Miner Trojan", i: "⛏", p: "caster", mech: "drain", b: { type: "crits", n: 3 }, t: "The CPU is at 100% and the electricity bill tripled." },
       { n: "Zero-Day", e: "Zero-Day Broker", i: "🕵", p: "normal", b: { type: "skill" }, t: "He sells your vulnerabilities on the dark web. With a loyalty program." },
       { n: "Lateral Movement", e: "Insider Threat", i: "🥷", p: "brute", k: "elite", b: { type: "hp", pct: 60 }, t: "It's coming from INSIDE the network." },
@@ -7746,7 +7732,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Surprise Bill", e: "AWS Invoice", i: "💸", p: "brute", b: { type: "turns", n: 9 }, t: "Someone left a GPU cluster running over the weekend. $48 000." },
       { n: "Kubernetes", e: "YAML Hydra", i: "🐙", p: "caster", mech: "heal", b: { type: "skill" }, t: "Fix one indentation, two more break." },
       { n: "Microservice Mesh", e: "Rogue Microservices", i: "🧬", p: "brute", k: "elite", b: { type: "perfectBlock", n: 2 }, t: "347 microservices. Each one needs the other 346." },
-      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noItem" }, t: "Cloud compliance review! Compliance Control is coming for sure. 100%. Probably. Until then: forms." },
+      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "Cloud compliance review! Compliance Control is coming for sure. 100%. Probably. Until then: forms." },
       { n: "Public S3 Bucket", e: "Leaky Bucket", i: "🪣", p: "normal", b: { type: "crits", n: 3 }, t: "Customer data, public, indexed by Google. Great." },
       { n: "Deprecated API", e: "Breaking Change", i: "🧩", p: "brute", b: { type: "hp", pct: 60 }, t: "v1 is shut down tomorrow. Everything still uses v1." },
       { n: "Unstable Staging", e: "Staging Environment", i: "🧪", p: "caster", mech: "drain", k: "elite", b: { type: "noBlock" }, t: "Works on staging! (It doesn't work on staging either.)" },
@@ -7758,7 +7744,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Quick Sync", e: "Micromanager", i: "📣", p: "brute", b: { type: "turns", n: 9 }, t: "\"Just a quick 5-minute sync.\" It's been 3 hours." },
       { n: "Synergy", e: "Buzzword Consultant", i: "📈", p: "caster", mech: "drain", b: { type: "skill" }, t: "Let's circle back and leverage our core synergies going forward." },
       { n: "Performance Review", e: "HR Business Partner", i: "🧑‍💼", p: "turtle", mech: "heal", k: "elite", b: { type: "perfectBlock", n: 2 }, t: "\"Meets expectations.\" After you saved the company four times." },
-      { n: "Budget Cuts", e: "Finance Spreadsheet", i: "🧾", p: "caster", mech: "audit", b: { type: "noItem" }, t: "Every action needs a cost center. Some of your moves get denied." },
+      { n: "Budget Cuts", e: "Finance Spreadsheet", i: "🧾", p: "caster", mech: "audit", b: { type: "noGamble" }, t: "Every action needs a cost center. Some of your moves get denied." },
       { n: "Reorg", e: "Org Chart", i: "🗂", p: "brute", b: { type: "crits", n: 3 }, t: "Your team now reports to a team that reports to your team." },
       { n: "Quarterly Goals", e: "OKR Spreadsheet", i: "🎯", p: "normal", k: "elite", b: { type: "turns", n: 10 }, t: "Objective: more. Key result: also more." },
       { n: "The CTO", e: "The CTO", i: "🎩", p: "caster", mech: "llm", k: "elite", b: { type: "hp", pct: 60 }, t: "Every week a new paradigm. This week: blockchain AI in the metaverse." },
@@ -8138,8 +8124,7 @@ html.m #dg-open-btn { display: none; }
     if (!d.sm || typeof d.sm !== "object") d.sm = {};
     Object.keys(d.stars).forEach(id => { const n = Number(d.stars[id]) || 0, old = n >= 3 ? 7 : n === 2 ? 3 : n === 1 ? 1 : 0; d.sm[id] = (Number(d.sm[id]) || 0) | old; });
     Object.keys(d.sm).forEach(id => { d.sm[id] = (Number(d.sm[id]) || 0) & 7; d.stars[id] = H.starCount(d.sm[id]); });
-    if (!d.items || typeof d.items !== "object") d.items = { coffee: 2, energy: 1 };
-    Object.keys(H.ITEMS).forEach(k => { d.items[k] = Math.max(0, Math.floor(Number(d.items[k]) || 0)); });
+    delete d.items;                                                           // v8.5: consumables (coffee, energy drink...) jsou pryč
     d.wins = Math.max(0, Number(d.wins) || 0); d.losses = Math.max(0, Number(d.losses) || 0);
     if (d.arenaStance !== "safe" && d.arenaStance !== "normal" && d.arenaStance !== "allin") d.arenaStance = "normal";
     if (!d.t6 || typeof d.t6 !== "object") d.t6 = {};                        // prismatic: odemčené části těla (přežije prestiž)
@@ -8323,16 +8308,13 @@ html.m #dg-open-btn { display: none; }
     const rows = Object.keys(STAT_INFO).map(k => `<div class="hs-stat"><b>${STAT_INFO[k][0]}</b><span class="v">${5 + d.stats[k]}</span><span class="d">${STAT_INFO[k][1]}</span>
       <button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} onclick="Dungeon.stat('${k}',1)">+1</button>
       <button class="btn" style="padding:3px 8px;" ${d.pts >= 5 ? "" : "disabled"} onclick="Dungeon.stat('${k}',5)">+5</button></div>`).join("");
-    const items = Object.keys(H.ITEMS).map(k => `<div class="dg-dim">${H.ITEMS[k].icon} <b>${H.ITEMS[k].name}</b> ×${d.items[k]} - ${H.ITEMS[k].txt}</div>`).join("");
     return `<div class="dg-grid2">
       <div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${H.CLASSES[d.cls].name} · LV ${d.level}</span><span>${title()}</span></div>
         <div style="display:flex;gap:10px;align-items:center;">${playerSprite()}<div class="dg-dim">${statLine()}<br>Hit +${Math.round(h.hitBonus * 100)}% · timing zone ${Math.round(h.zone * 100)}% · gear ⚔×${g.atk.toFixed(2)} ❤×${g.hp.toFixed(2)}<br>✨ <b>${H.CLASSES[d.cls].skill}</b>: ${H.CLASSES[d.cls].skillTxt}<br>Wins ${d.wins} · Losses ${d.losses}</div></div>
         <div class="dg-h" style="margin-top:10px;"><span>STAT POINTS</span><span style="color:${d.pts ? "var(--emerald)" : "var(--text-dim)"};">${d.pts} free</span></div>${rows}
         <div class="dg-dim" style="margin-top:6px;">+3 points every level. Weapons (TOOL/AUGMENT/RELIC) multiply ATK, armor (HEAD/RIG/OS) multiplies HP.</div>
         <div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
-      <div class="dg-card"><div class="dg-h">ITEMS (max ${H.MAX_ITEMS_PER_FIGHT} per fight, free action)</div>${items}
-        <div class="dg-dim" style="margin-top:8px;">Missions drop items. A first ★★★ on a mission always gives one.</div>
-        <div class="dg-h" style="margin-top:12px;">HOW TO FIGHT</div>
+      <div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>
         <div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (1.9×) or <b>gold</b> (2.5×) zone, then it needs 2 turns to cool down.
         🎰 GAMBLE - spin a mini slot machine (7️⃣7️⃣7️⃣ = 6×, 💀💀💀 hits you). 🛡 BLOCK when the enemy shows 💥 HEAVY or ☄ UNLEASH: tap when the rings meet for a <b>PARRY</b> (0 damage, counter, stun). 💢 Fill the enemy's <b>BREAK</b> bar to stagger it (it loses its turn, your next hit 1.5×) - breaking a ⏳ CHARGING enemy cancels its big attack. 💨 DODGE avoids the hit (dodging again right after is less likely to work).
         ✨ SKILL needs 100 focus (you gain it by hitting and getting hit). Stamina refills every turn - blocking refills more.</div></div></div>`;
@@ -8404,7 +8386,6 @@ html.m #dg-open-btn { display: none; }
   function beginFight(m, ctx) {
     const d = HS();
     const hh = hero();
-    hh.items = d.items;                                           // lektvary se odečítají přímo z inventáře
     if (ctx && ctx.prepHero) ctx.prepHero(hh);
     fight = H.newFight(hh, m, Math.floor(TT.rnd() * 2147483647) + 1);
     fightMission = m; fightCtx = ctx || { mode: "camp" }; result = null; flog = [];
@@ -8430,7 +8411,6 @@ html.m #dg-open-btn { display: none; }
       const A = H.ACTIONS[a];
       return `<button class="btn ${a === "power" || a === "gamble" ? "btn-gold" : a === "block" || a === "dodge" ? "btn-cyan" : a === "skill" ? "btn-crimson" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${a === "skill" ? H.CLASSES[h.cls].skill.split(" ")[0] : A.name}<small id="hs-as-${a}">${a === "skill" ? "100 focus" : (A.sta ? A.sta + " STA" : "+15 STA")}</small></button>`;
     }).join("") + `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">FLEE<small>lose</small></button>`;
-    const items = Object.keys(H.ITEMS).map(k => `<button class="btn" id="hs-i-${k}" onclick="Dungeon.item('${k}')">${H.ITEMS[k].name.toUpperCase()} ×<span id="hs-in-${k}">${h.items[k] || 0}</span></button>`).join("");
     return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span id="hs-turn">TURN 0</span></div>
       <div class="dg-dim" id="hs-hud">${fightCtx && fightCtx.hud ? fightCtx.hud(f) : "★ win · ★ 50%+ HP · ★ " + escapeHtml(starGoals(m)[2]) + (m.survive ? " · 🎯 survive " + m.survive + " turns" : "")}</div></div>
       <div class="hs-form" id="hs-form" style="display:none;"></div>
@@ -8450,7 +8430,6 @@ html.m #dg-open-btn { display: none; }
       </div>
       <div class="dg-mech" id="dg-mech"></div>
       <div class="hs-acts">${acts}</div>
-      <div class="hs-items">${items}</div>
       <div id="hs-ov-slot"></div>
       </div>
       <div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>`;
@@ -8486,11 +8465,6 @@ html.m #dg-open-btn { display: none; }
         (f.redTape ? `<span class="rt">RED TAPE ×${f.redTape}: -${8 * f.redTape}% ATK, -${4 * f.redTape}% dodge</span>` : "");
     }
     const fl = $("hs-a-flee"); if (fl) fl.disabled = f.over || busyAnim;
-    Object.keys(H.ITEMS).forEach(k => {
-      const b = $("hs-i-" + k); if (!b) return;
-      txt("hs-in-" + k, h.items[k] || 0);
-      b.disabled = f.over || busyAnim || !(h.items[k] > 0) || f.itemsUsed >= H.MAX_ITEMS_PER_FIGHT;
-    });
   }
 
   function dlog(t, cls) {
@@ -8521,11 +8495,6 @@ html.m #dg-open-btn { display: none; }
     if (fight.over) setTimeout(endFight, 700);
   }
 
-  function item(k) {
-    const f = fight; if (!f || f.over || busyAnim) return;
-    const evs = H.useItem(f, k); if (!evs) return;
-    play(evs); fightRefresh(); TT.saveSoon();
-  }
   function flee() {
     if (!fight || fight.over || busyAnim) return;
     fight.over = true; fight.win = false; fight.fled = true;
@@ -8534,19 +8503,27 @@ html.m #dg-open-btn { display: none; }
   }
 
   // ---------- timing minihra u POWER STRIKE
+  /** v8.5: během POWER / PARRY stačí ťuknout kamkoli na obrazovku (ne jen na lištu / kolečko) */
+  function tapAnywhere(fn) {
+    const down = (e) => { if (e.button > 0) return; e.preventDefault(); e.stopPropagation(); fn(); };
+    const eat = (e) => { e.preventDefault(); e.stopPropagation(); };
+    document.addEventListener("pointerdown", down, true);
+    document.addEventListener("click", eat, true);
+    return () => { document.removeEventListener("pointerdown", down, true); setTimeout(() => document.removeEventListener("click", eat, true), 350); };
+  }
   function timingGame(cb) {
     const f = fight, zone = f.h.zone;
     busyAnim = true; fightRefresh();
     const gStart = 0.15 + Math.random() * (0.85 - zone - 0.15);
     const pW = zone * 0.3, pStart = gStart + (zone - pW) / 2;
     const box = $("hs-ov-slot");
-    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 10px;">💥 STOP THE NEEDLE! (click / tap / space)</div>
+    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 10px;">💥 STOP THE NEEDLE! (tap anywhere / space)</div>
       <div class="hs-timing" id="hs-tm"><div class="g" style="left:${gStart * 100}%;width:${zone * 100}%"></div><div class="p" style="left:${pStart * 100}%;width:${pW * 100}%"></div><div class="n" id="hs-needle"></div></div></div>`;
     const t0 = performance.now(), period = 820;
-    let done = false, raf = 0, pos = 0;
+    let done = false, raf = 0, pos = 0, untap = null;
     const stop = () => {
       if (done) return; done = true; cancelAnimationFrame(raf);
-      document.removeEventListener("keydown", key, true);
+      document.removeEventListener("keydown", key, true); if (untap) untap();
       const q = pos >= pStart && pos <= pStart + pW ? "perfect" : pos >= gStart && pos <= gStart + zone ? "good" : "none";
       const ov = box.querySelector(".hs-ov");
       if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"};">${q === "perfect" ? "PERFECT! 2.5×" : q === "good" ? "GOOD! 1.9×" : "MISSED THE ZONE - normal hit"}</div>`);
@@ -8554,8 +8531,7 @@ html.m #dg-open-btn { display: none; }
     };
     const key = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); stop(); } };
     document.addEventListener("keydown", key, true);
-    const tm = $("hs-tm");
-    tm.addEventListener("pointerdown", (e) => { e.preventDefault(); stop(); });
+    untap = tapAnywhere(() => stop());
     const frame = (now) => {
       const t = ((now - t0) % (period * 2)) / period;
       pos = t < 1 ? t : 2 - t;
@@ -8570,13 +8546,13 @@ html.m #dg-open-btn { display: none; }
   function parryGame(cb) {
     busyAnim = true; fightRefresh();
     const box = $("hs-ov-slot");
-    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">🛡 PARRY! Tap when the red ring hits the gold one</div>
+    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">🛡 PARRY! Tap anywhere when the red ring hits the gold one</div>
       <div class="hs-parry" id="hs-pr"><div class="tgt"></div><div class="ring" id="hs-ring"></div></div></div>`;
     const t0 = performance.now(), dur = 950, from = 150, to = 20, target = 46, win = 9 * (((fight.h.perks || {}).parryEasy) ? 1.7 : 1);
-    let done = false, raf = 0, size = from;
+    let done = false, raf = 0, size = from, untap = null;
     const stop = (auto) => {
       if (done) return; done = true; cancelAnimationFrame(raf);
-      document.removeEventListener("keydown", key, true);
+      document.removeEventListener("keydown", key, true); if (untap) untap();
       const q = !auto && Math.abs(size - target) <= win ? "parry" : "none";
       const ov = box.querySelector(".hs-ov");
       if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "parry" ? "#ffd700" : "var(--text-dim)"};">${q === "parry" ? "PARRY! 0 damage + counter + stun" : "Normal block"}</div>`);
@@ -8584,7 +8560,7 @@ html.m #dg-open-btn { display: none; }
     };
     const key = (e) => { if (e.key === " " || e.key === "Enter" || e.key === "5") { e.preventDefault(); stop(false); } };
     document.addEventListener("keydown", key, true);
-    $("hs-pr").addEventListener("pointerdown", (e) => { e.preventDefault(); stop(false); });
+    untap = tapAnywhere(() => stop(false));
     const frame = (now) => {
       const t = (now - t0) / dur;
       size = from - (from - to) * Math.min(1, t);
@@ -8633,7 +8609,6 @@ html.m #dg-open-btn { display: none; }
       else if (e.type === "break") { anim("dg-bs", "hit"); float("BREAK!", "b", "#ffd700", true); dlog(T(e) + `💢 <b>BREAK!</b> ${e.was === "charge" || e.was === "unleash" ? "Charged attack interrupted! " : ""}Enemy staggered - your next hit deals 1.5×.`, "y"); }
       else if (e.type === "eheal") { float("+" + fmt(e.val), "b", "#00ff88"); dlog(T(e) + `Enemy heals ${fmt(e.val)}.`, "y"); }
       else if (e.type === "heal") { float("+" + fmt(e.val), "p", "#00ff88"); dlog(T(e) + `☕ +${fmt(e.val)} HP`, "g"); }
-      else if (e.type === "item") dlog(T(e) + `${H.ITEMS[e.id].icon} ${escapeHtml(e.msg)}`, e.good === false ? "r" : "g");
       else if (e.type === "revive") { float("POWER CYCLE!", "p", "#ffb800", true); dlog(T(e) + "🔌 SysAdmin POWER CYCLE - you survive with 10% HP!", "y"); }
       else if (e.type === "form") {
         if (e.ok) { anim("dg-bs", "hit"); float("FORM OK " + fmt(e.val), "b", "#00ff88"); dlog(T(e) + `📋 Form ${e.no} approved (${H.ACTIONS[e.a].name}) - stamp for <b>${fmt(e.val)}</b>${e.tape ? " · red tape ×" + e.tape : ""}`, "g"); }
@@ -8663,8 +8638,8 @@ html.m #dg-open-btn { display: none; }
       gameState.coins += gc;
       lines.push(`+${fmt(Math.round(xp * (window.Meta ? Meta.mult("hsxp") : 1)))} XP`, `+${fmt(gc)} GC`);
       d.sm[m.id] = newMask; d.stars[m.id] = total;
-      // lektvary
-      if ((first && TT.rnd() < 0.5) || (total === 3 && prev < 3) || TT.rnd() < 0.12) { const ks = Object.keys(H.ITEMS); const k = ks[Math.floor(TT.rnd() * ks.length)]; d.items[k]++; lines.push(`${H.ITEMS[k].icon} ${H.ITEMS[k].name}`); }
+      // v8.5: místo lektvarů bonus GC (stejné šance jako dřív drop itemu)
+      if ((first && TT.rnd() < 0.5) || (total === 3 && prev < 3) || TT.rnd() < 0.12) dropItem(lines);
       // první poražení bosse kapitoly odemkne T6 té části těla v bedně (navždy); v8.2.2: item zdarma už nedává
       if (first && (m.kind === "boss" || m.kind === "secret")) {
         const slot = C.BOSS_SLOT[m.id] || SLOTS[Math.floor(TT.rnd() * SLOTS.length)];
@@ -8680,7 +8655,6 @@ html.m #dg-open-btn { display: none; }
       if (xp) gainXp(xp, lines);
       lines.push(xp ? `+${fmt(xp)} XP` : "no reward");
     }
-    // vrátit inventář (hero.items je stejný objekt jako d.items)
     result = { win: f.win, stars: s, mask: mask, prevMask: prevMask, prev: prev, lines: lines, m: m };
     TT.saveSoon(); updateUI();
     showResult();
@@ -8731,17 +8705,18 @@ html.m #dg-open-btn { display: none; }
     return { cls: d.cls, level: d.level, best: Math.max(cleared(d), d.legacyBest || 0), missions: cleared(d), tower: d.tower.best, wins: d.wins, losses: d.losses, title: title(d), arenaStance: d.arenaStance,
       tier: 1, artifacts: {}, equipped: [], promos: {}, mode: "highstakes" };
   }
-  function hsPayload() { const d = HS(); return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), stats: d.stats, energy: d.energy, energyAt: d.energyAt, stars: d.stars, items: d.items, wins: d.wins, losses: d.losses, arenaStance: d.arenaStance,
+  function hsPayload() { const d = HS(); return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), stats: d.stats, energy: d.energy, energyAt: d.energyAt, stars: d.stars, wins: d.wins, losses: d.losses, arenaStance: d.arenaStance,
     t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk }; }
 
   /** vnitřek pro další soubory (aréna, tower, směna, world boss) */
   window.HS_API = { HS: HS, hero: hero, gear: gear, player: player, fmt: fmt, fmtT: fmtT, anim: anim, float: float, sprite: sprite, enemySprite: enemySprite,
     playerSprite: playerSprite, gearDR: gearDR, render: render, registerMode: registerMode, isOpen: () => open, view: () => view, beginFight: beginFight, spendEnergy: spendEnergy,
     regenEnergy: regenEnergy, gainXp: gainXp, starHtml: starHtml, statLine: statLine, ENERGY_MAX: ENERGY_MAX, dropItem: dropItem, title: title };
-  function dropItem(lines) { const ks = Object.keys(H.ITEMS); const k = ks[Math.floor(TT.rnd() * ks.length)]; HS().items[k]++; if (lines) lines.push(`${H.ITEMS[k].icon} ${H.ITEMS[k].name}`); return k; }
+  /** v8.5: consumables zrušené - "drop" je teď bonus GC (škáluje s levelem) */
+  function dropItem(lines) { const gc = Math.round((1500 + 400 * HS().level) * (window.Meta ? Meta.mult("hsgc") : 1)); gameState.coins += gc; if (lines) lines.push(`💰 +${fmt(gc)} GC bonus`); return gc; }
 
   window.Dungeon = {
-    open: openScreen, close: closeScreen, tab: tab, chapter: chapter, mission: mission, start: start, act: act, item: item, flee: flee,
+    open: openScreen, close: closeScreen, tab: tab, chapter: chapter, mission: mission, start: start, act: act, flee: flee,
     leave: leave, retry: retry, next: nextM, pickClass: pickClass, respec: respec, tokenEnergy: tokenEnergy, stat: stat, resetStats: resetStats,
     netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, hsPayload: hsPayload, showProfile: function () {},
     state: HS, unlocked: unlocked,
@@ -9091,7 +9066,7 @@ html.m #dg-open-btn { display: none; }
   function stepGc() { return Math.round(C.gcFor(Math.min(50, Math.round(shiftX())), false) * 0.45); }
   function run() { return A.HS().shift.run || null; }
   const NODE = { fight: ["⚔", "INCIDENT", "A normal fight. Win = coins + a perk."], elite: ["💀", "ESCALATION", "Elite enemy. Harder, more coins, better perks."],
-    event: ["❓", "SOMETHING WEIRD", "A random office event. Could be great. Could be HR."], shop: ["🛒", "VENDING MACHINE", "Spend shift coins on heals, perks and items."],
+    event: ["❓", "SOMETHING WEIRD", "A random office event. Could be great. Could be HR."], shop: ["🛒", "VENDING MACHINE", "Spend shift coins on heals and perks."],
     rest: ["🛋", "BREAK ROOM", "Heal up or grab some coins."], boss: ["☠", "SHIFT BOSS", "The end of the shift. Beat it to clear the run."] };
   function rollChoices(r) {
     if (r.step === SHIFT_STEPS - 1) return ["boss"];
@@ -9235,8 +9210,7 @@ html.m #dg-open-btn { display: none; }
   ];
   const SHOP = [
     { i: "🩹", n: "First Aid Kit", c: 30, t: "Heal 35% HP", f: () => heal(0.35) },
-    { i: "🎁", n: "Mystery Perk", c: 60, t: "A random perk", f: () => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; rlog("🛒 Bought " + PERKS[id].n); } },
-    { i: "🥤", n: "Combat Item", c: 25, t: "A random item for your inventory", f: () => A.dropItem(null) }
+    { i: "🎁", n: "Mystery Perk", c: 60, t: "A random perk", f: () => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; rlog("🛒 Bought " + PERKS[id].n); } }
   ];
   function shiftEvent(i) {
     const r = run(); if (!r || r.phase !== "event") return;
