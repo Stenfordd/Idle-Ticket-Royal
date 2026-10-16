@@ -7512,7 +7512,14 @@ html.m #dg-open-btn { display: none; }
 
   // ------------------------------------------------------------------ OBRAZOVKA
   function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); }
-  function closeScreen() { if (fight && !fight.over) return; open = false; $("dg-screen").classList.remove("open"); }
+  /** v8.2.1: v rozehraném boji OFFICE / záložky nabídnou útěk (dřív se nic nestalo a vypadalo to, že hra zamrzla) */
+  function askFlee() {
+    if (!fight || fight.over) return true;
+    if (busyAnim) return false;
+    if (!window.confirm("You are in the middle of a fight.\nFlee and leave? (counts as a loss, energy is not refunded)")) return false;
+    flee(); return true;
+  }
+  function closeScreen() { if (fight && !fight.over && !askFlee()) return; open = false; $("dg-screen").classList.remove("open"); }
   // ---------- režimy (záložky) - další soubory (aréna, tower, směna, world boss) se registrují přes HS_API.registerMode
   const MODES = {};
   function registerMode(id, def) { MODES[id] = def; renderTabs(); }
@@ -7523,7 +7530,8 @@ html.m #dg-open-btn { display: none; }
     if (box.__h !== html) { box.innerHTML = html; box.__h = html; }
   }
   function tab(t) {
-    if ((fight && !fight.over) || !MODES[t]) return;
+    if (!MODES[t]) return;
+    if (fight && !fight.over && !askFlee()) return;
     if (MODES[view] && MODES[view].busy && MODES[view].busy()) return;
     view = t; result = null; fight = null; fightCtx = null;
     renderTabs(); render();
@@ -8057,7 +8065,7 @@ html.m #dg-open-btn { display: none; }
     setInterval(() => { if (open) { regenEnergy(); renderKeys(); } }, 1000);
     document.addEventListener("keydown", (e) => {
       if (!open) return;
-      if (e.key === "Escape" && !Dungeon.isBusy()) closeScreen();
+      if (e.key === "Escape" && (!Dungeon.isBusy() || (fight && !fight.over))) closeScreen();
       if (fight && !fight.over && !busyAnim && !e.target.closest("input,textarea")) {
         const map = { "1": "quick", "2": "strike", "3": "power", "4": "gamble", "5": "block", "6": "dodge", "7": "skill" };
         if (map[e.key]) { e.preventDefault(); act(map[e.key]); }
