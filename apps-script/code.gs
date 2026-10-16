@@ -733,7 +733,14 @@ var API_ALLOWED_ = {
   prsLeave: function (a) { return prsLeave(a[0]); },
   prsStart: function (a) { return prsStart(a[0]); },
   prsPoll: function (a) { return prsPoll(a[0], a[1]); },
-  prsMove: function (a) { return prsMove(a[0], a[1]); }
+  prsMove: function (a) { return prsMove(a[0], a[1]); },
+  ckList: function () { return ckList(); },
+  ckCreate: function (a) { return ckCreate(a[0]); },
+  ckJoin: function (a) { return ckJoin(a[0]); },
+  ckLeave: function (a) { return ckLeave(a[0]); },
+  ckPoll: function (a) { return ckPoll(a[0], a[1]); },
+  ckMove: function (a) { return ckMove(a[0], a[1]); },
+  ckDraw: function (a) { return ckDraw(a[0], a[1]); }
 };
 
 function doPost(e) {
@@ -1282,24 +1289,41 @@ function prsDraw_(t, n) {
   }
   return got;
 }
-function prsActive_(t) { return t.order.filter(function (n) { return t.out.indexOf(n) < 0; }); }
+function prsActive_(t) { var f = t.fin || []; return t.order.filter(function (n) { return t.out.indexOf(n) < 0 && f.indexOf(n) < 0; }); }
 function prsNext_(t) {
   var act = prsActive_(t); if (!act.length) return;
   var cur = t.order[t.turn], i = t.order.indexOf(cur);
-  for (var k = 1; k <= t.order.length; k++) { var n = t.order[(i + k) % t.order.length]; if (t.out.indexOf(n) < 0) { t.turn = t.order.indexOf(n); break; } }
+  for (var k = 1; k <= t.order.length; k++) { var n = t.order[(i + k) % t.order.length]; if (act.indexOf(n) >= 0) { t.turn = t.order.indexOf(n); break; } }
   t.deadline = Date.now() + PRS_TURN_MS;
 }
-function prsFinish_(t, winner, why) {
-  t.status = 'done'; t.winner = winner; t.doneAt = Date.now(); t.deadline = 0;
-  var win = Math.floor(t.pot * (1 - PRS_RAKE));
-  prsPay_(winner, win, 'WIN', t.id);
-  prsLog_(t, '🏆 ' + winner + ' wins ' + win.toLocaleString() + ' GC' + (why ? ' (' + why + ')' : '') + '!');
-  try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', winner + ' won a Prší table and takes ' + Math.round(win).toLocaleString() + ' GC!']); } catch (e) {}
+/** někdo se zbavil karet: 1. místo bere bank, pak se (od 3 hráčů) dohrává o 2. místo */
+function prsPlaceOut_(t, nick, why) {
+  t.fin = t.fin || [];
+  if (t.fin.indexOf(nick) >= 0) return;
+  t.fin.push(nick);
+  if (t.fin.length === 1) {
+    t.winner = nick; t.win = Math.floor(t.pot * (1 - PRS_RAKE));
+    prsPay_(nick, t.win, 'WIN', t.id);
+    prsLog_(t, '🏆 ' + nick + ' wins ' + t.win.toLocaleString() + ' GC' + (why ? ' (' + why + ')' : '') + '!');
+  } else if (t.fin.length === 2) { t.second = nick; prsLog_(t, '🥈 ' + nick + ' finishes second' + (why ? ' (' + why + ')' : '') + '.'); }
+  var act = prsActive_(t);
+  if (t.fin.length >= 2 || act.length <= 1) {
+    if (!t.second && act.length === 1 && t.fin.length === 1) { t.second = act[0]; t.fin.push(act[0]); }
+    prsEnd_(t);
+  } else if (t.order[t.turn] === nick) prsNext_(t);
+  else t.deadline = t.deadline || Date.now() + PRS_TURN_MS;
+}
+function prsEnd_(t) {
+  t.status = 'done'; t.doneAt = Date.now(); t.deadline = 0;
+  try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', '🏆 ' + t.winner + ' won a Prší table (+' + Math.round(t.win).toLocaleString() + ' GC)' + (t.second ? ', 🥈 ' + t.second + ' finished second' : '') + '.']); } catch (e) {}
   prsSetIndex_(prsIndex_());
 }
+function prsFinish_(t, winner, why) { prsPlaceOut_(t, winner, why); }
 function prsCheckLastStanding_(t) {
   var act = prsActive_(t);
-  if (t.status === 'play' && act.length === 1) prsFinish_(t, act[0], 'everyone else left');
+  if (t.status !== 'play' || act.length !== 1) return;
+  if (!t.winner) prsPlaceOut_(t, act[0], 'everyone else left');
+  else prsPlaceOut_(t, act[0], 'last one standing');
 }
 function prsRemovePlayer_(t, nick, why) {
   if (t.out.indexOf(nick) >= 0) return;
@@ -1318,6 +1342,7 @@ function prsHousekeep_(t) {
   }
   if (t.status === 'done' && now - t.doneAt > 120000) { t.status = 'gone'; return true; }
   if (t.status === 'play' && now - t.moved > PRS_IDLE_MS) {
+    if (t.winner) { t.status = 'gone'; return true; }        // bank už je vyplacený, jen se zavře
     var act = prsActive_(t);
     act.forEach(function (n) { prsPay_(n, Math.floor(t.pot / act.length), 'REFUND', t.id); });
     t.status = 'gone'; return true;
@@ -1350,7 +1375,7 @@ function prsDeal_(t) {
   t.order.forEach(function (n) { t.hands[n] = t.deck.splice(-4, 4); });
   t.pile = [t.deck.pop()]; var top = prsTop_(t);
   t.suit = prsSuit_(top); t.pen = prsRank_(top) === 0 ? 2 : 0; t.skip = prsRank_(top) === 7;
-  t.out = []; t.miss = {}; t.turn = 0; t.status = 'play'; t.pot = t.stake * t.players.length; t.started = Date.now(); t.moved = Date.now();
+  t.out = []; t.fin = []; t.winner = ''; t.second = ''; t.miss = {}; t.turn = 0; t.status = 'play'; t.pot = t.stake * t.players.length; t.started = Date.now(); t.moved = Date.now();
   t.deadline = Date.now() + PRS_TURN_MS + 5000; t.rev++;
   prsLog_(t, '🃏 Cards dealt! ' + t.order[0] + ' starts. Pot ' + t.pot.toLocaleString() + ' GC.');
 }
@@ -1373,22 +1398,22 @@ function prsList() {
   var me = getUserLdap(), lock = prsLock_();
   try {
     var ts = prsLoadAll_(), mine = '';
-    ts.forEach(function (t) { if (t.players.indexOf(me) >= 0 && t.status !== 'gone' && !(t.status === 'done' && t.seen && t.seen[me])) mine = t.id; });
+    ts.forEach(function (t) { if (t.players.indexOf(me) >= 0 && t.status !== 'gone' && !(t.seen && t.seen[me])) mine = t.id; });
     return { ok: true, tables: ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).map(prsPublic_), mine: mine, max: PRS_MAX_TABLES, minStake: PRS_MIN_STAKE, maxStake: PRS_MAX_STAKE, pay: prsTakePay_(me) };
   } finally { lock.releaseLock(); }
 }
 function prsCreate(stake, seats) {
   var me = getUserLdap(), lock = prsLock_();
   try {
-    stake = Math.floor(Number(stake)); seats = Math.max(2, Math.min(4, Number(seats) || 4));
+    stake = Math.floor(Number(stake)); seats = Math.max(2, Math.min(6, Number(seats) || 4));
     if (!(stake >= PRS_MIN_STAKE && stake <= PRS_MAX_STAKE)) return { ok: false, reason: 'stake' };
     var ts = prsLoadAll_();
-    if (ts.some(function (t) { return t.players.indexOf(me) >= 0 && (t.status === 'wait' || t.status === 'play'); })) return { ok: false, reason: 'already' };
+    if (ts.some(function (t) { return t.players.indexOf(me) >= 0 && (t.status === 'wait' || t.status === 'play') && !(t.seen && t.seen[me]); })) return { ok: false, reason: 'already' };
     if (ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).length >= PRS_MAX_TABLES) return { ok: false, reason: 'full' };
     var t = { id: Utilities.getUuid().slice(0, 8), host: me, stake: stake, seats: seats, players: [me], status: 'wait', created: Date.now(), rev: 1, log: [], pot: 0, out: [], order: [], hands: {}, deck: [], pile: [], miss: {}, seen: {} };
     prsLog_(t, me + ' opened the table');
     prsPut_(t); var idx = prsIndex_(); idx.push(t.id); prsSetIndex_(idx);
-    try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', me + ' opened a Prší table (' + stake.toLocaleString() + ' GC, ' + seats + ' seats). Join in MINIGAMES!']); } catch (e) {}
+    try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', me + ' opened a Prší table (' + stake.toLocaleString() + ' GC, ' + seats + ' seats). Join in GAMBLE > SPECIAL!']); } catch (e) {}
     return { ok: true, id: t.id };
   } finally { lock.releaseLock(); }
 }
@@ -1397,7 +1422,7 @@ function prsJoin(id) {
   try {
     var ts = prsLoadAll_(), t = ts.filter(function (x) { return x.id === id; })[0];
     if (!t || t.status !== 'wait') return { ok: false, reason: 'gone' };
-    if (ts.some(function (x) { return x.players.indexOf(me) >= 0 && (x.status === 'wait' || x.status === 'play'); })) return { ok: false, reason: 'already' };
+    if (ts.some(function (x) { return x.players.indexOf(me) >= 0 && (x.status === 'wait' || x.status === 'play') && !(x.seen && x.seen[me]); })) return { ok: false, reason: 'already' };
     if (t.players.length >= t.seats) return { ok: false, reason: 'seats' };
     t.players.push(me); t.rev++; prsLog_(t, me + ' sat down');
     if (t.players.length >= t.seats) prsDeal_(t);
@@ -1426,7 +1451,8 @@ function prsLeave(id) {
       prsPay_(me, t.stake, 'REFUND', t.id); prsLog_(t, me + ' left (stake refunded)');
       if (!t.players.length) { prsDel_(id); prsSetIndex_(prsIndex_().filter(function (x) { return x !== id; })); return { ok: true }; }
       if (t.host === me) t.host = t.players[0];
-    } else if (t.status === 'play') prsRemovePlayer_(t, me, 'left the table');
+    } else if (t.status === 'play' && (t.fin || []).indexOf(me) >= 0) { t.seen = t.seen || {}; t.seen[me] = 1; }
+    else if (t.status === 'play') prsRemovePlayer_(t, me, 'left the table');
     else if (t.status === 'done') { t.seen = t.seen || {}; t.seen[me] = 1; }
     t.rev++; prsPut_(t); prsSetIndex_(prsIndex_());
     return { ok: true };
@@ -1437,7 +1463,7 @@ function prsView_(t, me) {
   var hands = {}; (t.order.length ? t.order : t.players).forEach(function (n) { hands[n] = (t.hands[n] || []).length; });
   return { id: t.id, rev: t.rev, host: t.host, stake: t.stake, seats: t.seats, players: t.players, order: t.order, status: t.status, pot: t.pot,
     turn: t.order[t.turn] || '', top: t.pile.length ? prsTop_(t) : -1, under: t.pile.length > 1 ? t.pile[t.pile.length - 2] : -1, suit: t.suit, pen: t.pen || 0, skip: !!t.skip,
-    deck: t.deck.length, hands: hands, mine: t.hands[me] || [], out: t.out, winner: t.winner || '', left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0,
+    deck: t.deck.length, hands: hands, mine: t.hands[me] || [], out: t.out, fin: t.fin || [], winner: t.winner || '', second: t.second || '', win: t.win || 0, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0,
     created: t.created, waitLeft: t.status === 'wait' ? Math.max(0, PRS_WAIT_MS - (Date.now() - t.created)) : 0, miss: t.miss || {}, log: t.log.slice(-14) };
 }
 function prsPoll(id, rev) {
@@ -1480,7 +1506,7 @@ function prsMove(id, mv) {
       if (r === 7) t.skip = true;
       t.miss[me] = 0; t.moved = Date.now();
       prsLog_(t, me + ' plays ' + prsName_(c) + (r === 5 ? ' and picks ' + PRS_SUITS[t.suit] : r === 0 ? ' (+' + t.pen + ' for the next player)' : r === 7 ? ' (next player stands)' : ''));
-      if (!hand.length) { t.rev++; prsFinish_(t, me, 'out of cards'); prsPut_(t); return { ok: true, view: prsView_(t, me) }; }
+      if (!hand.length) { prsPlaceOut_(t, me, 'out of cards'); t.rev++; prsPut_(t); return { ok: true, view: prsView_(t, me) }; }
       prsNext_(t);
     } else {
       t.miss[me] = 0;
@@ -1490,6 +1516,233 @@ function prsMove(id, mv) {
     return { ok: true, view: prsView_(t, me) };
   } finally { lock.releaseLock(); }
 }
+
+// ==========================================================================
+// CHECKERS (v8.4) - česká dáma pro 2 hráče o GC (stejná infrastruktura jako Prší).
+// Deska 64 polí (index = řádek*8 + sloupec), hraje se na tmavých polích. 1 = bílý kámen, 2 = bílá dáma, -1/-2 = černé.
+// Bílý (dole) táhne nahoru a začíná. Braní je povinné, kámen bere jen dopředu, dáma jezdí i bere na libovolnou vzdálenost;
+// může-li brát dáma, musí brát dáma. Braní se musí dokončit; kámen, který dojde na poslední řadu, se mění v dámu a tah končí.
+// ==========================================================================
+var CK_MAX_TABLES = 3, CK_TURN_MS = 45000, CK_WAIT_MS = 180000, CK_IDLE_MS = 30 * 60000, CK_RAKE = 0.05, CK_MAX_MISS = 3, CK_QUIET = 40;
+function ckGet_(id) { var raw = CacheService.getScriptCache().get('ck_' + id); if (!raw) raw = prsProps_().getProperty('ck_' + id); return raw ? JSON.parse(raw) : null; }
+function ckPut_(t) { var j = JSON.stringify(t); CacheService.getScriptCache().put('ck_' + t.id, j, 21600); prsProps_().setProperty('ck_' + t.id, j); }
+function ckDel_(id) { CacheService.getScriptCache().remove('ck_' + id); prsProps_().deleteProperty('ck_' + id); }
+function ckIndex_() { try { return JSON.parse(prsProps_().getProperty('ck_index') || '[]'); } catch (e) { return []; } }
+function ckSetIndex_(a) { prsProps_().setProperty('ck_index', JSON.stringify(a)); }
+function ckLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 30) t.log.shift(); }
+function ckNewBoard_() { var b = []; for (var i = 0; i < 64; i++) { var r = Math.floor(i / 8), c = i % 8; b.push((r + c) % 2 === 1 ? (r < 3 ? -1 : r > 4 ? 1 : 0) : 0); } return b; }
+/** všechny legální tahy hráče p (1 bílý, -1 černý) jako cesty [od, pole1, pole2, ...] + seznam sebraných */
+function ckMoves_(b, p) {
+  var caps = [], kingCaps = [], simple = [];
+  for (var sq = 0; sq < 64; sq++) {
+    var pc = b[sq]; if (!pc || (pc > 0) !== (p > 0)) continue;
+    var king = Math.abs(pc) === 2, found = [];
+    ckCaps_(b, sq, sq, pc, king, [sq], [], found);
+    if (found.length) { if (king) kingCaps = kingCaps.concat(found); else caps = caps.concat(found); continue; }
+    var r = Math.floor(sq / 8), c = sq % 8, dirs = king ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] : [[p > 0 ? -1 : 1, -1], [p > 0 ? -1 : 1, 1]];
+    dirs.forEach(function (d) {
+      for (var k = 1; k < 8; k++) {
+        var rr = r + d[0] * k, cc = c + d[1] * k; if (rr < 0 || rr > 7 || cc < 0 || cc > 7 || b[rr * 8 + cc]) break;
+        simple.push({ path: [sq, rr * 8 + cc], cap: [] }); if (!king) break;
+      }
+    });
+  }
+  if (kingCaps.length) return kingCaps;
+  if (caps.length) return caps;
+  return simple;
+}
+function ckCaps_(b, origin, sq, pc, king, path, cap, out) {
+  var p = pc > 0 ? 1 : -1, r = Math.floor(sq / 8), c = sq % 8, any = false;
+  var dirs = king ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] : [[p > 0 ? -1 : 1, -1], [p > 0 ? -1 : 1, 1]];
+  var occ = function (i) { return i === origin ? 0 : b[i]; };
+  dirs.forEach(function (d) {
+    var k = 1, rr, cc, i;
+    if (king) { while (true) { rr = r + d[0] * k; cc = c + d[1] * k; if (rr < 0 || rr > 7 || cc < 0 || cc > 7) return; i = rr * 8 + cc; if (occ(i)) break; k++; } }
+    else { rr = r + d[0]; cc = c + d[1]; if (rr < 0 || rr > 7 || cc < 0 || cc > 7) return; i = rr * 8 + cc; }
+    var v = occ(i);
+    if (!v || (v > 0) === (p > 0) || cap.indexOf(i) >= 0) return;            // musí to být soupeř, ještě nesebraný
+    for (var m = 1; m < 8; m++) {
+      var lr = rr + d[0] * m, lc = cc + d[1] * m; if (lr < 0 || lr > 7 || lc < 0 || lc > 7) break;
+      var li = lr * 8 + lc; if (occ(li)) break;
+      any = true;
+      var promo = !king && (p > 0 ? lr === 0 : lr === 7);
+      var np = path.concat([li]), nc = cap.concat([i]);
+      if (promo) out.push({ path: np, cap: nc });                                // povýšení ukončí tah
+      else { var before = out.length; ckCaps_(b, origin, li, pc, king, np, nc, out); if (out.length === before) out.push({ path: np, cap: nc }); }
+      if (!king) break;
+    }
+  });
+  return any;
+}
+function ckApply_(b, mv) {
+  var from = mv.path[0], to = mv.path[mv.path.length - 1], pc = b[from];
+  b[from] = 0; mv.cap.forEach(function (i) { b[i] = 0; });
+  var r = Math.floor(to / 8);
+  if (Math.abs(pc) === 1 && ((pc > 0 && r === 0) || (pc < 0 && r === 7))) pc = pc * 2;
+  b[to] = pc;
+}
+function ckColor_(t, nick) { return t.white === nick ? 1 : t.black === nick ? -1 : 0; }
+function ckPay_(nick, amt, why, id) {
+  if (!(amt > 0)) return;
+  var p = prsProps_(), m = {}; try { m = JSON.parse(p.getProperty('ck_pay') || '{}'); } catch (e) {}
+  (m[nick] = m[nick] || []).push({ amt: Math.floor(amt), why: why, id: id }); p.setProperty('ck_pay', JSON.stringify(m));
+}
+function ckTakePay_(nick) {
+  var p = prsProps_(), raw = p.getProperty('ck_pay'); if (!raw || raw.indexOf('"' + nick + '"') < 0) return [];
+  var m = {}; try { m = JSON.parse(raw); } catch (e) {} var out = m[nick] || []; delete m[nick]; p.setProperty('ck_pay', JSON.stringify(m)); return out;
+}
+function ckEnd_(t, winner, why) {
+  t.status = 'done'; t.doneAt = Date.now(); t.deadline = 0; t.winner = winner || ''; t.why = why;
+  if (winner) {
+    var win = Math.floor(t.stake * 2 * (1 - CK_RAKE)); t.win = win; ckPay_(winner, win, 'WIN', t.id);
+    ckLog_(t, '🏆 ' + winner + ' wins ' + win.toLocaleString() + ' GC (' + why + ')');
+    try { getDb_().chat.appendRow([new Date(), '⛀ CHECKERS', '🏆 ' + winner + ' beat ' + (winner === t.white ? t.black : t.white) + ' at checkers (+' + win.toLocaleString() + ' GC, ' + why + ').']); } catch (e) {}
+  } else {
+    [t.white, t.black].forEach(function (n) { ckPay_(n, t.stake, 'DRAW', t.id); });
+    ckLog_(t, '🤝 Draw (' + why + ') - stakes returned');
+  }
+}
+function ckAfterMove_(t) {
+  t.turnColor = -t.turnColor; t.deadline = Date.now() + CK_TURN_MS; t.moved = Date.now(); t.rev++;
+  var next = t.turnColor > 0 ? t.white : t.black, moves = ckMoves_(t.board, t.turnColor);
+  if (!moves.length) { ckEnd_(t, next === t.white ? t.black : t.white, next + ' has no moves left'); return; }
+  if (t.quiet >= CK_QUIET) ckEnd_(t, '', CK_QUIET + ' moves without a capture');
+}
+function ckDoMove_(t, mv, nick, auto) {
+  ckApply_(t.board, mv);
+  t.last = { path: mv.path, cap: mv.cap, by: nick };
+  t.quiet = mv.cap.length ? 0 : (t.quiet || 0) + 1;
+  t.moves = (t.moves || 0) + 1; t.drawOffer = '';
+  ckLog_(t, (auto ? '⏱ ' : '') + nick + (mv.cap.length ? ' captures ' + mv.cap.length + '×' : ' moves') + (auto ? ' (time ran out, random move)' : ''));
+  ckAfterMove_(t);
+}
+function ckTimeouts_(t) {
+  var ch = false, g = 0;
+  while (t.status === 'play' && t.deadline && Date.now() > t.deadline && g++ < 4) {
+    var nick = t.turnColor > 0 ? t.white : t.black;
+    t.miss[nick] = (t.miss[nick] || 0) + 1; ch = true;
+    if (t.miss[nick] >= CK_MAX_MISS) { ckEnd_(t, nick === t.white ? t.black : t.white, nick + ' timed out 3×'); t.rev++; break; }
+    var ms = ckMoves_(t.board, t.turnColor); ckDoMove_(t, ms[Math.floor(Math.random() * ms.length)], nick, true);
+  }
+  return ch;
+}
+function ckHousekeep_(t) {
+  var now = Date.now();
+  if (t.status === 'wait' && now - t.created > CK_WAIT_MS) { ckPay_(t.host, t.stake, 'REFUND', t.id); t.status = 'gone'; return true; }
+  if (t.status === 'done' && now - t.doneAt > 120000) { t.status = 'gone'; return true; }
+  if (t.status === 'play' && now - t.moved > CK_IDLE_MS) { ckEnd_(t, '', 'abandoned'); t.status = 'gone'; return true; }
+  return false;
+}
+function ckLoadAll_() {
+  var ids = ckIndex_(), out = [], keep = [], dirty = false;
+  ids.forEach(function (id) {
+    var t = ckGet_(id); if (!t) { dirty = true; return; }
+    var hk = ckHousekeep_(t), to = ckTimeouts_(t);
+    if (hk || to) { dirty = true; if (t.status === 'gone') { ckDel_(id); return; } ckPut_(t); }
+    keep.push(id); out.push(t);
+  });
+  if (dirty) ckSetIndex_(keep);
+  return out;
+}
+function ckList() {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var ts = ckLoadAll_(), mine = '';
+    ts.forEach(function (t) { if ((t.white === me || t.black === me || t.host === me) && !(t.seen && t.seen[me])) mine = t.id; });
+    return { ok: true, tables: ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).map(function (t) { return { id: t.id, host: t.host, stake: t.stake, status: t.status, white: t.white, black: t.black }; }),
+      mine: mine, max: CK_MAX_TABLES, minStake: PRS_MIN_STAKE, maxStake: PRS_MAX_STAKE, pay: ckTakePay_(me) };
+  } finally { lock.releaseLock(); }
+}
+function ckBusy_(ts, me) { return ts.some(function (t) { return (t.status === 'wait' || t.status === 'play') && (t.host === me || t.white === me || t.black === me) && !(t.seen && t.seen[me]); }); }
+function ckCreate(stake) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    stake = Math.floor(Number(stake));
+    if (!(stake >= PRS_MIN_STAKE && stake <= PRS_MAX_STAKE)) return { ok: false, reason: 'stake' };
+    var ts = ckLoadAll_();
+    if (ckBusy_(ts, me)) return { ok: false, reason: 'already' };
+    if (ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).length >= CK_MAX_TABLES) return { ok: false, reason: 'full' };
+    var t = { id: Utilities.getUuid().slice(0, 8), host: me, stake: stake, status: 'wait', created: Date.now(), rev: 1, log: [], miss: {}, seen: {}, board: [], white: '', black: '' };
+    ckLog_(t, me + ' is looking for an opponent'); ckPut_(t); var idx = ckIndex_(); idx.push(t.id); ckSetIndex_(idx);
+    try { getDb_().chat.appendRow([new Date(), '⛀ CHECKERS', me + ' wants to play checkers for ' + stake.toLocaleString() + ' GC. Accept in GAMBLE > SPECIAL!']); } catch (e) {}
+    return { ok: true, id: t.id };
+  } finally { lock.releaseLock(); }
+}
+function ckJoin(id) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var ts = ckLoadAll_(), t = ts.filter(function (x) { return x.id === id; })[0];
+    if (!t || t.status !== 'wait') return { ok: false, reason: 'gone' };
+    if (t.host === me) return { ok: false, reason: 'self' };
+    if (ckBusy_(ts, me)) return { ok: false, reason: 'already' };
+    var hostWhite = Math.random() < 0.5;
+    t.white = hostWhite ? t.host : me; t.black = hostWhite ? me : t.host;
+    t.board = ckNewBoard_(); t.turnColor = 1; t.status = 'play'; t.started = Date.now(); t.moved = Date.now(); t.deadline = Date.now() + CK_TURN_MS + 5000; t.quiet = 0; t.moves = 0; t.rev++;
+    ckLog_(t, me + ' accepted. ' + t.white + ' plays white and starts.');
+    ckPut_(t);
+    return { ok: true, id: t.id, stake: t.stake };
+  } finally { lock.releaseLock(); }
+}
+function ckLeave(id) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = ckGet_(id); if (!t) return { ok: true };
+    if (t.status === 'wait' && t.host === me) { ckPay_(me, t.stake, 'REFUND', t.id); ckDel_(id); ckSetIndex_(ckIndex_().filter(function (x) { return x !== id; })); return { ok: true }; }
+    if (t.status === 'play' && ckColor_(t, me)) { ckEnd_(t, me === t.white ? t.black : t.white, me + ' resigned'); t.rev++; }
+    t.seen = t.seen || {}; t.seen[me] = 1; ckPut_(t);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+function ckView_(t, me) {
+  var col = ckColor_(t, me), mine = t.status === 'play' && col === t.turnColor;
+  return { id: t.id, rev: t.rev, status: t.status, host: t.host, stake: t.stake, white: t.white, black: t.black, me: col, board: t.board, turn: t.turnColor,
+    moves: mine ? ckMoves_(t.board, col) : [], last: t.last || null, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, winner: t.winner || '', why: t.why || '', win: t.win || 0,
+    drawOffer: t.drawOffer || '', quiet: t.quiet || 0, miss: t.miss || {}, waitLeft: t.status === 'wait' ? Math.max(0, CK_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-12) };
+}
+function ckPoll(id, rev) {
+  var me = getUserLdap(), t = ckGet_(id), pay = [];
+  var due = t && ((t.status === 'play' && t.deadline && Date.now() > t.deadline) || (t.status === 'wait' && Date.now() - t.created > CK_WAIT_MS) || (t.status === 'play' && Date.now() - t.moved > CK_IDLE_MS));
+  if (due) {
+    var lock = prsLock_();
+    try { t = ckGet_(id); if (t) { var hk = ckHousekeep_(t), to = ckTimeouts_(t); if (hk || to) { if (t.status === 'gone') { ckDel_(id); ckSetIndex_(ckIndex_().filter(function (x) { return x !== id; })); t = null; } else { t.rev++; ckPut_(t); } } } }
+    finally { lock.releaseLock(); }
+  }
+  var raw = prsProps_().getProperty('ck_pay');
+  if (raw && raw.indexOf('"' + me + '"') >= 0) { var l2 = prsLock_(); try { pay = ckTakePay_(me); } finally { l2.releaseLock(); } }
+  if (!t) return { ok: true, gone: true, pay: pay };
+  if (Number(rev) === t.rev && !pay.length) return { ok: true, same: true, rev: t.rev, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0 };
+  return { ok: true, view: ckView_(t, me), pay: pay };
+}
+/** tah = cesta polí [od, ..., kam]; musí přesně odpovídat jednomu z legálních tahů */
+function ckMove(id, path) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = ckGet_(id); if (!t || t.status !== 'play') return { ok: false, reason: 'gone' };
+    ckTimeouts_(t);
+    var col = ckColor_(t, me);
+    if (t.status !== 'play' || col !== t.turnColor) { ckPut_(t); return { ok: false, reason: 'turn', view: ckView_(t, me) }; }
+    path = (path || []).map(Number);
+    var mv = ckMoves_(t.board, col).filter(function (m) { return m.path.join(',') === path.join(','); })[0];
+    if (!mv) return { ok: false, reason: 'illegal', view: ckView_(t, me) };
+    t.miss[me] = 0;
+    ckDoMove_(t, mv, me, false);
+    ckPut_(t);
+    return { ok: true, view: ckView_(t, me) };
+  } finally { lock.releaseLock(); }
+}
+/** remíza: what = 'offer' | 'accept' | 'decline' */
+function ckDraw(id, what) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = ckGet_(id); if (!t || t.status !== 'play' || !ckColor_(t, me)) return { ok: false, reason: 'gone' };
+    if (what === 'offer') { t.drawOffer = me; ckLog_(t, me + ' offers a draw'); }
+    else if (what === 'accept' && t.drawOffer && t.drawOffer !== me) ckEnd_(t, '', 'agreed');
+    else if (what === 'decline' && t.drawOffer && t.drawOffer !== me) { t.drawOffer = ''; ckLog_(t, me + ' declines the draw'); }
+    t.rev++; ckPut_(t);
+    return { ok: true, view: ckView_(t, me) };
+  } finally { lock.releaseLock(); }
+}
+
 
 
 // ===================== DUNGEON ENGINE (vygenerováno build.py ze src/dungeon_engine.js - neupravovat ručně) =====================
