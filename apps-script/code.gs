@@ -727,9 +727,13 @@ var API_ALLOWED_ = {
   wbSubmit: function (a) { return wbSubmit(a[0], a[1]); },
   weeklyState: function () { return weeklyState(); },
   weeklySubmit: function (a) { return weeklySubmit(a[0], a[1]); },
-  benchPoll: function (a) { return benchPoll(a[0], a[1]); },
-  benchMove: function (a) { return benchMove(a[0]); },
-  benchClean: function () { return benchClean(); }
+  prsList: function () { return prsList(); },
+  prsCreate: function (a) { return prsCreate(a[0], a[1]); },
+  prsJoin: function (a) { return prsJoin(a[0]); },
+  prsLeave: function (a) { return prsLeave(a[0]); },
+  prsStart: function (a) { return prsStart(a[0]); },
+  prsPoll: function (a) { return prsPoll(a[0], a[1]); },
+  prsMove: function (a) { return prsMove(a[0], a[1]); }
 };
 
 function doPost(e) {
@@ -1219,50 +1223,273 @@ function weeklySubmit(cat, val) {
 }
 
 // ==========================================================================
-// SERVER LOAD TEST (v8.2.3) - simuluje stůl Prší: stav stolu v CacheService + záloha v Script Properties,
-// tah pod zámkem, polling "změnilo se něco?". Klíče bn_* se po testu smažou (benchClean).
+// PRŠÍ (v8.3) - karetní hra pro 2-4 hráče o GC. Stav stolu v CacheService + záloha ve Script Properties.
+// Vklad strhává klient (jako u Showdownu), server drží bank a výhry vyplácí přes prsPoll (Script Properties "pr_pay").
+// Karty 0-31: barva = floor(c/8) (0 srdce, 1 kule, 2 listy, 3 žaludy), hodnota = c%8 (0=7,1=8,2=9,3=10,4=spodek,5=svršek,6=král,7=eso)
 // ==========================================================================
-function benchState_(t) {
-  var c = CacheService.getScriptCache(), raw = c.get('bn_' + t), src = 'cache';
-  if (!raw) { raw = PropertiesService.getScriptProperties().getProperty('bn_' + t); src = 'props'; }
-  return { s: raw ? JSON.parse(raw) : null, src: src };
+var PRS_STAKES = [100000, 1000000, 10000000, 100000000, 1000000000];
+var PRS_MAX_TABLES = 2, PRS_TURN_MS = 30000, PRS_WAIT_MS = 120000, PRS_IDLE_MS = 30 * 60000, PRS_RAKE = 0.05, PRS_MAX_MISS = 3;
+
+function prsProps_() { return PropertiesService.getScriptProperties(); }
+function prsGet_(id) {
+  var raw = CacheService.getScriptCache().get('pr_' + id);
+  if (!raw) raw = prsProps_().getProperty('pr_' + id);
+  return raw ? JSON.parse(raw) : null;
 }
-function benchPoll(t, rev) {
-  var t0 = Date.now();
-  t = String(t || '0').replace(/[^0-9a-z]/gi, '').slice(0, 8);
-  var st = benchState_(t), s = st.s;
-  var changed = !!s && s.rev !== Number(rev);
-  return { rev: s ? s.rev : 0, changed: changed, hand: changed ? s.hands[0] : null, src: st.src, ms: Date.now() - t0 };
+function prsPut_(t) {
+  var json = JSON.stringify(t);
+  CacheService.getScriptCache().put('pr_' + t.id, json, 21600);
+  prsProps_().setProperty('pr_' + t.id, json);
 }
-function benchMove(t) {
-  var t0 = Date.now();
-  t = String(t || '0').replace(/[^0-9a-z]/gi, '').slice(0, 8);
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return { ok: false, reason: 'busy', ms: Date.now() - t0 };
-  var tl = Date.now() - t0;
+function prsDel_(id) { CacheService.getScriptCache().remove('pr_' + id); prsProps_().deleteProperty('pr_' + id); }
+function prsIndex_() { try { return JSON.parse(prsProps_().getProperty('pr_index') || '[]'); } catch (e) { return []; } }
+function prsSetIndex_(a) { prsProps_().setProperty('pr_index', JSON.stringify(a)); CacheService.getScriptCache().put('pr_ver', String(Date.now()), 21600); }
+function prsPay_(nick, amt, why, id) {
+  if (!(amt > 0)) return;
+  var p = prsProps_(), m = {};
+  try { m = JSON.parse(p.getProperty('pr_pay') || '{}'); } catch (e) {}
+  (m[nick] = m[nick] || []).push({ amt: Math.floor(amt), why: why, id: id });
+  p.setProperty('pr_pay', JSON.stringify(m));
+}
+function prsTakePay_(nick) {
+  var p = prsProps_(), raw = p.getProperty('pr_pay');
+  if (!raw || raw.indexOf('"' + nick + '"') < 0) return [];
+  var m = {}; try { m = JSON.parse(raw); } catch (e) {}
+  var out = m[nick] || []; delete m[nick];
+  p.setProperty('pr_pay', JSON.stringify(m));
+  return out;
+}
+function prsLock_() { var l = LockService.getScriptLock(); if (!l.tryLock(10000)) throw new Error('Server is busy, try again.'); return l; }
+function prsShuffle_(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), x = a[i]; a[i] = a[j]; a[j] = x; } return a; }
+function prsSuit_(c) { return Math.floor(c / 8); }
+function prsRank_(c) { return c % 8; }
+function prsLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 40) t.log.shift(); }
+var PRS_SUITS = ['Hearts', 'Bells', 'Leaves', 'Acorns'], PRS_RANKS = ['7', '8', '9', '10', 'Under', 'Over', 'King', 'Ace'];
+function prsName_(c) { return PRS_RANKS[prsRank_(c)] + ' of ' + PRS_SUITS[prsSuit_(c)]; }
+function prsTop_(t) { return t.pile[t.pile.length - 1]; }
+function prsPlayable_(t, c) {
+  var r = prsRank_(c), top = prsTop_(t);
+  if (t.pen > 0) return r === 0;                       // aktivní sedma: jen sedma
+  if (t.skip) return r === 7;                          // aktivní eso: jen eso
+  if (r === 5) return true;                            // svršek na cokoli
+  return prsSuit_(c) === t.suit || r === prsRank_(top);
+}
+function prsDraw_(t, n) {
+  var got = [];
+  for (var i = 0; i < n; i++) {
+    if (!t.deck.length) { if (t.pile.length <= 1) break; t.deck = prsShuffle_(t.pile.slice(0, -1)); t.pile = t.pile.slice(-1); }
+    got.push(t.deck.pop());
+  }
+  return got;
+}
+function prsActive_(t) { return t.order.filter(function (n) { return t.out.indexOf(n) < 0; }); }
+function prsNext_(t) {
+  var act = prsActive_(t); if (!act.length) return;
+  var cur = t.order[t.turn], i = t.order.indexOf(cur);
+  for (var k = 1; k <= t.order.length; k++) { var n = t.order[(i + k) % t.order.length]; if (t.out.indexOf(n) < 0) { t.turn = t.order.indexOf(n); break; } }
+  t.deadline = Date.now() + PRS_TURN_MS;
+}
+function prsFinish_(t, winner, why) {
+  t.status = 'done'; t.winner = winner; t.doneAt = Date.now(); t.deadline = 0;
+  var win = Math.floor(t.pot * (1 - PRS_RAKE));
+  prsPay_(winner, win, 'WIN', t.id);
+  prsLog_(t, '🏆 ' + winner + ' wins ' + win.toLocaleString() + ' GC' + (why ? ' (' + why + ')' : '') + '!');
+  try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', winner + ' won a Prší table and takes ' + Math.round(win).toLocaleString() + ' GC!']); } catch (e) {}
+  prsSetIndex_(prsIndex_());
+}
+function prsCheckLastStanding_(t) {
+  var act = prsActive_(t);
+  if (t.status === 'play' && act.length === 1) prsFinish_(t, act[0], 'everyone else left');
+}
+function prsRemovePlayer_(t, nick, why) {
+  if (t.out.indexOf(nick) >= 0) return;
+  t.out.push(nick);
+  t.deck = (t.hands[nick] || []).concat(t.deck); t.hands[nick] = [];
+  prsLog_(t, '🚪 ' + nick + ' ' + why + ' (stake lost)');
+  if (t.order[t.turn] === nick) { prsNext_(t); }
+  prsCheckLastStanding_(t);
+}
+/** úklid: čekající stoly po 2 min (vrátit vklady), dohrané po 2 min smazat, mrtvé hry po 30 min (vrátit vklady) */
+function prsHousekeep_(t) {
+  var now = Date.now();
+  if (t.status === 'wait' && now - t.created > PRS_WAIT_MS) {
+    t.players.forEach(function (n) { prsPay_(n, t.stake, 'REFUND', t.id); });
+    t.status = 'gone'; return true;
+  }
+  if (t.status === 'done' && now - t.doneAt > 120000) { t.status = 'gone'; return true; }
+  if (t.status === 'play' && now - t.moved > PRS_IDLE_MS) {
+    var act = prsActive_(t);
+    act.forEach(function (n) { prsPay_(n, Math.floor(t.pot / act.length), 'REFUND', t.id); });
+    t.status = 'gone'; return true;
+  }
+  return false;
+}
+/** vyprší-li čas na tah: automaticky líže / stojí; 3× po sobě = vyhozen */
+function prsTimeouts_(t) {
+  var changed = false, guard = 0;
+  while (t.status === 'play' && t.deadline && Date.now() > t.deadline && guard++ < 8) {
+    var nick = t.order[t.turn];
+    t.miss[nick] = (t.miss[nick] || 0) + 1;
+    if (t.miss[nick] >= PRS_MAX_MISS) { prsRemovePlayer_(t, nick, 'timed out 3× and was kicked'); }
+    else { prsAutoDraw_(t, nick, true); }
+    t.rev++; changed = true;
+  }
+  return changed;
+}
+function prsAutoDraw_(t, nick, auto) {
+  var pre = auto ? '⏱ ' + nick + ' ran out of time: ' : nick + ' ';
+  if (t.pen > 0) { var g = prsDraw_(t, t.pen); t.hands[nick] = t.hands[nick].concat(g); prsLog_(t, pre + 'takes ' + g.length + ' cards'); t.pen = 0; }
+  else if (t.skip) { t.skip = false; prsLog_(t, pre + 'stands (ace)'); }
+  else { var g2 = prsDraw_(t, 1); t.hands[nick] = t.hands[nick].concat(g2); prsLog_(t, pre + 'draws a card'); }
+  t.moved = Date.now();
+  prsNext_(t);
+}
+function prsDeal_(t) {
+  var deck = []; for (var i = 0; i < 32; i++) deck.push(i);
+  t.deck = prsShuffle_(deck); t.hands = {}; t.order = prsShuffle_(t.players.slice());
+  t.order.forEach(function (n) { t.hands[n] = t.deck.splice(-4, 4); });
+  t.pile = [t.deck.pop()]; var top = prsTop_(t);
+  t.suit = prsSuit_(top); t.pen = prsRank_(top) === 0 ? 2 : 0; t.skip = prsRank_(top) === 7;
+  t.out = []; t.miss = {}; t.turn = 0; t.status = 'play'; t.pot = t.stake * t.players.length; t.started = Date.now(); t.moved = Date.now();
+  t.deadline = Date.now() + PRS_TURN_MS + 5000; t.rev++;
+  prsLog_(t, '🃏 Cards dealt! ' + t.order[0] + ' starts. Pot ' + t.pot.toLocaleString() + ' GC.');
+}
+function prsLoadAll_() {
+  var ids = prsIndex_(), out = [], keep = [], dirty = false;
+  ids.forEach(function (id) {
+    var t = prsGet_(id);
+    if (!t) { dirty = true; return; }
+    var hk = prsHousekeep_(t), to = prsTimeouts_(t);
+    if (hk || to) { dirty = true; if (t.status === 'gone') { prsDel_(id); return; } prsPut_(t); }
+    keep.push(id); out.push(t);
+  });
+  if (dirty) prsSetIndex_(keep);
+  return out;
+}
+function prsPublic_(t) {
+  return { id: t.id, host: t.host, stake: t.stake, seats: t.seats, players: t.players, status: t.status, created: t.created };
+}
+function prsList() {
+  var me = getUserLdap(), lock = prsLock_();
   try {
-    var s = benchState_(t).s;
-    if (!s) {                                                  // nový stůl: zamíchaný balíček 32 karet, 4 ruce
-      var deck = []; for (var i = 0; i < 32; i++) deck.push(i);
-      for (var j = deck.length - 1; j > 0; j--) { var k = Math.floor(Math.random() * (j + 1)), x = deck[j]; deck[j] = deck[k]; deck[k] = x; }
-      s = { rev: 0, deck: deck.slice(17), pile: [deck[16]], hands: [deck.slice(0, 4), deck.slice(4, 8), deck.slice(8, 12), deck.slice(12, 16)], turn: 0, pen: 0, suit: -1, log: [], seats: ['a', 'b', 'c', 'd'], pot: 4000000 };
-    }
-    s.rev++; s.turn = (s.turn + 1) % 4;
-    s.log.push({ p: s.turn, a: 'play', c: s.pile[s.pile.length - 1], at: Date.now() }); if (s.log.length > 30) s.log.shift();
-    if (s.deck.length) s.pile.push(s.deck.pop()); else { s.deck = s.pile.slice(0, -1); s.pile = s.pile.slice(-1); }
-    var json = JSON.stringify(s);
-    CacheService.getScriptCache().put('bn_' + t, json, 21600);
-    PropertiesService.getScriptProperties().setProperty('bn_' + t, json);
-    return { ok: true, rev: s.rev, bytes: json.length, lockMs: tl, ms: Date.now() - t0 };
+    var ts = prsLoadAll_(), mine = '';
+    ts.forEach(function (t) { if (t.players.indexOf(me) >= 0 && t.status !== 'gone' && !(t.status === 'done' && t.seen && t.seen[me])) mine = t.id; });
+    return { ok: true, tables: ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).map(prsPublic_), mine: mine, max: PRS_MAX_TABLES, stakes: PRS_STAKES, pay: prsTakePay_(me) };
   } finally { lock.releaseLock(); }
 }
-function benchClean() {
-  var p = PropertiesService.getScriptProperties(), keys = p.getKeys().filter(function (k) { return k.indexOf('bn_') === 0; });
-  keys.forEach(function (k) { p.deleteProperty(k); });
-  CacheService.getScriptCache().removeAll(keys);
-  return { removed: keys.length };
+function prsCreate(stake, seats) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    stake = Number(stake); seats = Math.max(2, Math.min(4, Number(seats) || 4));
+    if (PRS_STAKES.indexOf(stake) < 0) return { ok: false, reason: 'stake' };
+    var ts = prsLoadAll_();
+    if (ts.some(function (t) { return t.players.indexOf(me) >= 0 && (t.status === 'wait' || t.status === 'play'); })) return { ok: false, reason: 'already' };
+    if (ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).length >= PRS_MAX_TABLES) return { ok: false, reason: 'full' };
+    var t = { id: Utilities.getUuid().slice(0, 8), host: me, stake: stake, seats: seats, players: [me], status: 'wait', created: Date.now(), rev: 1, log: [], pot: 0, out: [], order: [], hands: {}, deck: [], pile: [], miss: {}, seen: {} };
+    prsLog_(t, me + ' opened the table');
+    prsPut_(t); var idx = prsIndex_(); idx.push(t.id); prsSetIndex_(idx);
+    try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', me + ' opened a Prší table (' + stake.toLocaleString() + ' GC, ' + seats + ' seats). Join in MINIGAMES!']); } catch (e) {}
+    return { ok: true, id: t.id };
+  } finally { lock.releaseLock(); }
 }
-
+function prsJoin(id) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var ts = prsLoadAll_(), t = ts.filter(function (x) { return x.id === id; })[0];
+    if (!t || t.status !== 'wait') return { ok: false, reason: 'gone' };
+    if (ts.some(function (x) { return x.players.indexOf(me) >= 0 && (x.status === 'wait' || x.status === 'play'); })) return { ok: false, reason: 'already' };
+    if (t.players.length >= t.seats) return { ok: false, reason: 'seats' };
+    t.players.push(me); t.rev++; prsLog_(t, me + ' sat down');
+    if (t.players.length >= t.seats) prsDeal_(t);
+    prsPut_(t); prsSetIndex_(prsIndex_());
+    return { ok: true, id: t.id, stake: t.stake };
+  } finally { lock.releaseLock(); }
+}
+function prsStart(id) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = prsGet_(id);
+    if (!t || t.status !== 'wait') return { ok: false, reason: 'gone' };
+    if (t.host !== me) return { ok: false, reason: 'host' };
+    if (t.players.length < 2) return { ok: false, reason: 'alone' };
+    prsDeal_(t); prsPut_(t); prsSetIndex_(prsIndex_());
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+function prsLeave(id) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = prsGet_(id);
+    if (!t || t.players.indexOf(me) < 0) return { ok: true };
+    if (t.status === 'wait') {
+      t.players = t.players.filter(function (n) { return n !== me; });
+      prsPay_(me, t.stake, 'REFUND', t.id); prsLog_(t, me + ' left (stake refunded)');
+      if (!t.players.length) { prsDel_(id); prsSetIndex_(prsIndex_().filter(function (x) { return x !== id; })); return { ok: true }; }
+      if (t.host === me) t.host = t.players[0];
+    } else if (t.status === 'play') prsRemovePlayer_(t, me, 'left the table');
+    else if (t.status === 'done') { t.seen = t.seen || {}; t.seen[me] = 1; }
+    t.rev++; prsPut_(t); prsSetIndex_(prsIndex_());
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+/** pohled hráče: veřejný stav + moje ruka (ostatní jen počet karet) */
+function prsView_(t, me) {
+  var hands = {}; (t.order.length ? t.order : t.players).forEach(function (n) { hands[n] = (t.hands[n] || []).length; });
+  return { id: t.id, rev: t.rev, host: t.host, stake: t.stake, seats: t.seats, players: t.players, order: t.order, status: t.status, pot: t.pot,
+    turn: t.order[t.turn] || '', top: t.pile.length ? prsTop_(t) : -1, under: t.pile.length > 1 ? t.pile[t.pile.length - 2] : -1, suit: t.suit, pen: t.pen || 0, skip: !!t.skip,
+    deck: t.deck.length, hands: hands, mine: t.hands[me] || [], out: t.out, winner: t.winner || '', left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0,
+    created: t.created, waitLeft: t.status === 'wait' ? Math.max(0, PRS_WAIT_MS - (Date.now() - t.created)) : 0, miss: t.miss || {}, log: t.log.slice(-14) };
+}
+function prsPoll(id, rev) {
+  var me = getUserLdap(), t = prsGet_(id);
+  var due = t && ((t.status === 'play' && t.deadline && Date.now() > t.deadline) || (t.status === 'wait' && Date.now() - t.created > PRS_WAIT_MS) || (t.status === 'play' && Date.now() - t.moved > PRS_IDLE_MS));
+  var pay = [];
+  if (due) {                                                  // jen když je co řešit, bereme zámek
+    var lock = prsLock_();
+    try {
+      t = prsGet_(id);
+      if (t) { var hk = prsHousekeep_(t), to = prsTimeouts_(t); if (hk || to) { t.rev++; if (t.status === 'gone') { prsDel_(id); prsSetIndex_(prsIndex_().filter(function (x) { return x !== id; })); } else prsPut_(t); } }
+      if (t && t.status === 'gone') t = null;
+    } finally { lock.releaseLock(); }
+  }
+  var payRaw = prsProps_().getProperty('pr_pay');
+  if (payRaw && payRaw.indexOf('"' + me + '"') >= 0) { var l2 = prsLock_(); try { pay = prsTakePay_(me); } finally { l2.releaseLock(); } }
+  if (!t) return { ok: true, gone: true, pay: pay };
+  if (Number(rev) === t.rev && !pay.length) return { ok: true, same: true, rev: t.rev, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0 };
+  return { ok: true, view: prsView_(t, me), pay: pay };
+}
+/** tah: { t: 'play', c: karta, suit: barva pro svrška } | { t: 'draw' } (líznout / vzít trest / stát na eso) */
+function prsMove(id, mv) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = prsGet_(id);
+    if (!t || t.status !== 'play') return { ok: false, reason: 'gone' };
+    prsTimeouts_(t);
+    if (t.status !== 'play') { prsPut_(t); return { ok: false, reason: 'gone', view: prsView_(t, me) }; }
+    if (t.order[t.turn] !== me) { prsPut_(t); return { ok: false, reason: 'turn', view: prsView_(t, me) }; }
+    mv = mv || {};
+    var hand = t.hands[me];
+    if (mv.t === 'play') {
+      var c = Number(mv.c), i = hand.indexOf(c);
+      if (i < 0 || !prsPlayable_(t, c)) return { ok: false, reason: 'card', view: prsView_(t, me) };
+      hand.splice(i, 1); t.pile.push(c);
+      var r = prsRank_(c);
+      if (r === 5) { var su = Number(mv.suit); t.suit = su >= 0 && su <= 3 ? su : prsSuit_(c); }
+      else t.suit = prsSuit_(c);
+      if (r === 0) t.pen = (t.pen || 0) + 2;
+      if (r === 7) t.skip = true;
+      t.miss[me] = 0; t.moved = Date.now();
+      prsLog_(t, me + ' plays ' + prsName_(c) + (r === 5 ? ' and picks ' + PRS_SUITS[t.suit] : r === 0 ? ' (+' + t.pen + ' for the next player)' : r === 7 ? ' (next player stands)' : ''));
+      if (!hand.length) { t.rev++; prsFinish_(t, me, 'out of cards'); prsPut_(t); return { ok: true, view: prsView_(t, me) }; }
+      prsNext_(t);
+    } else {
+      t.miss[me] = 0;
+      prsAutoDraw_(t, me, false);
+    }
+    t.rev++; prsPut_(t);
+    return { ok: true, view: prsView_(t, me) };
+  } finally { lock.releaseLock(); }
+}
 
 
 // ===================== DUNGEON ENGINE (vygenerováno build.py ze src/dungeon_engine.js - neupravovat ručně) =====================

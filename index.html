@@ -3806,7 +3806,7 @@ const TUTORIAL_STEPS = [
   { t: "6) CASINO", b: `
     <p><b>Roulette</b> (shows the last 6 results of everyone), <b>Slots</b>, <b>Blackjack</b> (2.5× blackjack, <b>Five-Card Charlie</b> = 5 cards without bust wins), <b>MEGA 5×5</b> (10 lines, ⭐ wild, 💰×5 = 250× jackpot, auto-spin) and <b>CRASH</b> (cash out before the rocket explodes, set an auto cash-out).</p>` },
   { t: "7) MINIGAMES & CONSULT", b: `
-    <p><b>Chicken Road</b>, <b>Pachinko</b> (shows your profit after a multi-drop) and <b>Showdown</b> PvP (the tab glows when someone challenged you).</p>
+    <p><b>Chicken Road</b>, <b>Pachinko</b> (shows your profit after a multi-drop) and <b>Showdown</b> PvP (the tab glows when someone challenged you) and <b>♣ PRŠÍ</b>: the Czech card game for 2-4 players, everyone puts in the same stake and the winner takes the pot (7 = +2, Ace = stand, Over changes the suit).</p>
     <p><b>Consult</b> (5,000 scrap): win/lose minutes of Auto GC, 10% BUG chamber. <b>×5 INSTANT</b> rolls 5 at once, <b>BUGROLL</b> keeps rolling until a bug drops.</p>` },
   { t: "8) 🎰 HIGH STAKES", b: `
     <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
@@ -3819,7 +3819,7 @@ const TUTORIAL_STEPS = [
     <li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC</li></ul>` },
   { t: "9) 🏆 HALL OF FAME", b: `
     <p>Open it with the <b>🏆 HALL OF FAME</b> button (on mobile: MORE).</p>
-    <ul><li><b>Achievements</b>: ${window.Meta ? Meta.ACH.length : 39} badges, each one gives +1 🎟 Slot Token and shows on your player card</li>
+    <ul><li><b>Achievements</b>: ${window.Meta ? Meta.ACH.length : 41} badges, each one gives +1 🎟 Slot Token and shows on your player card</li>
     <li><b>Weekly boards</b>: Corporate Climb height, best Shift, world boss damage and biggest casino win. Top 3 get 3 / 2 / 1 🎟 every week</li>
     <li><b>Company events</b>: every hour a 10-minute event for everyone (Payday, Coffee Machine Broke, Audit Week, Supply Drop, Overtime). Watch for the banner</li></ul>` },
   { t: "10) SCORE", b: `
@@ -4339,6 +4339,7 @@ window.__startGame = initGame;
           <button class="casino-tab-btn" id="adv-tab-pachinko" onclick="AdvMini.tab('pachinko')">⚪ PACHINKO</button>
           <button class="casino-tab-btn" id="adv-tab-showdown" onclick="AdvMini.tab('showdown')">⚔ SHOWDOWN</button>
           <button class="casino-tab-btn" id="adv-tab-climb" onclick="AdvMini.tab('climb')">🧗 CLIMB</button>
+          <button class="casino-tab-btn" id="adv-tab-prsi" onclick="AdvMini.tab('prsi')">♣ PRŠÍ</button>
         </div>
 
         <div id="adv-view-chicken">
@@ -4392,6 +4393,7 @@ window.__startGame = initGame;
         </div>
 
         <div id="adv-view-climb" style="display:none;"><div id="jk-mount"></div></div>
+        <div id="adv-view-prsi" style="display:none;"><div id="prs-mount" class="pr-wrap"></div></div>
 
         <div id="adv-view-showdown" style="display:none;">
           <div class="adv-bal">Balance: <span id="bal-showdown">0 GC</span></div>
@@ -4916,13 +4918,14 @@ window.__startGame = initGame;
 
   // ===== TABS + INIT =====
   function tab(t) {
-    ["chicken", "pachinko", "showdown", "climb"].forEach(n => {
+    ["chicken", "pachinko", "showdown", "climb", "prsi"].forEach(n => {
       $("adv-view-" + n).style.display = (n === t) ? "block" : "none";
       $("adv-tab-" + n).className = "casino-tab-btn" + (n === t ? " active" : "");
     });
     if (t === "pachinko") pcRefresh();
     if (t === "showdown") { sdGlow(false); sdPoll(true); }
     if (t === "climb" && window.JumpKing) JumpKing.show();
+    if (t === "prsi" && window.Prsi) Prsi.show();
   }
 
   function init() {
@@ -5271,6 +5274,323 @@ window.__startGame = initGame;
   (function hook() { if (!window.TT || !TT.isBusy) { setTimeout(hook, 100); return; } const prev = TT.isBusy; TT.isBusy = function () { return prev() || !!jk.run; }; })();
 })();
 </script>
+<style>
+/* ===== PRŠÍ (v8.3) - karetní hra pro 2-4 hráče, vítěz bere bank ===== */
+.pr-wrap { font-size: 12px; }
+.pr-info { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
+.pr-info b { color: var(--amber); }
+.pr-create { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.pr-create select { background: #05070b; color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px; font-size: 12px; }
+.pr-tables { display: grid; gap: 6px; }
+.pr-trow { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; }
+.pr-trow .t { flex: 1; min-width: 0; }
+.pr-trow .t b { color: var(--amber); }
+.pr-felt { position: relative; background: radial-gradient(ellipse at 50% 45%, #1d6b3a 0%, #0f4424 60%, #0a2e18 100%); border: 3px solid #5b3a1e; border-radius: 18px; padding: 10px; min-height: 330px; box-shadow: inset 0 0 40px rgba(0,0,0,.55); }
+.pr-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; font: 700 11px 'Orbitron', monospace; color: #e7ffe9; flex-wrap: wrap; }
+.pr-top .pot { color: #ffd700; }
+.pr-opps { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.pr-opp { min-width: 92px; padding: 6px 8px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.12); text-align: center; color: #e7ffe9; }
+.pr-opp.turn { border-color: #ffd700; box-shadow: 0 0 12px rgba(255,215,0,.5); }
+.pr-opp.out { opacity: .4; }
+.pr-opp .nm { font: 700 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.pr-backs { display: flex; justify-content: center; margin: 4px 0 2px; height: 30px; }
+.pr-backs i { display: block; width: 20px; height: 30px; margin-left: -12px; border-radius: 3px; border: 1px solid #fff; background: repeating-linear-gradient(45deg, #8b1d2c 0 4px, #6b1220 4px 8px); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.pr-backs i:first-child { margin-left: 0; }
+.pr-tbar { height: 4px; background: rgba(0,0,0,.4); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.pr-tbar div { height: 100%; background: linear-gradient(90deg, #ffd700, #ff1744); transition: width .9s linear; }
+.pr-center { display: flex; justify-content: center; align-items: center; gap: 22px; margin: 10px 0; min-height: 104px; }
+.pr-deck { position: relative; cursor: pointer; }
+.pr-deck .pr-card { background: repeating-linear-gradient(45deg, #8b1d2c 0 5px, #6b1220 5px 10px); }
+.pr-deck .cnt { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font: 700 10px 'Orbitron', monospace; color: #e7ffe9; }
+.pr-deck.can .pr-card { box-shadow: 0 0 0 2px #ffd700, 0 0 14px rgba(255,215,0,.6); }
+.pr-pile { position: relative; width: 70px; height: 100px; }
+.pr-pile .pr-card { position: absolute; left: 0; top: 0; }
+.pr-pile .pr-card.under { transform: rotate(-9deg) translate(-6px, 2px); filter: brightness(.8); }
+.pr-badges { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 74px; }
+.pr-badge { font: 800 11px 'Orbitron', monospace; padding: 3px 8px; border-radius: 10px; background: rgba(0,0,0,.4); color: #fff; display: flex; align-items: center; gap: 4px; }
+.pr-badge.pen { background: #b91c1c; animation: tabGlow .5s ease-in-out infinite alternate; }
+.pr-badge.skip { background: #a16207; }
+.pr-badge svg { width: 16px; height: 16px; }
+.pr-card { width: 70px; height: 100px; border-radius: 7px; background: #fbf7ec; border: 1px solid #c9bfa6; box-shadow: 0 2px 4px rgba(0,0,0,.45); position: relative; color: #1f2937; user-select: none; -webkit-user-select: none; flex: none; }
+.pr-card .rk { position: absolute; top: 3px; left: 5px; font: 800 15px 'Orbitron', monospace; line-height: 1; }
+.pr-card .rk2 { position: absolute; bottom: 3px; right: 5px; font: 800 15px 'Orbitron', monospace; line-height: 1; transform: rotate(180deg); }
+.pr-card .si { position: absolute; top: 4px; right: 4px; width: 15px; height: 15px; }
+.pr-card .big { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; transform: translate(-50%, -50%); }
+.pr-card .fc { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 900 24px 'Orbitron', monospace; opacity: .9; }
+.pr-card .fc + .big { width: 22px; height: 22px; top: 74%; }
+.pr-card.s0 .rk, .pr-card.s0 .rk2, .pr-card.s0 .fc { color: #c81e3a; }
+.pr-card.s1 .rk, .pr-card.s1 .rk2, .pr-card.s1 .fc { color: #b07a00; }
+.pr-card.s2 .rk, .pr-card.s2 .rk2, .pr-card.s2 .fc { color: #15803d; }
+.pr-card.s3 .rk, .pr-card.s3 .rk2, .pr-card.s3 .fc { color: #7c4a1e; }
+.pr-hand { display: flex; gap: 6px; overflow-x: auto; padding: 14px 4px 8px; justify-content: safe center; -webkit-overflow-scrolling: touch; }
+.pr-hand .pr-card { transition: transform .12s, filter .12s, opacity .12s; }
+.pr-hand .pr-card.ok { cursor: pointer; box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,.75); transform: translateY(-8px); }
+.pr-hand .pr-card.ok:hover { transform: translateY(-14px); }
+.pr-hand .pr-card.no { filter: grayscale(.75) brightness(.55); }
+.pr-me { text-align: center; font: 700 11px 'Orbitron', monospace; color: #e7ffe9; }
+.pr-me.turn { color: #ffd700; }
+.pr-acts { display: flex; gap: 6px; justify-content: center; margin-top: 6px; flex-wrap: wrap; }
+.pr-acts .btn { padding: 9px 16px; }
+.pr-log { margin-top: 8px; max-height: 120px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,.4); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 5px 8px; display: flex; flex-direction: column-reverse; }
+.pr-log div { color: #8b9bb4; line-height: 1.35; }
+.pr-pick { position: absolute; inset: 0; background: rgba(5,7,11,.82); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 4; }
+.pr-pick .row { display: flex; gap: 8px; }
+.pr-pick button { width: 66px; height: 66px; border-radius: 10px; background: #fbf7ec; border: 2px solid #c9bfa6; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font: 700 9px 'Orbitron', monospace; color: #1f2937; }
+.pr-pick button svg { width: 34px; height: 34px; }
+.pr-done { text-align: center; padding: 20px 8px; color: #fff; }
+.pr-done .big { font: 900 22px 'Orbitron', monospace; color: #ffd700; letter-spacing: 2px; }
+.pr-seat { display: inline-block; padding: 6px 10px; margin: 3px; border-radius: 8px; background: rgba(0,0,0,.3); border: 1px dashed rgba(255,255,255,.25); color: #e7ffe9; font: 700 11px 'Orbitron', monospace; }
+.pr-seat.on { border-style: solid; border-color: #ffd700; }
+@media (max-width: 700px) {
+  .pr-card { width: 54px; height: 78px; }
+  .pr-card .rk, .pr-card .rk2 { font-size: 12px; }
+  .pr-card .big { width: 28px; height: 28px; }
+  .pr-card .fc { font-size: 18px; }
+  .pr-pile { width: 54px; height: 78px; }
+  .pr-center { gap: 14px; min-height: 84px; }
+}
+</style>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Math.floor(n).toLocaleString();
+  const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
+  const short = (n) => n >= 1e9 ? (n / 1e9) + "B" : n >= 1e6 ? (n / 1e6) + "M" : n >= 1e3 ? (n / 1e3) + "K" : String(n);
+  const SUITS = ["Hearts", "Bells", "Leaves", "Acorns"], RANKS = ["7", "8", "9", "10", "U", "O", "K", "A"], RANK_N = ["7", "8", "9", "10", "Under", "Over", "King", "Ace"];
+  // vlastní ikony barev (mariášové karty)
+  const ICON = [
+    '<svg viewBox="0 0 32 32"><path d="M16 29 C10 23 3 18 3 11 C3 6.5 6.5 3.5 10.5 3.5 C13 3.5 15 5 16 7 C17 5 19 3.5 21.5 3.5 C25.5 3.5 29 6.5 29 11 C29 18 22 23 16 29Z" fill="#d61f3c" stroke="#7a0c1e" stroke-width="1.2"/><path d="M9 8 C7 9 6 11 6.5 13" stroke="#ff9aa9" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
+    '<svg viewBox="0 0 32 32"><circle cx="16" cy="17" r="11" fill="#f2b705" stroke="#8a6200" stroke-width="1.3"/><path d="M6 14 H26 M5.5 19 H26.5" stroke="#b5161d" stroke-width="2.4"/><circle cx="16" cy="17" r="3" fill="#8a6200"/><circle cx="12" cy="11" r="2" fill="#fff6c7" opacity=".8"/></svg>',
+    '<svg viewBox="0 0 32 32"><path d="M16 3 C24 8 27 15 24 22 C22 26 19 27.5 16 28 C13 27.5 10 26 8 22 C5 15 8 8 16 3Z" fill="#22a447" stroke="#0e5a25" stroke-width="1.3"/><path d="M16 6 V30 M16 13 L11 10 M16 13 L21 10 M16 19 L10 16 M16 19 L22 16" stroke="#0e5a25" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>',
+    '<svg viewBox="0 0 32 32"><ellipse cx="16" cy="20" rx="8" ry="9.5" fill="#c98a3c" stroke="#6b3d12" stroke-width="1.3"/><path d="M6.5 13 C7 7 12 5 16 5 C20 5 25 7 25.5 13 Z" fill="#7a4b20" stroke="#4a2a0c" stroke-width="1.3"/><path d="M9 10 H23 M8 12 H24" stroke="#5b3510" stroke-width="1"/><path d="M16 5 V2" stroke="#4a2a0c" stroke-width="2" stroke-linecap="round"/><ellipse cx="13" cy="19" rx="2" ry="4" fill="#e7b46d" opacity=".6"/></svg>'
+  ];
+  const suit = (c) => Math.floor(c / 8), rank = (c) => c % 8;
+  const P = { list: null, view: null, id: "", rev: -1, busy: false, msg: "", msgC: "", pick: -1, pollT: 0, listT: 0, recvAt: 0, myTurnSeen: "", built: false, lastList: 0 };
+
+  function cardHtml(c, cls, extra) {
+    const s = suit(c), r = rank(c), face = r >= 4 && r <= 6;
+    return `<div class="pr-card s${s} ${cls || ""}" ${extra || ""} title="${RANK_N[r]} of ${SUITS[s]}"><span class="rk">${RANKS[r]}</span><span class="si">${ICON[s]}</span>${face ? `<span class="fc">${RANKS[r]}</span>` : ""}<span class="big">${ICON[s]}</span><span class="rk2">${RANKS[r]}</span></div>`;
+  }
+  function playable(v, c) {
+    const r = rank(c), top = v.top;
+    if (v.pen > 0) return r === 0;
+    if (v.skip) return r === 7;
+    if (r === 5) return true;
+    return suit(c) === v.suit || r === rank(top);
+  }
+  function me() { return gameState.ldap; }
+  function visible() { const el = $("adv-view-prsi"); return !!(el && el.style.display !== "none" && el.offsetParent); }
+  function say(t, c) { P.msg = t; P.msgC = c || ""; render(); }
+
+  // ---------- server
+  function run(fn, args) {
+    return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); });
+  }
+  function takePay(pay) {
+    (pay || []).forEach(p => {
+      if (p.why === "WIN") { TT.win(p.amt); log(`♣ PRŠÍ: you won the table! +${fmt(p.amt)} GC`, "special"); if (window.Meta && Meta.count) { Meta.count("prsiWins", 1); } TT.announce("WON A PRŠÍ TABLE", "PRŠÍ", 0, p.amt); }
+      else { gameState.coins += p.amt; gameState.gambleNet = (gameState.gambleNet || 0) + p.amt; log(`♣ PRŠÍ: stake refunded +${fmt(p.amt)} GC`, "success"); }
+    });
+    if (pay && pay.length) { updateUI(); TT.saveSoon(); }
+  }
+  async function loadList() {
+    if (P.listBusy) return; P.listBusy = true;
+    try {
+      const r = await run("prsList", []);
+      P.lastList = Date.now();
+      if (r && r.ok) {
+        P.list = r; takePay(r.pay);
+        if (r.mine && !P.id) { P.id = r.mine; P.rev = -1; poll(); }
+        const waiting = r.tables.filter(t => t.status === "wait" && t.players.indexOf(me()) < 0).length;
+        glow(waiting > 0 && !visible());
+      }
+    } catch (e) { P.list = P.list || { tables: [], stakes: [], max: 2 }; }
+    finally { P.listBusy = false; }
+    render();
+  }
+  async function poll() {
+    clearTimeout(P.pollT);
+    if (!P.id) return;
+    try {
+      const r = await run("prsPoll", [P.id, P.rev]);
+      if (r && r.ok) {
+        takePay(r.pay);
+        if (r.gone) { P.id = ""; P.view = null; P.rev = -1; loadList(); return; }
+        if (r.view) apply(r.view);
+        else if (r.same && P.view) { P.view.left = r.left; P.recvAt = Date.now(); }
+      }
+    } catch (e) {}
+    if (P.id) P.pollT = setTimeout(poll, visible() ? 1200 : (P.view && P.view.status === "play" ? 2500 : 5000));
+  }
+  function apply(v) {
+    const prev = P.view;
+    P.view = v; P.rev = v.rev; P.recvAt = Date.now();
+    if (v.status === "play" && v.turn === me() && P.myTurnSeen !== v.rev + "") {
+      P.myTurnSeen = v.rev + "";
+      if (!visible()) { glow(true); if (!prev || prev.turn !== me()) log("♣ PRŠÍ: it's your turn!", "special"); }
+    }
+    if (prev && prev.status === "wait" && v.status === "play") log("♣ PRŠÍ: the game started - good luck!", "special");
+    render();
+  }
+  function glow(on) { const t = $("adv-tab-prsi"); if (t) t.classList.toggle("glow", !!on); }
+
+  // ---------- akce
+  async function create() {
+    if (P.busy) return;
+    const stake = Number($("pr-stake").value), seats = Number($("pr-seats").value);
+    if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
+    P.busy = true; TT.spend(stake);
+    try {
+      const r = await run("prsCreate", [stake, seats]);
+      if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
+      else { refund(stake); say({ already: "You are already at a table.", full: "Both tables are busy - wait a moment.", stake: "Invalid stake." }[r && r.reason] || "Could not open the table.", "var(--crimson)"); }
+    } catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+    finally { P.busy = false; loadList(); }
+  }
+  async function join(id, stake) {
+    if (P.busy) return;
+    if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
+    P.busy = true; TT.spend(stake);
+    try {
+      const r = await run("prsJoin", [id]);
+      if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
+      else { refund(stake); say({ already: "You are already at a table.", seats: "The table is full.", gone: "That table is gone." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); }
+    } catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+    finally { P.busy = false; }
+  }
+  function refund(stake) { gameState.coins += stake; gameState.gambleNet = (gameState.gambleNet || 0) + stake; updateUI(); TT.saveSoon(); }
+  async function start() { if (P.busy || !P.id) return; P.busy = true; try { await run("prsStart", [P.id]); } catch (e) {} P.busy = false; poll(); }
+  async function leave() {
+    if (P.busy || !P.id) return;
+    const v = P.view;
+    if (v && v.status === "play" && v.out.indexOf(me()) < 0 && !window.confirm("Leave the game? Your stake stays in the pot.")) return;
+    P.busy = true;
+    try { await run("prsLeave", [P.id]); } catch (e) {}
+    P.busy = false; P.id = ""; P.view = null; P.rev = -1; clearTimeout(P.pollT); loadList();
+  }
+  async function move(mv) {
+    const v = P.view; if (!v || P.busy || v.status !== "play" || v.turn !== me()) return;
+    P.busy = true;
+    if (mv.t === "play") {                                         // hned to ukázat (optimisticky)
+      v.mine = v.mine.filter(c => c !== mv.c); v.under = v.top; v.top = mv.c; v.suit = rank(mv.c) === 5 ? mv.suit : suit(mv.c); v.turn = "";
+      if (rank(mv.c) === 0) { v.pen += 2; if (v.pen >= 6 && window.Meta && Meta.count) Meta.count("prsiStack", 1); }
+      render();
+    }
+    try {
+      const r = await run("prsMove", [P.id, mv]);
+      if (r && r.view) apply(r.view);
+      if (r && !r.ok && r.reason === "card") say("That card can't be played.", "var(--crimson)");
+    } catch (e) { say("Connection problem - retrying...", "var(--crimson)"); P.rev = -1; }
+    P.busy = false; poll();
+  }
+  function play(c) {
+    const v = P.view; if (!v || v.turn !== me() || !playable(v, c)) return;
+    if (rank(c) === 5) { P.pick = c; render(); return; }
+    move({ t: "play", c: c });
+  }
+  function pickSuit(s) { const c = P.pick; P.pick = -1; if (c < 0) return; move({ t: "play", c: c, suit: s }); }
+  function draw() { move({ t: "draw" }); }
+
+  // ---------- vykreslení
+  function render() {
+    const box = $("prs-mount"); if (!box) return;
+    box.innerHTML = P.id && P.view ? tableHtml(P.view) : P.id ? `<div class="pr-info">Loading the table...</div>` : lobbyHtml();
+    const h = box.querySelector(".pr-hand"); if (h && P.handScroll) h.scrollLeft = P.handScroll;
+  }
+  function rulesHtml() {
+    return `<div class="pr-info">2-4 players, everyone puts in the same stake, <b>the winner takes the pot</b> (-5%). 4 cards each, play the same <b>suit</b> or <b>rank</b>, or draw 1.
+      <b>7</b> = next player takes 2 (stack 7s: 4, 6, 8...). <b>Ace</b> = next player stands (only an ace beats it). <b>Over</b> goes on anything and changes the suit.
+      First one out of cards wins. 30 s per turn - 3 timeouts in a row and you are out.</div>`;
+  }
+  function lobbyHtml() {
+    const L = P.list;
+    if (!L) return rulesHtml() + `<div class="pr-info">Loading tables...</div>`;
+    const stakes = (L.stakes && L.stakes.length ? L.stakes : [100000, 1000000, 10000000, 100000000, 1000000000]);
+    const active = L.tables.length;
+    const rows = L.tables.map(t => `<div class="pr-trow"><div class="t">♣ <b>${short(t.stake)} GC</b> · ${esc(t.host)}'s table · ${t.players.length}/${t.seats} players<br><span style="color:var(--text-dim);font-size:10px;">${t.players.map(esc).join(", ")}</span></div>
+      ${t.status === "wait" && t.players.length < t.seats ? `<button class="btn btn-gold" ${gameState.coins >= t.stake && !P.busy ? "" : "disabled"} onclick="Prsi.join('${t.id}',${t.stake})">JOIN (${short(t.stake)})</button>` : `<span style="color:var(--text-dim);font-size:10px;">${t.status === "play" ? "PLAYING" : "FULL"}</span>`}</div>`).join("");
+    return rulesHtml() + `<div class="pr-create">
+        <select id="pr-stake">${stakes.map(s => `<option value="${s}" ${s === P.lastStake ? "selected" : ""}>${short(s)} GC</option>`).join("")}</select>
+        <select id="pr-seats"><option value="2">2 players</option><option value="3">3 players</option><option value="4" selected>4 players</option></select>
+        <button class="btn btn-crimson" ${active >= (L.max || 2) || P.busy ? "disabled" : ""} onclick="Prsi.create()">♣ OPEN A TABLE</button>
+        <button class="btn" onclick="Prsi.refresh()">↻</button></div>
+      ${P.msg ? `<div class="pr-info" style="color:${P.msgC || "var(--amber)"};">${esc(P.msg)}</div>` : ""}
+      <div class="pr-tables">${rows || `<div class="pr-info">No open tables. Open one and your friends get a message in the chat.</div>`}</div>
+      <div class="pr-info" style="margin-top:6px;">Max ${L.max || 2} tables at once. An unfilled table closes after 2 minutes and everyone gets their stake back.</div>`;
+  }
+  function timeLeft(v) { return Math.max(0, (v.left || 0) - (Date.now() - P.recvAt)); }
+  function tableHtml(v) {
+    const myTurn = v.status === "play" && v.turn === me();
+    let html = `<div class="pr-felt">`;
+    html += `<div class="pr-top"><span>♣ PRŠÍ · stake ${short(v.stake)}</span><span class="pot">POT ${fmt(v.pot || v.stake * v.players.length)} GC</span><button class="btn" style="padding:3px 10px;font-size:10px;" ${P.busy ? "disabled" : ""} onclick="Prsi.leave()">${v.status === "done" ? "◀ LOBBY" : "LEAVE"}</button></div>`;
+    if (v.status === "wait") {
+      const seats = []; for (let i = 0; i < v.seats; i++) seats.push(v.players[i] ? `<span class="pr-seat on">${esc(v.players[i])}${v.players[i] === v.host ? " 👑" : ""}</span>` : `<span class="pr-seat">empty seat</span>`);
+      html += `<div class="pr-done"><div class="big" style="font-size:16px;">WAITING FOR PLAYERS</div><div style="margin:10px 0;">${seats.join("")}</div>
+        <div class="pr-info" style="color:#cfe9d4;">Starts automatically when all ${v.seats} seats are taken${v.host === me() ? " - or start now with at least 2 players" : ""}. Closes in ${Math.ceil(Math.max(0, v.waitLeft - (Date.now() - P.recvAt)) / 1000)} s if nobody comes (stakes refunded).</div>
+        ${v.host === me() ? `<button class="btn btn-gold" ${v.players.length >= 2 && !P.busy ? "" : "disabled"} onclick="Prsi.start()">▶ START NOW (${v.players.length} players)</button>` : ""}</div>`;
+      return html + `</div>`;
+    }
+    if (v.status === "done") {
+      html += `<div class="pr-done"><div class="big">${v.winner === me() ? "🏆 YOU WIN!" : "🏆 " + esc(v.winner) + " WINS"}</div>
+        <div style="margin-top:8px;">${v.winner === me() ? `+${fmt(Math.floor(v.pot * 0.95))} GC` : "Better luck next time."}</div>
+        <div style="margin-top:12px;"><button class="btn btn-gold" onclick="Prsi.leave()">◀ BACK TO LOBBY</button></div></div>`;
+      return html + logHtml(v) + `</div>`;
+    }
+    const others = v.order.filter(n => n !== me());
+    const tl = timeLeft(v), pctT = Math.min(100, tl / 300);
+    html += `<div class="pr-opps">${others.map(n => { const out = v.out.indexOf(n) >= 0, k = v.hands[n] || 0, turn = v.turn === n;
+      const backs = []; for (let i = 0; i < Math.min(k, 8); i++) backs.push("<i></i>");
+      return `<div class="pr-opp ${turn ? "turn" : ""} ${out ? "out" : ""}"><div class="nm">${esc(n)}</div><div class="pr-backs">${backs.join("")}</div><div style="font-size:10px;">${out ? "OUT" : k + " card" + (k === 1 ? "" : "s")}${(v.miss[n] || 0) ? " · ⏱" + v.miss[n] : ""}</div>
+        ${turn ? `<div class="pr-tbar"><div style="width:${pctT}%"></div></div>` : ""}</div>`; }).join("")}</div>`;
+    const topIsOver = v.top >= 0 && rank(v.top) === 5;
+    const badges = [];
+    if (v.top >= 0 && (topIsOver || v.suit !== suit(v.top))) badges.push(`<span class="pr-badge">${ICON[v.suit]} ${SUITS[v.suit].toUpperCase()}</span>`);
+    if (v.pen > 0) badges.push(`<span class="pr-badge pen">+${v.pen} CARDS</span>`);
+    if (v.skip) badges.push(`<span class="pr-badge skip">ACE: STAND</span>`);
+    const canDraw = myTurn && !P.busy;
+    html += `<div class="pr-center">
+      <div class="pr-deck ${canDraw ? "can" : ""}" ${canDraw ? `onclick="Prsi.draw()"` : ""} title="Draw"><div class="pr-card"></div><div class="cnt">${v.deck}</div></div>
+      <div class="pr-pile">${v.under >= 0 ? cardHtml(v.under, "under") : ""}${v.top >= 0 ? cardHtml(v.top) : ""}</div>
+      <div class="pr-badges">${badges.join("")}</div></div>`;
+    const hand = v.mine.slice().sort((a, b) => suit(a) - suit(b) || rank(a) - rank(b));
+    const amOut = v.out.indexOf(me()) >= 0;
+    html += `<div class="pr-me ${myTurn ? "turn" : ""}">${amOut ? "You are out of this game." : myTurn ? `YOUR TURN · ${Math.ceil(tl / 1000)} s` : `Waiting for ${esc(v.turn)}...`}</div>`;
+    html += `<div class="pr-hand" onscroll="Prsi._sc(this)">${hand.map(c => { const ok = myTurn && !P.busy && playable(v, c); return cardHtml(c, myTurn ? (ok ? "ok" : "no") : "", ok ? `onclick="Prsi.play(${c})"` : ""); }).join("")}</div>`;
+    if (myTurn) {
+      const has = hand.some(c => playable(v, c));
+      const lbl = v.pen > 0 ? `TAKE ${v.pen} CARDS` : v.skip ? "STAND (ACE)" : "DRAW 1";
+      html += `<div class="pr-acts"><button class="btn ${has ? "" : "btn-gold"}" ${P.busy ? "disabled" : ""} onclick="Prsi.draw()">${lbl}</button></div>`;
+      if (!has) html += `<div class="pr-info" style="text-align:center;color:#ffd700;margin:4px 0 0;">No card fits - ${v.pen > 0 ? "take the cards" : v.skip ? "you stand this turn" : "draw one"}.</div>`;
+    }
+    if (P.msg) html += `<div class="pr-info" style="text-align:center;color:${P.msgC || "var(--amber)"};margin-top:4px;">${esc(P.msg)}</div>`;
+    if (P.pick >= 0) html += `<div class="pr-pick"><div style="font:800 13px Orbitron,monospace;color:#ffd700;">OVER: PICK THE NEW SUIT</div><div class="row">${[0, 1, 2, 3].map(s => `<button onclick="Prsi.suit(${s})">${ICON[s]}${SUITS[s].toUpperCase()}</button>`).join("")}</div><button class="btn" onclick="Prsi.suit(-2)">CANCEL</button></div>`;
+    return html + logHtml(v) + `</div>`;
+  }
+  function logHtml(v) { return `<div class="pr-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div>`; }
+
+  // ---------- montáž do minihry
+  function show() { glow(false); if (P.id) poll(); else loadList(); render(); }
+  function tick() {
+    if (!visible()) return;
+    if (P.view && P.view.status === "play") { const el = document.querySelector(".pr-me.turn"); if (el && P.view.turn === me()) el.textContent = `YOUR TURN · ${Math.ceil(timeLeft(P.view) / 1000)} s`; const tb = document.querySelector(".pr-opp.turn .pr-tbar div"); if (tb) tb.style.width = Math.min(100, timeLeft(P.view) / 300) + "%"; }
+    else if (P.view && P.view.status === "wait") render();
+    else if (!P.id && Date.now() - P.lastList > 5000) loadList();
+  }
+  window.Prsi = { show: show, create: create, join: join, start: start, leave: leave, play: play, draw: draw,
+    suit: function (s) { if (s === -2) { P.pick = -1; render(); return; } pickSuit(s); }, refresh: loadList, _sc: function (el) { P.handScroll = el.scrollLeft; },
+    state: () => P, playable: playable };
+  function boot() {
+    if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 200); return; }
+    TT.onLoaded(() => setTimeout(loadList, 5000));                       // návrat ke stolu po obnovení stránky + vyplacení
+    setInterval(tick, 1000);
+    setInterval(() => { if (!P.id && !visible()) loadList(); }, 60000);   // svítící záložka, když někdo čeká u stolu
+    const prev = TT.isBusy; TT.isBusy = function () { return prev() || !!(P.view && P.view.status === "play" && P.view.out.indexOf(me()) < 0); };
+  }
+  boot();
+})();
+</script>
 
   <style>
 /* ===== UPGRADE STATION (forge.html): vylepšení nasazeného itemu +1..+15 za GC, tokeny za GC ===== */
@@ -5611,7 +5931,9 @@ html.m #mt-screen { height: var(--app-h, 100%); }
     ["CASINO", [
       ["casino_1m", "🍀", "Lucky Break", "Win 1M GC in a single casino payout", () => cnt("casinoBest"), 1e6],
       ["casino_1b", "🐋", "Whale", "Win 1B GC in a single casino payout", () => cnt("casinoBest"), 1e9],
-      ["casino_net", "🏦", "House Always Loses", "Be +10M GC up on gambling overall", () => Math.max(0, gameState.gambleNet || 0), 1e7]
+      ["casino_net", "🏦", "House Always Loses", "Be +10M GC up on gambling overall", () => Math.max(0, gameState.gambleNet || 0), 1e7],
+      ["prsi_win", "♣", "Prší Champion", "Win 10 Prší tables", () => cnt("prsiWins"), 10],
+      ["prsi_stack", "7️⃣", "Seven Stack", "Stack sevens up to +6 cards in Prší", () => cnt("prsiStack"), 1]
     ]],
     ["HIGH STAKES", [
       ["hs_class", "🧍", "Pick A Side", "Choose a HIGH STAKES class", () => hs().cls ? 1 : 0, 1],
@@ -5782,49 +6104,13 @@ html.m #mt-screen { height: var(--app-h, 100%); }
       <div class="mt-card"><div class="mt-h"><span>SCHEDULE</span></div>${up.map(u => { const now = Date.now() >= u.start;
         return `<div class="mt-ev ${now ? "now" : ""}"><span class="ic">${u.ev.icon}</span><div style="flex:1;"><b>${u.ev.name}</b><br><span class="mt-dim">${esc(u.ev.txt)}</span></div>
           <span class="mt-dim" style="text-align:right;">${new Date(u.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<br>${now ? "<b>NOW</b>" : "in " + fmtWhen(u.start - Date.now())}</span></div>`; }).join("")}</div>
-      ${benchHtml()}
       <div class="mt-card"><div class="mt-h"><span>ALL EVENTS</span></div>${EVENTS.map(e => `<div class="mt-ev"><span class="ic">${e.icon}</span><div><b>${e.name}</b><br><span class="mt-dim">${esc(e.txt)}</span></div></div>`).join("")}</div>`;
   }
 
 
-  // ================================================================== SERVER LOAD TEST (simulace stolů Prší: polling 1,2 s + tahy pod zámkem)
-  const bn = { running: false, res: [], cur: "", err: "" };
-  function pct(a, q) { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(q * b.length))]; }
-  async function benchScenario(tables, secs) {
-    const call = window.__irCall, end = Date.now() + secs * 1000, poll = [], move = [], srvP = [], srvM = [], lockW = [];
-    let errs = 0, calls = 0, props = 0;
-    const tag = (n) => "t" + Date.now().toString(36).slice(-4) + n;
-    const T = []; for (let i = 0; i < tables; i++) T.push(tag(i));
-    const one = async (fn, args, arr, srvArr) => { const t0 = performance.now(); calls++;
-      try { const r = await call(fn, args); arr.push(performance.now() - t0); if (r && srvArr) srvArr.push(r.ms || 0); if (r && r.lockMs != null) lockW.push(r.lockMs); if (r && r.src === "props") props++; if (r && r.ok === false) errs++; return r; }
-      catch (e) { errs++; bn.err = String(e && e.message || e); return null; } };
-    const player = async (t, seat) => { let rev = -1; while (Date.now() < end) { const r = await one("benchPoll", [t, rev], poll, srvP); if (r) rev = r.rev; await new Promise(z => setTimeout(z, 1200)); } };
-    const dealer = async (t) => { while (Date.now() < end) { await one("benchMove", [t], move, srvM); bn.cur = `${tables} table${tables > 1 ? "s" : ""}: ${calls} requests, ${errs} errors`; if (isOpen) render(); await new Promise(z => setTimeout(z, 2500 + Math.random() * 1500)); } };
-    await Promise.all(T.flatMap(t => [dealer(t), player(t, 0), player(t, 1), player(t, 2), player(t, 3)]));
-    return { tables: tables, players: tables * 4, secs: secs, calls: calls, errs: errs, props: props,
-      poll: [pct(poll, .5), pct(poll, .9), Math.max(0, ...poll)].map(Math.round), move: [pct(move, .5), pct(move, .9), Math.max(0, ...move)].map(Math.round),
-      srvPoll: Math.round(pct(srvP, .5)), srvMove: Math.round(pct(srvM, .5)), lock: Math.round(pct(lockW, .9)), rps: (calls / secs).toFixed(1) };
-  }
-  async function bench() {
-    if (bn.running || !window.__irCall) return;
-    bn.running = true; bn.res = []; bn.err = ""; view = "events"; if (!isOpen) open("events"); render();
-    try {
-      for (const [t, sec] of [[1, 25], [2, 25], [4, 30]]) { bn.cur = `running ${t} table${t > 1 ? "s" : ""}...`; render(); bn.res.push(await benchScenario(t, sec)); render(); }
-      await window.__irCall("benchClean", []).catch(() => {});
-      log("🧪 SERVER TEST done: " + bn.res.map(r => `${r.players}p poll ${r.poll[0]}/${r.poll[1]} ms, move ${r.move[0]}/${r.move[1]} ms, ${r.errs} err`).join(" · "), "special");
-    } finally { bn.running = false; bn.cur = ""; render(); }
-  }
-  function benchHtml() {
-    const rows = bn.res.map(r => `<tr><td>${r.tables} · ${r.players}p</td><td>${r.poll[0]} / ${r.poll[1]} / ${r.poll[2]}</td><td>${r.move[0]} / ${r.move[1]} / ${r.move[2]}</td><td>${r.srvPoll} / ${r.srvMove}</td><td>${r.lock}</td><td>${r.rps}</td><td style="color:${r.errs ? "var(--crimson)" : "var(--emerald)"};">${r.errs}</td></tr>`).join("");
-    return `<div class="mt-card"><div class="mt-h"><span>🧪 SERVER LOAD TEST (Prší)</span><button class="btn btn-gold" style="padding:4px 10px;" ${bn.running ? "disabled" : ""} onclick="Meta.bench()">${bn.running ? "RUNNING..." : "RUN (~90 s)"}</button></div>
-      <div class="mt-dim">Simulates card tables on the real server: 4 players per table asking for changes every 1.2 s, plus a move every ~3 s under a lock. Runs 1, 2 and 4 tables. Times in ms (median / 90% / max).</div>
-      ${bn.cur ? `<div class="mt-dim" style="margin-top:6px;color:var(--amber);">${esc(bn.cur)}</div>` : ""}
-      ${bn.err ? `<div class="mt-dim" style="margin-top:6px;color:var(--crimson);">Last error: ${esc(bn.err)}${/unknown function/.test(bn.err) ? " - the server does not have the test yet, wait for the updater (Config row 9)" : ""}</div>` : ""}
-      ${rows ? `<div style="overflow-x:auto;"><table class="lb-table" style="width:100%;font-size:11px;margin-top:8px;"><thead><tr><th>TABLES</th><th>POLL ms</th><th>MOVE ms</th><th>SERVER ms</th><th>LOCK ms</th><th>REQ/s</th><th>ERR</th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}</div>`;
-  }
   window.Meta = { open: open, close: close, tab: tab, mult: mult, current: current, upcoming: upcoming, active: active, chip: chip, EVENTS: EVENTS,
-    onFight: onFight, onWb: onWb, onClimb: onClimb, onShift: onShift, onCasinoWin: onCasinoWin, check: check, badgesHtml: badgesHtml, ACH: ALL,
-    isOpen: () => isOpen, weeklyLoad: wkLoad, bench: bench, benchResults: () => bn.res };
+    count: function (k, n) { bump(k, n); setTimeout(check, 300); }, onFight: onFight, onWb: onWb, onClimb: onClimb, onShift: onShift, onCasinoWin: onCasinoWin, check: check, badgesHtml: badgesHtml, ACH: ALL,
+    isOpen: () => isOpen, weeklyLoad: wkLoad };
 
   function boot() {
     if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
@@ -5846,7 +6132,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
     TT.onLoaded(() => { setTimeout(check, 2500); setTimeout(() => wkLoad(true), 6000); });
     setInterval(tickEvent, 1000); tickEvent();
     setInterval(check, 5000);
-    setInterval(() => { if (isOpen && view === "events" && !bn.running) render(); }, 1000);
+    setInterval(() => { if (isOpen && view === "events") render(); }, 1000);
     document.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") close(); });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
