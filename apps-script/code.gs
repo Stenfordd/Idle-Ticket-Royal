@@ -181,8 +181,11 @@ function saveGame(stateJson, baseRev) {
     }
     if (rowIndex > 0) {
       var cur = db.saves.getRange(rowIndex, 1, 1, Math.max(db.saves.getLastColumn(), 2)).getValues()[0];
-      try { storedRev = Number(JSON.parse(rowToJson_(cur)).rev) || 0; } catch (e2) { storedRev = 0; }
-      if (Number(baseRev) !== storedRev) return { ok: false, reason: 'conflict', rev: storedRev };
+      var storedSid = '';
+      try { var curObj = JSON.parse(rowToJson_(cur)); storedRev = Number(curObj.rev) || 0; storedSid = String(curObj.sid || ''); } catch (e2) { storedRev = 0; }
+      // v8.6.1: poslední zápis udělal tentýž tab (jen se mu ztratila odpověď - mobil uspal stránku, timeout) -> není to konflikt
+      var sameTab = !!state.sid && String(state.sid) === storedSid;
+      if (Number(baseRev) !== storedRev && !sameTab) return { ok: false, reason: 'conflict', rev: storedRev };
     }
     state.rev = storedRev + 1;
     presenceStamp_(user, state);

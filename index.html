@@ -1377,6 +1377,20 @@ body {
 .ir-msg.ok { color: var(--emerald); }
 .ir-switch { text-align: center; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
 .ir-switch a { color: var(--cyan); cursor: pointer; text-decoration: underline; }
+/* v8.6.1: obrazovka "CONNECTING TO SERVER" místo prázdné hry během načítání */
+#ir-conn {
+  position: fixed; inset: 0; z-index: 310; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: radial-gradient(ellipse at 50% 20%, #1a0a14 0%, var(--bg-core, #07090e) 60%); padding: 16px; text-align: center;
+}
+#ir-conn.open { display: flex; }
+#ir-conn .ic-t { font: 900 16px 'Orbitron', monospace; letter-spacing: 3px; color: var(--cyan); text-shadow: var(--cyan-glow); }
+#ir-conn .ic-s { font-size: 12px; color: var(--text-dim); min-height: 16px; max-width: 360px; }
+#ir-conn .ic-s.err { color: var(--crimson); }
+#ir-conn .ic-spin { width: 42px; height: 42px; border-radius: 50%; border: 3px solid rgba(0,240,255,.15); border-top-color: var(--cyan); animation: icspin .9s linear infinite; }
+#ir-conn.fail .ic-spin { display: none; }
+#ir-conn .ic-b { display: none; gap: 8px; }
+#ir-conn.fail .ic-b { display: flex; }
+@keyframes icspin { to { transform: rotate(360deg); } }
 #ir-logout {
   position: fixed; left: 92px; bottom: 10px; z-index: 50; display: none;
   font: 700 10px 'Orbitron', monospace; letter-spacing: .5px; padding: 5px 9px; border-radius: 4px; cursor: pointer;
@@ -1398,6 +1412,8 @@ body {
     <div class="ir-switch" id="ir-switch"></div>
   </form>
 </div>
+<div id="ir-conn"><div class="ic-spin"></div><div class="ic-t">CONNECTING TO SERVER...</div><div class="ic-s" id="ir-conn-s"></div>
+  <div class="ic-b"><button class="btn btn-cyan" type="button" id="ir-conn-retry" style="padding:10px 22px;">↻ RETRY</button><button class="btn" type="button" id="ir-conn-acc" style="padding:10px 14px;">ACCOUNT</button></div></div>
 <button id="ir-logout" type="button">LOG OUT</button>
 
 <script>
@@ -1474,6 +1490,30 @@ body {
   }
   window.__irCall = call;
 
+  // ---------- v8.6.1: připojovací obrazovka + automatické opakování ----------
+  function transient(e) { var m = String(e && e.message || e); return /did not respond|fetch|network|load failed|Server error|busy|timed out|NetworkError/i.test(m) && !/wrong|invalid|PIN|nickname|taken/i.test(m); }
+  var connRetry = null;
+  var conn = {
+    show: function (msg) { var c = $("ir-conn"); if (!c) return; c.classList.add("open"); c.classList.remove("fail"); var s = $("ir-conn-s"); s.className = "ic-s"; s.textContent = msg || ""; },
+    hide: function () { var c = $("ir-conn"); if (c) c.classList.remove("open", "fail"); },
+    fail: function (msg, retry) { var c = $("ir-conn"); if (!c) return; c.classList.add("open", "fail"); var s = $("ir-conn-s"); s.className = "ic-s err"; s.textContent = msg || "Server unreachable."; connRetry = retry || null; }
+  };
+  window.__irConn = conn;
+  /** volání s opakováním (studený start serveru / výpadek sítě): 3 pokusy */
+  function callRetry(fn, args, withAuth, label) {
+    var n = 0;
+    function go() {
+      n++;
+      conn.show((label || "Loading") + (n > 1 ? " - attempt " + n + "/3 (the server is waking up...)" : "..."));
+      return call(fn, args, withAuth).catch(function (e) {
+        if (n < 3 && transient(e)) return new Promise(function (r) { setTimeout(r, 1500); }).then(go);
+        throw e;
+      });
+    }
+    return go();
+  }
+  window.__irCallRetry = callRetry;
+
   // ---------- náhrada google.script.run ----------
   function builder(ok, fail) {
     return new Proxy({}, {
@@ -1516,14 +1556,14 @@ body {
 
   function boot() {
     setMsg("Loading...", true);
-    call("getAppVersion", [], false).then(function (v) {
+    callRetry("getAppVersion", [], false, "Connecting").then(function (v) {
       window.CLIENT_VERSION = String(v);
       hideLogin();
       $("ir-logout").style.display = "block";
+      conn.show("Loading your save...");                          // schová se až po načtení savu (sync.html)
       if (typeof window.__startGame === "function") window.__startGame();
     }).catch(function (e) {
-      showLogin();
-      setMsg("Server unreachable: " + e.message);
+      conn.fail("Server unreachable: " + e.message, boot);
     });
   }
 
@@ -1550,6 +1590,9 @@ body {
     go();
   });
 
+  $("ir-conn-retry").addEventListener("click", function () { var f = connRetry; connRetry = null; if (f) f(); else location.reload(); });
+  $("ir-conn-acc").addEventListener("click", function () { conn.hide(); showLogin(); setMsg(""); });
+
   if (CFG.NAME) { $("ir-name").textContent = CFG.NAME.toUpperCase(); document.title = CFG.NAME; }
 
   // ---------- start ----------
@@ -1558,9 +1601,9 @@ body {
     try { saved = JSON.parse(localStorage.getItem("ir_auth") || "null"); } catch (e) {}
     if (saved && saved.nick && saved.h) {
       auth = saved;
-      call("login", [saved.nick, saved.h], false).then(function () { boot(); }).catch(function (e) {
-        if (/wrong|invalid|PIN|nickname/i.test(e.message)) { clearAuth(); auth = null; }
-        showLogin(); setMsg(e.message);
+      callRetry("login", [saved.nick, saved.h], false, "Logging in").then(function () { boot(); }).catch(function (e) {
+        if (/wrong|invalid|PIN|nickname/i.test(e.message)) { clearAuth(); auth = null; conn.hide(); showLogin(); setMsg(e.message); return; }
+        conn.fail("Server unreachable: " + e.message, start);
       });
     } else {
       showLogin();
@@ -3937,7 +3980,7 @@ function buildPayload() {
   const g = gameState, ac = g.autoclicker;
   sanitizeAc();
   return JSON.stringify({
-    ldap: g.ldap, season: g.season,
+    ldap: g.ldap, season: g.season, sid: tabId,          // v8.6.1: ID tabu - server pozná vlastní dřívější uložení (ztracená odpověď) a nehlásí konflikt
     tickets: g.tickets, lifetimeTickets: g.lifetimeTickets,
     coins: g.coins, scrap: g.scrap,
     prestige: g.prestige, chestLevel: g.chestLevel, maxChestLevel: g.maxChestLevel,
@@ -4148,9 +4191,13 @@ function checkWipeNotice() {
   document.body.appendChild(d);
 }
 
+let loadTries = 0;
 function loadFromServer() {
+  loadTries++;
   google.script.run
     .withSuccessHandler(loaded => {
+      loadTries = 0;
+      if (window.__irConn) window.__irConn.hide();
       if (loaded && !loaded.isNew) {
         applyLoaded(loaded);
         log(`Welcome back, Agent ${escapeHtml(gameState.ldap)}. Profile loaded.`, "success");
@@ -4164,6 +4211,13 @@ function loadFromServer() {
       refreshLeaderboard();
     })
     .withFailureHandler(err => {
+      // v8.6.1: server se probouzí -> zkusit znovu, pak RETRY tlačítko (nikdy prázdná hra jako "Agent")
+      if (window.__irConn) {
+        if (loadTries < 3) { window.__irConn.show("Loading your save - attempt " + (loadTries + 1) + "/3 (the server is waking up...)"); setTimeout(loadFromServer, 1500); return; }
+        loadTries = 0;
+        window.__irConn.fail("Could not load your save: " + String(err && err.message || err), loadFromServer);
+        return;
+      }
       log("Could not load your save (" + escapeHtml(String(err)) + "). Reload the page. Saving is disabled.", "error");
       updateUI();
     })
@@ -4177,6 +4231,7 @@ let tabChannel = null;
 const tabId = Math.random().toString(36).slice(2);
 
 function showTabBlock(on) {
+  if (on && window.__irConn) window.__irConn.hide();
   const el = document.getElementById("tab-block");
   if (el) el.classList.toggle("open", !!on);
 }
@@ -7841,11 +7896,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   // [HP, ATK] pro mise 0-50 (vygenerováno simulací, viz tune_hs.js); 50 = tajná mise
   let STATS = [[233,55.4],[240,57.2],[292,69.1],[387,94.8],[510,50.8],[415,94.3],[427,115.4],[629,132.6],[792,163.7],[1091,130.1],[602,131.6],[673,174.7],[747,196.8],[1059,196.2],[1285,130.6],[915,228.9],[992,267.5],[1377,270.7],[1645,323.9],[2168,189.1],[1250,270.6],[1333,292.1],[1373,376.8],[1875,410.8],[2107,204.5],[1562,433.4],[1649,361],[2234,470.1],[2609,596.4],[3424,462.6],[1934,444.9],[2025,537.5],[2117,559.1],[2840,634.8],[3180,314.5],[2270,518],[2363,627.3],[3159,834.6],[3534,495],[4770,495.9],[2663,601.7],[2759,753.6],[2855,889.3],[3691,754.7],[2967,926.2],[3064,842.1],[4065,781.9],[4122,661.2],[4601,889.6],[6162,772.8],[7320,577.8]];   // v8.2: přeladěno (nová stamina, gear s klesajícím přínosem, nižší win rate)
   function setStats(t) { STATS = t; }
-  /** v8.6: obecně těžší nepřátelé + kampaň a tower +75 % za každou prestiž (lineárně) */
-  const BASE_HP = 1.2, BASE_ATK = 1.25;
+  /** v8.6.1: obecně o něco těžší nepřátelé (+10 %) + kampaň a tower +25 % za každou prestiž (lineárně) */
+  const BASE_HP = 1.1, BASE_ATK = 1.1;
   let PRESTIGE = 0;
   function setPrestige(p) { PRESTIGE = Math.max(0, Math.floor(Number(p) || 0)); }
-  function prestigeMult() { return 1 + 0.75 * PRESTIGE; }
+  function prestigeMult() { return 1 + 0.25 * PRESTIGE; }
 
   function all() {
     const out = [];
@@ -7907,7 +7962,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   const TOWER_BOSS = { 10: 9, 20: 18, 30: 19, 40: 17, 50: 29, 60: 39, 70: 28, 80: 38, 90: 49, 95: 50, 100: "admin" };
   function srcOf(id) { return id === "admin" ? ADMIN : LIST[id]; }
 
-  /** SERVER TOWER: 100 pater, každé 5. elite, každých 10 (+ patro 95) boss, patro 100 Administrator. v8.6: +75 % za prestiž. */
+  /** SERVER TOWER: 100 pater, každé 5. elite, každých 10 (+ patro 95) boss, patro 100 Administrator. v8.6.1: +25 % za prestiž. */
   function towerFloor(f) {
     f = Math.max(1, Math.min(100, f | 0));
     const x = (f - 1) * 0.55, boss = !!TOWER_BOSS[f], elite = !boss && f % 5 === 0;
@@ -7915,7 +7970,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const src = boss ? srcOf(TOWER_BOSS[f]) : pool[(f * 7) % pool.length];
     const kind = boss ? "boss" : elite ? "elite" : "normal";
     const pm = prestigeMult(), adm = f === 100;
-    const e = enemyFrom(src, x, (adm ? 3.0 : boss ? 2.6 : elite ? 1.35 : 1) * pm, (adm ? 1.15 : boss ? 1.1 : elite ? 1.1 : 1) * pm);
+    const e = enemyFrom(src, x, (adm ? 2.5 : boss ? 2.6 : elite ? 1.35 : 1) * pm, (adm ? 1.15 : boss ? 1.1 : elite ? 1.1 : 1) * pm);
     if (boss) { e.name = adm ? "The Administrator" : "Floor " + f + " Guardian: " + src.e; e.pattern = Object.assign({}, P.boss); }
     if (!boss && src.mech === "compliance") e.mech = "";
     return { id: 1000 + f, floor: f, ch: Math.min(4, Math.floor((f - 1) / 20)), idx: f - 1, name: adm ? "Floor 100 - THE ADMINISTRATOR" : "Floor " + f + (boss ? " - BOSS" : elite ? " - ELITE" : ""),
@@ -8277,7 +8332,7 @@ html.m #dg-open-btn { display: none; }
     if (d.tower.best >= 100) d.pool.unlocked = true;                       // v8.6: Clear The Pool se odemyká Administratorem (patro 100), navždy
     if (!d.bt || typeof d.bt !== "object") d.bt = {};
     if (d.tsel && !d.bt[d.tsel]) d.tsel = "";
-    C.setPrestige(gameState.prestige || 0);                                   // v8.6: kampaň + tower +75 % za prestiž
+    C.setPrestige(gameState.prestige || 0);                                   // v8.6.1: kampaň + tower +25 % za prestiž
     if (d.legacyBest == null) { const old = g.dungeon || {}; d.legacyBest = old.mode === "highstakes" ? 0 : Math.max(0, Math.floor(Number(old.best) || 0)); }
     // kompatibilita se serverem (aréna/leaderboard čtou tato pole)
     d.tier = 1; d.branch = ""; d.artifacts = {}; d.equipped = []; d.promos = {}; d.exec = false;
@@ -9171,7 +9226,7 @@ html.m #dg-open-btn { display: none; }
     for (let f = 1; f <= 100; f++) { const bs = !!C.TOWER_BOSS[f]; cells.push(`<div class="${f <= b ? "ok" : f === b + 1 ? "nx" : ""} ${bs ? "bs" : ""}">${f === 100 ? "🕶" : bs ? "☠" : f}</div>`); }
     box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>🗼 SERVER TOWER</span><span>${b}/100</span></div>
       <div class="dg-dim">Climb 100 floors of the server tower. Every 5th floor is an elite, every 10th floor (and floor 95) a boss. On floor 100 waits <b>THE ADMINISTRATOR</b> - beat him to unlock <b>♾ CLEAR THE POOL</b> forever.
-      Every 10 floors = <b>+1% ATK and HP</b> in all HIGH STAKES modes (now <b>+${Math.floor(b / 10)}%</b>). The tower resets on prestige and gets <b>+75% harder</b> per prestige (now ×${C.prestigeMult().toFixed(2)}).</div></div>
+      Every 10 floors = <b>+1% ATK and HP</b> in all HIGH STAKES modes (now <b>+${Math.floor(b / 10)}%</b>). The tower resets on prestige and gets <b>+25% harder</b> per prestige (now ×${C.prestigeMult().toFixed(2)}).</div></div>
       ${b >= 100 ? `<div class="dg-card dg-lock"><div class="big">🏆</div><div style="font:800 14px Orbitron,monospace;color:var(--amber);">TOWER CONQUERED</div><div class="dg-dim">All 100 floors cleared. Respect.</div></div>` :
       `<div class="dg-card"><div class="dg-h"><span>NEXT: ${esc(m.name)}</span><span>⚡1</span></div>
         <div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}<br>
