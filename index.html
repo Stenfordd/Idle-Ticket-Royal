@@ -8203,7 +8203,7 @@ html.m #dg-open-btn { display: none; }
     if (!window.confirm("You are in the middle of a fight.\nFlee and leave? (counts as a loss, energy is not refunded)")) return false;
     flee(); return true;
   }
-  function closeScreen() { if (fight && !fight.over && !askFlee()) return; open = false; $("dg-screen").classList.remove("open"); }
+  function closeScreen() { if (fight && !fight.over && !askFlee()) return; open = false; $("dg-screen").classList.remove("open"); if (window.ttRepaint) window.ttRepaint(); }
   // ---------- režimy (záložky) - další soubory (aréna, tower, směna, world boss) se registrují přes HS_API.registerMode
   const MODES = {};
   function registerMode(id, def) { MODES[id] = def; renderTabs(); }
@@ -9592,6 +9592,17 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   tag(panelOf("log"), "more");
   tag(panelOf("lb-body"), "more");
 
+  /* v8.5.1: iOS po zavření fullscreen překryvu (HIGH STAKES) občas nepřekreslí horní část a zůstane "duch" - vynutíme repaint */
+  window.ttRepaint = function () {
+    var b = document.body; if (!b) return;
+    b.style.transform = "translateZ(0)"; void b.offsetHeight;
+    requestAnimationFrame(function () {
+      b.style.transform = "";
+      var mw = document.querySelector(".main-wrapper");
+      if (mw) { var st = mw.scrollTop; mw.scrollTop = st + 1; mw.scrollTop = st; }
+      setTimeout(function () { b.style.opacity = "0.999"; requestAnimationFrame(function () { b.style.opacity = ""; }); }, 60);
+    });
+  };
   function setTab(t) {
     tab = t;
     document.body.setAttribute("data-mtab", t);
@@ -9600,6 +9611,7 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
     var mw = document.querySelector(".main-wrapper"); if (mw) mw.scrollTop = 0;
     try { localStorage.setItem("ir_tab", t); } catch (e) {}
     if (t === "more" && typeof chatVisible === "function" && chatVisible() && typeof chatUnread !== "undefined" && chatUnread) { chatUnread = 0; renderChatUnread(); }
+    if (window.ttRepaint) window.ttRepaint();
     window.dispatchEvent(new Event("resize"));      // ruleta si přepočítá šířku
   }
   document.getElementById("m-tabs").addEventListener("click", function (ev) {
