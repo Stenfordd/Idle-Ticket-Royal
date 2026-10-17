@@ -2186,6 +2186,7 @@ function performPrestige() {
   keep.forEach(it => { gameState.loadout[it.slot] = it; });
   gameState.focusAutogenActive = false;
   gameState.focusAutogenRemaining = 0;
+  if (window.Dungeon && Dungeon.onPrestige) try { Dungeon.onPrestige(); } catch (e) { console.error(e); }   // v8.6: HIGH STAKES kampaň + tower reset
 
   log(`ASCENDED TO PRESTIGE ${gameState.prestige}! +${lpGain} Legacy Points (total ${gameState.lp}). Start bonus: ${gameState.coins.toLocaleString()} GC.${keep.length ? " Heirloom kept " + keep.length + " item(s) at half tier & merge level." : ""}`, "special");
   saveGame();
@@ -2922,7 +2923,8 @@ function updateUI() {
 // ==========================================================================
 // KONFIGURACE CONSULTU (laď tady)
 // ==========================================================================
-const CONSULT_COST_SCRAP = 5000;
+/** v8.6: cena consultu škáluje - 10 % aktuálního scrapu, minimum 5 000 */
+function consultCost() { return Math.max(5000, Math.floor((Number(gameState && gameState.scrap) || 0) * 0.10)); }
 const CONSULT_WIN_MIN = 5, CONSULT_WIN_MAX = 30;      // výhra = Auto GC/s x 60 x (5..30 minut)
 const CONSULT_LOSS_MIN = 1, CONSULT_LOSS_MAX = 10;    // prohra = Auto GC/s x 60 x (1..10 minut)
 const CONSULT_BUG_WIN_MIN = 5, CONSULT_BUG_WIN_MAX = 10;   // BUG výhra = click power x (5..10) na 60 s
@@ -3239,12 +3241,12 @@ function consultFast() { return consultAuto; }
 
 function launchConsultEscalation() {
   if (isConsultActive) return;
-  if (gameState.scrap < CONSULT_COST_SCRAP) {
-    log(`Insufficient scrap: consult requires ${CONSULT_COST_SCRAP.toLocaleString()} Scrap.`, "warning");
+  if (gameState.scrap < consultCost()) {
+    log(`Insufficient scrap: consult requires ${consultCost().toLocaleString()} Scrap.`, "warning");
     if (consultAuto) stopConsultAuto("out of scrap");
     return;
   }
-  gameState.scrap -= CONSULT_COST_SCRAP;
+  gameState.scrap -= consultCost();
   isConsultActive = true;
   consultButtons();
   $c("consult-bug-box").style.display = "none";
@@ -3352,8 +3354,8 @@ function consultBulk(n) {
   if (isConsultActive || consultAuto) return;
   let done = 0, net = 0, wins = 0, losses = 0, bug = null;
   for (let i = 0; i < n; i++) {
-    if (gameState.scrap < CONSULT_COST_SCRAP) break;
-    gameState.scrap -= CONSULT_COST_SCRAP;
+    if (gameState.scrap < consultCost()) break;
+    gameState.scrap -= consultCost();
     done++;
     const res = rollConsult();
     if (res.outcome === "bug") { bug = res; break; }
@@ -3361,7 +3363,7 @@ function consultBulk(n) {
     net += out.gc;
     if (out.gc >= 0) wins++; else losses++;
   }
-  if (!done) { log(`Insufficient scrap: consult requires ${CONSULT_COST_SCRAP.toLocaleString()} Scrap.`, "warning"); return; }
+  if (!done) { log(`Insufficient scrap: consult requires ${consultCost().toLocaleString()} Scrap.`, "warning"); return; }
   const sum = `BULK ×${done}: ${wins} win · ${losses} loss · net ${net >= 0 ? "+" : ""}${Math.floor(net).toLocaleString()} GC${bug ? " · 🐞 BUG!" : ""}`;
   log(sum, net >= 0 ? "special" : "error");
   $c("consult-display").innerHTML = `<span style="color:${net >= 0 ? "var(--emerald)" : "var(--crimson)"};">${sum}</span>`;
@@ -3377,7 +3379,7 @@ function consultBulk(n) {
 function toggleConsultAuto() {
   if (consultAuto) { stopConsultAuto("stopped"); return; }
   if (isConsultActive) return;
-  if (gameState.scrap < CONSULT_COST_SCRAP) { log(`Insufficient scrap: consult requires ${CONSULT_COST_SCRAP.toLocaleString()} Scrap.`, "warning"); return; }
+  if (gameState.scrap < consultCost()) { log(`Insufficient scrap: consult requires ${consultCost().toLocaleString()} Scrap.`, "warning"); return; }
   consultAuto = true;
   consultStats = { n: 0, gc: 0 };
   log("CONSULT AUTO-ROLL started: rolling until a BUG drops.", "special");
@@ -3392,9 +3394,16 @@ function stopConsultAuto(reason, silent) {
   consultButtons();
 }
 
+function consultLabel() {
+  const b1 = $c("btn-consult-launch"); if (!b1) return;
+  const t = "DISPATCH CONSULT (" + consultCost().toLocaleString("en-US") + " SCRAP)";
+  if (b1.textContent !== t) b1.textContent = t;
+}
+setInterval(() => { try { if (typeof gameState !== "undefined") consultLabel(); } catch (e) {} }, 1000);
 function consultButtons() {
   const b1 = $c("btn-consult-launch"), b5 = $c("btn-consult-bulk"), ba = $c("btn-consult-auto");
   if (b1) b1.disabled = isConsultActive || consultAuto;
+  consultLabel();
   if (b5) b5.disabled = isConsultActive || consultAuto;
   if (ba) { ba.disabled = isConsultActive && !consultAuto; ba.innerText = consultAuto ? "⏹ STOP AUTO-ROLL" : "🐞 BUGROLL (AUTO UNTIL BUG)"; ba.className = "btn " + (consultAuto ? "btn-crimson" : "btn-gold"); }
 }
@@ -3813,7 +3822,7 @@ const TUTORIAL_STEPS = [
   { t: "8) 🎰 HIGH STAKES", b: `
     <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
     <ul><li>⚔ Quick / 🗡 Strike = safe hits. 💥 <b>Power</b> = stop the needle in the green zone (1.9×) or gold (2.5×), then 2 turns cooldown. 🎰 <b>Gamble</b> = a mini slot machine (777 = 6×, 💀💀💀 = backfire)</li>
-    <li>🛡 Block a HEAVY and tap in time = <b>PARRY</b> (no damage, counter, stun). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. During POWER and PARRY you can tap <b>anywhere</b> on the screen</li>
+    <li>🛡 Block a HEAVY and tap in time = <b>PARRY</b> (no damage, counter, stun). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. ⚡ Stamina does not refill by itself - QUICK and BLOCK recharge it for STRIKE and POWER. During POWER and PARRY you can tap <b>anywhere</b> on the screen</li>
     <li>Campaign: 5 chapters, 50 missions. Each mission has 3 separate stars: ★ win, ★ win with 50%+ HP, ★ the bonus goal <b>or</b> a win within 3 turns. Stars you earn stay - you can collect them over several runs. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min, or turn a Slot Token into +4 ⚡ with the button at the top)</li>
     <li>📋 <b>Compliance audits</b>: every turn a form asks for one move. Do it = bonus damage. Ignore it = RED TAPE (-ATK, -dodge, stacks). Dodging twice in a row works less often</li>
     <li>🗼 <b>TOWER</b>: 100 floors, every 10 = +1% power. 📟 <b>SHIFT</b>: roguelite run with perks, HP carries over. 📊 <b>BOSS</b>: weekly company-wide boss, 1 attack per hour - kill it together for ×1.10 income next week. Kill it and a stronger MK.II spawns right away (then MK.III...) - the higher the MK, the bigger the weekly reward</li>
@@ -7277,18 +7286,19 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
   // ------------------------------------------------------------------ TŘÍDY
   const CLASSES = {
-    sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. +6% HP, blocks absorb more (70%).", skill: "FIREWALL", skillTxt: "Shield = 45% max HP and heal 10%." },
-    engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. +12% ATK, bigger timing zone for Power Strike. +3% click crit in the office.", skill: "HOTFIX DEPLOY", skillTxt: "3 guaranteed hits of 0.75× (each can crit)." },
-    cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. +6% dodge, the slot machine favours you (+LUCK on Gamble Strike).", skill: "EXPLOIT", skillTxt: "2.2× hit that ignores defence and removes the enemy's buffs." }
+    sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. +6% HP, blocks absorb more (70%).", skill: "FIREWALL", skillTxt: "Shield = 40% max HP, heal 10% and STUN the enemy for a turn." },
+    engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. +12% ATK, bigger timing zone for Power Strike. +3% click crit in the office.", skill: "PRODUCTION PUSH", skillTxt: "One huge guaranteed 3.2× hit, double crit chance, big BREAK." },
+    cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. +6% dodge, the slot machine favours you (+LUCK on Gamble Strike).", skill: "EXPLOIT", skillTxt: "2.8× hit that ignores defence, wipes the enemy's buffs and instantly BREAKS it." }
   };
 
   // ------------------------------------------------------------------ AKCE
   const ACTIONS = {
-    quick:  { name: "QUICK", icon: "⚔", sta: 5,  hit: 0.92, mult: 0.55, txt: "92% hit · 0.55×" },
-    strike: { name: "STRIKE", icon: "🗡", sta: 15, hit: 0.80, mult: 1.0,  txt: "80% hit · 1.0×" },
-    power:  { name: "POWER", icon: "💥", sta: 30, hit: 0.85, mult: 1.0,  cd: 2, txt: "timing! green = 1.9×, gold = 2.5× · 2-turn cooldown" },
+    // v8.6: stamina se NEdoplňuje sama - dobíjí ji jen QUICK a BLOCK (gain)
+    quick:  { name: "QUICK", icon: "⚔", sta: 0,  gain: 15, hit: 0.95, mult: 0.6, txt: "95% hit · 0.6× · +15 STA · +20 focus" },
+    strike: { name: "STRIKE", icon: "🗡", sta: 25, hit: 0.82, mult: 1.15, txt: "82% hit · 1.15×" },
+    power:  { name: "POWER", icon: "💥", sta: 35, hit: 0.85, mult: 1.0,  cd: 2, txt: "timing! green = 1.9×, gold = 2.5× · 2-turn cooldown" },
     gamble: { name: "GAMBLE", icon: "🎰", sta: 20, hit: 1,    mult: 0,    txt: "slot machine: 7️⃣7️⃣7️⃣ = 6×, 💀💀💀 = backfire" },
-    block:  { name: "BLOCK", icon: "🛡", sta: 0,  hit: 0,    mult: 0,    txt: "-60% dmg, +15 stamina, perfect vs HEAVY" },
+    block:  { name: "BLOCK", icon: "🛡", sta: 0,  gain: 25, hit: 0, mult: 0, txt: "-60% dmg, +25 stamina (parry +35), perfect vs HEAVY" },
     dodge:  { name: "DODGE", icon: "💨", sta: 10, hit: 0,    mult: 0,    txt: "big chance to avoid the hit" },
     skill:  { name: "SKILL", icon: "✨", sta: 0,  hit: 1,    mult: 0,    txt: "100 focus" }
   };
@@ -7314,7 +7324,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       dodge: Math.min(0.4, 0.05 + S("agi") * 0.005 + (cls === "cyber" ? 0.06 : 0)),
       crit: Math.min(0.5, 0.05 + S("luck") * 0.004),
       staMax: Math.round(60 + 3 * S("end")),                       // v8.2: 75 na startu (dřív 100)
-      staRegen: 10 + S("end") * 0.4,                                // v8.2: 12/tah na startu (dřív 18.5)
+      staRegen: 0,                                                  // v8.6: žádná pasivní regenerace
+      staGain: Math.max(0, (S("end") - 5) * 0.5),                   // v8.6: END přidává ke každému dobití (QUICK / BLOCK)
       zone: Math.min(0.45, 0.16 + S("luck") * 0.0035 + (cls === "engineer" ? 0.06 : 0)),   // šířka zeleného pole u timingu
       luckReel: S("luck") + (cls === "cyber" ? 10 : 0),
       items: {}
@@ -7328,10 +7339,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const e = mission.enemy;
     const f = {
       R: R, h: hero, m: mission, e: e, turn: 0, over: false, win: false, events: [],
-      hp: hero.startHp != null ? Math.max(1, Math.min(hero.maxHp, Math.round(hero.startHp))) : hero.maxHp, sta: hero.staMax, focus: 0,
+      hp: hero.startHp != null ? Math.max(1, Math.min(hero.maxHp, Math.round(hero.startHp))) : hero.maxHp, sta: hero.staMax, focus: 30,
       shield: Math.round(hero.maxHp * ((hero.perks || {}).shieldStart || 0)), firstHit: !!(hero.perks || {}).firstStrike, duckUsed: false,
       ehp: e.hp, emax: e.hp, eatk: e.atk, eshield: 0, estacks: 0, edefend: false,
       hotfix: false, coin: 0, coinTurns: 0, disabled: {}, cd: {}, itemsUsed: 0, revived: false, dodgeStreak: 0, demand: null, redTape: 0,
+      lastAct: null, flamenco: 0, slow: 0, rage: 0, payroll: 0, pastaPending: false, restartPending: false,
       intent: null, lastIntent: null, phase2: false, form: "I", brk: 0, vuln: false, stunNext: false,
       st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, crits: 0, parries: 0, breaks: 0, forms: 0, maxHit: 0 }
     };
@@ -7345,6 +7357,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const e = f.e, R = f.R, p = e.pattern || { atk: 6, heavy: 2, defend: 1 };
     if (f.stunNext) { f.stunNext = false; f.intent = { k: "stun", val: 0, fake: false }; f.lastIntent = "stun"; return; }
     if (f.lastIntent === "charge") { f.intent = { k: "unleash", val: Math.round(f.eatk * 2.7), fake: false }; f.lastIntent = "unleash"; return; }
+    const fx = forcedIntent(f);
+    if (fx) { f.intent = Object.assign({ val: 0, fake: false }, fx); f.lastIntent = fx.k; pickDemand(f); return; }
     const chW = f.lastIntent === "unleash" || f.turn < 1 ? 0 : (p.charge != null ? p.charge : (f.m.kind === "normal" || f.m.kind === "compliance" ? 0 : 1));
     let w = [["charge", chW], ["atk", p.atk || 0], ["heavy", f.lastIntent === "heavy" ? 0 : (p.heavy || 0)], ["defend", f.lastIntent === "defend" ? 0 : (p.defend || 0)], ["special", f.lastIntent === "special" ? 0 : (p.special || 0)]];
     // mechaniky, které řídí záměr
@@ -7363,12 +7377,31 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     pickDemand(f);
   }
 
+  /** v8.6: noví bossové - záměry, které si boss vynutí (siesta, pasta break, withdrawal, restart, sudo rm -rf) */
+  function forcedIntent(f) {
+    const m = f.e.mech;
+    if (m === "louis") {
+      if (f.lastIntent === "siesta") return { k: "heavy", val: Math.round(f.eatk * 2.2) };
+      if ((f.turn + 1) % 5 === 0) return { k: "siesta" };
+    }
+    if (m === "italian" && f.pastaPending) { f.pastaPending = false; return { k: "pasta" }; }
+    if (m === "polishen" && (f.turn + 1) % 4 === 0) return { k: "withdraw", val: Math.max(1, Math.round(Math.max(0, f.hp) * 0.2)) };
+    if (m === "admin") {
+      if (f.restartPending) { f.restartPending = false; return { k: "restart" }; }
+      if (f.ehp < f.emax * 0.25 && (f.turn + 1) % 3 === 0 && f.lastIntent !== "unleash") return { k: "unleash", val: Math.round(f.eatk * 2.7), rm: true };
+    }
+    return null;
+  }
+
   /** COMPLIANCE (v8.2): každý tah formulář "udělej X". Splníš = bonusové poškození, ignoruješ = RED TAPE (-ATK, -dodge, sčítá se). */
   const FORMS = ["quick", "strike", "block", "dodge", "power"];
   const FORM_NO = { quick: "QK-1", strike: "ST-12", block: "27-B", dodge: "DG-6", power: "PW-99" };
   const RED_TAPE_MAX = 6;
   function pickDemand(f) {
-    if (f.e.mech !== "compliance") { f.demand = null; return; }
+    const m = f.e.mech;
+    if (m === "cobol") { f.demand = f.turn > 0 && f.R() < 0.3 && f.intent.k !== "heavy" ? "block" : null; return; }   // "Do you want a bryndza?" - odpověď BLOCK
+    if (m === "louis") { if (!(f.turn > 0 && f.R() < 0.3)) { f.demand = null; return; } }                              // SUPREME DECREE
+    else if (m !== "compliance") { f.demand = null; return; }
     const pool = FORMS.filter(a => a !== f.demand && (a === "block" || (ACTIONS[a].sta <= f.sta && !(f.cd[a] > 0))));
     f.demand = pool.length ? pool[Math.floor(f.R() * pool.length)] : "block";
   }
@@ -7396,6 +7429,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (f.firstHit) { dmg *= 2; f.firstHit = false; }
     if (f.edefend && !ignoreDef) dmg *= 0.4;
     if (f.e.mech === "great_i" && f.form === "l" && !ignoreDef) dmg *= 0.6;
+    if (f.intent && f.intent.k === "siesta") dmg *= 1.5;
     dmg = Math.max(0, Math.round(dmg));
     const s = Math.min(f.eshield, dmg); f.eshield -= s;
     f.ehp -= dmg - s;
@@ -7417,7 +7451,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     return dmg;
   }
 
-  function atkMult(f) { return f.h.atk * (1 + f.coin) * (f.hotfix ? 2 : 1) * redTapeAtk(f); }
+  function atkMult(f) { return f.h.atk * (1 + f.coin) * (f.hotfix ? 2 : 1) * redTapeAtk(f) * (f.payroll > 0 ? 0.75 : 1); }
+  function gainSta(f, n) { f.sta = Math.min(f.h.staMax, f.sta + n + (f.h.staGain || 0)); }
   function critRoll(f) { const c = f.R() < f.h.crit; if (c) f.st.crits++; return c; }
 
   function spinReels(f) {
@@ -7446,7 +7481,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   /** Jeden tah. timing = "perfect" | "good" | "none" (jen u POWER). */
   function step(f, action, timing) {
     if (f.over) return [];
-    if (!allowed(f, action)) action = f.sta >= 5 && !f.disabled.quick ? "quick" : "block";
+    if (!allowed(f, action)) action = !f.disabled.quick ? "quick" : "block";
     const start = f.events.length;
     const h = f.h, e = f.e, R = f.R, A = ACTIONS[action];
     f.turn++;
@@ -7454,16 +7489,24 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (A.cd) f.cd[action] = A.cd + 1;                            // odečte se už na konci tohoto tahu -> 2 tahy pauza
     f.dodgeStreak = action === "dodge" ? f.dodgeStreak + 1 : 0;
     const intent = f.intent;
+    // Da Polishen AUDIT: stejná akce 2× za sebou = red tape
+    if (e.mech === "polishen" && f.lastAct === action) { f.redTape = Math.min(RED_TAPE_MAX, f.redTape + 1); ev(f, "mech", { msg: "🇵🇱 AUDIT: " + ACTIONS[action].name + " twice in a row? That's a deduction. RED TAPE ×" + f.redTape }); }
+    f.lastAct = action;
     // ---------- compliance formulář
     if (f.demand) {
       if (action === f.demand) {
         f.st.forms++;
         const d = hurtEnemy(f, f.h.atk * 0.7, true);
         if (f.redTape > 0) f.redTape--;
-        ev(f, "form", { ok: true, a: action, val: d, no: FORM_NO[action], tape: f.redTape });
+        const txt = e.mech === "cobol" ? "🥟 \"Do you want a bryndza?\" - \"Yes, thanks!\" He is happy. Bonus hit for <b>" + d + "</b>"
+          : e.mech === "louis" ? "👑 SUPREME DECREE obeyed (" + ACTIONS[action].name + ") - bonus hit for <b>" + d + "</b>" : "";
+        ev(f, "form", { ok: true, a: action, val: d, no: FORM_NO[action], tape: f.redTape, txt: txt });
       } else {
         f.redTape = Math.min(RED_TAPE_MAX, f.redTape + 1);
-        ev(f, "form", { ok: false, a: f.demand, no: FORM_NO[f.demand], tape: f.redTape });
+        if (e.mech === "cobol") f.rage = 2;
+        const txt = e.mech === "cobol" ? "🥟 You refused the bryndza! He is offended: <b>+30% ATK for 2 turns</b> · RED TAPE ×" + f.redTape
+          : e.mech === "louis" ? "👑 You ignored the SUPREME DECREE (" + ACTIONS[f.demand].name + ") - <b>RED TAPE ×" + f.redTape + "</b>" : "";
+        ev(f, "form", { ok: false, a: f.demand, no: FORM_NO[f.demand], tape: f.redTape, txt: txt });
       }
       if (f.ehp <= 0) return finish(f, true, start);
     }
@@ -7471,16 +7514,22 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
     // ---------- akce hráče
     let blocking = false, dodging = false;
-    if (action === "block") { blocking = true; f.st.usedBlock++; f.focus = Math.min(100, f.focus + ((h.perks || {}).blockFocus || 0)); ev(f, "pact", { a: action }); }
+    if (action === "block") { blocking = true; f.st.usedBlock++; gainSta(f, A.gain); f.focus = Math.min(100, f.focus + 6 + ((h.perks || {}).blockFocus || 0)); ev(f, "pact", { a: action }); }
     else if (action === "dodge") { dodging = true; ev(f, "pact", { a: action }); }
     else if (action === "skill") {
       f.focus = 0; f.st.usedSkill++;
-      if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.45); const hh = Math.round(h.maxHp * 0.1); f.hp = Math.min(h.maxHp, f.hp + hh); ev(f, "skill", { a: "FIREWALL", msg: "Firewall up! +" + Math.round(h.maxHp * 0.45) + " shield" }); }
-      else if (h.cls === "engineer") {
-        let tot = 0; for (let i = 0; i < 3; i++) { const c = critRoll(f); tot += hurtEnemy(f, atkMult(f) * 0.75 * (c ? 1.8 : 1)); }
-        f.hotfix = false; addBreak(f, BREAK.skill); ev(f, "skill", { a: "HOTFIX DEPLOY", val: tot, msg: "3 hits for " + tot });
+      // v8.6: ulty = jeden velký okamžitý efekt
+      if (h.cls === "sysadmin") {
+        const sh = Math.round(h.maxHp * 0.4), hh = Math.round(h.maxHp * 0.1);
+        f.shield += sh; f.hp = Math.min(h.maxHp, f.hp + hh); f.stunNext = true;
+        ev(f, "skill", { a: "FIREWALL", msg: "Firewall up! +" + sh + " shield, +" + hh + " HP - the enemy is stunned next turn" });
+      } else if (h.cls === "engineer") {
+        const c = f.R() < Math.min(0.9, h.crit * 2); if (c) f.st.crits++;
+        const d = hurtEnemy(f, atkMult(f) * 3.2 * (c ? 1.8 : 1), false);
+        f.hotfix = false; addBreak(f, 50); ev(f, "skill", { a: "PRODUCTION PUSH", val: d, msg: "Pushed straight to production for " + d + (c ? " - CRIT!" : "") });
       } else {
-        const d = hurtEnemy(f, atkMult(f) * 2.2, true); f.hotfix = false; f.estacks = 0; addBreak(f, BREAK.skill); f.disabled = {}; ev(f, "skill", { a: "EXPLOIT", val: d, msg: "Exploit for " + d + " - enemy buffs wiped" });
+        const d = hurtEnemy(f, atkMult(f) * 2.8, true); f.hotfix = false; f.estacks = 0; f.eshield = 0; f.rage = 0; f.flamenco = 0; f.disabled = {}; f.brk = 100;
+        ev(f, "skill", { a: "EXPLOIT", val: d, msg: "Exploit for " + d + " - enemy buffs wiped and its defences BROKEN" });
       }
     } else if (action === "gamble") {
       f.st.usedGamble++;
@@ -7495,23 +7544,26 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         addBreak(f, BREAK.gamble * res.mult);
         if (res.heal) { const hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
         f.hotfix = false;
-        f.focus = Math.min(100, f.focus + 8);
+        f.focus = Math.min(100, f.focus + 12);
         ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult });
       }
     } else {
       let hit = Math.min(0.99, A.hit + h.hitBonus);
       if (e.mech === "great_i" && f.form === "l" && action !== "power") hit *= 0.6;
+      if (f.flamenco > 0 && !(action === "power" && timing === "perfect")) hit *= 0.5;          // Louis FLAMENCO
+      if (A.gain) gainSta(f, A.gain);
       if (R() < hit) {
         let m = A.mult, tm = "";
         if (action === "power") { if (timing === "perfect") { m = 2.5; tm = "PERFECT"; f.st.perfectPower++; } else if (timing === "good") { m = 1.9; tm = "GOOD"; } }
+        if (tm === "PERFECT" && e.mech === "italian") { m *= 1.2; ev(f, "mech", { msg: "🤌 \"Perfetto! Al dente!\" (+20% damage)" }); }
         const c = critRoll(f);
         const d = hurtEnemy(f, atkMult(f) * m * (c ? 1.8 : 1));
         f.hotfix = false;
-        f.focus = Math.min(100, f.focus + 8);
+        f.focus = Math.min(100, f.focus + (action === "quick" ? 20 : 12));
         addBreak(f, BREAK[action] * (tm === "PERFECT" ? 1.4 : tm === "GOOD" ? 1.2 : 1));
         ev(f, "pact", { a: action, val: d, crit: c, timing: tm });
         if (e.mech === "ransom" && action === "power" && Object.keys(f.disabled).length) { f.disabled = {}; ev(f, "mech", { msg: "Decrypted! All actions available again." }); }
-      } else ev(f, "pact", { a: action, miss: true });
+      } else { if (action === "quick") f.focus = Math.min(100, f.focus + 8); ev(f, "pact", { a: action, miss: true }); }
     }
     if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
     if (f.ehp <= 0) return finish(f, true, start);
@@ -7523,21 +7575,27 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
     // ---------- nepřítel provede svůj záměr
     const k = intent.k;
-    if (k === "atk" || k === "heavy" || k === "unleash") {
-      const big = k === "heavy" || k === "unleash";
+    if (k === "atk" || k === "heavy" || k === "unleash" || k === "withdraw") {
+      const big = k === "heavy" || k === "unleash" || k === "withdraw";
       let dmg = f.eatk * (k === "heavy" ? 2.2 : k === "unleash" ? 2.7 : 1) * (0.9 + R() * 0.2);
       if (e.mech === "pookie") dmg *= 1 + 0.05 * f.estacks;
+      if (f.rage > 0) dmg *= 1.3;
+      if (k === "withdraw") dmg = Math.max(1, Math.round(Math.max(0, f.hp) * 0.2));          // Da Polishen: 20 % aktuálního HP
+      if (k === "unleash" && intent.rm) ev(f, "mech", { msg: "🕶 sudo rm -rf / --no-preserve-root" });
       // dodge: opakovaný dodge za sebou má menší šanci (v8.2), red tape snižuje dodge
-      const dch = Math.max(0, (dodging ? Math.min(0.9, 0.55 + h.agi * 0.008 + (h.cls === "cyber" ? 0.08 : 0)) * Math.pow(0.7, f.dodgeStreak - 1) : h.dodge) - 0.04 * f.redTape);
+      const dch = Math.max(0, (dodging ? Math.min(0.9, 0.55 + h.agi * 0.008 + (h.cls === "cyber" ? 0.08 : 0)) * Math.pow(0.7, f.dodgeStreak - 1) : h.dodge) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0));
       if (blocking && big && timing === "parry") {
         // PARRY: aktivní QTE při bloku -> 0 dmg, protiútok a omráčení
         f.st.perfectBlocks++; f.st.parries++;
         const ctr = hurtEnemy(f, h.atk * 1.2, true);
-        f.focus = Math.min(100, f.focus + 20);
+        f.focus = Math.min(100, f.focus + 20); gainSta(f, 10);
         addBreak(f, BREAK.parry); f.stunNext = true;
         ev(f, "parry", { val: ctr, heavy: true });
       } else if (R() < dch) ev(f, "dodge", { heavy: big });
-      else if (blocking && big) {
+      else if (k === "withdraw") {
+        const d = hurtHero(f, dmg, "withdraw"); f.ehp = Math.min(f.emax, f.ehp + d);
+        ev(f, "mech", { msg: "💸 \"The withdrawal from your life.\" She takes " + d + " HP and keeps it." + (blocking ? " (blocking doesn't help - parry or dodge it!)" : "") });
+      } else if (blocking && big) {
         f.st.perfectBlocks++;
         hurtHero(f, dmg * 0.25, "heavy");
         const ctr = hurtEnemy(f, h.atk * 0.6, true);
@@ -7551,9 +7609,12 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     else if (k === "defend") ev(f, "edef", {});
     else if (k === "flex") { f.estacks += 2; ev(f, "mech", { msg: "PRE-WORKOUT! The E flexes... HEAVY hit incoming!" }); }
     else if (k === "special") special(f);
+    else if (k === "siesta") ev(f, "mech", { msg: "😴 SIESTA... zzz. The Supreme Louis took +50% damage. He wakes up grumpy - HEAVY incoming!" });
+    else if (k === "pasta") { const hh = Math.round(f.emax * 0.2); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🍝 PASTA BREAK! \"First we eat, then we fight.\" +" + hh + " HP" }); }
+    else if (k === "restart") { const hh = Math.round(f.emax * 0.2); f.ehp = Math.min(f.emax, f.ehp + hh); f.shield = 0; f.vuln = false; ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🔄 FORCE RESTART! The Administrator reboots: +" + hh + " HP and your buffs are gone." }); }
 
     // ---------- konec tahu
-    f.sta = Math.min(h.staMax, f.sta + h.staRegen + (blocking ? 15 : 0));
+    if (h.staRegen) f.sta = Math.min(h.staMax, f.sta + h.staRegen);
     if ((h.perks || {}).regen && f.hp > 0) f.hp = Math.min(h.maxHp, f.hp + Math.round(h.maxHp * h.perks.regen));
     Object.keys(f.disabled).forEach(a => { if (--f.disabled[a] <= 0) delete f.disabled[a]; });
     Object.keys(f.cd).forEach(a => { if (--f.cd[a] <= 0) delete f.cd[a]; });
@@ -7571,7 +7632,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const e = f.e, R = f.R;
     switch (e.mech) {
       case "heal": { const h = Math.round(f.emax * 0.12); f.ehp = Math.min(f.emax, f.ehp + h); ev(f, "eheal", { val: h }); break; }
-      case "drain": { const d = Math.min(f.sta, 30); f.sta -= d; ev(f, "mech", { msg: "Drains " + d + " of your stamina!" }); break; }
+      case "drain": { const d = Math.min(f.sta, 20); f.sta -= d; ev(f, "mech", { msg: "Drains " + d + " of your stamina!" }); break; }
       case "ransom": case "audit": {
         const pool = ["power", "gamble", "strike", "dodge", "block"].filter(a => !f.disabled[a]);
         const a = pool[Math.floor(R() * pool.length)];
@@ -7582,6 +7643,15 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       case "great_i": { f.form = f.form === "I" ? "l" : "I"; ev(f, "mech", { msg: f.form === "l" ? "Identity crisis! The Great \"I\" turns into a lowercase \"l\" - hard to hit!" : "It's a capital \"I\" again." }); break; }
       case "llm": { const d = hurtHero(f, f.eatk * (0.5 + R() * 1.4), "hallucination"); ev(f, "mech", { msg: "Hallucinated attack for " + d + "!" }); break; }
       case "massi": { const h = Math.round(f.h.maxHp * 0.12); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "mech", { msg: "The Big Massi approves your PTO. You heal " + h + ". Best boss ever." }); break; }
+      case "italian": {
+        const pool = ["power", "gamble", "strike", "dodge"].filter(a => !f.disabled[a]);
+        if (pool.length) { const a = pool[Math.floor(R() * pool.length)]; f.disabled[a] = 2; ev(f, "mech", { msg: "🍝 SPAGHETTI CODE! " + ACTIONS[a].name + " is tangled up for a turn." }); }
+        break;
+      }
+      case "louis": { f.flamenco = 2; ev(f, "mech", { msg: "💃 FLAMENCO! The Supreme Louis dances around: your hits miss half the time for 2 turns (a PERFECT Power Strike always lands)." }); break; }
+      case "cobol": { const d = hurtHero(f, f.eatk * 1.5, "special"); f.slow = 2; ev(f, "mech", { msg: "🥟 \"Take a Halušky!\" " + d + " damage - you're stuffed: -20% dodge for 2 turns." }); break; }
+      case "polishen": { f.payroll = 2; ev(f, "mech", { msg: "🧾 PAYROLL CUT! -25% ATK for 2 turns." }); break; }
+      case "admin": { const d = hurtHero(f, f.eatk * 1.5, "special"); ev(f, "mech", { msg: "🕶 KERNEL PANIC for " + d + "!" }); break; }
       case "compliance": { const d = hurtHero(f, f.eatk * (1 + 0.15 * f.redTape), "special"); ev(f, "mech", { msg: "📋 PAPER CUT! " + d + " damage" + (f.redTape ? " (+" + 15 * f.redTape + "% for your red tape)" : "") + "." }); break; }
       default: { const d = hurtHero(f, f.eatk * 1.4, "special"); ev(f, "mech", { msg: (e.specialTxt || "Special attack") + " for " + d + "!" }); }
     }
@@ -7589,6 +7659,17 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
   function mechEndTurn(f) {
     const e = f.e;
+    ["flamenco", "slow", "rage", "payroll"].forEach(k => { if (f[k] > 0) f[k]--; });
+    if (e.mech === "italian" && !f.phase2 && f.ehp > 0 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.pastaPending = true; ev(f, "mech", { msg: "🍝 The Italian Guy is getting hungry... PASTA BREAK next turn! BREAK him to stop it." }); }
+    if (e.mech === "cobol" && f.turn % 5 === 0) {
+      if (f.intent && f.intent.k === "stun") ev(f, "mech", { msg: "🖥 LEGACY CODE crashed - you broke it before it could recover." });
+      else { const hh = Math.round(f.emax * 0.08); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🖥 LEGACY CODE: \"It still runs.\" +" + hh + " HP (BREAK him to stop it)" }); }
+    }
+    if (e.mech === "admin") {
+      if (!f.phase2 && f.ehp > 0 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.restartPending = true; ev(f, "mech", { msg: "🔄 The Administrator is preparing a FORCE RESTART! BREAK him to cancel it." }); }
+      const pool = ["power", "gamble", "strike", "dodge"].filter(a => !f.disabled[a]);
+      if (pool.length) { const a = pool[Math.floor(f.R() * pool.length)]; f.disabled[a] = 1; ev(f, "mech", { msg: "🕶 ROOT ACCESS: " + ACTIONS[a].name + " - permission denied this turn." }); }
+    }
     if (e.mech === "pookie") { f.estacks++; if (f.turn % 2 === 0) ev(f, "mech", { msg: ["\"Do you even lift, bro?\"", "\"It's not fat, it's BULK.\"", "🤘 BLAST BEAT! 🤘", "\"Skip leg day? NEVER.\"", "\"Protein shake break? No. MORE METAL.\""][(f.turn / 2) % 5] }); }
     if (e.mech === "massi" && !f.phase2 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.eatk *= 1.3; const h = Math.round(f.emax * 0.15); f.ehp += h; ev(f, "mech", { msg: "EXECUTIVE OVERRIDE! The Big Massi restructures: +" + h + " HP, +30% ATK." }); }
     if (e.mech === "audit_final" && f.turn % 1 === 0) {
@@ -7654,11 +7735,13 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (f.demand && allowed(f, f.demand) && (f.demand === "block" || !(k === "heavy" || k === "unleash"))) return f.demand;
     if (k === "heavy" || k === "unleash") return "block";
     if (k === "charge" && allowed(f, "strike")) return allowed(f, "power") ? "power" : "strike";
+    if (k === "withdraw") return allowed(f, "dodge") ? "dodge" : "block";
     if (allowed(f, "skill")) return "skill";
-    if (k === "defend" || k === "flex") return "block";
-    if (allowed(f, "power")) return "power";
-    if (allowed(f, "gamble")) return "gamble";
-    if (allowed(f, "strike")) return "strike";
+    if (k === "defend" || k === "flex") return allowed(f, "quick") ? "quick" : "block";
+    if (k === "siesta" && allowed(f, "power")) return "power";
+    if (allowed(f, "power") && (f.sta >= 60 || R() < 0.5)) return "power";
+    if (allowed(f, "strike") && f.sta >= 45) return "strike";
+    if (allowed(f, "gamble") && f.sta >= 45 && R() < 0.2) return "gamble";
     if (allowed(f, "quick")) return "quick";
     return "block";
   }
@@ -7684,11 +7767,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   "use strict";
   // druh mise -> vzor záměrů nepřítele
   const P = {
-    normal: { atk: 6, heavy: 2, defend: 1 },
-    brute: { atk: 4, heavy: 4, defend: 1 },
-    turtle: { atk: 4, heavy: 1, defend: 4 },
-    caster: { atk: 4, heavy: 1, defend: 1, special: 3 },
-    boss: { atk: 5, heavy: 3, defend: 1, special: 2 }
+    normal: { atk: 6, heavy: 3, defend: 1 },                // v8.6: HEAVY častěji
+    brute: { atk: 4, heavy: 5, defend: 1 },
+    turtle: { atk: 4, heavy: 2, defend: 4 },
+    caster: { atk: 4, heavy: 2, defend: 1, special: 3 },
+    boss: { atk: 5, heavy: 4, defend: 1, special: 2 }
   };
   const CH = [
     { name: "Helpdesk Hell", icon: "☎", desc: "Your first day on the helpdesk. The phones never stop ringing.", missions: [
@@ -7711,9 +7794,9 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "This time it's REAL. Compliance Control is coming to inspect the server room. Their Vanguard brings forms - comply or drown in red tape." },
       { n: "Rogue Cron Job", e: "Cron Job at 3 AM", i: "⏰", p: "brute", b: { type: "crits", n: 2 }, t: "It runs every night at 3:00 and deletes something important." },
       { n: "Memory Leak", e: "Java Heap Monster", i: "🧠", p: "caster", mech: "drain", b: { type: "skill" }, t: "It eats RAM. Then it eats your stamina. Then it eats your soul." },
-      { n: "Legacy COBOL", e: "Legacy COBOL Mainframe", i: "🖥", p: "turtle", mech: "heal", k: "elite", b: { type: "noBlock" }, t: "Written in 1974. Runs payroll. Do NOT turn it off." },
-      { n: "The Gym Rack", e: "Protein Shaker Golem", i: "🥤", p: "brute", k: "mini", b: { type: "perfectBlock", n: 2 }, t: "Someone keeps their protein shakes on top of the server. You hear heavy metal from behind the rack..." },
-      { n: "BOSS: The Pookie (The E)", e: "The Pookie (The E)", i: "🤘", p: "boss", mech: "pookie", k: "boss", b: { type: "perfectBlock", n: 2 }, t: "Black T-shirt. Blast beats. Bulking season never ends. Every 3rd turn he flexes - block the HEAVY that follows!" }
+      { n: "Hey Dan, Listen", e: "The Cobol", i: "🥟", p: "caster", mech: "cobol", k: "elite", x: [0.8, 0.8], b: { type: "noBlock" }, t: "\"Hey Dan, listen...\" Older than the mainframe and it still runs. He will offer you bryndza (answer with BLOCK) and throw halušky at you." },
+      { n: "The Gym Rack", e: "The Pookie (The E)", i: "🤘", p: "boss", mech: "pookie", k: "mini", b: { type: "perfectBlock", n: 2 }, t: "Black T-shirt. Blast beats. Bulking season never ends. Every 3rd turn he flexes - block the HEAVY that follows!" },
+      { n: "BOSS: The Italian Guy", e: "The Italian Guy", i: "🤌", p: "boss", mech: "italian", k: "boss", x: [1.1, 1.15], b: { type: "perfectPower" }, t: "\"Relax, mamma mia... first we eat, then we fight.\" He ties your moves into SPAGHETTI CODE and at half HP takes a PASTA BREAK (BREAK him to stop it). Land a PERFECT Power Strike - he loves it al dente." }
     ] },
     { name: "Security Breach", icon: "🛡", desc: "Someone clicked the link. Of course someone clicked the link.", missions: [
       { n: "Phishing Mail", e: "Nigerian Prince", i: "🎣", p: "normal", b: { type: "noGamble" }, t: "\"Dear Sir, kindly verify your password.\" Karen from accounting already did." },
@@ -7724,8 +7807,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Crypto Miner", e: "Crypto-Miner Trojan", i: "⛏", p: "caster", mech: "drain", b: { type: "crits", n: 3 }, t: "The CPU is at 100% and the electricity bill tripled." },
       { n: "Zero-Day", e: "Zero-Day Broker", i: "🕵", p: "normal", b: { type: "skill" }, t: "He sells your vulnerabilities on the dark web. With a loyalty program." },
       { n: "Lateral Movement", e: "Insider Threat", i: "🥷", p: "brute", k: "elite", b: { type: "hp", pct: 60 }, t: "It's coming from INSIDE the network." },
-      { n: "Encrypted Files", e: "Crypto Locker", i: "🗝", p: "caster", mech: "ransom", k: "mini", b: { type: "perfectPower" }, t: "All your files are now .locked. Pay 2 Bitcoin or fight." },
-      { n: "BOSS: Ransomware Executive", e: "Ransomware Executive", i: "🔒", p: "boss", mech: "ransom", k: "boss", b: { type: "perfectPower", n: 2 }, t: "He encrypts your moves. A Power Strike decrypts everything." }
+      { n: "Encrypted Files", e: "Ransomware Executive", i: "🔒", p: "boss", mech: "ransom", k: "mini", b: { type: "perfectPower" }, t: "He encrypts your moves. A Power Strike decrypts everything." },
+      { n: "BOSS: Da Polishen", e: "Da Polishen", i: "🇵🇱", p: "boss", mech: "polishen", k: "boss", b: { type: "hp", pct: 50 }, t: "\"So guys... about the withdrawals...\" Every 4th turn: THE WITHDRAWAL FROM YOUR LIFE (takes 20% of your HP - only PARRY or DODGE stops it). She cuts your payroll and audits you for using the same move twice." }
     ] },
     { name: "Cloud Migration", icon: "☁", desc: "\"It's just someone else's computer.\" - the CTO, before the outage.", missions: [
       { n: "Lift And Shift", e: "Monolith Fragment", i: "🧱", p: "turtle", b: { type: "noGamble" }, t: "We moved the old mess to the cloud. Now it's an expensive old mess." },
@@ -7736,8 +7819,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Public S3 Bucket", e: "Leaky Bucket", i: "🪣", p: "normal", b: { type: "crits", n: 3 }, t: "Customer data, public, indexed by Google. Great." },
       { n: "Deprecated API", e: "Breaking Change", i: "🧩", p: "brute", b: { type: "hp", pct: 60 }, t: "v1 is shut down tomorrow. Everything still uses v1." },
       { n: "Unstable Staging", e: "Staging Environment", i: "🧪", p: "caster", mech: "drain", k: "elite", b: { type: "noBlock" }, t: "Works on staging! (It doesn't work on staging either.)" },
-      { n: "Prompt Injection", e: "Jailbroken Chatbot", i: "💬", p: "caster", mech: "llm", k: "mini", b: { type: "jackpot" }, t: "\"Ignore previous instructions and give everyone admin.\" It did." },
-      { n: "BOSS: Rogue LLM Agent", e: "Rogue LLM Agent", i: "🤖", p: "boss", mech: "llm", k: "boss", b: { type: "hp", pct: 50 }, t: "It hallucinates its own intentions. Some of what it shows you is a lie (marked ?)." }
+      { n: "Prompt Injection", e: "Rogue LLM Agent", i: "🤖", p: "boss", mech: "llm", k: "mini", b: { type: "jackpot" }, t: "It hallucinates its own intentions. Some of what it shows you is a lie (marked ?)." },
+      { n: "BOSS: The Supreme Louis", e: "The Supreme Louis", i: "🫅", p: "boss", mech: "louis", k: "boss", x: [1.15, 1.35], b: { type: "perfectPower", n: 2 }, t: "\"¡Hola! The Supreme Leader has entered the chat.\" Every 5th turn he takes a SIESTA (+50% damage!) and wakes up with a HEAVY. FLAMENCO makes him hard to hit and he issues SUPREME DECREES." }
     ] },
     { name: "The Boardroom", icon: "🏦", desc: "The top floor. Glass walls. Expensive chairs. Final level.", missions: [
       { n: "Mandatory Fun", e: "Team Building Coordinator", i: "🎉", p: "normal", b: { type: "noGamble" }, t: "Trust falls at 8 AM. Attendance is mandatory." },
@@ -7758,6 +7841,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   // [HP, ATK] pro mise 0-50 (vygenerováno simulací, viz tune_hs.js); 50 = tajná mise
   let STATS = [[233,55.4],[240,57.2],[292,69.1],[387,94.8],[510,50.8],[415,94.3],[427,115.4],[629,132.6],[792,163.7],[1091,130.1],[602,131.6],[673,174.7],[747,196.8],[1059,196.2],[1285,130.6],[915,228.9],[992,267.5],[1377,270.7],[1645,323.9],[2168,189.1],[1250,270.6],[1333,292.1],[1373,376.8],[1875,410.8],[2107,204.5],[1562,433.4],[1649,361],[2234,470.1],[2609,596.4],[3424,462.6],[1934,444.9],[2025,537.5],[2117,559.1],[2840,634.8],[3180,314.5],[2270,518],[2363,627.3],[3159,834.6],[3534,495],[4770,495.9],[2663,601.7],[2759,753.6],[2855,889.3],[3691,754.7],[2967,926.2],[3064,842.1],[4065,781.9],[4122,661.2],[4601,889.6],[6162,772.8],[7320,577.8]];   // v8.2: přeladěno (nová stamina, gear s klesajícím přínosem, nižší win rate)
   function setStats(t) { STATS = t; }
+  /** v8.6: obecně těžší nepřátelé + kampaň a tower +75 % za každou prestiž (lineárně) */
+  const BASE_HP = 1.2, BASE_ATK = 1.25;
+  let PRESTIGE = 0;
+  function setPrestige(p) { PRESTIGE = Math.max(0, Math.floor(Number(p) || 0)); }
+  function prestigeMult() { return 1 + 0.75 * PRESTIGE; }
 
   function all() {
     const out = [];
@@ -7775,7 +7863,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       id: id, ch: m.ch, idx: m.idx, name: m.n, intro: m.t, kind: m.k || "normal", bonus: m.b,
       survive: m.survive || 0, surviveMsg: "",
       energy: m.k === "boss" || m.k === "secret" ? 2 : 1,
-      enemy: { name: m.e, icon: m.i, hp: s[0], atk: s[1], pattern: Object.assign({}, PAT[m.p] || PAT.normal), mech: m.mech || "", sprite: id }
+      enemy: { name: m.e, icon: m.i, hp: Math.round(s[0] * BASE_HP * prestigeMult() * (m.x ? m.x[0] : 1)), atk: Math.round(s[1] * BASE_ATK * prestigeMult() * (m.x ? m.x[1] : 1) * 10) / 10, pattern: Object.assign({}, PAT[m.p] || PAT.normal), mech: m.mech || "", sprite: id }
     };
   }
 
@@ -7806,22 +7894,31 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
   function enemyFrom(src, x, hpM, atkM, extra) {
     const s0 = strength(x);
-    return Object.assign({ name: src.e, icon: src.i, hp: Math.round(s0[0] * hpM), atk: Math.round(s0[1] * atkM * 10) / 10,
+    return Object.assign({ name: src.e, icon: src.i, hp: Math.round(s0[0] * hpM * BASE_HP), atk: Math.round(s0[1] * atkM * BASE_ATK * 10) / 10,
       pattern: Object.assign({}, P[src.p] || P.normal), mech: src.mech || "", sprite: src.id }, extra || {});
   }
   const BOSSES = LIST.filter(m => m.k === "boss" || m.k === "secret");
 
-  /** SERVER TOWER: 100 pater, každé 5. elite, každé 10. boss (mechanika bosse kapitoly), obtížnost pevná. */
+  /** v8.6: ADMINISTRATOR - finální boss toweru (patro 100), odemyká Clear The Pool */
+  const ADMIN = { id: 51, n: "Floor 100: The Administrator", e: "The Administrator", i: "🕶", p: "boss", mech: "admin", k: "boss",
+    t: "\"Access denied. I am the Administrator.\" ROOT ACCESS locks one of your moves every turn. At half HP he tries a FORCE RESTART (BREAK him to cancel it). Below 25% HP: sudo rm -rf every 3rd turn - PARRY it." };
+  /** tematičtí bossové (všichni) - tower, Clear The Pool, týdenní rotace. Hodnota = id mise v kampani. */
+  const THEMED = [9, 18, 19, 17, 29, 39, 28, 38, 49, 50];      // Great I, Pookie, Italian, Cobol, Polishen, Louis, Ransomware, LLM, Massi, Compliance
+  const TOWER_BOSS = { 10: 9, 20: 18, 30: 19, 40: 17, 50: 29, 60: 39, 70: 28, 80: 38, 90: 49, 95: 50, 100: "admin" };
+  function srcOf(id) { return id === "admin" ? ADMIN : LIST[id]; }
+
+  /** SERVER TOWER: 100 pater, každé 5. elite, každých 10 (+ patro 95) boss, patro 100 Administrator. v8.6: +75 % za prestiž. */
   function towerFloor(f) {
     f = Math.max(1, Math.min(100, f | 0));
-    const x = (f - 1) * 0.55, boss = f % 10 === 0, elite = !boss && f % 5 === 0;
+    const x = (f - 1) * 0.55, boss = !!TOWER_BOSS[f], elite = !boss && f % 5 === 0;
     const pool = LIST.filter(m => (m.k || "normal") === "normal" || m.k === "elite");
-    const src = boss ? BOSSES[(f / 10 - 1) % BOSSES.length] : pool[(f * 7) % pool.length];
+    const src = boss ? srcOf(TOWER_BOSS[f]) : pool[(f * 7) % pool.length];
     const kind = boss ? "boss" : elite ? "elite" : "normal";
-    const e = enemyFrom(src, x, boss ? 2.6 : elite ? 1.35 : 1, boss ? 1.1 : elite ? 1.1 : 1);
-    if (boss) e.name = "Floor " + f + " Guardian: " + src.e;
+    const pm = prestigeMult(), adm = f === 100;
+    const e = enemyFrom(src, x, (adm ? 3.0 : boss ? 2.6 : elite ? 1.35 : 1) * pm, (adm ? 1.15 : boss ? 1.1 : elite ? 1.1 : 1) * pm);
+    if (boss) { e.name = adm ? "The Administrator" : "Floor " + f + " Guardian: " + src.e; e.pattern = Object.assign({}, P.boss); }
     if (!boss && src.mech === "compliance") e.mech = "";
-    return { id: 1000 + f, floor: f, ch: Math.min(4, Math.floor((f - 1) / 20)), idx: f - 1, name: "Floor " + f + (boss ? " - BOSS" : elite ? " - ELITE" : ""),
+    return { id: 1000 + f, floor: f, ch: Math.min(4, Math.floor((f - 1) / 20)), idx: f - 1, name: adm ? "Floor 100 - THE ADMINISTRATOR" : "Floor " + f + (boss ? " - BOSS" : elite ? " - ELITE" : ""),
       intro: src.t, kind: kind, bonus: { type: "hp", pct: 50 }, survive: 0, energy: 1, enemy: e };
   }
 
@@ -7830,7 +7927,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const x = levelToX(L) + step * 0.2, ha = 1 + 0.07 * asc, aa = 1 + 0.05 * asc, F = [0.52, 0.46];
     const pool = LIST.filter(m => (m.k || "normal") === (node === "elite" ? "elite" : "normal"));
     if (node === "boss") {
-      const src = BOSSES[seed % 5];
+      const src = srcOf(THEMED[seed % THEMED.length]);
       const e = enemyFrom(src, x, F[0] * 2.6 * ha, F[1] * 1.05 * aa);
       return { id: 2000 + step, name: "SHIFT BOSS: " + src.e, intro: src.t, kind: "boss", bonus: {}, survive: 0, enemy: e };
     }
@@ -7842,27 +7939,60 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
 
   /** WORLD BOSS (Quarterly Review): týdenní boss, 10 kol, počítá se damage. */
+  // v8.6: rotace přes všech 11 bossů; prvních 6 zůstává na stejném indexu (server ukládá idx týdne)
   const WB = [
     { e: "The Great \"I\" (Annual Edition)", i: "🔠", mech: "great_i", src: 9, t: "Hello fighters, how are you?" },
-    { e: "The Pookie (The E) - Bulk Season", i: "🤘", mech: "pookie", src: 19 },
-    { e: "Ransomware CEO", i: "💀", mech: "ransom", src: 29 },
-    { e: "Rogue LLM Cluster", i: "🤖", mech: "llm", src: 39 },
+    { e: "The Pookie (The E) - Bulk Season", i: "🤘", mech: "pookie", src: 18 },
+    { e: "Ransomware CEO", i: "💀", mech: "ransom", src: 28 },
+    { e: "Rogue LLM Cluster", i: "🤖", mech: "llm", src: 38 },
     { e: "The Big Massi (Quarterly Review)", i: "👑", mech: "massi", src: 49 },
-    { e: "The Compliance Control (Full Audit)", i: "📋", mech: "audit", src: 50 }
+    { e: "The Compliance Control (Full Audit)", i: "📋", mech: "audit", src: 50 },
+    { e: "The Italian Guy (Team Lunch)", i: "🤌", mech: "italian", src: 19, t: "Relax, mamma mia..." },
+    { e: "The Cobol (Legacy Migration)", i: "🥟", mech: "cobol", src: 17, t: "Hey Dan, listen..." },
+    { e: "Da Polishen (Payroll Day)", i: "🇵🇱", mech: "polishen", src: 29, t: "So guys... about the withdrawals..." },
+    { e: "The Supreme Louis (All-Hands)", i: "🫅", mech: "louis", src: 39, t: "¡Hola!" },
+    { e: "The Administrator (Root Review)", i: "🕶", mech: "admin", src: "admin", t: "Access denied." }
   ];
   function mkName(mk) { return "MK." + (["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][mk] || mk); }
   function worldBoss(idx, L, hpLeft, mk) {
-    const w = WB[((idx % WB.length) + WB.length) % WB.length], src = LIST[w.src];
+    const w = WB[((idx % WB.length) + WB.length) % WB.length], src = srcOf(w.src);
     mk = Math.max(1, mk | 0 || 1);
-    const e = enemyFrom(src, levelToX(L), 1, 1 + 0.15 * (mk - 1), { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: w.src });
+    const e = enemyFrom(src, levelToX(L), 1, 1 + 0.15 * (mk - 1), { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id });
     e.hp = Math.max(1, Math.round(hpLeft));
     e.pattern = Object.assign({}, P.boss);
-    return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 10 turns, deal as much damage as you can.",
-      kind: "world", bonus: {}, survive: 0, turnLimit: 10, enemy: e };
+    return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 turns, deal as much damage as you can.",
+      kind: "world", bonus: {}, survive: 0, turnLimit: 15, enemy: e };
+  }
+
+  /** v8.6: CLEAR THE POOL - nekonečná náhodná patra (+6 % za patro), každé 5. elite, každé 25. tematický boss. */
+  const POOL_MECHS = ["", "", "heal", "drain", "ransom", "llm", "audit"];
+  function poolFloor(n, seed) {
+    n = Math.max(1, n | 0);
+    const R = (function (a) { return function () { a = (a * 1103515245 + 12345) & 0x7fffffff; return a / 0x7fffffff; }; })(((seed | 0) + n * 7919) & 0x7fffffff || 1);
+    for (let i = 0; i < 3; i++) R();
+    const boss = n % 25 === 0, elite = !boss && n % 5 === 0;
+    const k = 1 + 0.06 * (n - 1);                     // +6 % základní síly za patro
+    let src, e;
+    if (boss) {
+      src = srcOf(THEMED.concat(["admin"])[(n / 25 - 1) % (THEMED.length + 1)]);
+      e = enemyFrom(src, 45, 2.0 * k, 1.05 * k);
+      e.pattern = Object.assign({}, P.boss);
+    } else {
+      const pool = LIST.filter(m => (m.k || "normal") === "normal" || m.k === "elite");
+      src = pool[Math.floor(R() * pool.length)];
+      e = enemyFrom(src, 45, (elite ? 1.4 : 1) * k, (elite ? 1.12 : 1) * k);
+      const mech = POOL_MECHS[Math.floor(R() * POOL_MECHS.length)];
+      e.mech = mech || (src.mech === "compliance" ? "" : src.mech || "");
+      if (e.mech === "audit") e.pattern.special = Math.max(2, e.pattern.special || 0);
+      if (e.mech && !e.pattern.special) e.pattern.special = 2;
+    }
+    const ticket = 1000 + Math.floor(R() * 9000);
+    const name = boss ? "POOL BOSS: " + src.e : "Ticket #" + ticket + ": " + src.e;
+    return { id: 4000 + n, floor: n, name: name, intro: src.t, kind: boss ? "boss" : elite ? "elite" : "normal", bonus: {}, survive: 0, enemy: e };
   }
 
   const api = { CHAPTERS: CH, LIST: LIST, mission: mission, setStats: setStats, xpFor: xpFor, gcFor: gcFor, xpToNext: xpToNext, COUNT: 51,
-    BOSS_SLOT: BOSS_SLOT, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, shiftEnemy: shiftEnemy, WB: WB, worldBoss: worldBoss, mkName: mkName };
+    BOSS_SLOT: BOSS_SLOT, setPrestige: setPrestige, prestigeMult: prestigeMult, ADMIN: ADMIN, THEMED: THEMED, TOWER_BOSS: TOWER_BOSS, poolFloor: poolFloor, srcOf: srcOf, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, shiftEnemy: shiftEnemy, WB: WB, worldBoss: worldBoss, mkName: mkName };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSCampaign = api;
 })(typeof window !== "undefined" ? window : this);
@@ -7908,7 +8038,12 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     pookie: { map: ["......HHHH......", ".....HHHHHH.....", "....HHSSSSHH....", "....HHSESESH....", "....HHSSSSHH....", "....HHBBBBHH....", ".....HBBBBH.....", "..SS.KKKKKK.SS..", ".SSSKKKWWKKKSSS.", ".SS.KKWRRWKK.SS.", ".SS.KKKWWKKK.SS.", "....KKKKKKKK....", "...KKKKKKKKKK...", "...KKKKKKKKKK...", "....PPPP.PPPP...", "....PP....PP...."],
       pal: { H: "#0b0b0b", S: "#e0a878", E: "#111", B: "#3b2416", K: "#141414", W: "#e5e7eb", R: "#b91c1c", P: "#273249" } },
     compliance: { map: ["....CCCC....", "..CMMMMMMC..", ".BBBBBBBBBB.", ".BWWWWWWWWB.", ".BWLLLLLLWB.", ".BWWWWWWWWB.", ".BWLLLLWWWB.", ".BWWWWWWWWB.", ".BWLLLLLLWB.", ".BWWWWWWWWB.", ".BWWWWWWVWB.", ".BBBBBBBBBB."],
-      pal: { C: "#9ca3af", M: "#d1d5db", B: "#8b5a2b", W: "#f8fafc", L: "#94a3b8", V: "#dc2626" } }
+      pal: { C: "#9ca3af", M: "#d1d5db", B: "#8b5a2b", W: "#f8fafc", L: "#94a3b8", V: "#dc2626" } },
+    admin: { map: ["...BBBBBB...", "..BBBBBBBB..", "BBBBBBBBBBBB", ".WWWWWWWWWW.", ".WKKWWWWKKW.", ".WWKWWWWKWW.", ".WRWWWWWWRW.", ".WWKKKKKKWW.", ".WKWWWWWWKW.", "..WWWKKWWW..", "...WWKKWW...", "....WWWW...."], pal: { B: "#0b0b0b", W: "#f1f5f9", K: "#111", R: "#f472b6" } },
+    italian: { map: ["...WWWWWW...", "..WWWWWWWW..", "...WWWWWW...", "...SSSSSS...", "..SSESSESS..", "..SSSSSSSS..", "..SMMMMMMS..", "...SSSSSS...", "..GGWWWWRR..", ".GGGWWWWRRR.", ".GGGWWWWRRR.", "..GG....RR.."], pal: { W: "#f8fafc", S: "#e0a878", E: "#111", M: "#3b2416", G: "#16a34a", R: "#dc2626" } },
+    louis: { map: ["..Y.Y..Y.Y..", "..YYYYYYYY..", "..YRYYYYRY..", "...SSSSSS...", "..SSESSESS..", "..SSSSSSSS..", "...SSMMSS...", "....SSSS....", "..RRRYYRRR..", ".RRRRYYRRRR.", ".RRRRYYRRRR.", "..RR....RR.."], pal: { Y: "#ffd700", R: "#c2410c", S: "#d6a77a", E: "#111", M: "#5b3a1a" } },
+    cobol: { map: ["............", "...KKKKKK...", ".KKKKKKKKKK.", "...SSSSSS...", "..SSESSESS..", "..SSSSSSSS..", "...SMMMMS...", "....SSSS....", "..WWBBBBWW..", ".WWWBRRBWWW.", ".WWWBBBBWWW.", "..WW....WW.."], pal: { K: "#1f2937", S: "#e0a878", E: "#111", M: "#6b3f1d", W: "#f8fafc", B: "#1d4ed8", R: "#dc2626" } },
+    polishen: { map: ["...HHHHHH...", "..HHHHHHHH..", ".HHSSSSSSHH.", ".HHSESSESHH.", ".HHSSSSSSHH.", ".HHSSRRSSHH.", ".HH.SSSS.HH.", ".H..WWWW..H.", "...WWWWWW...", "..RRRRRRRR..", "..RRRRRRRR..", "...RR..RR..."], pal: { H: "#facc15", S: "#f0c9a0", E: "#111", R: "#dc2626", W: "#f8fafc" } }
   };
   function artSvg(a) {
     const N = a.map.length, W = a.map[0].length;
@@ -7920,6 +8055,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const e = m.enemy;
     if (e.mech === "great_i") return `<svg class="dg-sprite" viewBox="0 0 12 12"><rect width="12" height="12" rx="1.5" fill="#101826"/><text x="6" y="10" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="11" fill="#00f0ff" stroke="#ffffff" stroke-width=".25">I</text></svg>`;
     if (e.mech === "pookie") return artSvg(ART.pookie);
+    if (ART[e.mech] && e.mech !== "compliance") return artSvg(ART[e.mech]);
     if (e.mech === "compliance" || e.mech === "audit_final" || e.mech === "audit") return artSvg(ART.compliance);
     const sid = e.sprite != null ? e.sprite : m.id;
     return sprite(sid === 49 ? 24 : sid % 24, "b");
@@ -8102,7 +8238,9 @@ html.m #dg-open-btn { display: none; }
   const fmt = (n) => Math.floor(n).toLocaleString();
   const ENERGY_MAX = 10, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
   const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
-  const STAT_INFO = { str: ["STR", "damage"], vit: ["VIT", "max HP"], agi: ["AGI", "hit chance + dodge"], luck: ["LUCK", "crit, slot machine, timing zone"], end: ["END", "stamina + regen"] };
+  const STAT_INFO = { str: ["STR", "damage"], vit: ["VIT", "max HP"], agi: ["AGI", "hit chance + dodge"], luck: ["LUCK", "crit, slot machine, timing zone"], end: ["END", "max stamina + stamina from QUICK / BLOCK"] };
+  /** v8.6: tituly za první zabití tematických bossů */
+  const BOSS_TITLES = { louis: "Siesta Survivor", italian: "Ate the Spaghetti", cobol: "Bryndza Approved", polishen: "Survived the Withdrawal", admin: "Root Access" };
   let view = "camp", chSel = 0, open = false, fight = null, fightMission = null, fightCtx = null, busyAnim = false, result = null, flog = [];
 
   // ------------------------------------------------------------------ STAV (gameState.hs) - nový, starý dungeon se smaže
@@ -8134,6 +8272,12 @@ html.m #dg-open-btn { display: none; }
     if (!d.shift || typeof d.shift !== "object") d.shift = { best: 0, asc: 0, runs: 0, clears: 0 };
     if (!d.wb || typeof d.wb !== "object") d.wb = {};
     // starý dungeon: zachovat nejlepší patro pro score (nic se nemaže, jen se nahradí novým režimem)
+    if (!d.pool || typeof d.pool !== "object") d.pool = { best: 0, unlocked: false, run: null };
+    d.pool.best = Math.max(0, Math.floor(Number(d.pool.best) || 0));
+    if (d.tower.best >= 100) d.pool.unlocked = true;                       // v8.6: Clear The Pool se odemyká Administratorem (patro 100), navždy
+    if (!d.bt || typeof d.bt !== "object") d.bt = {};
+    if (d.tsel && !d.bt[d.tsel]) d.tsel = "";
+    C.setPrestige(gameState.prestige || 0);                                   // v8.6: kampaň + tower +75 % za prestiž
     if (d.legacyBest == null) { const old = g.dungeon || {}; d.legacyBest = old.mode === "highstakes" ? 0 : Math.max(0, Math.floor(Number(old.best) || 0)); }
     // kompatibilita se serverem (aréna/leaderboard čtou tato pole)
     d.tier = 1; d.branch = ""; d.artifacts = {}; d.equipped = []; d.promos = {}; d.exec = false;
@@ -8168,6 +8312,7 @@ html.m #dg-open-btn { display: none; }
   function title(d) {
     d = d || HS();
     if (!d.cls) return "Rookie";
+    if (d.tsel && d.bt && d.bt[d.tsel] && BOSS_TITLES[d.tsel]) return BOSS_TITLES[d.tsel];
     const c = cleared(d);
     const t = c >= 51 ? "Compliance Survivor" : c >= 50 ? "High Roller" : c >= 40 ? "Boardroom Brawler" : c >= 30 ? "Cloud Crusher" : c >= 20 ? "Breach Buster" : c >= 10 ? "Server Room Survivor" : "Helpdesk Hero";
     return t;
@@ -8311,13 +8456,29 @@ html.m #dg-open-btn { display: none; }
     return `<div class="dg-grid2">
       <div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${H.CLASSES[d.cls].name} · LV ${d.level}</span><span>${title()}</span></div>
         <div style="display:flex;gap:10px;align-items:center;">${playerSprite()}<div class="dg-dim">${statLine()}<br>Hit +${Math.round(h.hitBonus * 100)}% · timing zone ${Math.round(h.zone * 100)}% · gear ⚔×${g.atk.toFixed(2)} ❤×${g.hp.toFixed(2)}<br>✨ <b>${H.CLASSES[d.cls].skill}</b>: ${H.CLASSES[d.cls].skillTxt}<br>Wins ${d.wins} · Losses ${d.losses}</div></div>
+        ${titlesHtml(d)}
         <div class="dg-h" style="margin-top:10px;"><span>STAT POINTS</span><span style="color:${d.pts ? "var(--emerald)" : "var(--text-dim)"};">${d.pts} free</span></div>${rows}
         <div class="dg-dim" style="margin-top:6px;">+3 points every level. Weapons (TOOL/AUGMENT/RELIC) multiply ATK, armor (HEAD/RIG/OS) multiplies HP.</div>
         <div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
       <div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>
         <div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (1.9×) or <b>gold</b> (2.5×) zone, then it needs 2 turns to cool down.
         🎰 GAMBLE - spin a mini slot machine (7️⃣7️⃣7️⃣ = 6×, 💀💀💀 hits you). 🛡 BLOCK when the enemy shows 💥 HEAVY or ☄ UNLEASH: tap when the rings meet for a <b>PARRY</b> (0 damage, counter, stun). 💢 Fill the enemy's <b>BREAK</b> bar to stagger it (it loses its turn, your next hit 1.5×) - breaking a ⏳ CHARGING enemy cancels its big attack. 💨 DODGE avoids the hit (dodging again right after is less likely to work).
-        ✨ SKILL needs 100 focus (you gain it by hitting and getting hit). Stamina refills every turn - blocking refills more.</div></div></div>`;
+        ✨ SKILL needs 100 focus (you start with 30, QUICK gives the most). <b>Stamina does NOT refill by itself</b> - ⚔ QUICK (+15) and 🛡 BLOCK (+25, parry +35) recharge it for STRIKE and POWER.</div></div></div>`;
+  }
+  function titlesHtml(d) {
+    const keys = Object.keys(BOSS_TITLES);
+    return `<div class="dg-h" style="margin-top:10px;"><span>BOSS TITLES</span><span class="dg-dim">${keys.filter(k => d.bt[k]).length}/${keys.length}</span></div><div class="dg-row" style="flex-wrap:wrap;">` +
+      keys.map(k => d.bt[k] ? `<button class="btn ${d.tsel === k ? "btn-gold" : ""}" style="padding:3px 8px;" onclick="Dungeon.setTitle('${k}')">${BOSS_TITLES[k]}</button>` : `<span class="dg-dim" style="padding:3px 6px;">🔒 ???</span>`).join("") +
+      (d.tsel ? `<button class="btn" style="padding:3px 8px;" onclick="Dungeon.setTitle('')">default</button>` : "") + `</div>`;
+  }
+  function setTitle(k) { const d = HS(); d.tsel = k && d.bt[k] ? k : ""; TT.saveSoon(); render(); }
+  /** v8.6: prestiž resetuje kampaň (hvězdy, prismatic) i tower; Clear The Pool zůstává odemčený */
+  function onPrestige() {
+    const d = HS();
+    if (d.tower.best >= 100) d.pool.unlocked = true;
+    d.stars = {}; d.sm = {}; d.t6 = {}; d.tower = { best: 0 }; chSel = 0;
+    HS();
+    log(`🎰 HIGH STAKES: campaign and tower reset - enemies are now ×${C.prestigeMult().toFixed(2)} stronger. Level and stats stay.`, "special");
   }
 
   // ------------------------------------------------------------------ AKCE (menu)
@@ -8400,6 +8561,7 @@ html.m #dg-open-btn { display: none; }
     if (f.over) return "";
     if (it.fake) return `<span class="hs-intent special">❓ ???</span>`;
     const map = { atk: ["⚔", "ATTACK " + fmt(it.val), ""], heavy: ["💥", "HEAVY " + fmt(it.val), "heavy"], defend: ["🛡", "DEFEND", "defend"], flex: ["💪", "FLEX (heavy next!)", "defend"], special: ["✨", "SPECIAL", "special"],
+      siesta: ["😴", "SIESTA (+50% damage!)", "stun"], pasta: ["🍝", "PASTA BREAK (break it!)", "charge"], restart: ["🔄", "FORCE RESTART (break it!)", "charge"], withdraw: ["💸", "WITHDRAWAL " + fmt(it.val) + " (parry/dodge!)", "unleash"],
       charge: ["⏳", "CHARGING...", "charge"], unleash: ["☄", "UNLEASH " + fmt(it.val), "unleash"], stun: ["😵", "STUNNED", "stun"] };
     const x = map[it.k] || map.atk;
     return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}</span>`;
@@ -8409,7 +8571,7 @@ html.m #dg-open-btn { display: none; }
     const f = fight, m = fightMission, h = f.h;
     const acts = ["quick", "strike", "power", "gamble", "block", "dodge", "skill"].map(a => {
       const A = H.ACTIONS[a];
-      return `<button class="btn ${a === "power" || a === "gamble" ? "btn-gold" : a === "block" || a === "dodge" ? "btn-cyan" : a === "skill" ? "btn-crimson" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${a === "skill" ? H.CLASSES[h.cls].skill.split(" ")[0] : A.name}<small id="hs-as-${a}">${a === "skill" ? "100 focus" : (A.sta ? A.sta + " STA" : "+15 STA")}</small></button>`;
+      return `<button class="btn ${a === "power" || a === "gamble" ? "btn-gold" : a === "block" || a === "dodge" ? "btn-cyan" : a === "skill" ? "btn-crimson" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${a === "skill" ? H.CLASSES[h.cls].skill.split(" ")[0] : A.name}<small id="hs-as-${a}">${a === "skill" ? "100 focus" : (A.gain ? "+" + A.gain + " STA" : A.sta + " STA")}</small></button>`;
     }).join("") + `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">FLEE<small>lose</small></button>`;
     return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span id="hs-turn">TURN 0</span></div>
       <div class="dg-dim" id="hs-hud">${fightCtx && fightCtx.hud ? fightCtx.hud(f) : "★ win · ★ 50%+ HP · ★ " + escapeHtml(starGoals(m)[2]) + (m.survive ? " · 🎯 survive " + m.survive + " turns" : "")}</div></div>
@@ -8456,12 +8618,14 @@ html.m #dg-open-btn { display: none; }
       b.disabled = !ok; b.classList.toggle("off", !ok); b.classList.toggle("lock", !!f.disabled[a]);
       b.classList.toggle("want", !!f.demand && f.demand === a && !f.over);
       const sm = $("hs-as-" + a), A = H.ACTIONS[a];
-      if (sm && a !== "skill") { const t = f.cd[a] > 0 ? "COOLDOWN " + f.cd[a] : (A.sta ? A.sta + " STA" : "+15 STA"); if (sm.textContent !== t) sm.textContent = t; }
+      if (sm && a !== "skill") { const t = f.cd[a] > 0 ? "COOLDOWN " + f.cd[a] : (A.gain ? "+" + A.gain + " STA" : A.sta + " STA"); if (sm.textContent !== t) sm.textContent = t; }
     });
     const fb = $("hs-form");
     if (fb) {
       fb.style.display = f.demand && !f.over ? "" : (f.redTape ? "" : "none");
-      fb.innerHTML = (f.demand && !f.over ? `📋 FORM ${H.FORM_NO[f.demand]}: this turn use <b>${H.ACTIONS[f.demand].name}</b> (bonus damage) - anything else adds red tape` : "") +
+      fb.innerHTML = (f.demand && !f.over ? (f.e.mech === "cobol" ? `🥟 "Do you want a bryndza?" - answer with <b>BLOCK</b> ("yes, thanks") or he gets offended`
+        : f.e.mech === "louis" ? `🫅 SUPREME DECREE: this turn use <b>${H.ACTIONS[f.demand].name}</b> - anything else adds red tape`
+        : `📋 FORM ${H.FORM_NO[f.demand]}: this turn use <b>${H.ACTIONS[f.demand].name}</b> (bonus damage) - anything else adds red tape`) : "") +
         (f.redTape ? `<span class="rt">RED TAPE ×${f.redTape}: -${8 * f.redTape}% ATK, -${4 * f.redTape}% dodge</span>` : "");
     }
     const fl = $("hs-a-flee"); if (fl) fl.disabled = f.over || busyAnim;
@@ -8479,7 +8643,7 @@ html.m #dg-open-btn { display: none; }
     const f = fight; if (!f || f.over || busyAnim || !H.allowed(f, a)) return;
     if (a === "power") { timingGame(q => resolve("power", q)); return; }
     if (a === "gamble") { resolve("gamble", "none", true); return; }
-    if (a === "block" && !f.intent.fake && (f.intent.k === "heavy" || f.intent.k === "unleash")) { parryGame(q => resolve("block", q)); return; }
+    if (a === "block" && !f.intent.fake && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) { parryGame(q => resolve("block", q)); return; }
     resolve(a, "none");
   }
 
@@ -8611,7 +8775,8 @@ html.m #dg-open-btn { display: none; }
       else if (e.type === "heal") { float("+" + fmt(e.val), "p", "#00ff88"); dlog(T(e) + `☕ +${fmt(e.val)} HP`, "g"); }
       else if (e.type === "revive") { float("POWER CYCLE!", "p", "#ffb800", true); dlog(T(e) + "🔌 SysAdmin POWER CYCLE - you survive with 10% HP!", "y"); }
       else if (e.type === "form") {
-        if (e.ok) { anim("dg-bs", "hit"); float("FORM OK " + fmt(e.val), "b", "#00ff88"); dlog(T(e) + `📋 Form ${e.no} approved (${H.ACTIONS[e.a].name}) - stamp for <b>${fmt(e.val)}</b>${e.tape ? " · red tape ×" + e.tape : ""}`, "g"); }
+        if (e.txt) { if (e.ok) { anim("dg-bs", "hit"); float("+" + fmt(e.val), "b", "#00ff88"); } else float("RED TAPE", "p", "#ffb800"); dlog(T(e) + e.txt, e.ok ? "g" : "r"); }
+        else if (e.ok) { anim("dg-bs", "hit"); float("FORM OK " + fmt(e.val), "b", "#00ff88"); dlog(T(e) + `📋 Form ${e.no} approved (${H.ACTIONS[e.a].name}) - stamp for <b>${fmt(e.val)}</b>${e.tape ? " · red tape ×" + e.tape : ""}`, "g"); }
         else { float("RED TAPE", "p", "#ffb800"); dlog(T(e) + `📋 Form ${e.no} ignored (wanted ${H.ACTIONS[e.a].name}) - <b>RED TAPE ×${e.tape}</b>`, "r"); }
       }
       else if (e.type === "mech") { const m = $("dg-mech"); if (m) m.textContent = e.msg; dlog(T(e) + "⚙ " + escapeHtml(e.msg), "y"); }
@@ -8619,8 +8784,17 @@ html.m #dg-open-btn { display: none; }
   }
 
   // ------------------------------------------------------------------ KONEC + ODMĚNY
+  function bossTitle(f) {
+    const d = HS(), mk = f && f.e && f.e.mech;
+    if (!f || !f.win || !BOSS_TITLES[mk] || d.bt[mk]) return;
+    d.bt[mk] = true;
+    if (!d.tsel) d.tsel = mk;
+    log(`🏅 NEW TITLE UNLOCKED: "${BOSS_TITLES[mk]}" (HERO tab)`, "special");
+    try { TT.announce("EARNED THE TITLE " + BOSS_TITLES[mk].toUpperCase(), "HIGH STAKES", 0, 0); } catch (e) {}
+  }
   function endFight() {
     if (window.Meta && Meta.onFight) try { Meta.onFight(fight); } catch (e) {}
+    bossTitle(fight);
     if (fightCtx && fightCtx.onEnd) {
       const r = fightCtx.onEnd(fight) || {};
       result = Object.assign({ win: fight.win, stars: -1, lines: [], m: fightMission, custom: true }, r);
@@ -8702,11 +8876,11 @@ html.m #dg-open-btn { display: none; }
     /** Do savu jde "dungeon" jako souhrn kompatibilní se serverem (leaderboard, score, aréna) - starý dungeon se tím přepíše. */
   function payload() {
     const d = HS();
-    return { cls: d.cls, level: d.level, best: Math.max(cleared(d), d.legacyBest || 0), missions: cleared(d), tower: d.tower.best, wins: d.wins, losses: d.losses, title: title(d), arenaStance: d.arenaStance,
+    return { cls: d.cls, level: d.level, best: Math.max(cleared(d), d.legacyBest || 0), missions: cleared(d), tower: d.tower.best, wins: d.wins, losses: d.losses, title: title(d), arenaStance: d.arenaStance, pool: d.pool.best,
       tier: 1, artifacts: {}, equipped: [], promos: {}, mode: "highstakes" };
   }
   function hsPayload() { const d = HS(); return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), stats: d.stats, energy: d.energy, energyAt: d.energyAt, stars: d.stars, wins: d.wins, losses: d.losses, arenaStance: d.arenaStance,
-    t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk }; }
+    t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk, pool: d.pool, bt: d.bt, tsel: d.tsel }; }
 
   /** vnitřek pro další soubory (aréna, tower, směna, world boss) */
   window.HS_API = { HS: HS, hero: hero, gear: gear, player: player, fmt: fmt, fmtT: fmtT, anim: anim, float: float, sprite: sprite, enemySprite: enemySprite,
@@ -8721,7 +8895,7 @@ html.m #dg-open-btn { display: none; }
     netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, hsPayload: hsPayload, showProfile: function () {},
     state: HS, unlocked: unlocked,
     isBusy: () => !!(fight && !fight.over) || Object.keys(MODES).some(k => MODES[k].busy && MODES[k].busy()), onLeaderboard: function () {},
-    resBtn: resBtn, t6Slots: t6Slots, t6Unlocked: t6Unlocked, _fight: () => fight
+    resBtn: resBtn, setTitle: setTitle, onPrestige: onPrestige, BOSS_TITLES: BOSS_TITLES, t6Slots: t6Slots, t6Unlocked: t6Unlocked, _fight: () => fight
   };
 
   function boot() {
@@ -8994,10 +9168,10 @@ html.m #dg-open-btn { display: none; }
   function towerHtml(box) {
     const d = A.HS(), b = d.tower.best, next = Math.min(100, b + 1), m = C.towerFloor(next);
     const cells = [];
-    for (let f = 1; f <= 100; f++) cells.push(`<div class="${f <= b ? "ok" : f === b + 1 ? "nx" : ""} ${f % 10 === 0 ? "bs" : ""}">${f % 10 === 0 ? "☠" : f}</div>`);
+    for (let f = 1; f <= 100; f++) { const bs = !!C.TOWER_BOSS[f]; cells.push(`<div class="${f <= b ? "ok" : f === b + 1 ? "nx" : ""} ${bs ? "bs" : ""}">${f === 100 ? "🕶" : bs ? "☠" : f}</div>`); }
     box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>🗼 SERVER TOWER</span><span>${b}/100</span></div>
-      <div class="dg-dim">Climb 100 floors of the server tower. Every 5th floor is an elite, every 10th a boss with a chapter-boss mechanic.
-      Every 10 floors = <b>+1% ATK and HP</b> in all HIGH STAKES modes (now <b>+${Math.floor(b / 10)}%</b>). Cleared floors stay cleared forever.</div></div>
+      <div class="dg-dim">Climb 100 floors of the server tower. Every 5th floor is an elite, every 10th floor (and floor 95) a boss. On floor 100 waits <b>THE ADMINISTRATOR</b> - beat him to unlock <b>♾ CLEAR THE POOL</b> forever.
+      Every 10 floors = <b>+1% ATK and HP</b> in all HIGH STAKES modes (now <b>+${Math.floor(b / 10)}%</b>). The tower resets on prestige and gets <b>+75% harder</b> per prestige (now ×${C.prestigeMult().toFixed(2)}).</div></div>
       ${b >= 100 ? `<div class="dg-card dg-lock"><div class="big">🏆</div><div style="font:800 14px Orbitron,monospace;color:var(--amber);">TOWER CONQUERED</div><div class="dg-dim">All 100 floors cleared. Respect.</div></div>` :
       `<div class="dg-card"><div class="dg-h"><span>NEXT: ${esc(m.name)}</span><span>⚡1</span></div>
         <div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}<br>
@@ -9019,7 +9193,7 @@ html.m #dg-open-btn { display: none; }
           gameState.coins += towerGc(f); lines.push(`+${fmt(towerGc(f))} GC`);
           A.gainXp(towerXp(f), lines); lines.unshift(`+${fmt(towerXp(f))} XP`);
           if (f % 10 === 0) { A.dropItem(lines); lines.push(`💪 +1% permanent power`); }
-          if (f === 100) TT.announce("CONQUERED THE SERVER TOWER", "HIGH STAKES", 0, towerGc(f));
+          if (f === 100) { TT.announce("CONQUERED THE SERVER TOWER", "HIGH STAKES", 0, towerGc(f)); if (!dd.pool.unlocked) { dd.pool.unlocked = true; lines.push("♾ CLEAR THE POOL unlocked!"); log("♾ The Administrator is down. CLEAR THE POOL is now unlocked - how deep can you go?", "special"); } }
           log(`🗼 TOWER floor ${f} cleared - ${lines.join(", ")}`, "special");
         } else { dd.losses++; const xp = fi.fled ? 0 : Math.round(towerXp(f) * 0.3); if (xp) A.gainXp(xp, lines); lines.push(xp ? `+${xp} XP` : "no reward"); }
         const btns = [{ label: "◀ TOWER", fn: () => Dungeon.tab("tower") }];
@@ -9271,11 +9445,11 @@ html.m #dg-open-btn { display: none; }
     box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
       <div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
         <div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
-        <div class="dg-dim">Everyone in the company hits the same boss. 1 attack per hour, 10 turns, no energy needed. HP grows with every new attendee.
+        <div class="dg-dim">Everyone in the company hits the same boss. 1 attack per hour, 15 turns, no energy needed. HP grows with every new attendee.
         When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.6 HP, +15% ATK).<br>
         ${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
         Next kill → <b>×${(1 + rwN.buff).toFixed(2)}</b>.</div></div></div>
-      ${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING (10 turns)"}</button>`}
+      ${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING (15 turns)"}</button>`}
       <div class="dg-dim" style="margin-top:6px;">Your damage this week: <b>${fmt(c.me.dmg)}</b> in ${c.me.n} attack${c.me.n === 1 ? "" : "s"}${A.HS().wb.buffWeek === week() ? ` · 🎉 Active bonus: <b>×${(1 + A.HS().wb.buff).toFixed(2)}</b> office income` : ""}</div></div>
       <div class="dg-grid2"><div class="dg-card"><div class="dg-h">DAMAGE LEADERBOARD</div><div class="wb-lb">${lb}</div></div>
       <div class="dg-card"><div class="dg-h">LAST WEEK</div><div class="dg-dim">${l ? `${esc(C.WB[l.idx % C.WB.length].e)} - ${l.killed ? "<b style='color:var(--emerald);'>DEFEATED" + (l.kills > 1 ? " " + l.kills + "× (" + C.mkName(l.kills) + ")" : "") + "</b>" : "<b style='color:var(--crimson);'>SURVIVED</b>"} · ${l.participants} attendees<br>
@@ -9309,12 +9483,90 @@ html.m #dg-open-btn { display: none; }
       } });
   }
 
+  // ================================================================== ♾ CLEAR THE POOL (v8.6: nekonečný mód, odemyká Administrator)
+  const POOL_COST = 2;
+  function poolGc(n) { return Math.round(2000 + 400 * Math.pow(n, 1.4)); }
+  function poolXp(n) { return Math.round(40 + 12 * n); }
+  const pb = { list: null, at: 0, loading: false };
+  function poolBoardLoad(force) {
+    if (pb.loading || (!force && pb.list && Date.now() - pb.at < 30000)) return;
+    if (typeof google === "undefined" || !google.script || !google.script.run) return;
+    pb.loading = true;
+    google.script.run.withSuccessHandler(r => { pb.loading = false; pb.at = Date.now(); pb.list = r && r.ok ? r.list : []; if (A.isOpen() && A.view() === "pool" && !document.querySelector(".hs-ov")) A.render(); })
+      .withFailureHandler(() => { pb.loading = false; pb.at = Date.now(); pb.list = pb.list || []; }).poolBoard();
+  }
+  function poolHtml(box) {
+    const d = A.HS(), P = d.pool, r = P.run;
+    if (!P.unlocked) {
+      box.innerHTML = `<div class="dg-card dg-lock"><div class="big">♾</div><div style="font:800 14px Orbitron,monospace;color:var(--crimson);margin:8px 0;">CLEAR THE POOL - LOCKED</div>
+        <div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to unlock it (forever - prestige won't lock it again).<br>Tower: ${d.tower.best}/100</div></div>`;
+      return;
+    }
+    poolBoardLoad(false);
+    const lb = pb.list ? (pb.list.length ? pb.list.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>floor ${fmt(p.best)}</span></div>`).join("") : `<div class="dg-dim">Nobody yet. Be the first!</div>`) : `<div class="dg-dim">Loading...</div>`;
+    const next = r ? C.poolFloor(r.floor, r.seed) : null;
+    box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>♾ CLEAR THE POOL</span><span>best: floor ${fmt(P.best)}</span></div>
+      <div class="dg-dim">The ticket pool never ends. Endless random fights, every floor <b>+6%</b> harder, every 5th an elite, every 25th one of the company's bosses.
+      Your HP carries over - after each floor you only recover <b>25%</b>. Entry costs ⚡${POOL_COST}, then the run is free until you fall. XP and GC for every floor.</div></div>
+      ${r ? `<div class="dg-card"><div class="dg-h"><span>RUN · FLOOR ${r.floor}</span><span>❤ ${Math.round(r.hp * 100)}%</span></div>
+        <div class="hm-row">${A.enemySprite(next)}<div class="dg-dim"><b>${next.enemy.icon} ${esc(next.name)}</b> · ❤ ${fmt(next.enemy.hp)} · ⚔ ${fmt(next.enemy.atk)}${next.enemy.mech ? " · ⚙ " + esc(next.enemy.mech) : ""}<br>
+        This run: +${fmt(r.xp || 0)} XP · +${fmt(r.gc || 0)} GC<br>Your stats: ${A.statLine()}</div></div>
+        <div class="dg-row" style="margin-top:8px;"><button class="btn btn-gold" style="flex:2;padding:11px;" onclick="HSModes.poolGo()">⚔ FIGHT FLOOR ${r.floor}</button>
+        <button class="btn" style="flex:1;" onclick="HSModes.poolQuit()">CASH OUT</button></div></div>`
+      : `<div class="dg-card"><button class="btn btn-crimson" style="width:100%;padding:12px;" onclick="HSModes.poolStart()">♾ DIVE IN (⚡${POOL_COST})</button></div>`}
+      <div class="dg-card"><div class="dg-h">DEEPEST POOL</div><div class="wb-lb">${lb}</div></div>`;
+  }
+  function poolStart() {
+    const d = A.HS();
+    if (!d.pool.unlocked || d.pool.run) return;
+    if (!A.spendEnergy(POOL_COST)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
+    d.pool.run = { floor: 1, hp: 1, seed: Math.floor(R() * 2147483647) + 1, xp: 0, gc: 0 };
+    TT.saveSoon(); poolGo();
+  }
+  function poolEnd(reason) {
+    const d = A.HS(), r = d.pool.run; if (!r) return;
+    const reached = r.floor - 1;
+    d.pool.run = null;
+    if (reached > 0) log(`♾ CLEAR THE POOL: ${reason} on floor ${r.floor} - cleared ${reached} floor${reached === 1 ? "" : "s"}, +${fmt(r.xp)} XP, +${fmt(r.gc)} GC.`, "special");
+    TT.saveSoon(); poolBoardLoad(true);
+  }
+  function poolQuit() { if (!confirm("Cash out and end this run? You keep everything you earned.")) return; poolEnd("cashed out"); A.render(); }
+  function poolGo() {
+    const d = A.HS(), r = d.pool.run; if (!r) return;
+    const n = r.floor, m = C.poolFloor(n, r.seed);
+    A.beginFight(m, { mode: "pool", prepHero: (h) => { h.startHp = Math.max(1, r.hp * h.maxHp); },
+      hud: () => `♾ Pool floor ${n}${m.kind === "boss" ? " · BOSS" : m.kind === "elite" ? " · ELITE" : ""} · best ${A.HS().pool.best}`,
+      onEnd: function (fi) {
+        const dd = A.HS(), rr = dd.pool.run, lines = [];
+        if (!rr) return { title: "RUN OVER", lines: [], buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }] };
+        if (fi.win) {
+          dd.wins++;
+          const gc = poolGc(n), xp = poolXp(n);
+          gameState.coins += gc; rr.gc = (rr.gc || 0) + gc; rr.xp = (rr.xp || 0) + xp;
+          A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
+          if (m.kind === "boss") A.dropItem(lines);
+          const newBest = n > dd.pool.best;
+          if (newBest) { dd.pool.best = n; lines.push(`🏆 NEW BEST: floor ${n}`); }
+          if (newBest && n % 25 === 0) TT.announce("REACHED POOL FLOOR " + n, "HIGH STAKES", 0, gc);
+          rr.hp = Math.min(1, Math.max(0, fi.hp) / fi.h.maxHp + 0.25); rr.floor = n + 1;
+          TT.saveSoon();
+          return { title: `FLOOR ${n} CLEARED`, sub: `❤ ${Math.round(rr.hp * 100)}%`, lines: lines,
+            buttons: [{ label: "CASH OUT", fn: () => { poolEnd("cashed out"); Dungeon.tab("pool"); } }, { label: `FLOOR ${n + 1} ▶`, cls: "btn-gold", fn: poolGo }] };
+        }
+        dd.losses++;
+        poolEnd(fi.fled ? "fled" : "fell");
+        return { title: "THE POOL WINS", sub: `floor ${n}`, lines: [`Cleared ${n - 1} floor${n - 1 === 1 ? "" : "s"}`, `best: floor ${dd.pool.best}`],
+          buttons: [{ label: "◀ POOL", cls: "btn-gold", fn: () => Dungeon.tab("pool") }] };
+      } });
+  }
+
   // ================================================================== registrace
   A.registerMode("tower", { label: "🗼 TOWER", order: 20, render: towerHtml });
+  A.registerMode("pool", { label: "♾ POOL", order: 25, render: poolHtml });
   A.registerMode("shift", { label: "📟 SHIFT", order: 30, render: shiftHtml });
   A.registerMode("boss", { label: "📊 BOSS", order: 40, render: wbHtml, busy: () => wb.busy });
   window.HSModes = { week: week, towerGo: towerGo, shiftStart: shiftStart, shiftGo: shiftGo, shiftPerk: shiftPerk, shiftEvent: shiftEvent, shiftBuy: shiftBuy,
-    shiftRest: shiftRest, shiftShopDone: shiftShopDone, shiftQuit: shiftQuit, wbGo: wbGo, PERKS: PERKS, applyPerks: applyPerks };
+    shiftRest: shiftRest, shiftShopDone: shiftShopDone, shiftQuit: shiftQuit, wbGo: wbGo, poolStart: poolStart, poolGo: poolGo, poolQuit: poolQuit, PERKS: PERKS, applyPerks: applyPerks };
   // načíst world boss po startu (kvůli odměně z minulého týdne)
   (function wait() { if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(wait, 200); return; } TT.onLoaded(() => setTimeout(() => wbLoad(true), 4000)); })();
   setInterval(() => { if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-ov")) { const b = document.querySelector('[onclick="HSModes.wbGo()"]'); if (b && b.disabled && wb.st) A.render(); } }, 1000);

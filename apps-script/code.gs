@@ -724,6 +724,7 @@ var API_ALLOWED_ = {
   arenaList: function () { return arenaList(); },
   arenaFight: function (a) { return arenaFight(a[0], a[1]); },
   wbState: function () { return wbState(); },
+  poolBoard: function () { return poolBoard(); },
   wbSubmit: function (a) { return wbSubmit(a[0], a[1]); },
   weeklyState: function () { return weeklyState(); },
   weeklySubmit: function (a) { return weeklySubmit(a[0], a[1]); },
@@ -1096,7 +1097,7 @@ function arenaFight(target, stance) {
 // Max HP roste s každým novým účastníkem (podle jeho síly), takže je boss stejně těžký pro 2 i 20 hráčů.
 // ==========================================================================
 var WB_COOLDOWN_MS = 60 * 60 * 1000;
-var WB_COUNT = 6;
+var WB_COUNT = 11;                 // v8.6: rotace přes všech 11 bossů
 var WB_BASE_HP = 3000;
 var WB_CONTRIB = 100;
 var WB_MK_HP = 1.6;            // v8.2: po zabití hned naskočí MK.II, MK.III... (HP ×1.6 za každý MK)
@@ -1152,7 +1153,7 @@ function wbSubmit(dmg, atk) {
     var p = d.players[me];
     if (p && Date.now() - (p.last || 0) < WB_COOLDOWN_MS) return { ok: false, reason: 'cooldown' };
     atk = Math.max(1, Math.min(1000000, Number(atk) || 1));
-    dmg = Math.max(0, Math.min(Math.floor(Number(dmg) || 0), Math.round(atk * 45)));
+    dmg = Math.max(0, Math.min(Math.floor(Number(dmg) || 0), Math.round(atk * 90)));   // v8.6: 15 kol + silnější ulty
     if (!p) { p = d.players[me] = { dmg: 0, n: 0, last: 0, contrib: Math.round(atk * WB_CONTRIB) }; d.baseHp += p.contrib; d.maxHp += Math.round(p.contrib * wbMkMult_(d.mk)); }
     var before = d.dmg, mkBefore = d.mk;
     dmg = Math.min(dmg, d.maxHp - d.dmg);                      // přebytek se nepřenáší do dalšího MK
@@ -1182,6 +1183,28 @@ function wbSubmit(dmg, atk) {
 // Klient posílá jen zlepšení; top 3 si odměnu (tokeny) vyzvedne sám po konci týdne.
 // ==========================================================================
 var WEEKLY_CATS = { climb: 200, shift: 999, casino: 1e18 };
+/** v8.6: CLEAR THE POOL - žebříček nejhlubšího patra (ze savů, cache 60 s) */
+function poolBoard() {
+  try {
+    var cache = CacheService.getScriptCache(), hit = cache.get('poolBoard');
+    if (hit) return { ok: true, list: JSON.parse(hit) };
+    var db = getDb_(), saves = db.saves.getDataRange().getValues(), list = [];
+    for (var i = 1; i < saves.length; i++) {
+      try {
+        var raw = rowToJson_(saves[i]); if (!raw) continue;
+        var s = JSON.parse(raw), b = Number(s.hs && s.hs.pool && s.hs.pool.best) || 0;
+        if (b > 0) list.push({ nick: String(saves[i][0]), best: Math.min(100000, Math.floor(b)) });
+      } catch (e) {}
+    }
+    list.sort(function (a, b) { return b.best - a.best; });
+    list = list.slice(0, 10);
+    try { cache.put('poolBoard', JSON.stringify(list), 60); } catch (e) {}
+    return { ok: true, list: list };
+  } catch (e) {
+    return { ok: false, list: [], msg: String(e) };
+  }
+}
+
 function weeklySheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName('Weekly');
   if (!sh) { sh = ss.insertSheet('Weekly'); sh.appendRow(['Week', 'Data']); sh.setFrozenRows(1); }
