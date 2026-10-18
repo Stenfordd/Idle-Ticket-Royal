@@ -3430,9 +3430,10 @@ function startBugChamber() {
 function consultBulk(n) {
   if (isConsultActive || consultAuto) return;
   let done = 0, net = 0, wins = 0, losses = 0, bug = null;
+  const price = consultCost();                          // v8.7.4: celá dávka za cenu na začátku (tlačítko ukazuje 5× tuhle cenu)
   for (let i = 0; i < n; i++) {
-    if (gameState.scrap < consultCost()) break;
-    gameState.scrap -= consultCost();
+    if (gameState.scrap < price) break;
+    gameState.scrap -= price;
     done++;
     const res = rollConsult();
     if (res.outcome === "bug") { bug = res; break; }
@@ -3475,6 +3476,8 @@ function consultLabel() {
   const b1 = $c("btn-consult-launch"); if (!b1) return;
   const t = "DISPATCH CONSULT (" + consultCost().toLocaleString("en-US") + " SCRAP)";
   if (b1.textContent !== t) b1.textContent = t;
+  const b5 = $c("btn-consult-bulk");
+  if (b5) { const t5 = "×5 INSTANT (" + (consultCost() * 5).toLocaleString("en-US") + " SCRAP)"; if (b5.textContent !== t5) b5.textContent = t5; }
 }
 setInterval(() => { try { if (typeof gameState !== "undefined") consultLabel(); } catch (e) {} }, 1000);
 function consultButtons() {
@@ -4031,7 +4034,28 @@ function buildPayload() {
   });
 }
 
+/** v8.7.4: OFFLINE ZÁLOHA - poslední stav hry v localStorage. Když se neuloží na server (letadlo, výpadek) a hra se zavře,
+ *  při dalším načtení se záloha nahraje, pokud se save na serveru mezitím nezměnil odjinud (jinak vyhrává server). */
+const BACKUP_KEY = "ir_backup";
+function backupWrite(payload, synced) {
+  try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ nick: gameState.ldap, season: gameState.season, rev: saveRev, t: Date.now(), synced: !!synced, data: synced ? "" : payload })); } catch (e) {}
+}
+function backupRead() { try { return JSON.parse(localStorage.getItem(BACKUP_KEY) || "null"); } catch (e) { return null; } }
+function offlineChip(on) {
+  let el = document.getElementById("ir-offline");
+  if (!el) {
+    el = document.createElement("div"); el.id = "ir-offline";
+    el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:calc(74px + env(safe-area-inset-bottom));z-index:9997;display:none;padding:5px 12px;border-radius:14px;background:rgba(13,17,26,.95);border:1px solid var(--amber);color:var(--amber);font:700 10px Orbitron,monospace;letter-spacing:.5px;white-space:nowrap;pointer-events:none;";
+    el.textContent = "📴 OFFLINE - progress saved on this device";
+    document.body.appendChild(el);
+  }
+  el.style.display = on ? "" : "none";
+}
+window.addEventListener("online", function () { setTimeout(function () { try { saveGame(); } catch (e) {} }, 1500); });
+window.addEventListener("offline", function () { offlineChip(true); try { backupWrite(buildPayload(), false); } catch (e) {} });
+
 function noteSave(ok) {
+  offlineChip(!ok && (saveFails >= 1 || navigator.onLine === false));
   const pill = document.querySelector(".status-pill");
   const label = pill && pill.lastChild;
   if (ok) {
@@ -4068,6 +4092,8 @@ function saveGame(cb) {
     return;
   }
   saveInFlight = true;
+  const payload = buildPayload();
+  backupWrite(payload, false);                 // v8.7.4: kopie v telefonu - kdyby uložení nevyšlo (offline) a hra se zavřela
   const done = function (ok) {
     saveInFlight = false;
     if (cb) cb(ok);
@@ -4078,7 +4104,7 @@ function saveGame(cb) {
   };
   google.script.run
     .withSuccessHandler(res => {
-      if (res && res.ok) { saveRev = Number(res.rev) || saveRev; noteSave(true); done(true); return; }
+      if (res && res.ok) { saveRev = Number(res.rev) || saveRev; backupWrite(payload, true); noteSave(true); done(true); return; }
       if (res && res.reason === "conflict") { showConflict(); done(false); return; }
       if (res && res.reason === "season") {
         log("Season changed on server. Reloading...", "special");
@@ -4091,7 +4117,7 @@ function saveGame(cb) {
       done(false);
     })
     .withFailureHandler(err => { console.error("Cloud save failed: " + err); noteSave(false); done(false); })
-    .saveGame(buildPayload(), saveRev);
+    .saveGame(payload, saveRev);
 }
 window.addEventListener("beforeunload", function () { try { saveGame(); } catch (e) {} });
 // Mobil: beforeunload se tam nevolá. Uložit při schování aplikace / zamčení telefonu / přepnutí záložky (fetch má keepalive).
@@ -4232,7 +4258,15 @@ function loadFromServer() {
     .withSuccessHandler(loaded => {
       loadTries = 0;
       if (window.__irConn) window.__irConn.hide();
-      if (loaded && !loaded.isNew) {
+      const bk = backupRead();
+      let restored = false;
+      if (loaded && loaded.ldap && bk && !bk.synced && bk.data && bk.nick === loaded.ldap && Number(bk.season) === Number(loaded.season) && Number(loaded.rev || 0) <= Number(bk.rev || 0)) {
+        try { const d = JSON.parse(bk.data); d.rev = loaded.rev || 0; d.season = loaded.season; applyLoaded(d); restored = true; } catch (e) { console.error(e); }
+      }
+      if (restored) {
+        log(`📴 Restored your offline progress from this device (${new Date(bk.t).toLocaleString()}) and uploading it now.`, "special");
+        setTimeout(function () { try { saveGame(); } catch (e) {} }, 2500);
+      } else if (loaded && !loaded.isNew) {
         applyLoaded(loaded);
         log(`Welcome back, Agent ${escapeHtml(gameState.ldap)}. Profile loaded.`, "success");
       } else if (loaded && loaded.ldap) {
@@ -6524,15 +6558,18 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 
   // ---------- v8.7: DRŽENÍ TLAČÍTEK (mobil i PC) - tlačítka s data-hold se po 0.4 s začnou opakovat, postupně až ~10× za sekundu
   (function holdRepeat() {
-    let key = null, timer = 0, n = 0, fired = false, startX = 0, startY = 0;
+    // v8.7.4: iPhone po dlouhém podržení často nepošle pointerup -> držení se nevypnulo a "spolklo" další ťuknutí.
+    //   Teď: konec držení i z touchend/touchcancel, každý dotyk jinde držení ukončí, pojistka proti kliku navíc
+    //   blokuje jen klik na držené tlačítko a opakování se zastaví, když prst už není dole.
+    let key = null, timer = 0, n = 0, fired = false, down = false, startX = 0, startY = 0, eatKey = null, eatUntil = 0;
     function stop() {
       if (timer) clearTimeout(timer); timer = 0;
-      if (key && fired) { TT.holding = false; TT.saveSoon(); }
-      TT.holding = false; key = null;
+      if (key && fired) TT.saveSoon();
+      TT.holding = false; key = null; fired = false;
     }
     function tick() {
       if (!key) return;
-      if (TT.holdStop) { TT.holdStop = false; stop(); return; }
+      if (!down || TT.holdStop) { TT.holdStop = false; stop(); return; }
       const el = document.querySelector(`[data-hold="${key}"]`);
       if (!el || el.disabled) { stop(); return; }
       fired = true; TT.holding = true; n++;
@@ -6540,24 +6577,38 @@ html.m #pl-screen { height: var(--app-h, 100%); }
       if (TT.holdStop) { TT.holdStop = false; stop(); return; }
       timer = setTimeout(tick, Math.max(90, 260 - n * 22));
     }
-    document.addEventListener("pointerdown", (e) => {
-      if (e.button > 0) return;
-      const el = e.target && e.target.closest ? e.target.closest("[data-hold]") : null;
+    function begin(target, x, y) {
+      const el = target && target.closest ? target.closest("[data-hold]") : null;
+      if (key && (!el || el.getAttribute("data-hold") !== key)) stop();         // dotyk jinde = konec držení
+      eatKey = null;
+      down = true;
       if (!el || el.disabled) return;
-      stop(); key = el.getAttribute("data-hold"); n = 0; fired = false; TT.holdStop = false; startX = e.clientX; startY = e.clientY;
+      if (key === el.getAttribute("data-hold") && !fired) return;             // touchstart + pointerdown téhož dotyku
+      stop(); key = el.getAttribute("data-hold"); n = 0; fired = false; TT.holdStop = false; startX = x; startY = y;
       timer = setTimeout(tick, 400);
-    }, true);
-    document.addEventListener("pointermove", (e) => { if (key && !fired && Math.hypot(e.clientX - startX, e.clientY - startY) > 12) stop(); }, true);   // posouvání stránky neopakuje
-    const release = () => { const wasHold = fired; stop(); if (wasHold) eatNextClick(); };
-    document.addEventListener("pointerup", release, true);
-    document.addEventListener("pointercancel", release, true);
-    window.addEventListener("blur", (e) => { if (e.target === window) release(); });           // jen ztráta fokusu okna, ne tlačítka
-    document.addEventListener("contextmenu", (e) => { if (key) e.preventDefault(); }, true);
-    function eatNextClick() {                                    // po držení nepustit ještě jeden klik navíc
-      const h = (e) => { if (e.isTrusted) { e.preventDefault(); e.stopPropagation(); } document.removeEventListener("click", h, true); };
-      document.addEventListener("click", h, true);
-      setTimeout(() => document.removeEventListener("click", h, true), 400);
     }
+    function release() {
+      down = false;
+      if (!key) return;
+      const wasHold = fired, k = key;
+      stop();
+      if (wasHold) { eatKey = k; eatUntil = Date.now() + 450; }
+    }
+    document.addEventListener("pointerdown", (e) => { if (e.button > 0) return; begin(e.target, e.clientX, e.clientY); }, true);
+    document.addEventListener("touchstart", (e) => { const t = e.touches[0]; if (t) begin(e.target, t.clientX, t.clientY); }, { capture: true, passive: true });
+    const moved = (x, y) => { if (key && !fired && Math.hypot(x - startX, y - startY) > 12) stop(); };   // posouvání stránky neopakuje
+    document.addEventListener("pointermove", (e) => moved(e.clientX, e.clientY), true);
+    document.addEventListener("touchmove", (e) => { const t = e.touches[0]; if (t) moved(t.clientX, t.clientY); }, { capture: true, passive: true });
+    ["pointerup", "pointercancel", "touchend", "touchcancel", "dragstart"].forEach(t => document.addEventListener(t, release, true));
+    window.addEventListener("blur", (e) => { if (e.target === window) release(); });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) release(); });
+    document.addEventListener("contextmenu", (e) => { if (key) e.preventDefault(); }, true);
+    document.addEventListener("click", (e) => {                 // po držení nepustit ještě jeden klik navíc - jen na držené tlačítko
+      if (!eatKey || !e.isTrusted) return;
+      const el = e.target && e.target.closest ? e.target.closest("[data-hold]") : null;
+      if (Date.now() < eatUntil && el && el.getAttribute("data-hold") === eatKey) { e.preventDefault(); e.stopPropagation(); }
+      eatKey = null;
+    }, true);
   })();
 
   window.Plant = { fx: fx, load: load, payload: payload, apply: apply, lpGainFor: lpGainFor, renderPanel: renderPanel, open: open, close: close, buy: buy, seed: plantSeed,
