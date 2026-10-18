@@ -2784,8 +2784,8 @@ function buffChips() {
   const g = gameState;
   const chips = [];
   chips.push(`<span class="buff-chip" title="1 + prestige ${g.prestige}×0.25 + gear multipliers">⚡ MULT ${calculateNetMultiplier().toFixed(2)}×</span>`);
-  if (g.lpUp.click) chips.push(`<span class="buff-chip lp">★ +${g.lpUp.click * 10}% click</span>`);
-  if (g.lpUp.auto) chips.push(`<span class="buff-chip lp">★ +${g.lpUp.auto * 10}% auto</span>`);
+  if (g.lpUp.click) chips.push(`<span class="buff-chip lp">★ +${Math.round(g.lpUp.click * 10)}% click</span>`);
+  if (g.lpUp.auto) chips.push(`<span class="buff-chip lp">★ +${Math.round(g.lpUp.auto * 10)}% auto</span>`);
   if (g.prestige >= 5) chips.push(`<span class="buff-chip">🔁 AUTO ×${Math.pow(2, Math.floor(g.prestige / 5))}</span>`);
   if (g.focusAutogenActive) chips.push(`<span class="buff-chip on">⏱ AUTOGEN ${fmtTime(g.focusAutogenRemaining)}</span>`);
   if (g.autoclicker.running) chips.push(`<span class="buff-chip on">🤖 AUTOCLICK ${fmtTime(g.autoclicker.charge)}</span>`);
@@ -6296,7 +6296,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
   }
   /** starý kód čte gameState.lpUp -> přepočítáme ho ze stromu */
   function apply() {
-    gameState.lpUp = { click: fx("click") * 10, auto: fx("auto") * 10, scrap: fx("scrap") / 0.03, start: 0, heirloom: fx("heirloom") };
+    gameState.lpUp = { click: lvl("o_click"), auto: lvl("o_auto"), scrap: lvl("o_scrap") * 4 / 3, start: 0, heirloom: fx("heirloom") };   // celá čísla = žádné 30.000000004 %
   }
 
   /** načtení savu + jednorázová migrace ze starého Legacy shopu (bez wipe) */
