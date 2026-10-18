@@ -1051,7 +1051,7 @@ body {
 
         <div class="panel">
           <div class="panel-header">
-            <span>LEGACY SHOP</span>
+            <span>🌳 THE OFFICE PLANT</span>
             <span style="font-size:10px; color:var(--amber);">LEGACY POINTS: <span id="lp-count2"></span></span>
           </div>
           <div id="lp-shop"></div>
@@ -1132,11 +1132,11 @@ body {
           <div class="chest-result" id="chest-result"></div>
 
           <div style="display:flex; gap:6px; margin-bottom:6px;">
-            <button class="btn btn-crimson" id="btn-open-chest" style="flex:1; padding:10px 6px;" onclick="openCompanyChest(1)">OPEN ×1</button>
-            <button class="btn btn-crimson" id="btn-open-chest10" style="flex:1; padding:10px 6px;" onclick="openCompanyChest(10)">OPEN ×10</button>
+            <button class="btn btn-crimson" id="btn-open-chest" data-hold="chest1" style="flex:1; padding:10px 6px;" onclick="openCompanyChest(1)">OPEN ×1</button>
+            <button class="btn btn-crimson" id="btn-open-chest10" data-hold="chest10" style="flex:1; padding:10px 6px;" onclick="openCompanyChest(10)">OPEN ×10</button>
           </div>
           <div style="display:flex; gap:6px;">
-            <button class="btn btn-gold" id="btn-upgrade-chest" style="flex:1; padding:8px 6px;" onclick="upgradeCompanyChest()">UPGRADE (<span id="chest-upgrade-cost">100</span> GC)</button>
+            <button class="btn btn-gold" id="btn-upgrade-chest" data-hold="chestup" style="flex:1; padding:8px 6px;" onclick="upgradeCompanyChest()">UPGRADE (<span id="chest-upgrade-cost">100</span> GC)</button>
             <button class="btn btn-cyan" id="btn-token" style="flex:1; padding:8px 6px;" disabled onclick="openTokenPicker(event)">🎟 USE SLOT TOKEN (0)</button>
           </div>
         </div>
@@ -1754,7 +1754,7 @@ window.TT = {
       (window.AdvMini && AdvMini.isBusy && AdvMini.isBusy());
   },
   fmt: (n) => Math.floor(n).toLocaleString(),
-  maxBet: () => Math.min(1e9, 100000 * Math.pow(2, gameState.prestige || 0)),
+  maxBet: () => Math.min(1.5e9, Math.floor(100000 * Math.pow(2, gameState.prestige || 0) * (window.Plant ? Plant.fx("bet") : 1))),
   cleanBet: function (value, min, max) {
     let n = Math.floor(Number(value));
     if (!isFinite(n)) n = min;
@@ -2180,7 +2180,7 @@ function calculateAutoGcRate() {
 function toggleFocusAutogen(fromClick) {
   if (gameState.focusAutogenActive) return;
   gameState.focusAutogenActive = true;
-  gameState.focusAutogenRemaining = 2700;
+  gameState.focusAutogenRemaining = window.Plant ? Plant.fx("autogenSec") : 2700;
   log(fromClick === true ? "45M FOCUS AUTOGEN auto-started by your click." : "45M FOCUS AUTOGEN ACTIVATED: passive Google Coins accumulation started!", "special");
   updateUI();
   TT.saveSoon();
@@ -2190,7 +2190,7 @@ function toggleFocusAutogen(fromClick) {
 // 7. PRESTIŽ + LEGACY POINTS
 // ==========================================================================
 function getPrestigeCost(p) { return Math.floor(200000 * Math.pow(4.2, p)); }
-function lpGainFor(p) { return 1 + Math.floor(p / 3); }
+function lpGainFor(p) { return window.Plant ? Plant.lpGainFor(p) : 2 + Math.floor(p / 2); }   // v8.7: víc LP (dřív 1 + floor(p/3))
 let prestigeArmedUntil = 0;
 
 function performPrestige() {
@@ -2220,7 +2220,8 @@ function performPrestige() {
   const lpGain = lpGainFor(gameState.prestige);
   gameState.lp += lpGain;
   gameState.tickets = 0;
-  gameState.coins = 250 + 500 * gameState.lpUp.start;
+  const keptGc = window.Plant ? Math.floor(gameState.coins * Plant.fx("keepGc")) : 0;     // Office Plant: Deep Roots
+  gameState.coins = 250 + (window.Plant ? Plant.fx("startGc") : 500 * gameState.lpUp.start) + keptGc;
   gameState.scrap = 0;
   gameState.chestLevel = 1;
   gameState.tokBuy = 0;                    // cena tokenů v Upgrade Station se s prestiží vrací na začátek
@@ -2238,39 +2239,8 @@ function performPrestige() {
 
 function lpLevel(id) { return gameState.lpUp[id] || 0; }
 
-function buyLp(id) {
-  const up = LP_UPGRADES.find(u => u.id === id);
-  if (!up) return;
-  const lvl = lpLevel(id);
-  if (lvl >= up.max) return;
-  const cost = up.cost(lvl);
-  if (gameState.lp < cost) { log(`Not enough Legacy Points (${cost} needed).`, "warning"); return; }
-  gameState.lp -= cost;
-  gameState.lpUp[id] = lvl + 1;
-  log(`LEGACY UPGRADE: ${up.name} -> level ${lvl + 1}.`, "special");
-  renderLpShop(true);
-  updateHud();
-  TT.saveSoon();
-}
-
-function renderLpShop(force) {
-  const sig = gameState.lp + "|" + LP_UPGRADES.map(u => lpLevel(u.id)).join(",");
-  if (!force && _txt.lpSig === sig) return;
-  _txt.lpSig = sig;
-  setTxt("lp-count", gameState.lp);
-  setTxt("lp-count2", gameState.lp);
-  const box = document.getElementById("lp-shop");
-  if (!box) return;
-  box.innerHTML = LP_UPGRADES.map(u => {
-    const l = lpLevel(u.id);
-    const maxed = l >= u.max;
-    const cost = u.cost(l);
-    return `<div class="lp-row">
-      <div><b>${u.name}</b> <span class="lp-lvl">Lv ${l}/${u.max}</span><div class="lp-desc">${u.desc}</div></div>
-      <button class="btn ${maxed ? "" : "btn-gold"}" ${maxed || gameState.lp < cost ? "disabled" : ""} onclick="buyLp('${u.id}')">${maxed ? "MAX" : cost + " LP"}</button>
-    </div>`;
-  }).join("");
-}
+/** v8.7: Legacy shop nahradil THE OFFICE PLANT (plant.html) */
+function renderLpShop(force) { if (window.Plant) Plant.renderPanel(force); }
 
 // ==========================================================================
 // 8. SCRAP KONVERTOR
@@ -2321,7 +2291,7 @@ function getChestOdds(lvl) {
   const t5 = l < T5_UNLOCK_LVL ? 0 : Math.min(0.75, 0.025 + (l - T5_UNLOCK_LVL) * 0.003);   // v8.2: poloviční šance na Mythic
   // Prismatic (T6): jen pro části těla odemčené bossy v HIGH STAKES, od bedny LV 50 (v8.2.2: až po Mythicu a vždy vzácnější než Mythic)
   const t6n = window.Dungeon && Dungeon.t6Slots ? Dungeon.t6Slots().length : 0;
-  const t6 = l < T6_UNLOCK_LVL || !t6n ? 0 : Math.min(0.3, 0.005 + (l - T6_UNLOCK_LVL) * 0.002) * t6n / 6;
+  const t6 = l < T6_UNLOCK_LVL || !t6n ? 0 : Math.min(0.45, (0.005 + (l - T6_UNLOCK_LVL) * 0.002) * (window.Plant ? Plant.fx("t6") : 1)) * t6n / 6;
   const t1 = Math.max(0, 100.0 - (trash + t2 + t3 + t4 + t5 + t6));
   return { trash, t1, t2, t3, t4, t5, t6 };
 }
@@ -2372,7 +2342,7 @@ function openCompanyChest(n) {
     gameState.scrap -= cost;
     opened++;
 
-    if (Math.random() < TOKEN_CHANCE) { gameState.slotTokens += 1; tokens++; }
+    if (Math.random() < TOKEN_CHANCE * (window.Plant ? Plant.fx("token") : 1)) { gameState.slotTokens += 1; tokens++; }
 
     const t = rollTier(true);
     if (t === 0) { trash++; continue; }
@@ -2967,7 +2937,7 @@ function updateUI() {
 // KONFIGURACE CONSULTU (laď tady)
 // ==========================================================================
 /** v8.6: cena consultu škáluje - 10 % aktuálního scrapu, minimum 5 000 */
-function consultCost() { return Math.max(5000, Math.floor((Number(gameState && gameState.scrap) || 0) * 0.10)); }
+function consultCost() { return Math.floor(Math.max(5000, Math.floor((Number(gameState && gameState.scrap) || 0) * 0.10)) * (window.Plant ? Plant.fx("consult") : 1)); }
 const CONSULT_WIN_MIN = 5, CONSULT_WIN_MAX = 30;      // výhra = Auto GC/s x 60 x (5..30 minut)
 const CONSULT_LOSS_MIN = 1, CONSULT_LOSS_MAX = 10;    // prohra = Auto GC/s x 60 x (1..10 minut)
 const CONSULT_BUG_WIN_MIN = 5, CONSULT_BUG_WIN_MAX = 10;   // BUG výhra = click power x (5..10) na 60 s
@@ -3865,7 +3835,7 @@ const TUTORIAL_STEPS = [
   { t: "8) 🎰 HIGH STAKES", b: `
     <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
     <ul><li>⚔ Quick / 🗡 Strike = safe hits. 💥 <b>Power</b> = stop the needle in the green zone (1.9×) or gold (2.5×), then 2 turns cooldown. 🎰 <b>Gamble</b> = a mini slot machine (777 = 6×, 💀💀💀 = backfire)</li>
-    <li>🛡 Block a HEAVY and tap in time = <b>PARRY</b> (no damage, counter, stun). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. ⚡ Stamina does not refill by itself - QUICK and BLOCK recharge it for STRIKE and POWER. During POWER and PARRY you can tap <b>anywhere</b> on the screen</li>
+    <li>🛡 Block a HEAVY and tap when the ring hits gold: <b>PERFECT</b> parry (no damage, counter, stun) or <b>GOOD</b> (-90%). The ring comes after a random wind-up, UNLEASH sends 3 of them. 🎰 Gamble: HOLD reels and re-spin once. ✨ Ultimates are a 2-second mini-game (70-125% power). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. ⚡ Stamina does not refill by itself - QUICK and BLOCK recharge it for STRIKE and POWER. During POWER and PARRY you can tap <b>anywhere</b> on the screen</li>
     <li>Campaign: 5 chapters, 50 missions. Each mission has 3 separate stars: ★ win, ★ win with 50%+ HP, ★ the bonus goal <b>or</b> a win within 3 turns. Stars you earn stay - you can collect them over several runs. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min, or turn a Slot Token into +4 ⚡ with the button at the top)</li>
     <li>📋 <b>Compliance audits</b>: every turn a form asks for one move. Do it = bonus damage. Ignore it = RED TAPE (-ATK, -dodge, stacks). Dodging twice in a row works less often</li>
     <li>🗼 <b>TOWER</b>: 100 floors, every 10 = +1% power. 📟 <b>SHIFT</b>: roguelite run with perks, HP carries over. 📊 <b>BOSS</b>: weekly company-wide boss, 1 attack per hour - kill it together for ×1.10 income next week. Kill it and a stronger MK.II spawns right away (then MK.III...) - the higher the MK, the bigger the weekly reward</li>
@@ -3989,7 +3959,7 @@ function buildPayload() {
     autosellTier: g.autosellTier,
     focusAutogenActive: g.focusAutogenActive, focusAutogenRemaining: g.focusAutogenRemaining,
     tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy,
-    lp: g.lp, lpUp: g.lpUp,
+    lp: g.lp, lpUp: window.Plant ? {} : g.lpUp, plant: window.Plant ? Plant.payload() : g.plant,
     autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
     pachinko: g.pachinko, pcPending: g.pcPending,
     dungeon: window.Dungeon ? Dungeon.payload() : g.dungeon,
@@ -4025,6 +3995,7 @@ function showConflict() {
 }
 
 function saveGame(cb) {
+  if (!cb && window.TT && TT.holding) { TT.saveSoon(); return; }      // v8.7: při držení tlačítka se ukládá až po puštění
   if (!gameLoaded || reloading) { if (cb) cb(false); return; }
   if (typeof google === "undefined" || !google.script || !google.script.run) { if (cb) cb(false); return; }
   if (saveInFlight) {                       // ukládání po jednom, ať se revize nepřetahují s vlastním dřívějším uložením
@@ -4137,8 +4108,7 @@ function applyLoaded(l) {
     for (let p = 1; p <= g.prestige; p++) lp += lpGainFor(p);
     g.lp = lp;
   } else g.lp = Math.max(0, Math.floor(nv(l.lp, 0)));
-  const up = l.lpUp || {};
-  LP_UPGRADES.forEach(u => { g.lpUp[u.id] = Math.max(0, Math.min(u.max, Math.floor(nv(up[u.id], 0)))); });
+  if (window.Plant) Plant.load(g, l);                 // v8.7: THE OFFICE PLANT (+ jednorázová migrace starého Legacy shopu)
 
   if (l.autoclicker) {
     g.autoclicker.charge = nv(l.autoclicker.charge, 0);
@@ -6111,12 +6081,12 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
         if (ch < 100) html += `<label class="fg-opt"><input type="checkbox" ${guarantee ? "checked" : ""} onchange="Forge.opt('g',this.checked)"> ✅ Guarantee success (2 🎟)</label>`;
         if (t >= 11 && !guarantee) html += `<label class="fg-opt"><input type="checkbox" ${protect ? "checked" : ""} onchange="Forge.opt('p',this.checked)"> 🛡 Protect from the drop (1 🎟, only spent if it fails)</label>`;
         const can = g.coins >= c && (!guarantee || g.slotTokens >= 2);
-        html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 🎟" : ""})</button>`;
+        html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} data-hold="forge-go" onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 🎟" : ""})</button>`;
       }
     }
     html += `<div class="fg-msg" style="color:${msg.c || "var(--text-dim)"};">${msg.t}</div>`;
     html += `<div class="fg-tok"><span>🎟 Slot Token: <b style="color:var(--amber);">${short(tp)} GC</b></span>
-      <button class="btn btn-cyan" ${g.coins >= tp ? "" : "disabled"} onclick="Forge.buy(1)">BUY 1</button>
+      <button class="btn btn-cyan" ${g.coins >= tp ? "" : "disabled"} data-hold="forge-buy1" onclick="Forge.buy(1)">BUY 1</button>
       <button class="btn btn-cyan" ${g.coins >= tp * 5 ? "" : "disabled"} onclick="Forge.buy(5)">BUY 5</button>
       <span style="color:var(--text-dim);font-size:10px;width:100%;">Price +30% per token, resets on prestige. Tokens also give +1 merge level (USE SLOT TOKEN) or HIGH STAKES energy.</span></div>`;
     body.innerHTML = html;
@@ -6137,6 +6107,7 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
     if (guarantee) { g.slotTokens -= 2; ok = true; }
     else ok = Math.random() * 100 < chance(t);
     const name = itemName(it);
+    if (!ok) TT.holdStop = true;                          // v8.7: držení tlačítka se po neúspěchu zastaví
     if (ok) {
       it.e = e + choice;
       say(`✔ SUCCESS! ${name} is now ⚒${t} (${CH[choice][2]})`, "var(--emerald)");
@@ -6194,6 +6165,349 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
     }, 500);
   }
   boot();
+})();
+</script>
+<style>
+/* ===== v8.7 THE OFFICE PLANT (místo Legacy shopu) + držení tlačítek ===== */
+.pl-top { display: flex; gap: 10px; align-items: center; }
+.pl-art { flex: none; width: 92px; height: 92px; border-radius: 8px; background: radial-gradient(circle at 50% 30%, #13261b, #070b0a 75%); border: 1px solid rgba(0,255,136,.18); display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
+.pl-art svg { width: 88px; height: 88px; image-rendering: pixelated; }
+.pl-info { flex: 1; min-width: 0; font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+.pl-info b { color: var(--amber); }
+.pl-stage { font: 800 11px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
+.pl-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.pl-row .btn { flex: 1; padding: 7px 4px; font-size: 10px; min-width: 90px; }
+.pl-fx { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
+.pl-fx span { font-size: 9px; padding: 2px 6px; border-radius: 9px; background: rgba(0,255,136,.08); border: 1px solid rgba(0,255,136,.25); color: #a7f3d0; }
+#pl-screen { position: fixed; inset: 0; z-index: 206; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #0d1f14 0%, var(--bg-core, #07090e) 60%); color: var(--text-main); }
+#pl-screen.open { display: flex; }
+html.m #pl-screen { height: var(--app-h, 100%); }
+.pl-head { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
+.pl-head h1 { flex: 1; margin: 0; font: 900 15px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
+.pl-inner { max-width: 1000px; margin: 0 auto; }
+.pl-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.pl-br { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 760px) { .pl-br { grid-template-columns: 1fr; } }
+.pl-bh { font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; margin-bottom: 6px; display: flex; justify-content: space-between; }
+.pl-n { display: flex; gap: 8px; align-items: center; padding: 7px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 6px; }
+.pl-n.lock { opacity: .4; }
+.pl-n.max { border-color: rgba(0,255,136,.45); }
+.pl-n.key { border-color: rgba(255,215,0,.35); background: linear-gradient(90deg, rgba(255,215,0,.07), transparent); }
+.pl-n .ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; background: #0b1610; border: 1px solid rgba(0,255,136,.3); }
+.pl-n .t { flex: 1; min-width: 0; font-size: 11px; }
+.pl-n .t b { display: block; font: 800 10.5px 'Orbitron', monospace; }
+.pl-n .t span { font-size: 10px; color: var(--text-dim); }
+.pl-n .lv { font: 700 9px 'Orbitron', monospace; color: var(--emerald); }
+.pl-n .btn { flex: none; padding: 6px 8px; font-size: 10px; min-width: 58px; }
+.pl-pips { display: flex; gap: 2px; margin-top: 3px; }
+.pl-pips i { width: 9px; height: 4px; border-radius: 2px; background: #1e2636; }
+.pl-pips i.on { background: var(--emerald); }
+</style>
+<div id="pl-screen">
+  <div class="pl-head"><button class="btn btn-cyan" onclick="Plant.close()">◀ OFFICE</button><h1>🌳 THE OFFICE PLANT</h1><span id="pl-lp" style="font:800 12px Orbitron,monospace;color:var(--amber);"></span></div>
+  <div class="pl-body"><div class="pl-inner" id="pl-inner"></div></div>
+</div>
+<script>
+/**
+ * THE OFFICE PLANT (v8.7) - nahrazuje Legacy shop. Měna = Legacy Points.
+ * Semínko -> strom roste ve fázích podle investovaných LP, 3 větve uzlů, keystone plody, sklizeň plodů každé 4 h, zalévání 1× denně.
+ * Kvůli kompatibilitě strom dál plní gameState.lpUp (click/auto/scrap/start/heirloom), takže starý kód funguje beze změny.
+ */
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
+  const SEED_COST = 1, FRUIT_MS = 4 * 3600000, FRUIT_MAX = 3, WATER_MS = 2 * 3600000;
+  const STAGES = [
+    { at: 0, name: "SEED", icon: "🌰" },
+    { at: 0, name: "SPROUT", icon: "🌱" },
+    { at: 6, name: "SAPLING", icon: "🌿" },
+    { at: 18, name: "TREE", icon: "🌳" },
+    { at: 40, name: "ANCIENT TREE", icon: "🌲" }
+  ];
+  const BR = {
+    office: { name: "💼 OFFICE", color: "var(--cyan)" },
+    casino: { name: "🎰 CASINO", color: "var(--amber)" },
+    hs: { name: "⚔ HIGH STAKES", color: "var(--crimson)" }
+  };
+  /** row = potřebná fáze stromu (1 sprout ... 4 ancient), req = uzel, který musí mít aspoň 1 level */
+  const NODES = [
+    { id: "o_click", br: "office", row: 1, icon: "👆", name: "Sunlight", desc: l => `+${10 * l}% click power`, next: "+10% click", costs: [1, 1, 2, 2] },
+    { id: "o_auto", br: "office", row: 1, icon: "⚙", name: "Photosynthesis", desc: l => `+${10 * l}% Auto GC`, next: "+10% auto", costs: [1, 1, 2, 2] },
+    { id: "o_start", br: "office", row: 2, icon: "💰", name: "Fertilizer", req: "o_auto", desc: l => `start every run with +${short(2000 * l)} GC`, next: "+2,000 start GC", costs: [1, 1, 1] },
+    { id: "o_scrap", br: "office", row: 2, icon: "📦", name: "Compost", req: "o_click", desc: l => `chests cost ${4 * l}% less scrap`, next: "-4% chest cost", costs: [1, 1, 2, 2] },
+    { id: "o_heir", br: "office", row: 3, icon: "🏺", name: "Heirloom Roots", req: "o_scrap", desc: l => `Heirloom ${1 + l}: keep your best ${1 + l} items on prestige`, next: "+1 Heirloom item", costs: [1, 2, 2, 3, 3] },
+    { id: "k_ever", br: "office", row: 3, icon: "🌲", name: "Evergreen", key: true, req: "o_start", desc: () => "Autogen runs 60 min instead of 45", costs: [3] },
+    { id: "k_roots", br: "office", row: 4, icon: "🌰", name: "Deep Roots", key: true, req: "o_heir", desc: () => "Keep 10% of your GC on prestige", costs: [5] },
+    { id: "c_bet", br: "casino", row: 1, icon: "🎲", name: "High Roller Leaves", desc: l => `max bets ×${Math.pow(1.5, l).toFixed(2)}`, next: "max bet ×1.5", costs: [1, 2, 2] },
+    { id: "c_cons", br: "casino", row: 2, icon: "🧑‍💼", name: "Consultant Bark", req: "c_bet", desc: l => `consult costs ${10 * l}% less`, next: "-10% consult", costs: [1, 1, 2] },
+    { id: "c_tok", br: "casino", row: 2, icon: "🎟", name: "Token Blossom", req: "c_bet", desc: l => `Slot Token chance from chests +${50 * l}%`, next: "+50% token chance", costs: [2, 2, 3] },
+    { id: "k_cherry", br: "casino", row: 4, icon: "🍒", name: "Lucky Cherry", key: true, req: "c_tok", desc: () => "HIGH STAKES gamble: 🍒 counts as a wild symbol", costs: [5] },
+    { id: "h_xp", br: "hs", row: 1, icon: "📈", name: "Growth Rings", desc: l => `+${8 * l}% HIGH STAKES XP`, next: "+8% XP", costs: [1, 1, 1, 2] },
+    { id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
+    { id: "h_foc", br: "hs", row: 2, icon: "✨", name: "Morning Dew", req: "h_xp", desc: l => `start fights with +${10 * l} focus`, next: "+10 start focus", costs: [1, 2, 2] },
+    { id: "h_parry", br: "hs", row: 3, icon: "🛡", name: "Thick Bark", req: "h_foc", desc: l => `parry windows +${15 * l}%`, next: "+15% parry window", costs: [2, 3] },
+    { id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] }
+  ];
+  const BY = {}; NODES.forEach(n => { BY[n.id] = n; });
+  const TOTAL = SEED_COST + NODES.reduce((a, n) => a + n.costs.reduce((x, y) => x + y, 0), 0);
+  /** nový přísun LP za prestiž (dřív 1 + floor(p/3)) */
+  function lpGainFor(p) { return 2 + Math.floor(p / 2); }
+  function oldLpGainFor(p) { return 1 + Math.floor(p / 3); }
+  const OLD_COST = { click: l => 2 + l, auto: l => 2 + l, scrap: l => 2 + l, start: l => 1 + l, heirloom: l => 5 * (l + 1) };
+
+  function blank() { return { seed: false, n: {}, fruitAt: 0, waterDay: "", respecP: -1, mig: 1, harvested: 0 }; }
+  function st() {
+    const g = gameState;
+    if (!g.plant || typeof g.plant !== "object") g.plant = blank();
+    const p = g.plant;
+    if (!p.n || typeof p.n !== "object") p.n = {};
+    Object.keys(p.n).forEach(k => { if (!BY[k]) delete p.n[k]; else p.n[k] = Math.max(0, Math.min(BY[k].costs.length, Math.floor(Number(p.n[k]) || 0))); });
+    p.seed = !!p.seed;
+    p.fruitAt = Number(p.fruitAt) || 0;
+    return p;
+  }
+  function lvl(id) { return st().n[id] || 0; }
+  function invested() { const p = st(); return (p.seed ? SEED_COST : 0) + NODES.reduce((a, n) => a + n.costs.slice(0, lvl(n.id)).reduce((x, y) => x + y, 0), 0); }
+  function stage() { const p = st(); if (!p.seed) return 0; const inv = invested(); let s = 1; for (let i = 2; i < STAGES.length; i++) if (inv >= STAGES[i].at) s = i; return s; }
+
+  /** číselné efekty pro zbytek hry */
+  function fx(k) {
+    switch (k) {
+      case "click": return 0.10 * lvl("o_click");
+      case "auto": return 0.10 * lvl("o_auto");
+      case "startGc": return 2000 * lvl("o_start");
+      case "scrap": return 0.04 * lvl("o_scrap");
+      case "heirloom": return st().seed ? 1 + lvl("o_heir") : 0;
+      case "autogenSec": return lvl("k_ever") ? 3600 : 2700;
+      case "keepGc": return lvl("k_roots") ? 0.10 : 0;
+      case "bet": return Math.pow(1.5, lvl("c_bet"));
+      case "consult": return 1 - 0.10 * lvl("c_cons");
+      case "token": return 1 + 0.5 * lvl("c_tok");
+      case "wildCherry": return lvl("k_cherry") > 0;
+      case "xp": return 1 + 0.08 * lvl("h_xp");
+      case "energy": return lvl("h_en");
+      case "focus": return 10 * lvl("h_foc");
+      case "parry": return 1 + 0.15 * lvl("h_parry");
+      case "t6": return lvl("k_apple") ? 1.5 : 1;
+    }
+    return 0;
+  }
+  /** starý kód čte gameState.lpUp -> přepočítáme ho ze stromu */
+  function apply() {
+    gameState.lpUp = { click: fx("click") * 10, auto: fx("auto") * 10, scrap: fx("scrap") / 0.03, start: 0, heirloom: fx("heirloom") };
+  }
+
+  /** načtení savu + jednorázová migrace ze starého Legacy shopu (bez wipe) */
+  function load(g, l) {
+    const raw = l.plant && typeof l.plant === "object" ? l.plant : null;
+    g.plant = raw ? Object.assign(blank(), raw) : blank();
+    const p = st();
+    if (!raw || !raw.mig) {
+      const old = l.lpUp || {};
+      let refund = 0;
+      Object.keys(OLD_COST).forEach(k => { const n = Math.max(0, Math.floor(Number(old[k]) || 0)); for (let i = 0; i < n; i++) refund += OLD_COST[k](i); });
+      let bonus = 0; if (l.lp !== undefined) for (let q = 1; q <= (g.prestige || 0); q++) bonus += lpGainFor(q) - oldLpGainFor(q);   // úplně starý save už LP dostal novým vzorcem
+      g.lp = Math.max(0, Math.floor(Number(g.lp) || 0)) + refund + Math.max(0, bonus);
+      p.n = {}; p.seed = false; p.mig = 1;
+      if ((Number(old.heirloom) || 0) >= 1) { p.seed = true; p.fruitAt = Date.now(); }      // kdo měl Heirloom, dostane semínko zdarma
+      if (refund || bonus) g._plantMsg = `🌳 THE OFFICE PLANT replaced the Legacy shop: refunded ${refund} LP${bonus > 0 ? " + " + bonus + " bonus LP (new rate)" : ""}${p.seed ? " and planted your seed for free" : ""}. Spend them on your tree!`;
+    }
+    apply();
+  }
+  function payload() { return st(); }
+
+  function costOf(n) { const l = lvl(n.id); return l >= n.costs.length ? 0 : n.costs[l]; }
+  function canBuy(n) {
+    const p = st();
+    if (!p.seed || lvl(n.id) >= n.costs.length) return false;
+    if (stage() < n.row) return false;
+    if (n.req && !lvl(n.req)) return false;
+    return gameState.lp >= costOf(n);
+  }
+  function why(n) {
+    if (!st().seed) return "plant the seed first";
+    if (stage() < n.row) return "needs " + STAGES[n.row].name;
+    if (n.req && !lvl(n.req)) return "needs " + BY[n.req].name;
+    return "";
+  }
+  function plantSeed() {
+    const p = st(); if (p.seed) return;
+    if (gameState.lp < SEED_COST) { log("You need " + SEED_COST + " Legacy Point to plant the seed (prestige once).", "warning"); return; }
+    gameState.lp -= SEED_COST; p.seed = true; p.fruitAt = Date.now();
+    apply(); log("🌱 You planted a seed on your desk. Heirloom I unlocked: your best item survives prestige.", "special");
+    after();
+  }
+  function buy(id) {
+    const n = BY[id]; if (!n) return;
+    if (!canBuy(n)) { TT.holdStop = true; return; }
+    const before = stage();
+    gameState.lp -= costOf(n); st().n[id] = lvl(id) + 1;
+    apply();
+    log(`🌳 ${n.name} ${n.key ? "" : "level " + lvl(id)} - ${n.desc(lvl(id))}.`, "special");
+    if (stage() > before) log(`🌳 Your plant grew into a ${STAGES[stage()].icon} ${STAGES[stage()].name}! New nodes unlocked.`, "special");
+    after();
+  }
+  function respecCost() { return st().respecP === gameState.prestige ? 100000 * (1 + (gameState.prestige || 0)) : 0; }
+  function respec() {
+    const p = st(), inv = invested() - (p.seed ? SEED_COST : 0); if (!inv) return;
+    const c = respecCost();
+    if (gameState.coins < c) { log(`Replanting costs ${short(c)} GC (free once per prestige).`, "warning"); return; }
+    if (!confirm(`Replant your tree? You get all ${inv} LP back${c ? " for " + short(c) + " GC" : " (free this prestige)"}.`)) return;
+    gameState.coins -= c; p.n = {}; p.respecP = gameState.prestige; gameState.lp += inv;
+    apply(); log(`🌳 Tree replanted: +${inv} LP back.`, "special"); after();
+  }
+
+  // ---------- plody a zalévání
+  function fruits() { const p = st(); if (!p.seed || !p.fruitAt) return 0; return Math.max(0, Math.min(FRUIT_MAX, Math.floor((Date.now() - p.fruitAt) / FRUIT_MS))); }
+  function nextFruitIn() { const p = st(); if (fruits() >= FRUIT_MAX) return 0; return FRUIT_MS - ((Date.now() - p.fruitAt) % FRUIT_MS); }
+  function today() { return new Date().toISOString().slice(0, 10); }
+  function canWater() { const p = st(); return p.seed && p.waterDay !== today() && fruits() < FRUIT_MAX; }
+  function water() {
+    const p = st(); if (!canWater()) return;
+    p.waterDay = today(); p.fruitAt -= WATER_MS;
+    log("💧 You watered your plant - the next fruit ripens 2 hours sooner.", "success"); after();
+  }
+  function harvest() {
+    const p = st(), n = fruits(); if (!n) return;
+    const s = stage(), got = [];
+    for (let i = 0; i < n; i++) {
+      const r = Math.random(), tokP = 0.03 + 0.02 * s;
+      if (r < tokP) { gameState.slotTokens += 1; got.push("🎟 Slot Token"); }
+      else if (r < tokP + 0.17 && window.Dungeon && Dungeon.state && Dungeon.unlocked()) { const d = Dungeon.state(); d.energy = Math.min(d.energy + 2 + (s >= 3 ? 1 : 0), 99); got.push("⚡ +" + (2 + (s >= 3 ? 1 : 0)) + " energy"); }
+      else if (r < 0.55) { const gc = Math.max(5000, Math.round(calculateAutoGcRate() * 600)) * s; gameState.coins += gc; got.push("💰 +" + short(gc) + " GC"); }
+      else { const sc = Math.max(500, Math.round(getChestScrapCost() * 4)) * s; gameState.scrap += sc; got.push("⚙ +" + short(sc) + " scrap"); }
+    }
+    p.fruitAt += n * FRUIT_MS; if (fruits() === 0 && Date.now() - p.fruitAt > FRUIT_MS) p.fruitAt = Date.now();
+    p.harvested = (p.harvested || 0) + n;
+    log(`🍎 HARVEST (${n} fruit${n > 1 ? "s" : ""}): ${got.join(", ")}`, "special");
+    after();
+  }
+  function after() { renderPanel(true); if (isOpen) render(); if (typeof updateUI === "function") updateUI(); TT.saveSoon(); }
+
+  // ---------- pixel art kytka podle fáze
+  function art(s, nf) {
+    const R = [];
+    const px = (x, y, w, h, c) => R.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"/>`);
+    px(8, 18, 8, 5, "#7c3f1d"); px(7, 17, 10, 2, "#9a5228"); px(9, 23, 6, 1, "#5b2c12");        // květináč
+    if (s === 0) { px(11, 16, 2, 1, "#a16207"); }
+    if (s >= 1) { px(11, 13, 2, 4, "#15803d"); px(9, 12, 2, 2, "#22c55e"); px(13, 11, 2, 2, "#22c55e"); }
+    if (s >= 2) { px(11, 9, 2, 8, "#6b3f1d"); px(8, 7, 8, 4, "#16a34a"); px(9, 5, 6, 2, "#22c55e"); }
+    if (s >= 3) { px(5, 4, 14, 6, "#15803d"); px(7, 2, 10, 3, "#22c55e"); px(4, 7, 3, 2, "#16a34a"); px(17, 7, 3, 2, "#16a34a"); px(10, 10, 4, 7, "#6b3f1d"); }
+    if (s >= 4) { px(3, 1, 18, 3, "#166534"); px(2, 4, 20, 5, "#15803d"); px(6, 0, 12, 2, "#22c55e"); px(9, 9, 6, 8, "#5b3a1a"); px(7, 15, 2, 2, "#5b3a1a"); px(15, 15, 2, 2, "#5b3a1a"); }
+    const spots = s >= 3 ? [[7, 6], [15, 5], [11, 3]] : [[9, 8], [14, 8], [11, 6]];
+    if (s >= 2) for (let i = 0; i < nf; i++) px(spots[i][0], spots[i][1], 2, 2, "#ef4444");
+    return `<svg viewBox="0 0 24 24" shape-rendering="crispEdges">${R.join("")}</svg>`;
+  }
+  function fmtT(ms) { const m = Math.ceil(ms / 60000); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + "m"; }
+  function activeFx() {
+    const out = [];
+    NODES.forEach(n => { const l = lvl(n.id); if (l) out.push(`${n.icon} ${n.desc(l)}`); });
+    if (st().seed && !lvl("o_heir")) out.unshift("🏺 Heirloom 1");
+    return out;
+  }
+
+  // ---------- panel v kanceláři (místo Legacy shopu)
+  let lastSig = "";
+  function renderPanel(force) {
+    const box = $("lp-shop"); if (!box || typeof gameState === "undefined") return;
+    const p = st(), s = stage(), nf = fruits();
+    setTxt("lp-count", gameState.lp); setTxt("lp-count2", gameState.lp);
+    const sig = [gameState.lp, p.seed, s, nf, Math.floor(nextFruitIn() / 60000), canWater(), invested()].join("|");
+    if (!force && sig === lastSig) return; lastSig = sig;
+    if (!p.seed) {
+      box.innerHTML = `<div class="pl-top"><div class="pl-art">${art(0, 0)}</div><div class="pl-info"><div class="pl-stage">🌰 AN EMPTY POT</div>
+        Legacy Points grow <b>THE OFFICE PLANT</b>: a tree of permanent upgrades for the office, the casino and HIGH STAKES. It also drops fruit every few hours.
+        <br>The seed unlocks <b>Heirloom I</b> right away.</div></div>
+        <div class="pl-row"><button class="btn btn-gold" ${gameState.lp >= SEED_COST ? "" : "disabled"} onclick="Plant.seed()">🌱 PLANT THE SEED (${SEED_COST} LP)</button></div>`;
+      return;
+    }
+    const fxs = activeFx();
+    box.innerHTML = `<div class="pl-top"><div class="pl-art">${art(s, nf)}</div><div class="pl-info"><div class="pl-stage">${STAGES[s].icon} ${STAGES[s].name}</div>
+      Invested <b>${invested()}</b> / ${TOTAL} LP${s < 4 ? ` · next stage at ${STAGES[s + 1].at} LP` : ""}<br>
+      🍎 ${nf}/${FRUIT_MAX} fruit${nf < FRUIT_MAX ? " · next in " + fmtT(nextFruitIn()) : " · full!"}</div></div>
+      <div class="pl-fx">${fxs.slice(0, 6).map(x => `<span>${x}</span>`).join("")}${fxs.length > 6 ? `<span>+${fxs.length - 6} more</span>` : ""}</div>
+      <div class="pl-row"><button class="btn btn-gold" onclick="Plant.open()">🌳 GROW (${gameState.lp} LP)</button>
+      <button class="btn ${nf ? "btn-crimson" : ""}" ${nf ? "" : "disabled"} onclick="Plant.harvest()">🍎 HARVEST${nf ? " ×" + nf : ""}</button>
+      <button class="btn btn-cyan" ${canWater() ? "" : "disabled"} onclick="Plant.water()">💧 ${st().waterDay === today() ? "WATERED" : "WATER"}</button></div>`;
+  }
+
+  // ---------- celá obrazovka stromu
+  let isOpen = false;
+  function open() { isOpen = true; $("pl-screen").classList.add("open"); render(); }
+  function close() { isOpen = false; $("pl-screen").classList.remove("open"); if (window.ttRepaint) window.ttRepaint(); }
+  function render() {
+    if (!isOpen) return;
+    const p = st(), s = stage();
+    $("pl-lp").textContent = gameState.lp + " LP";
+    const rc = respecCost(), inv = invested() - (p.seed ? SEED_COST : 0);
+    const head = `<div class="pl-card"><div class="pl-top"><div class="pl-art">${art(s, fruits())}</div><div class="pl-info"><div class="pl-stage">${STAGES[s].icon} ${STAGES[s].name}</div>
+      Invested <b>${invested()}</b> / ${TOTAL} LP. The tree grows with every LP you put in:
+      ${STAGES.slice(2).map((x, i) => `<b style="color:${s >= i + 2 ? "var(--emerald)" : "var(--text-dim)"};">${x.icon} ${x.at}</b>`).join(" · ")}<br>
+      You get <b>${lpGainFor((gameState.prestige || 0) + 1)} LP</b> on your next prestige. The tree is never reset.</div></div>
+      <div class="pl-row"><button class="btn" ${inv ? "" : "disabled"} onclick="Plant.respec()">↺ REPLANT (${rc ? short(rc) + " GC" : "free this prestige"})</button></div></div>`;
+    const cols = Object.keys(BR).map(b => `<div class="pl-card"><div class="pl-bh" style="color:${BR[b].color};"><span>${BR[b].name}</span></div>` +
+      NODES.filter(n => n.br === b).map(n => {
+        const l = lvl(n.id), mx = n.costs.length, maxed = l >= mx, ok = canBuy(n), w = maxed ? "" : why(n);
+        const pips = mx > 1 ? `<div class="pl-pips">${Array.from({ length: mx }, (_, i) => `<i class="${i < l ? "on" : ""}"></i>`).join("")}</div>` : "";
+        return `<div class="pl-n ${maxed ? "max" : ""} ${w ? "lock" : ""} ${n.key ? "key" : ""}"><div class="ic">${n.icon}</div>
+          <div class="t"><b>${n.name}${n.key ? " ★" : ""}</b><span>${l ? n.desc(l) : (n.key ? n.desc(1) : n.next)}${!maxed && l && n.next ? " → " + n.next : ""}</span>${pips}${w ? `<div class="lv">🔒 ${w}</div>` : ""}</div>
+          <button class="btn ${ok ? "btn-gold" : ""}" ${ok ? "" : "disabled"} data-hold="pl-${n.id}" onclick="Plant.buy('${n.id}')">${maxed ? "MAX" : costOf(n) + " LP"}</button></div>`;
+      }).join("") + `</div>`).join("");
+    $("pl-inner").innerHTML = head + (p.seed ? `<div class="pl-br">${cols}</div>` : `<div class="pl-card"><button class="btn btn-gold" style="width:100%;padding:12px;" ${gameState.lp >= SEED_COST ? "" : "disabled"} onclick="Plant.seed()">🌱 PLANT THE SEED (${SEED_COST} LP)</button></div>`);
+  }
+
+  // ---------- v8.7: DRŽENÍ TLAČÍTEK (mobil i PC) - tlačítka s data-hold se po 0.4 s začnou opakovat, postupně až ~10× za sekundu
+  (function holdRepeat() {
+    let key = null, timer = 0, n = 0, fired = false, startX = 0, startY = 0;
+    function stop() {
+      if (timer) clearTimeout(timer); timer = 0;
+      if (key && fired) { TT.holding = false; TT.saveSoon(); }
+      TT.holding = false; key = null;
+    }
+    function tick() {
+      if (!key) return;
+      if (TT.holdStop) { TT.holdStop = false; stop(); return; }
+      const el = document.querySelector(`[data-hold="${key}"]`);
+      if (!el || el.disabled) { stop(); return; }
+      fired = true; TT.holding = true; n++;
+      el.click();
+      if (TT.holdStop) { TT.holdStop = false; stop(); return; }
+      timer = setTimeout(tick, Math.max(90, 260 - n * 22));
+    }
+    document.addEventListener("pointerdown", (e) => {
+      if (e.button > 0) return;
+      const el = e.target && e.target.closest ? e.target.closest("[data-hold]") : null;
+      if (!el || el.disabled) return;
+      stop(); key = el.getAttribute("data-hold"); n = 0; fired = false; TT.holdStop = false; startX = e.clientX; startY = e.clientY;
+      timer = setTimeout(tick, 400);
+    }, true);
+    document.addEventListener("pointermove", (e) => { if (key && !fired && Math.hypot(e.clientX - startX, e.clientY - startY) > 12) stop(); }, true);   // posouvání stránky neopakuje
+    const release = () => { const wasHold = fired; stop(); if (wasHold) eatNextClick(); };
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+    window.addEventListener("blur", (e) => { if (e.target === window) release(); });           // jen ztráta fokusu okna, ne tlačítka
+    document.addEventListener("contextmenu", (e) => { if (key) e.preventDefault(); }, true);
+    function eatNextClick() {                                    // po držení nepustit ještě jeden klik navíc
+      const h = (e) => { if (e.isTrusted) { e.preventDefault(); e.stopPropagation(); } document.removeEventListener("click", h, true); };
+      document.addEventListener("click", h, true);
+      setTimeout(() => document.removeEventListener("click", h, true), 400);
+    }
+  })();
+
+  window.Plant = { fx: fx, load: load, payload: payload, apply: apply, lpGainFor: lpGainFor, renderPanel: renderPanel, open: open, close: close, buy: buy, seed: plantSeed,
+    respec: respec, harvest: harvest, water: water, stage: stage, invested: invested, fruits: fruits, NODES: NODES, TOTAL: TOTAL, isOpen: () => isOpen };
+
+  (function boot() {
+    if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
+    TT.onLoaded(() => {
+      st(); apply(); renderPanel(true);
+      if (gameState._plantMsg) { log(gameState._plantMsg, "special"); delete gameState._plantMsg; TT.saveSoon(); }
+    });
+    setInterval(() => { if (!document.hidden) renderPanel(false); }, 1000);
+    document.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") close(); });
+  })();
 })();
 </script>
 
@@ -7352,8 +7666,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     quick:  { name: "QUICK", icon: "⚔", sta: 0,  gain: 15, hit: 0.95, mult: 0.6, txt: "95% hit · 0.6× · +15 STA · +20 focus" },
     strike: { name: "STRIKE", icon: "🗡", sta: 25, hit: 0.82, mult: 1.15, txt: "82% hit · 1.15×" },
     power:  { name: "POWER", icon: "💥", sta: 35, hit: 0.85, mult: 1.0,  cd: 2, txt: "timing! green = 1.9×, gold = 2.5× · 2-turn cooldown" },
-    gamble: { name: "GAMBLE", icon: "🎰", sta: 20, hit: 1,    mult: 0,    txt: "slot machine: 7️⃣7️⃣7️⃣ = 6×, 💀💀💀 = backfire" },
-    block:  { name: "BLOCK", icon: "🛡", sta: 0,  gain: 25, hit: 0, mult: 0, txt: "-60% dmg, +25 stamina (parry +35), perfect vs HEAVY" },
+    gamble: { name: "GAMBLE", icon: "🎰", sta: 20, hit: 1,    mult: 0,    txt: "slot machine: HOLD + re-spin, 🍒 heal 🔔 break ⭐ focus 7️⃣ dmg 💀 backfire" },
+    block:  { name: "BLOCK", icon: "🛡", sta: 0,  gain: 25, hit: 0, mult: 0, txt: "-60% dmg, +25 stamina, PERFECT / GOOD parry vs HEAVY" },
     dodge:  { name: "DODGE", icon: "💨", sta: 10, hit: 0,    mult: 0,    txt: "big chance to avoid the hit" },
     skill:  { name: "SKILL", icon: "✨", sta: 0,  hit: 1,    mult: 0,    txt: "100 focus" }
   };
@@ -7394,7 +7708,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const e = mission.enemy;
     const f = {
       R: R, h: hero, m: mission, e: e, turn: 0, over: false, win: false, events: [],
-      hp: hero.startHp != null ? Math.max(1, Math.min(hero.maxHp, Math.round(hero.startHp))) : hero.maxHp, sta: hero.staMax, focus: 30,
+      hp: hero.startHp != null ? Math.max(1, Math.min(hero.maxHp, Math.round(hero.startHp))) : hero.maxHp, sta: hero.staMax, focus: Math.min(99, 30 + (hero.startFocus || 0)),
       shield: Math.round(hero.maxHp * ((hero.perks || {}).shieldStart || 0)), firstHit: !!(hero.perks || {}).firstStrike, duckUsed: false,
       ehp: e.hp, emax: e.hp, eatk: e.atk, eshield: 0, estacks: 0, edefend: false,
       hotfix: false, coin: 0, coinTurns: 0, disabled: {}, cd: {}, itemsUsed: 0, revived: false, dodgeStreak: 0, demand: null, redTape: 0,
@@ -7517,25 +7831,66 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const one = () => { let r = f.R() * sum; for (const x of w) { if (r < x[1]) return x[0]; r -= x[1]; } return "🍒"; };
     return [one(), one(), one()];
   }
-  function reelResult(r) {
+  /** v8.7: každý symbol má vlastní efekt, efekty se sčítají. Tři stejné = velký bonus.
+   *  🍒 heal · 🔔 BREAK · ⭐ focus · 7️⃣ damage · 💀 backfire (zraní tebe) */
+  const SYM = {
+    "🍒": { m: 0.2, heal: 0.04 },
+    "🔔": { m: 0.3, brk: 12 },
+    "⭐": { m: 0.3, foc: 14 },
+    "7️⃣": { m: 0.75 },
+    "💀": { m: 0, self: 0.25 }
+  };
+  const RESPIN_STA = 10;
+  function reelResult(r, opt) {
+    opt = opt || {};
     const c = {}; r.forEach(s => { c[s] = (c[s] || 0) + 1; });
-    if (c["7️⃣"] === 3) return { mult: 6, txt: "JACKPOT", jp: true };
-    if (c["💀"] === 3) return { mult: 0, txt: "BACKFIRE", bf: true };
-    if (c["⭐"] === 3) return { mult: 3.5, txt: "STARS", heal: 0.15 };
-    if (c["🔔"] === 3) return { mult: 3, txt: "BELLS" };
-    if (c["🍒"] === 3) return { mult: 2.2, txt: "CHERRIES" };
-    if (c["💀"] === 2) return { mult: 0.6, txt: "two skulls" };
-    if (Object.values(c).some(n => n === 2)) return { mult: 1.4, txt: "pair" };
-    return { mult: 0.8, txt: "nothing" };
+    if (opt.wildCherry && c["🍒"]) {                                     // Office Plant: Lucky Cherry - 🍒 je wild (doplní nejčastější symbol)
+      const best = Object.keys(c).filter(s => s !== "🍒" && s !== "💀").sort((a, b) => c[b] - c[a] || (SYM[b].m - SYM[a].m))[0];
+      if (best) { c[best] += c["🍒"]; delete c["🍒"]; }
+    }
+    if (c["7️⃣"] === 3) return { mult: 6, txt: "JACKPOT", jp: true, heal: 0, brk: 30, foc: 20, self: 0 };
+    if (c["💀"] === 3) return { mult: 0, txt: "BACKFIRE", bf: true, heal: 0, brk: 0, foc: 0, self: 0.9 };
+    if (c["⭐"] === 3) return { mult: 3.5, txt: "STARS", heal: 0.15, brk: 15, foc: 60, self: 0 };
+    if (c["🔔"] === 3) return { mult: 3, txt: "BELLS", heal: 0, brk: 70, foc: 10, self: 0 };
+    if (c["🍒"] === 3) return { mult: 2.2, txt: "CHERRIES", heal: 0.25, brk: 10, foc: 10, self: 0 };
+    let mult = 0, heal = 0, brk = 0, foc = 0, self = 0;
+    Object.keys(c).forEach(s => { const x = SYM[s], n = c[s]; mult += x.m * n; heal += (x.heal || 0) * n; brk += (x.brk || 0) * n; foc += (x.foc || 0) * n; self += (x.self || 0) * n; });
+    const pair = Object.keys(c).find(s => c[s] === 2 && s !== "💀");
+    if (pair) mult += 0.4;
+    const txt = c["💀"] === 2 ? "two skulls" : pair ? "pair " + pair + pair : "mixed";
+    return { mult: Math.round(mult * 100) / 100, txt: txt, heal: heal, brk: brk, foc: foc, self: self };
+  }
+  /** GAMBLE krok 1: zatočí válce (tah ještě neproběhl). */
+  function gambleRoll(f) { f.gReels = spinReels(f); f.gRespun = false; return f.gReels.slice(); }
+  /** GAMBLE krok 2 (volitelný): podržené válce zůstanou, ostatní se přetočí. Stojí RESPIN_STA staminy, jen jednou. */
+  function canRespin(f) { return !!f.gReels && !f.gRespun && f.sta >= ACTIONS.gamble.sta + RESPIN_STA; }
+  function gambleRespin(f, hold) {
+    if (!canRespin(f)) return null;
+    const fresh = spinReels(f);
+    f.gReels = f.gReels.map((s, i) => hold && hold[i] ? s : fresh[i]);
+    f.gRespun = true; f.sta -= RESPIN_STA; f.st.respins = (f.st.respins || 0) + 1;
+    return f.gReels.slice();
+  }
+  /** simulace / auto: které válce podržet */
+  function autoHold(r) {
+    const c = {}; r.forEach(s => { c[s] = (c[s] || 0) + 1; });
+    const keep = Object.keys(c).find(s => c[s] >= 2 && s !== "💀") || (c["7️⃣"] ? "7️⃣" : null);
+    return r.map(s => s === keep);
   }
 
   /** Použití lektvaru (nestojí tah). */
   function useItem() { return null; }                // v8.5: žádné consumables
 
 
-  /** Jeden tah. timing = "perfect" | "good" | "none" (jen u POWER). */
+  /** Jeden tah.
+   *  timing (string, starý formát): POWER "perfect" | "good" | "none", BLOCK "parry" (= perfect).
+   *  timing (objekt, v8.7): { t: power timing, parry: "perfect" | "good" | "none", rings: [..] (UNLEASH kombo), q: síla ulti 0.7-1.25, all: EXPLOIT všechny porty } */
   function step(f, action, timing) {
     if (f.over) return [];
+    const opt = timing && typeof timing === "object" ? timing : { t: timing };
+    if (opt.parry == null) opt.parry = opt.t === "parry" ? "perfect" : opt.t === "goodblock" ? "good" : "none";
+    timing = opt.t;
+    const q = Math.max(0.7, Math.min(1.25, opt.q == null ? 1 : Number(opt.q) || 0.7));
     if (!allowed(f, action)) action = !f.disabled.quick ? "quick" : "block";
     const start = f.events.length;
     const h = f.h, e = f.e, R = f.R, A = ACTIONS[action];
@@ -7574,33 +7929,42 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     else if (action === "skill") {
       f.focus = 0; f.st.usedSkill++;
       // v8.6: ulty = jeden velký okamžitý efekt
+      // v8.7: síla ulti podle mini-hry (q = 0.7 - 1.25)
+      const pct = Math.round(q * 100);
       if (h.cls === "sysadmin") {
-        const sh = Math.round(h.maxHp * 0.4), hh = Math.round(h.maxHp * 0.1);
+        const sh = Math.round(h.maxHp * 0.4 * q), hh = Math.round(h.maxHp * 0.1 * q);
         f.shield += sh; f.hp = Math.min(h.maxHp, f.hp + hh); f.stunNext = true;
-        ev(f, "skill", { a: "FIREWALL", msg: "Firewall up! +" + sh + " shield, +" + hh + " HP - the enemy is stunned next turn" });
+        ev(f, "skill", { a: "FIREWALL", q: q, msg: "Firewall up (" + pct + "%)! +" + sh + " shield, +" + hh + " HP - the enemy is stunned next turn" });
       } else if (h.cls === "engineer") {
         const c = f.R() < Math.min(0.9, h.crit * 2); if (c) f.st.crits++;
-        const d = hurtEnemy(f, atkMult(f) * 3.2 * (c ? 1.8 : 1), false);
-        f.hotfix = false; addBreak(f, 50); ev(f, "skill", { a: "PRODUCTION PUSH", val: d, msg: "Pushed straight to production for " + d + (c ? " - CRIT!" : "") });
+        const d = hurtEnemy(f, atkMult(f) * 3.2 * q * (c ? 1.8 : 1), false);
+        f.hotfix = false; addBreak(f, 50 * q); ev(f, "skill", { a: "PRODUCTION PUSH", q: q, val: d, msg: "Deployed at " + pct + "% - pushed straight to production for " + d + (c ? " - CRIT!" : "") });
       } else {
-        const d = hurtEnemy(f, atkMult(f) * 2.8, true); f.hotfix = false; f.estacks = 0; f.eshield = 0; f.rage = 0; f.flamenco = 0; f.disabled = {}; f.brk = 100;
-        ev(f, "skill", { a: "EXPLOIT", val: d, msg: "Exploit for " + d + " - enemy buffs wiped and its defences BROKEN" });
+        const all = opt.all == null ? true : !!opt.all;
+        const d = hurtEnemy(f, atkMult(f) * 2.8 * q, true); f.hotfix = false; f.estacks = 0; f.eshield = 0; f.rage = 0; f.flamenco = 0; f.disabled = {};
+        if (all) f.brk = 100; else addBreak(f, 50);
+        ev(f, "skill", { a: "EXPLOIT", q: q, val: d, msg: "Exploit (" + pct + "%) for " + d + " - enemy buffs wiped" + (all ? " and its defences BROKEN" : "") });
       }
     } else if (action === "gamble") {
       f.st.usedGamble++;
-      const reels = spinReels(f);
-      let res = reelResult(reels);
-      if (res.bf && (h.perks || {}).noBackfire) res = { mult: 1.4, txt: "pair (Rubber Gloves)" };
-      if (res.bf) { const self = hurtHero(f, h.atk * 0.9, "backfire"); ev(f, "gamble", { reels: reels, res: res.txt, val: 0, self: self, bf: true }); }
+      const P = h.perks || {};
+      const reels = f.gReels || spinReels(f), respun = !!f.gRespun;
+      f.gReels = null; f.gRespun = false;
+      let res = reelResult(reels, { wildCherry: !!(P.wildCherry || h.wildCherry) });
+      if (res.bf && P.noBackfire) res = reelResult(["7️⃣", "7️⃣", "🍒"]), res.txt = "pair (Rubber Gloves)";
+      if (P.noBackfire) res.self = 0;
+      if (res.bf) { const self = hurtHero(f, h.atk * res.self, "backfire"); ev(f, "gamble", { reels: reels, res: res.txt, val: 0, self: self, bf: true, respun: respun }); }
       else {
         const c = critRoll(f);
-        const d = hurtEnemy(f, atkMult(f) * res.mult * (c ? 1.8 : 1));
+        const d = res.mult > 0 ? hurtEnemy(f, atkMult(f) * res.mult * (c ? 1.8 : 1)) : 0;
         if (res.jp) f.st.jackpots++;
-        addBreak(f, BREAK.gamble * res.mult);
-        if (res.heal) { const hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
+        addBreak(f, BREAK.gamble * Math.min(res.mult, 3) + res.brk);
+        let hh = 0;
+        if (res.heal) { hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
+        const self = res.self > 0 ? hurtHero(f, h.atk * res.self, "backfire") : 0;
         f.hotfix = false;
-        f.focus = Math.min(100, f.focus + 12);
-        ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult });
+        f.focus = Math.min(100, f.focus + 6 + res.foc);
+        ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult, heal: hh, brk: Math.round(res.brk), foc: res.foc, self: self, respun: respun });
       }
     } else {
       let hit = Math.min(0.99, A.hit + h.hitBonus);
@@ -7639,25 +8003,34 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (k === "unleash" && intent.rm) ev(f, "mech", { msg: "🕶 sudo rm -rf / --no-preserve-root" });
       // dodge: opakovaný dodge za sebou má menší šanci (v8.2), red tape snižuje dodge
       const dch = Math.max(0, (dodging ? Math.min(0.9, 0.55 + h.agi * 0.008 + (h.cls === "cyber" ? 0.08 : 0)) * Math.pow(0.7, f.dodgeStreak - 1) : h.dodge) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0));
-      if (blocking && big && timing === "parry") {
-        // PARRY: aktivní QTE při bloku -> 0 dmg, protiútok a omráčení
+      // v8.7 PARRY: PERFECT (0 dmg, protiútok, stun) · GOOD (-85 %, malý protiútok) · mimo okno = obyčejný block (-60 %)
+      //   UNLEASH = 3 kroužky (opt.rings), každý třetina dmg; stun jen za 3× PERFECT
+      const blk = h.cls === "sysadmin" ? 0.3 : 0.4;
+      let tier = blocking && big ? opt.parry : "none", frac = null;
+      if (blocking && k === "unleash" && Array.isArray(opt.rings) && opt.rings.length) {
+        const rs = opt.rings.slice(0, 3); while (rs.length < 3) rs.push("none");
+        frac = rs.reduce((a, r) => a + (r === "perfect" ? 0 : r === "good" ? 0.1 : blk), 0) / 3;
+        const ok = rs.filter(r => r !== "none").length;
+        tier = rs.every(r => r === "perfect") ? "perfect" : ok >= 2 ? "good" : ok >= 1 ? "partial" : "none";
+      }
+      if (tier === "perfect") {
         f.st.perfectBlocks++; f.st.parries++;
         const ctr = hurtEnemy(f, h.atk * 1.2, true);
         f.focus = Math.min(100, f.focus + 20); gainSta(f, 10);
         addBreak(f, BREAK.parry); f.stunNext = true;
-        ev(f, "parry", { val: ctr, heavy: true });
+        ev(f, "parry", { val: ctr, heavy: true, rings: frac != null });
       } else if (R() < dch) ev(f, "dodge", { heavy: big });
       else if (k === "withdraw") {
-        const d = hurtHero(f, dmg, "withdraw"); f.ehp = Math.min(f.emax, f.ehp + d);
-        ev(f, "mech", { msg: "💸 \"The withdrawal from your life.\" She takes " + d + " HP and keeps it." + (blocking ? " (blocking doesn't help - parry or dodge it!)" : "") });
-      } else if (blocking && big) {
+        const d = hurtHero(f, dmg * (tier === "good" ? 0.5 : 1), "withdraw"); f.ehp = Math.min(f.emax, f.ehp + d);
+        ev(f, "mech", { msg: "💸 \"The withdrawal from your life.\" She takes " + d + " HP and keeps it." + (tier === "good" ? " (GOOD block - only half!)" : blocking ? " (only a PERFECT parry or a dodge stops it!)" : "") });
+      } else if (tier === "good" || tier === "partial") {
         f.st.perfectBlocks++;
-        hurtHero(f, dmg * 0.25, "heavy");
-        const ctr = hurtEnemy(f, h.atk * 0.6, true);
-        f.focus = Math.min(100, f.focus + 15);
-        addBreak(f, BREAK.perfect);
-        ev(f, "perfect", { val: ctr });
-      } else hurtHero(f, dmg * (blocking ? (h.cls === "sysadmin" ? 0.3 : 0.4) : 1), k === "unleash" ? "heavy" : k);
+        hurtHero(f, dmg * (frac != null ? frac : 0.1), "heavy");
+        const ctr = tier === "good" ? hurtEnemy(f, h.atk * 0.6, true) : 0;
+        f.focus = Math.min(100, f.focus + (tier === "good" ? 15 : 8));
+        if (tier === "good") addBreak(f, BREAK.perfect);
+        ev(f, "perfect", { val: ctr, partial: tier === "partial", rings: frac != null });
+      } else hurtHero(f, dmg * (blocking ? (frac != null ? frac : blk) : 1), k === "unleash" ? "heavy" : k);
       if (f.brk >= 100 && !f.over) { f.brk = 0; f.st.breaks++; f.vuln = true; f.stunNext = true; ev(f, "break", { was: "counter" }); }
     } else if (k === "charge") ev(f, "mech", { msg: "⏳ " + f.e.name + " is CHARGING a 2.7× attack! Break it or get ready to block." });
     else if (k === "stun") ev(f, "mech", { msg: "😵 " + f.e.name + " is stunned!" });
@@ -7801,16 +8174,34 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     return "block";
   }
   function timingRoll(R, zone) { const r = R(); return r < zone * 0.3 ? "perfect" : r < zone * 1.7 ? "good" : "none"; }
-  const PARRY_SKILL = { p: 0.45 };                                  // simulace: jak často hráč trefí parry
+  const PARRY_SKILL = { perfect: 0.35, good: 0.45, p: 0.35 };        // simulace: jak často hráč trefí PERFECT / GOOD (v8.7)
+  const ULT_SKILL = { q: 1.0, sd: 0.1, all: 0.6 };                  // simulace: průměrná síla ulti z mini-hry
+  function parryRoll(R) { const r = R(); return r < PARRY_SKILL.perfect ? "perfect" : r < PARRY_SKILL.perfect + PARRY_SKILL.good ? "good" : "none"; }
+  /** jak by tah zahrál hráč (simulace) - vrací timing objekt pro step() */
+  function autoOpt(f, a, R, skill) {
+    if (a === "power") return { t: timingRoll(R, skill == null ? f.h.zone : skill) };
+    if (a === "block" && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) {
+      if (f.intent.k === "unleash") return { rings: [parryRoll(R), parryRoll(R), parryRoll(R)] };
+      return { parry: parryRoll(R) };
+    }
+    if (a === "skill") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all };
+    if (a === "gamble") {
+      const r = gambleRoll(f), hold = autoHold(r);
+      if (!hold.every(Boolean) && canRespin(f) && R() < 0.85) gambleRespin(f, hold);
+      return { t: "none" };
+    }
+    return { t: "none" };
+  }
 
   function simulate(hero, mission, seed, skill) {
     const f = newFight(hero, mission, seed), R = rng((seed || 1) * 7 + 3);
-    while (!f.over) { const a = autoPolicy(f, R); step(f, a, a === "power" ? timingRoll(R, skill == null ? hero.zone : skill) : a === "block" && (f.intent.k === "heavy" || f.intent.k === "unleash") ? (R() < PARRY_SKILL.p ? "parry" : "none") : "none"); }
+    while (!f.over) { const a = autoPolicy(f, R); step(f, a, autoOpt(f, a, R, skill)); }
     return f;
   }
 
   const api = { rng: rng, CLASSES: CLASSES, ACTIONS: ACTIONS, ITEMS: ITEMS, MAX_ITEMS_PER_FIGHT: MAX_ITEMS_PER_FIGHT, statPoints: statPoints, buildHero: buildHero,
-    newFight: newFight, step: step, useItem: useItem, allowed: allowed, stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, FORM_NO: FORM_NO, bonusText: bonusText, simulate: simulate, autoPolicy: autoPolicy, PARRY_SKILL: PARRY_SKILL, BREAK: BREAK, reelResult: reelResult };
+    newFight: newFight, step: step, useItem: useItem, allowed: allowed, stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, FORM_NO: FORM_NO, bonusText: bonusText, simulate: simulate, autoPolicy: autoPolicy, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, BREAK: BREAK, reelResult: reelResult,
+    gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM, autoOpt: autoOpt };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSEngine = api;
 })(typeof window !== "undefined" ? window : this);
@@ -7897,7 +8288,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   let STATS = [[233,55.4],[240,57.2],[292,69.1],[387,94.8],[510,50.8],[415,94.3],[427,115.4],[629,132.6],[792,163.7],[1091,130.1],[602,131.6],[673,174.7],[747,196.8],[1059,196.2],[1285,130.6],[915,228.9],[992,267.5],[1377,270.7],[1645,323.9],[2168,189.1],[1250,270.6],[1333,292.1],[1373,376.8],[1875,410.8],[2107,204.5],[1562,433.4],[1649,361],[2234,470.1],[2609,596.4],[3424,462.6],[1934,444.9],[2025,537.5],[2117,559.1],[2840,634.8],[3180,314.5],[2270,518],[2363,627.3],[3159,834.6],[3534,495],[4770,495.9],[2663,601.7],[2759,753.6],[2855,889.3],[3691,754.7],[2967,926.2],[3064,842.1],[4065,781.9],[4122,661.2],[4601,889.6],[6162,772.8],[7320,577.8]];   // v8.2: přeladěno (nová stamina, gear s klesajícím přínosem, nižší win rate)
   function setStats(t) { STATS = t; }
   /** v8.6.1: obecně o něco těžší nepřátelé (+10 %) + kampaň a tower +25 % za každou prestiž (lineárně) */
-  const BASE_HP = 1.1, BASE_ATK = 1.1;
+  const BASE_HP = 1.06, BASE_ATK = 1.08;
   let PRESTIGE = 0;
   function setPrestige(p) { PRESTIGE = Math.max(0, Math.floor(Number(p) || 0)); }
   function prestigeMult() { return 1 + 0.25 * PRESTIGE; }
@@ -8243,6 +8634,28 @@ html.m #dg-open-btn { display: none; }
 .hs-parry { position: relative; width: 150px; height: 150px; cursor: pointer; touch-action: none; }
 .hs-parry .tgt { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 4px solid #ffd700; box-shadow: 0 0 12px #ffd700; }
 .hs-parry .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 4px solid #ff1744; box-shadow: 0 0 10px #ff1744; }
+.hs-parry .ring.fake { border-color: #94a3b8; box-shadow: 0 0 8px #94a3b8; opacity: .8; border-style: dashed; }
+.hs-parry.spiral .ring { border-style: dashed; }
+.hs-pdots { display: flex; gap: 6px; margin-top: 8px; min-height: 12px; }
+.hs-pdots span { width: 12px; height: 12px; border-radius: 50%; background: #1e2636; border: 1px solid #334155; }
+.hs-pdots span.perfect { background: #ffd700; } .hs-pdots span.good { background: var(--emerald); } .hs-pdots span.none { background: var(--crimson); }
+.hs-wall { display: grid; grid-template-columns: repeat(6, 26px); gap: 3px; }
+.hs-wall i { height: 16px; border-radius: 2px; background: #1e2636; border: 1px solid #334155; }
+.hs-wall i.on { background: linear-gradient(180deg, #ff7849, #c2410c); border-color: #fdba74; box-shadow: 0 0 6px rgba(255,120,73,.6); }
+.hs-deploy { width: 86%; height: 26px; background: #0b1220; border: 2px solid var(--cyan); border-radius: 6px; position: relative; overflow: hidden; }
+.hs-deploy > div { height: 100%; width: 0; background: linear-gradient(90deg, #0891b2, #00f0ff); transition: width .08s; }
+.hs-deploy span { position: absolute; inset: 0; text-align: center; font: 800 11px/22px 'Orbitron', monospace; color: #fff; text-shadow: 0 1px 2px #000; }
+.hs-ports { position: relative; width: 86%; height: 130px; background: #050a08; border: 1px solid #14532d; border-radius: 6px; overflow: hidden; }
+.hs-port { position: absolute; padding: 6px 10px; font: 800 12px 'Orbitron', monospace; color: #00ff88; background: rgba(0,255,136,.12); border: 1px solid #00ff88; border-radius: 6px; cursor: pointer; animation: portIn .15s ease-out; }
+.hs-port.hit { background: #00ff88; color: #000; } .hs-port.gone { opacity: 0; pointer-events: none; transition: opacity .15s; }
+@keyframes portIn { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.hs-ulttime { width: 86%; height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.hs-ulttime div { height: 100%; width: 100%; background: #ff4dff; }
+.hs-reel { cursor: pointer; color: inherit; font-family: inherit; padding: 0; }
+.hs-reel.held { border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan) inset, 0 0 8px var(--cyan); position: relative; }
+.hs-reel.held::after { content: "HOLD"; position: absolute; bottom: -15px; left: 0; right: 0; font: 800 9px 'Orbitron', monospace; color: var(--cyan); }
+.hs-gbtns { display: flex; gap: 6px; margin-top: 14px; }
+.hs-gbtns .btn { padding: 9px 12px; font-size: 11px; }
 .hs-bar .sh { position: absolute; top: 0; left: 0; background: rgba(0,240,255,.55); }
 .hs-lbl { display: flex; justify-content: space-between; font: 700 9px 'Orbitron', monospace; color: var(--text-dim); }
 .hs-intent { display: inline-flex; align-items: center; gap: 4px; margin: 4px auto 0; padding: 3px 10px; border-radius: 12px; font: 800 12px 'Orbitron', monospace; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); }
@@ -8291,7 +8704,8 @@ html.m #dg-open-btn { display: none; }
   const H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;   // E = starý engine (jen aréna na serveru)
   const $ = (id) => document.getElementById(id);
   const fmt = (n) => Math.floor(n).toLocaleString();
-  const ENERGY_MAX = 10, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
+  const ENERGY_BASE = 10, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
+  function EMAX() { return ENERGY_BASE + (window.Plant ? Plant.fx("energy") : 0); }   // v8.7: Office Plant Sap Reserve
   const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
   const STAT_INFO = { str: ["STR", "damage"], vit: ["VIT", "max HP"], agi: ["AGI", "hit chance + dodge"], luck: ["LUCK", "crit, slot machine, timing zone"], end: ["END", "max stamina + stamina from QUICK / BLOCK"] };
   /** v8.6: tituly za první zabití tematických bossů */
@@ -8310,7 +8724,7 @@ html.m #dg-open-btn { display: none; }
     ["str", "vit", "agi", "luck", "end"].forEach(k => { d.stats[k] = Math.max(0, Math.floor(Number(d.stats[k]) || 0)); });
     const spent = Object.values(d.stats).reduce((a, b) => a + b, 0);
     d.pts = Math.max(0, H.statPoints(d.level) - spent);
-    if (typeof d.energy !== "number" || !isFinite(d.energy)) { d.energy = ENERGY_MAX; d.energyAt = Date.now(); }
+    if (typeof d.energy !== "number" || !isFinite(d.energy)) { d.energy = EMAX(); d.energyAt = Date.now(); }
     if (!d.energyAt) d.energyAt = Date.now();
     if (!d.stars || typeof d.stars !== "object") d.stars = {};
     // v8.2: hvězdy jako 3 samostatné úkoly (bitmaska v d.sm), sčítají se přes všechny pokusy; d.stars = počet (kompatibilita)
@@ -8345,9 +8759,9 @@ html.m #dg-open-btn { display: none; }
   function unlocked() { const d = HS(); return (gameState.prestige || 0) >= 1 || maxChest() >= 10 || !!d.cls; }
   function regenEnergy() {
     const d = HS(), now = Date.now();
-    if (d.energy >= ENERGY_MAX) { d.energyAt = now; return; }
+    if (d.energy >= EMAX()) { d.energyAt = now; return; }
     const n = Math.floor((now - d.energyAt) / ENERGY_MS);
-    if (n > 0) { d.energy = Math.min(ENERGY_MAX, d.energy + n); d.energyAt = d.energy >= ENERGY_MAX ? now : d.energyAt + n * ENERGY_MS; }
+    if (n > 0) { d.energy = Math.min(EMAX(), d.energy + n); d.energyAt = d.energy >= EMAX() ? now : d.energyAt + n * ENERGY_MS; }
   }
   function gear() {
     const lo = gameState.loadout || {};
@@ -8359,7 +8773,11 @@ html.m #dg-open-btn { display: none; }
   /** v8.2: klesající přínos gearu - do ×2 lineárně, pak se blíží stropu ×3.2 (dřív T5/T6 gear dal až ×7) */
   function gearDR(x) { const r = x - 1; return r <= 1 ? x : 2 + 1.2 * (1 - Math.exp(-(r - 1) / 1.5)); }
   function towerBonus() { return 0.01 * Math.floor(HS().tower.best / 10); }
-  function hero() { const d = HS(); return H.buildHero(Object.assign({}, d, { bonus: towerBonus() }), gear()); }
+  function hero() {
+    const d = HS(), h = H.buildHero(Object.assign({}, d, { bonus: towerBonus() }), gear());
+    if (window.Plant) { h.startFocus = Plant.fx("focus"); h.parryWin = Plant.fx("parry"); h.wildCherry = Plant.fx("wildCherry"); }   // v8.7: Office Plant
+    return h;
+  }
   // ---------- PRISMATIC (T6): boss kapitoly odemkne T6 pro jednu část těla -> může padat i z běžné bedny
   function t6Unlocked(slot) { return !!HS().t6[slot]; }
   function t6Slots() { const t = HS().t6; return SLOTS.filter(s => t[s]); }
@@ -8422,12 +8840,12 @@ html.m #dg-open-btn { display: none; }
   }
   function renderKeys() {
     const d = HS(), el = $("dg-keys"); if (!el) return;
-    const next = d.energy >= ENERGY_MAX ? "" : " (" + fmtT(ENERGY_MS - (Date.now() - d.energyAt)) + ")";
-    el.textContent = `⚡${d.energy}/${ENERGY_MAX}${next} ⭐${totalStars(d)}`;
-    el.title = "Energy: +1 every 12 min, max " + ENERGY_MAX;
+    const next = d.energy >= EMAX() ? "" : " (" + fmtT(ENERGY_MS - (Date.now() - d.energyAt)) + ")";
+    el.textContent = `⚡${d.energy}/${EMAX()}${next} ⭐${totalStars(d)}`;
+    el.title = "Energy: +1 every 12 min, max " + EMAX();
     const tb = $("dg-tokbtn");
     if (tb) {
-      const show = gameState.slotTokens > 0 && d.energy < ENERGY_MAX && !(fight && !fight.over);
+      const show = gameState.slotTokens > 0 && d.energy < EMAX() && !(fight && !fight.over);
       const t = `TOKEN → +${TOKEN_ENERGY} ⚡ (${gameState.slotTokens})`;
       tb.style.display = show ? "" : "none"; if (tb.textContent !== t) tb.textContent = t;
       tb.title = "Turn 1 Slot Token into " + TOKEN_ENERGY + " energy";
@@ -8506,7 +8924,7 @@ html.m #dg-open-btn { display: none; }
   function heroHtml() {
     const d = HS(), h = hero(), g = gear();
     const rows = Object.keys(STAT_INFO).map(k => `<div class="hs-stat"><b>${STAT_INFO[k][0]}</b><span class="v">${5 + d.stats[k]}</span><span class="d">${STAT_INFO[k][1]}</span>
-      <button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} onclick="Dungeon.stat('${k}',1)">+1</button>
+      <button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} data-hold="stat-${k}" onclick="Dungeon.stat('${k}',1)">+1</button>
       <button class="btn" style="padding:3px 8px;" ${d.pts >= 5 ? "" : "disabled"} onclick="Dungeon.stat('${k}',5)">+5</button></div>`).join("");
     return `<div class="dg-grid2">
       <div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${H.CLASSES[d.cls].name} · LV ${d.level}</span><span>${title()}</span></div>
@@ -8517,7 +8935,9 @@ html.m #dg-open-btn { display: none; }
         <div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
       <div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>
         <div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (1.9×) or <b>gold</b> (2.5×) zone, then it needs 2 turns to cool down.
-        🎰 GAMBLE - spin a mini slot machine (7️⃣7️⃣7️⃣ = 6×, 💀💀💀 hits you). 🛡 BLOCK when the enemy shows 💥 HEAVY or ☄ UNLEASH: tap when the rings meet for a <b>PARRY</b> (0 damage, counter, stun). 💢 Fill the enemy's <b>BREAK</b> bar to stagger it (it loses its turn, your next hit 1.5×) - breaking a ⏳ CHARGING enemy cancels its big attack. 💨 DODGE avoids the hit (dodging again right after is less likely to work).
+        🎰 GAMBLE - spin 3 reels, <b>HOLD</b> the ones you like and re-spin the rest once (+10 stamina). Every symbol does something: 🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you (7️⃣7️⃣7️⃣ = 6× jackpot).
+        🛡 BLOCK when the enemy shows 💥 HEAVY, ☄ UNLEASH or 💸 WITHDRAWAL: the ring comes after a random wind-up and speeds up - tap when it hits the gold ring. <b>PERFECT</b> = 0 damage, counter, stun · <b>GOOD</b> = -90% · miss = normal block. ☄ UNLEASH sends 3 rings, every boss has its own trick (watch out for the Administrator's fake rings).
+        ✨ Ultimates are a 2-second mini-game: tap fast (SysAdmin, Engineer) or hit the open ports (Cyber) - 70% to 125% power. 💢 Fill the enemy's <b>BREAK</b> bar to stagger it (it loses its turn, your next hit 1.5×) - breaking a ⏳ CHARGING enemy cancels its big attack. 💨 DODGE avoids the hit (dodging again right after is less likely to work).
         ✨ SKILL needs 100 focus (you start with 30, QUICK gives the most). <b>Stamina does NOT refill by itself</b> - ⚔ QUICK (+15) and 🛡 BLOCK (+25, parry +35) recharge it for STRIKE and POWER.</div></div></div>`;
   }
   function titlesHtml(d) {
@@ -8557,9 +8977,9 @@ html.m #dg-open-btn { display: none; }
   function chapter(i) { chSel = i; render(); }
   function tokenEnergy() {
     const d = HS(); regenEnergy();
-    if (gameState.slotTokens < 1 || d.energy >= ENERGY_MAX) return;
-    gameState.slotTokens -= 1; d.energy = Math.min(ENERGY_MAX, d.energy + TOKEN_ENERGY);
-    if (d.energy >= ENERGY_MAX) d.energyAt = Date.now();
+    if (gameState.slotTokens < 1 || d.energy >= EMAX()) return;
+    gameState.slotTokens -= 1; d.energy = Math.min(EMAX(), d.energy + TOKEN_ENERGY);
+    if (d.energy >= EMAX()) d.energyAt = Date.now();
     TT.saveSoon(); updateUI(); if (fight) renderKeys(); else render();
   }
 
@@ -8595,7 +9015,7 @@ html.m #dg-open-btn { display: none; }
     if (freeEnergy()) return true;
     if (d.energy < n) return false;
     d.energy -= n;
-    if (d.energy < ENERGY_MAX && d.energy + n >= ENERGY_MAX) d.energyAt = Date.now();
+    if (d.energy < EMAX() && d.energy + n >= EMAX()) d.energyAt = Date.now();
     return true;
   }
   /** ctx: { mode, prepHero(hero), onEnd(f) -> {title, color, lines, buttons:[{label, cls, fn}]}, hud(f) } */
@@ -8697,16 +9117,15 @@ html.m #dg-open-btn { display: none; }
   function act(a) {
     const f = fight; if (!f || f.over || busyAnim || !H.allowed(f, a)) return;
     if (a === "power") { timingGame(q => resolve("power", q)); return; }
-    if (a === "gamble") { resolve("gamble", "none", true); return; }
-    if (a === "block" && !f.intent.fake && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) { parryGame(q => resolve("block", q)); return; }
+    if (a === "gamble") { gambleGame(); return; }
+    if (a === "skill") { ultGame(o => resolve("skill", o)); return; }
+    if (a === "block" && !f.intent.fake && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) { parryGame(o => resolve("block", o)); return; }
     resolve(a, "none");
   }
 
-  function resolve(a, timing, slot) {
+  function resolve(a, timing) {
     const f = fight;
     const evs = H.step(f, a, timing);
-    const g = evs.find(e => e.type === "gamble");
-    if (slot && g) { slotAnim(g.reels, () => { play(evs); after(); }); return; }
     play(evs); after();
   }
   function after() {
@@ -8761,49 +9180,220 @@ html.m #dg-open-btn { display: none; }
     raf = requestAnimationFrame(frame);
   }
 
-  // ---------- PARRY: kroužek se smršťuje, tapni když je na zlatém terči
+  // ---------- v8.7 PARRY: náhodný nádech, zrychlující kroužek, PERFECT / GOOD, UNLEASH = 3 kroužky, styl podle bosse
+  const PARRY_WIN = { perfect: 8, good: 18 };
+  const PARRY_STYLE = { louis: "wobble", cobol: "lag", admin: "glitch", polishen: "steps", italian: "spiral" };
   function parryGame(cb) {
+    const f = fight, k = f.intent.k, mech = f.e.mech;
     busyAnim = true; fightRefresh();
+    const style = k === "withdraw" ? "steps" : PARRY_STYLE[mech] || "";
+    const n = k === "unleash" ? 3 : 1, dur = k === "unleash" ? 750 : k === "withdraw" ? 1000 : 1100;
+    const easy = (((f.h.perks || {}).parryEasy) ? 1.7 : 1) * (f.h.parryWin || 1), wP = PARRY_WIN.perfect * easy, wG = PARRY_WIN.good * easy;
+    const from = 150, to = 14, target = 46;
     const box = $("hs-ov-slot");
-    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">🛡 PARRY! Tap anywhere when the red ring hits the gold one</div>
-      <div class="hs-parry" id="hs-pr"><div class="tgt"></div><div class="ring" id="hs-ring"></div></div></div>`;
-    const t0 = performance.now(), dur = 950, from = 150, to = 20, target = 46, win = 9 * (((fight.h.perks || {}).parryEasy) ? 1.7 : 1);
-    let done = false, raf = 0, size = from, untap = null;
-    const stop = (auto) => {
-      if (done) return; done = true; cancelAnimationFrame(raf);
+    const title = k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one";
+    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">${title}</div>
+      <div class="hs-parry ${style}" id="hs-pr"><div class="tgt"></div><div class="ring fake" id="hs-fake" style="display:none"></div><div class="ring" id="hs-ring" style="display:none"></div></div>
+      <div class="hs-pdots" id="hs-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="hs-ovt" id="hs-pq">&nbsp;</div></div>`;
+    const res = [];
+    let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, untap = null, finished = false;
+    const ringEl = () => $("hs-ring"), fakeEl = () => $("hs-fake");
+    function place(el, sz, dx, dy) { if (!el) return; el.style.width = el.style.height = sz + "px"; el.style.margin = (-sz / 2 + (dy || 0)) + "px 0 0 " + (-sz / 2 + (dx || 0)) + "px"; }
+    function mark(q) {
+      res.push(q);
+      const d = $("hs-pd"); if (d && d.children[idx]) d.children[idx].className = q;
+      const pq = $("hs-pq");
+      if (pq) { pq.textContent = q === "perfect" ? "PERFECT!" : q === "good" ? "GOOD" : "MISS"; pq.style.color = q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"; }
+      cancelAnimationFrame(raf); clearTimeout(timer);
+      const r = ringEl(); if (r) r.style.display = "none";
+      const fk = fakeEl(); if (fk) fk.style.display = "none"; fakeOn = false;
+      idx++;
+      if (idx >= n) return done();
+      phase = "wait"; timer = setTimeout(startRing, 150 + Math.random() * 400);   // nepravidelný rytmus mezi kroužky
+    }
+    function done() {
+      if (finished) return; finished = true;
       document.removeEventListener("keydown", key, true); if (untap) untap();
-      const q = !auto && Math.abs(size - target) <= win ? "parry" : "none";
-      const ov = box.querySelector(".hs-ov");
-      if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "parry" ? "#ffd700" : "var(--text-dim)"};">${q === "parry" ? "PARRY! 0 damage + counter + stun" : "Normal block"}</div>`);
-      setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(q); }, 420);
-    };
-    const key = (e) => { if (e.key === " " || e.key === "Enter" || e.key === "5") { e.preventDefault(); stop(false); } };
+      const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
+      const txt = n > 1 ? `${res.filter(r => r !== "none").length}/3 blocked` + (best === "perfect" ? " - FULL PARRY! counter + stun" : "")
+        : best === "perfect" ? "PARRY! 0 damage + counter + stun" : best === "good" ? (k === "withdraw" ? "GOOD - she only gets half" : "GOOD BLOCK! -90% damage") : "Normal block";
+      const pq = $("hs-pq"); if (pq) { pq.textContent = txt; pq.style.color = best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)"; }
+      setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(n > 1 ? { rings: res } : { parry: best }); }, 520);
+    }
+    function startRing() {
+      if (finished) return;
+      if (style === "glitch" && Math.random() < 0.55) {             // Administrator: falešný šedý kroužek - neťukej!
+        fakeOn = true; const fk = fakeEl(); if (fk) fk.style.display = "";
+        const ft0 = performance.now(), fdur = 420 + Math.random() * 200, stopAt = 0.45 + Math.random() * 0.35;
+        const ff = (now) => {
+          const t = (now - ft0) / fdur;
+          place(fakeEl(), from - (from - to) * Math.min(stopAt, Math.pow(t, 1.5)));
+          if (t >= stopAt) { fakeOn = false; const e = fakeEl(); if (e) e.style.display = "none"; timer = setTimeout(realRing, 120 + Math.random() * 250); return; }
+          raf = requestAnimationFrame(ff);
+        };
+        raf = requestAnimationFrame(ff); return;
+      }
+      realRing();
+    }
+    function realRing() {
+      if (finished) return;
+      phase = "ring"; t0 = performance.now(); size = from;
+      const r = ringEl(); if (r) r.style.display = "";
+      const fr = (now) => {
+        let t = Math.min(1, (now - t0) / dur);
+        if (style === "lag") t = t < 0.35 ? t : t < 0.55 ? 0.35 : 0.35 + (t - 0.55) * (0.65 / 0.45);
+        let e = Math.pow(t, 1.6);                                  // zrychluje k cíli
+        if (style === "steps") e = Math.min(1, Math.floor(e * 8 + 0.5) / 8);
+        size = from - (from - to) * e;
+        let dx = 0, dy = 0;
+        if (style === "wobble") dx = Math.sin(t * 22) * 16 * (1 - t * 0.5);
+        if (style === "spiral") { const rr = 22 * (1 - t); dx = Math.cos(t * 16) * rr; dy = Math.sin(t * 16) * rr; }
+        place(ringEl(), size, dx, dy);
+        if (t >= 1) { mark("none"); return; }
+        raf = requestAnimationFrame(fr);
+      };
+      raf = requestAnimationFrame(fr);
+    }
+    function tap() {
+      if (finished) return;
+      if (fakeOn || phase !== "ring") { mark("none"); return; }      // moc brzo / na falešný kroužek = pokažený block
+      const d = Math.abs(size - target);
+      mark(d <= wP ? "perfect" : d <= wG ? "good" : "none");
+    }
+    const key = (e) => { if (e.repeat) return; if (e.key === " " || e.key === "Enter" || e.key === "5") { e.preventDefault(); tap(); } };
     document.addEventListener("keydown", key, true);
-    untap = tapAnywhere(() => stop(false));
-    const frame = (now) => {
-      const t = (now - t0) / dur;
-      size = from - (from - to) * Math.min(1, t);
-      const r = $("hs-ring"); if (r) { r.style.width = r.style.height = size + "px"; r.style.margin = (-size / 2) + "px 0 0 " + (-size / 2) + "px"; }
-      if (t >= 1) { stop(true); return; }
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
+    untap = tapAnywhere(tap);
+    timer = setTimeout(startRing, 200 + Math.random() * 600);       // nádech: kroužek přijde náhodně za 0.2 - 0.8 s
   }
 
-  // ---------- mini automat u GAMBLE
-  function slotAnim(reels, cb) {
+  // ---------- v8.7 ULTIMÁTKY: 2 s mini-hra, síla 70 - 125 %
+  const ULT_MS = 2000, ULT_MIN_GAP = 35;
+  function tapsToQ(n) { return n <= 5 ? 0.7 : n <= 16 ? 0.7 + 0.3 * (n - 5) / 11 : Math.min(1.25, 1 + 0.25 * (n - 16) / 8); }
+  function ultGame(cb) {
+    const f = fight, cls = f.h.cls, sk = H.CLASSES[cls].skill;
     busyAnim = true; fightRefresh();
     const box = $("hs-ov-slot");
+    let body = "", hint = "";
+    if (cls === "sysadmin") { hint = "TAP AS FAST AS YOU CAN - build the wall!"; body = `<div class="hs-wall" id="hs-ug">${Array(24).fill("<i></i>").join("")}</div>`; }
+    else if (cls === "engineer") { hint = "MASH to push the deploy through!"; body = `<div class="hs-deploy"><div id="hs-ug"></div><span id="hs-ugt">deploying... 0%</span></div>`; }
+    else { hint = "HIT THE OPEN PORTS!"; body = `<div class="hs-ports" id="hs-ug"></div>`; }
+    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;color:#ff4dff;">✨ ${sk}: ${hint}</div>${body}
+      <div class="hs-ulttime"><div id="hs-utb"></div></div><div class="hs-ovt" id="hs-uq">&nbsp;</div></div>`;
+    let taps = 0, last = 0, hits = 0, finished = false, raf = 0;
+    const t0 = performance.now(), ports = [];
+    function count() {
+      const now = performance.now(); if (now - last < ULT_MIN_GAP) return; last = now;
+      taps++;
+      if (cls === "sysadmin") { const b = $("hs-ug"); if (b && b.children[taps - 1]) b.children[taps - 1].className = "on"; }
+      if (cls === "engineer") { const b = $("hs-ug"), t = $("hs-ugt"), p = Math.round(tapsToQ(taps) / 1.25 * 100); if (b) b.style.width = p + "%"; if (t) t.textContent = "deploying... " + Math.round(tapsToQ(taps) * 100) + "%"; }
+      const uq = $("hs-uq"); if (uq && cls !== "cyber") uq.textContent = Math.round(tapsToQ(taps) * 100) + "%";
+    }
+    const PORTS = [22, 80, 443, 3389, 8080, 445];
+    if (cls === "cyber") {
+      for (let i = 0; i < 4; i++) setTimeout(() => {
+        if (finished) return;
+        const g = $("hs-ug"); if (!g) return;
+        const el = document.createElement("button");
+        el.className = "hs-port"; el.type = "button"; el.textContent = ":" + PORTS[Math.floor(Math.random() * PORTS.length)];
+        el.style.left = (8 + Math.random() * 72) + "%"; el.style.top = (8 + Math.random() * 62) + "%";
+        g.appendChild(el); ports.push(el);
+        setTimeout(() => { if (!el.classList.contains("hit")) el.classList.add("gone"); }, 620);
+      }, 120 + i * 430 + Math.random() * 120);
+    }
+    function onDown(e) {
+      if (e.button > 0) return;
+      e.preventDefault(); e.stopPropagation();
+      if (cls !== "cyber") { count(); return; }
+      const p = e.target && e.target.closest ? e.target.closest(".hs-port") : null;
+      if (p && !p.classList.contains("hit") && !p.classList.contains("gone")) { p.classList.add("hit"); hits++; const uq = $("hs-uq"); if (uq) uq.textContent = hits + "/4 ports"; }
+    }
+    const eat = (e) => { e.preventDefault(); e.stopPropagation(); };
+    const key = (e) => { if (e.repeat || cls === "cyber") return; if (e.key === " " || e.key === "Enter" || e.key === "7") { e.preventDefault(); count(); } };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("click", eat, true);
+    document.addEventListener("keydown", key, true);
+    const fr = (now) => {
+      const t = (now - t0) / ULT_MS, b = $("hs-utb"); if (b) b.style.width = Math.max(0, 100 - t * 100) + "%";
+      if (t >= 1) return end();
+      raf = requestAnimationFrame(fr);
+    };
+    raf = requestAnimationFrame(fr);
+    function end() {
+      if (finished) return; finished = true; cancelAnimationFrame(raf);
+      document.removeEventListener("pointerdown", onDown, true); document.removeEventListener("keydown", key, true);
+      setTimeout(() => document.removeEventListener("click", eat, true), 350);
+      const q = cls === "cyber" ? 0.7 + 0.55 * hits / 4 : tapsToQ(taps);
+      const uq = $("hs-uq"); if (uq) { uq.textContent = (cls === "cyber" ? hits + "/4 ports · " : taps + " taps · ") + Math.round(q * 100) + "% POWER"; uq.style.color = q >= 1.1 ? "#ffd700" : q >= 0.95 ? "var(--emerald)" : "var(--text-dim)"; }
+      setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb({ q: q, all: cls === "cyber" ? hits >= 4 : true }); }, 600);
+    }
+  }
+
+  // ---------- v8.7 GAMBLE: zatoč, podrž válce, jednou přetoč za staminu, nebo ber
+  const SYM_TXT = { "🍒": "heal", "🔔": "break", "⭐": "focus", "7️⃣": "damage", "💀": "backfire" };
+  function gamblePreview(reels) {
+    const P = fight.h.perks || {}, r = H.reelResult(reels, { wildCherry: !!(P.wildCherry || fight.h.wildCherry) });
+    if (r.bf && !P.noBackfire) return `<b style="color:var(--crimson);">💀 BACKFIRE</b>`;
+    const parts = [`<b>×${r.mult}</b> dmg`];
+    if (r.heal) parts.push(`❤ +${Math.round(r.heal * 100)}%`);
+    if (r.brk) parts.push(`💢 +${Math.round(r.brk)} break`);
+    if (r.foc) parts.push(`✨ +${r.foc} focus`);
+    if (r.self && !P.noBackfire) parts.push(`<span style="color:var(--crimson);">💀 -${Math.round(r.self * 100)}% ATK to you</span>`);
+    return (r.jp ? "🎰 <b style='color:#ffd700;'>JACKPOT!</b> " : r.txt !== "mixed" ? r.txt.toUpperCase() + " · " : "") + parts.join(" · ");
+  }
+  function spinTo(reels, which, cb) {
     const sym = ["🍒", "🔔", "⭐", "7️⃣", "💀"];
-    box.innerHTML = `<div class="hs-ov"><div class="hs-reels">${[0, 1, 2].map(i => `<div class="hs-reel spin" id="hs-r${i}">🍒</div>`).join("")}</div><div class="hs-ovt" id="hs-rt">🎰 SPINNING...</div></div>`;
-    const iv = setInterval(() => { [0, 1, 2].forEach(i => { const r = $("hs-r" + i); if (r && r.classList.contains("spin")) r.textContent = sym[Math.floor(Math.random() * 5)]; }); }, 70);
-    [0, 1, 2].forEach(i => setTimeout(() => { const r = $("hs-r" + i); if (r) { r.classList.remove("spin"); r.textContent = reels[i]; } }, 420 + i * 260));
-    setTimeout(() => {
-      clearInterval(iv);
-      const res = H.reelResult(reels);
-      const t = $("hs-rt"); if (t) { t.textContent = res.jp ? "🎰 JACKPOT ×6!!!" : res.bf ? "💀 BACKFIRE!" : res.txt.toUpperCase() + " ×" + res.mult; t.style.color = res.jp ? "#ffd700" : res.bf ? "var(--crimson)" : res.mult >= 2 ? "var(--emerald)" : "var(--text-dim)"; }
-      setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(); }, res.jp || res.bf ? 900 : 550);
-    }, 420 + 2 * 260 + 250);
+    which.forEach(i => { const r = $("hs-r" + i); if (r) r.classList.add("spin"); });
+    const iv = setInterval(() => { which.forEach(i => { const r = $("hs-r" + i); if (r && r.classList.contains("spin")) r.textContent = sym[Math.floor(Math.random() * 5)]; }); }, 70);
+    which.forEach((i, k) => setTimeout(() => { const r = $("hs-r" + i); if (r) { r.classList.remove("spin"); r.textContent = reels[i]; } }, 380 + k * 240));
+    setTimeout(() => { clearInterval(iv); cb(); }, 380 + Math.max(0, which.length - 1) * 240 + 200);
+  }
+  function gambleGame() {
+    const f = fight;
+    busyAnim = true; fightRefresh();
+    const reels = H.gambleRoll(f), hold = [false, false, false];
+    const box = $("hs-ov-slot");
+    box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">🎰 GAMBLE</div>
+      <div class="hs-reels">${[0, 1, 2].map(i => `<button type="button" class="hs-reel" id="hs-r${i}" data-i="${i}">🍒</button>`).join("")}</div>
+      <div class="hs-ovt" id="hs-rt" style="font-size:11px;min-height:16px;">SPINNING...</div>
+      <div class="hs-gbtns" id="hs-gb" style="visibility:hidden;"><button type="button" class="btn btn-gold" id="hs-gtake">✔ TAKE IT</button><button type="button" class="btn btn-cyan" id="hs-gre">↻ RE-SPIN (+${H.RESPIN_STA} STA)</button></div>
+      <div class="dg-dim" id="hs-gh" style="margin-top:6px;font-size:10px;text-align:center;visibility:hidden;">Tap reels to HOLD them, then re-spin the rest once.<br>🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you</div></div>`;
+    let state = "spin";
+    const show = () => {
+      [0, 1, 2].forEach(i => { const r = $("hs-r" + i); if (r) r.classList.toggle("held", hold[i]); });
+      const t = $("hs-rt"); if (t) t.innerHTML = gamblePreview(f.gReels);
+      const re = $("hs-gre"); if (re) { re.disabled = !H.canRespin(f) || hold.every(Boolean); re.textContent = f.gRespun ? "↻ ALREADY RE-SPUN" : `↻ RE-SPIN (+${H.RESPIN_STA} STA)`; }
+    };
+    const take = () => {
+      if (state !== "pick") return; state = "done";
+      document.removeEventListener("keydown", key, true);
+      const res = H.reelResult(f.gReels);
+      setTimeout(() => { box.innerHTML = ""; busyAnim = false; resolve("gamble", "none"); }, res.jp || res.bf ? 700 : 250);
+    };
+    const respin = () => {
+      if (state !== "pick" || !H.canRespin(f) || hold.every(Boolean)) return;
+      state = "spin";
+      const which = [0, 1, 2].filter(i => !hold[i]);
+      const nr = H.gambleRespin(f, hold);
+      fightRefresh();
+      spinTo(nr, which, () => { state = "pick"; show(); setTimeout(take, 650); });     // přetočit jde jen jednou -> automaticky vezme
+    };
+    const toggle = (i) => { if (state !== "pick" || f.gRespun) return; hold[i] = !hold[i]; show(); };
+    const key = (e) => {
+      if (e.repeat) return;
+      if (e.key === "1" || e.key === "2" || e.key === "3") { e.preventDefault(); e.stopPropagation(); toggle(Number(e.key) - 1); }
+      else if (e.key === "r" || e.key === "R") { e.preventDefault(); e.stopPropagation(); respin(); }
+      else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); take(); }
+    };
+    document.addEventListener("keydown", key, true);
+    [0, 1, 2].forEach(i => { const r = $("hs-r" + i); if (r) r.onclick = () => toggle(i); });
+    $("hs-gtake").onclick = take; $("hs-gre").onclick = respin;
+    spinTo(reels, [0, 1, 2], () => {
+      state = "pick";
+      const auto = H.reelResult(reels);
+      if (auto.jp || (auto.bf && !(f.h.perks || {}).noBackfire && !H.canRespin(f))) { show(); setTimeout(() => take(), 500); return; }   // jackpot se bere hned
+      $("hs-gb").style.visibility = ""; $("hs-gh").style.visibility = ""; show();
+      if (!H.canRespin(f)) { const re = $("hs-gre"); if (re) re.textContent = "↻ NOT ENOUGH STAMINA"; }
+    });
   }
 
   function play(evs) {
@@ -8816,13 +9406,16 @@ html.m #dg-open-btn { display: none; }
         else { anim("dg-ps", "atk-l"); anim("dg-bs", "hit"); float((e.crit ? "CRIT " : "") + fmt(e.val), "b", e.crit ? "#ffb800" : e.timing === "PERFECT" ? "#ffd700" : "#fff", e.crit || e.timing === "PERFECT");
           dlog(T(e) + `${H.ACTIONS[e.a].name}${e.timing ? " (" + e.timing + ")" : ""} hits for <b>${fmt(e.val)}</b>${e.crit ? " - CRIT!" : ""}`, e.crit || e.timing ? "g" : ""); }
       } else if (e.type === "gamble") {
-        if (e.bf) { anim("dg-ps", "hit"); float("BACKFIRE", "p", "#ff1744", true); dlog(T(e) + `🎰 ${e.reels.join("")} - 💀 BACKFIRE! You take ${fmt(e.self)}.`, "r"); }
-        else { anim("dg-ps", "atk-l"); anim("dg-bs", "hit"); float((e.jp ? "JACKPOT " : "") + fmt(e.val), "b", e.jp ? "#ffd700" : "#fff", e.jp);
-          dlog(T(e) + `🎰 ${e.reels.join("")} - ${e.res} ×${e.mult} for <b>${fmt(e.val)}</b>${e.crit ? " (crit)" : ""}`, e.jp ? "y" : e.mult >= 2 ? "g" : ""); }
+        const re = e.respun ? " (re-spun)" : "";
+        if (e.bf) { anim("dg-ps", "hit"); float("BACKFIRE", "p", "#ff1744", true); dlog(T(e) + `🎰 ${e.reels.join("")}${re} - 💀 BACKFIRE! You take ${fmt(e.self)}.`, "r"); }
+        else { anim("dg-ps", "atk-l"); if (e.val) { anim("dg-bs", "hit"); float((e.jp ? "JACKPOT " : "") + fmt(e.val), "b", e.jp ? "#ffd700" : "#fff", e.jp); }
+          if (e.heal) float("+" + fmt(e.heal), "p", "#00ff88");
+          const fx = [e.heal ? "❤ +" + fmt(e.heal) : "", e.brk ? "💢 +" + e.brk + " break" : "", e.foc ? "✨ +" + e.foc + " focus" : "", e.self ? "💀 -" + fmt(e.self) + " to you" : ""].filter(Boolean).join(" · ");
+          dlog(T(e) + `🎰 ${e.reels.join("")}${re} - ${e.res} ×${e.mult} for <b>${fmt(e.val)}</b>${e.crit ? " (crit)" : ""}${fx ? " · " + fx : ""}`, e.jp ? "y" : e.mult >= 2 ? "g" : ""); }
       } else if (e.type === "skill") { anim("dg-ps", "atk-l"); if (e.val) { anim("dg-bs", "hit"); float(fmt(e.val), "b", "#ff4dff", true); } dlog(T(e) + `✨ <b>${e.a}</b>: ${escapeHtml(e.msg)}`, "y"); }
       else if (e.type === "hhit") { anim("dg-bs", "atk-r"); anim("dg-ps", "hit"); float("-" + fmt(e.val), "p", "#ff4d6d", e.src === "heavy"); if (e.src !== "backfire") dlog(T(e) + `${e.src === "heavy" ? "💥 HEAVY hit" : e.src === "hallucination" ? "🤖 Hallucination" : "Enemy hits"} you for <b>${fmt(e.val)}</b>${e.absorbed ? " (" + fmt(e.absorbed) + " shielded)" : ""}`, "r"); }
       else if (e.type === "dodge") { float("DODGE", "p", "#00f0ff"); dlog(T(e) + `🌀 Dodged${e.heavy ? " the HEAVY" : ""}!`, "c"); }
-      else if (e.type === "perfect") { float("PERFECT BLOCK", "p", "#ffd700", true); float(fmt(e.val), "b", "#ffd700"); dlog(T(e) + `🛡 <b>PERFECT BLOCK!</b> Counter for ${fmt(e.val)}.`, "y"); }
+      else if (e.type === "perfect") { float(e.partial ? "PARTIAL BLOCK" : "GOOD BLOCK", "p", e.partial ? "#00f0ff" : "#00ff88", true); if (e.val) float(fmt(e.val), "b", "#00ff88"); dlog(T(e) + (e.partial ? "🛡 <b>Partial block</b> - some rings stopped." : `🛡 <b>GOOD BLOCK!</b> Most of it absorbed${e.val ? ", counter for " + fmt(e.val) : ""}.`), "g"); }
       else if (e.type === "edef") dlog(T(e) + "Enemy is defending.", "");
       else if (e.type === "parry") { anim("dg-ps", "atk-l"); anim("dg-bs", "hit"); float("PARRY!", "p", "#ffd700", true); float(fmt(e.val), "b", "#ffd700", true); dlog(T(e) + `🛡 <b>PARRY!</b> No damage, counter for ${fmt(e.val)} - enemy stunned next turn.`, "y"); }
       else if (e.type === "break") { anim("dg-bs", "hit"); float("BREAK!", "b", "#ffd700", true); dlog(T(e) + `💢 <b>BREAK!</b> ${e.was === "charge" || e.was === "unleash" ? "Charged attack interrupted! " : ""}Enemy staggered - your next hit deals 1.5×.`, "y"); }
@@ -8922,6 +9515,7 @@ html.m #dg-open-btn { display: none; }
   function gainXp(xp, lines) {
     const d = HS();
     if (window.Meta) xp = Math.round(xp * Meta.mult("hsxp"));
+    if (window.Plant) xp = Math.round(xp * Plant.fx("xp"));
     d.xp += xp;
     let ups = 0;
     while (d.xp >= C.xpToNext(d.level)) { d.xp -= C.xpToNext(d.level); d.level++; ups++; }
@@ -8940,7 +9534,7 @@ html.m #dg-open-btn { display: none; }
   /** vnitřek pro další soubory (aréna, tower, směna, world boss) */
   window.HS_API = { HS: HS, hero: hero, gear: gear, player: player, fmt: fmt, fmtT: fmtT, anim: anim, float: float, sprite: sprite, enemySprite: enemySprite,
     playerSprite: playerSprite, gearDR: gearDR, render: render, registerMode: registerMode, isOpen: () => open, view: () => view, beginFight: beginFight, spendEnergy: spendEnergy,
-    regenEnergy: regenEnergy, gainXp: gainXp, starHtml: starHtml, statLine: statLine, ENERGY_MAX: ENERGY_MAX, dropItem: dropItem, title: title };
+    regenEnergy: regenEnergy, gainXp: gainXp, starHtml: starHtml, statLine: statLine, ENERGY_MAX: ENERGY_BASE, emax: EMAX, dropItem: dropItem, title: title };
   /** v8.5: consumables zrušené - "drop" je teď bonus GC (škáluje s levelem) */
   function dropItem(lines) { const gc = Math.round((1500 + 400 * HS().level) * (window.Meta ? Meta.mult("hsgc") : 1)); gameState.coins += gc; if (lines) lines.push(`💰 +${fmt(gc)} GC bonus`); return gc; }
 
@@ -9674,7 +10268,7 @@ html.m #dg-open-btn { display: none; }
     { key: "adv", find: () => $("gb-sec-adv"), chest: 10, icon: "⚡", name: "ADVANCED", what: "MEGA 5×5, Crash, Chicken Road, Pachinko" },
     { key: "special", find: () => $("gb-sec-special"), chest: 10, icon: "👥", name: "SPECIAL", what: "Showdown PvP, Corporate Climb, Prší, Checkers" },
     { key: "consult", find: () => panelOf("btn-consult-launch"), chest: 15, icon: "🐞", name: "SME CONSULT", what: "Escalate tickets for big GC wins (and bugs)" },
-    { key: "legacy", find: () => panelOf("lp-shop"), prestige: 1, icon: "★", name: "LEGACY SHOP", what: "Permanent upgrades bought with Legacy Points" }
+    { key: "legacy", find: () => panelOf("lp-shop"), prestige: 1, icon: "★", name: "THE OFFICE PLANT", what: "A tree of permanent upgrades grown with Legacy Points" }
   ];
   function panelOf(id) { const el = $(id); return el ? (el.closest(".panel") || el) : null; }
   function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
