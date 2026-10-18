@@ -397,11 +397,12 @@ body {
   border-radius: 4px;
   padding: 8px;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr));   /* v8.7.3: počet sloupců podle místa (telefon = 1, PC = 2) */
   align-content: flex-start;
   gap: 6px;
 }
 .item-card {
+  min-width: 0;
   background: var(--bg-panel-elevated);
   border-radius: 4px;
   padding: 6px 8px;
@@ -1012,8 +1013,9 @@ body {
             <button class="btn btn-gold" style="padding:3px 10px; font-size:10px;" onclick="mergeAll()">MERGE ALL</button>
           </div>
           <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;">
-            Merges 3 identical items into +1 level (+60% base stats per level, 10% crit +2, 5% fail = half the scrap back).
+            Merges 3 identical items into +1 level (+60% base stats per level, 10% crit +2, 5% fail = half the scrap back). ⚒ upgraded items merge too (your equipped one counts): you keep the best ⚒ minus 1 stage.
           </div>
+          <div id="merge-skip" style="font-size:10px; color:var(--amber); margin-bottom:4px;"></div>
           <div class="merge-list" id="merge-list"></div>
         </div>
 
@@ -2646,16 +2648,78 @@ function renderAutosellInfo() {
 // ==========================================================================
 // 11. MERGE (3 stejné -> +1 level)
 // ==========================================================================
+/** v8.7.3: skupiny se ⚒ itemy - 3 stejné (slot, tier, merge level) bez ohledu na ⚒, počítá se i nasazený item.
+ *  Výsledek: merge level +1 a nejvyšší ⚒ ze tří, o 1 stupeň menší. MERGE ALL je přeskakuje. */
+function enhMergeGroups() {
+  const G = {};
+  const add = (k, u) => { (G[k] = G[k] || { units: [], slot: u.slot, tier: u.tier, lvl: u.lvl }).units.push(u); };
+  gameState.inventory.forEach(st => {
+    if ((st.lvl || 0) >= MERGE_MAX_LVL) return;
+    const k = st.slot + "|" + st.tier + "|" + (st.lvl || 0);
+    for (let i = 0; i < Math.min(st.n, 3); i++) add(k, { src: "inv", key: stackKey(st), e: enhOf(st), slot: st.slot, tier: st.tier, lvl: st.lvl || 0 });
+  });
+  SLOTS.forEach(sl => {
+    const it = gameState.loadout[sl]; if (!it || (it.lvl || 0) >= MERGE_MAX_LVL) return;
+    add(sl + "|" + it.tier + "|" + (it.lvl || 0), { src: "eq", e: enhOf(it), slot: sl, tier: it.tier, lvl: it.lvl || 0 });
+  });
+  return Object.keys(G).map(k => {
+    const g = G[k]; g.key = k;
+    if (g.units.length < MERGE_COUNT || !g.units.some(u => u.e)) return null;
+    const best = g.units.slice().sort((x, y) => y.e.length - x.e.length || (y.src === "eq") - (x.src === "eq"))[0];
+    const rest = g.units.filter(u => u !== best).sort((x, y) => x.e.length - y.e.length || (x.src === "eq") - (y.src === "eq")).slice(0, MERGE_COUNT - 1);
+    g.use = [best].concat(rest); g.best = best; g.eq = g.use.some(u => u.src === "eq");
+    g.lost = rest.reduce((a, u) => a + u.e.length, 0);
+    return g;
+  }).filter(Boolean).sort((a, b) => (b.tier - a.tier) || (b.lvl - a.lvl));
+}
+
+function mergeEnh(gkey) {
+  const g = enhMergeGroups().find(x => x.key === gkey); if (!g) return;
+  const E = g.best.e.length, name = itemName(g);
+  if (!confirm(`Merge 3× ${name} +${g.lvl}${g.eq ? " (incl. your equipped one)" : ""}?\nResult: +${g.lvl + 1} with ⚒${E} → ⚒${Math.max(0, E - 1)}${g.lost ? "\nThe other ⚒ stages (" + g.lost + ") are used up." : ""}`)) return;
+  g.use.forEach(u => { if (u.src === "inv") invTake(u.key, 1); });
+  if (g.eq) gameState.loadout[g.slot] = null;
+  const roll = Math.random() * 100;
+  let res;
+  if (roll < 5) {                                       // fail: nejlepší item přežije beze změny, ostatní dva se spotřebují
+    res = { slot: g.slot, tier: g.tier, lvl: g.lvl }; if (g.best.e) res.e = g.best.e;
+    const refund = g.use.slice(1).reduce((a, u) => a + Math.floor(itemScrapValue({ tier: g.tier, lvl: g.lvl }) * 0.5), 0);
+    gameState.scrap += refund;
+    log(`MERGE FAILED: ${name} +${g.lvl} ⚒${E} survived, the other two were lost (+${refund} scrap salvaged).`, "error");
+  } else {
+    const bonus = roll < 15 ? 2 : 1;
+    res = { slot: g.slot, tier: g.tier, lvl: Math.min(MERGE_MAX_LVL, g.lvl + bonus) };
+    const e = g.best.e.slice(0, -1); if (e) res.e = e;
+    log(`⚒ MERGE: ${name} → +${res.lvl}${bonus === 2 ? " (CRIT +2)" : ""} with ⚒${e.length}.`, "special");
+  }
+  if (g.eq) gameState.loadout[g.slot] = res;
+  else invAdd(res.slot, res.tier, res.lvl, 1, res.e);
+  updateUI(); TT.saveSoon();
+}
+
 function renderMergeStation() {
   const box = document.getElementById("merge-list");
   if (!box) return;
   const list = gameState.inventory.filter(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL && !enhOf(s))
     .sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0)));
-  if (list.length === 0) {
+  const eg = enhMergeGroups();
+  const sig = list.map(stackKey).join(",") + "#" + list.map(x => x.n).join(",") + "#" + eg.map(g => g.key + g.best.e + g.eq + g.lost).join(",");
+  if (_txt.mergeSig === sig) return; _txt.mergeSig = sig;
+  setHtml("merge-skip", eg.length ? `MERGE ALL skips ⚒ items (${eg.length} group${eg.length > 1 ? "s" : ""})` : "");
+  if (list.length === 0 && eg.length === 0) {
     box.innerHTML = `<div class="bp-empty" style="padding:12px;">No ${MERGE_COUNT}× identical items ready to merge.</div>`;
     return;
   }
-  box.innerHTML = list.map(s => {
+  box.innerHTML = eg.map(g => {
+    const E = g.best.e.length;
+    return `<div class="merge-card" style="border-color:rgba(255,184,0,.45);">
+      <div class="merge-card-info">
+        <span class="merge-card-title" style="color:var(--rarity-t${g.tier});">${itemName(g)} +${g.lvl} <span class="enh-tag">⚒${E} → ⚒${Math.max(0, E - 1)}</span></span>
+        <span class="merge-card-count">${g.units.length} available${g.eq ? " · incl. equipped" : ""} &bull; ${MERGE_COUNT}× → +${g.lvl + 1}${g.lost ? " · uses up ⚒" + g.lost : ""}</span>
+      </div>
+      <div style="display:flex;gap:4px;"><button class="btn btn-gold" onclick="mergeEnh('${g.key}')">MERGE</button></div>
+    </div>`;
+  }).join("") + list.map(s => {
     const key = stackKey(s);
     const times = Math.floor(s.n / MERGE_COUNT);
     return `<div class="merge-card">
@@ -3820,7 +3884,7 @@ const TUTORIAL_STEPS = [
     <ul><li>Every stage: <b>+8% all stats</b> of the item + a bonus you pick: 🖱 +12% Click, ⚙ +12% Auto or ✨ +0.5% Mult</li>
     <li>⚒1-5 always succeed. ⚒6-10: 90% → 50% chance, a fail only costs GC. ⚒11-15: 45% → 20%, a fail <b>drops the item one stage</b></li>
     <li>🎟 <b>Slot Tokens</b> can now be bought with GC (price rises with every buy, resets on prestige). 1 token = protection against the drop, 2 tokens = guaranteed success</li>
-    <li>Upgraded items cannot be merged. Prestige wipes gear (Heirloom keeps half the ⚒ stages)</li></ul>` },
+    <li>Upgraded items can be merged by hand in the Merge Station (your equipped item counts too): the result keeps the best ⚒ minus 1 stage. MERGE ALL skips them. Prestige wipes gear (Heirloom keeps half the ⚒ stages)</li></ul>` },
   { t: "5) AUTOGEN, PRESTIGE & LEGACY", b: `
     <p><b>45M Autogen</b> makes GC from the Auto stat of your gear. <b>Prestige</b> resets your run (tickets, scrap, GC, chest, gear) but raises the multiplier and gives <b>Legacy Points</b>.</p>
     <ul><li>LP shop: click/auto bonuses, cheaper chests, start GC, <b>Heirloom</b> (keep best items at half tier & merge level)</li>
@@ -10413,7 +10477,8 @@ html.m .stats-grid { grid-template-columns: repeat(2, 1fr); }
 html.m input, html.m select, html.m textarea { font-size: 16px; }   /* iOS nezoomuje při fokusu */
 html.m canvas { max-width: 100%; height: auto; }
 html.m table.lb-table { font-size: 11px; }
-html.m #backpack-grid { grid-template-columns: 1fr !important; }
+html.m #backpack-grid { grid-template-columns: minmax(0, 1fr) !important; }
+html.m #m-tabs button { min-width: 0; overflow: hidden; }
 html.m .item-actions { flex-wrap: wrap; }
 html.m .item-actions .btn { padding: 8px 10px; }
 html.m #fx-banner { font-size: 22px; }
@@ -10522,10 +10587,17 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
     setTab(go);
   });
 
+  /* v8.7.3: iPhone (hlavně aplikace na ploše) hlásí visualViewport o kus menší než obrazovku -> spodní lišta se ořízla (chyběly popisky).
+     Bez klávesnice proto bereme celou výšku (100dvh), visualViewport jen když je otevřená klávesnice. */
+  var DVH = !!(window.CSS && CSS.supports && CSS.supports("height", "100dvh"));
+  function typing() { var a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea,select,[contenteditable]")); }
   function setAppH() {
-    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    var vv = window.visualViewport, h = (vv && vv.height) || window.innerHeight;
+    if (DVH && !typing()) { document.documentElement.style.setProperty("--app-h", "100dvh"); return; }
     if (h) document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
   }
+  document.addEventListener("focusin", function () { setTimeout(setAppH, 50); });
+  document.addEventListener("focusout", function () { setTimeout(setAppH, 50); });
   setAppH();
   window.addEventListener("resize", setAppH);
   window.addEventListener("orientationchange", function () { setTimeout(setAppH, 250); });
