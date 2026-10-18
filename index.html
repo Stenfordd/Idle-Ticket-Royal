@@ -10418,7 +10418,7 @@ html.m .item-actions { flex-wrap: wrap; }
 html.m .item-actions .btn { padding: 8px 10px; }
 html.m #fx-banner { font-size: 22px; }
 html.m .tt-modal, html.m .modal { max-width: 94vw; }
-html.m #update-banner { top: 0; }
+html.m #update-banner { top: calc(8px + env(safe-area-inset-top)); bottom: auto; width: max-content; max-width: calc(100% - 24px); text-align: center; line-height: 1.4; }   /* v8.7.2: dřív top:0 + bottom:14px = roztažené přes celou obrazovku */
 
 /* panel Nastavení (jen mobil) */
 #m-settings { display: none; }
