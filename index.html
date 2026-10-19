@@ -390,7 +390,7 @@ body {
 }
 
 .backpack-container {
-  height: 520px;
+  height: auto; max-height: 520px; min-height: 120px;   /* v8.7.5: bez prázdného místa, když je batoh skoro prázdný */
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--border-subtle);
@@ -864,7 +864,7 @@ body {
     .bp-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; font-size: 11px; color: var(--text-dim); }
     .bp-controls label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
     .bp-empty { color: var(--text-muted); font-size: 11px; text-align: center; grid-column: span 2; padding: 30px; }
-    .backpack-container { height: 640px; }
+    .backpack-container { height: auto; max-height: 640px; }
     .slot-stats { font-size: 9px; color: var(--text-dim); font-weight: 400; }
     .chest-result { font-size: 11px; color: var(--text-dim); min-height: 16px; margin-bottom: 8px; }
 
@@ -891,6 +891,9 @@ body {
     .wager-row input { width: 110px; background: #000; border: 1px solid var(--border-subtle); color: #fff; padding: 5px 8px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; }
     .wager-row .btn { padding: 4px 8px; font-size: 10px; }
     .bal-line { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--amber); text-align: right; margin-bottom: 4px; }
+    .bet-grid { position: relative; }
+    .bet-grid.cool .btn { opacity: .3; filter: grayscale(.8); pointer-events: none; }
+    .bet-grid.cool::after { content: attr(data-cd); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 800 13px 'Orbitron', monospace; color: var(--amber); letter-spacing: 1px; text-shadow: 0 1px 3px #000; pointer-events: none; }
     .roulette-result, .slots-banner { font-family: 'Orbitron', monospace; font-size: 12px; text-align: center; min-height: 18px; margin-bottom: 6px; }
 
     /* Blackjack - široký stůl */
@@ -2962,10 +2965,19 @@ function updateHud() {
   setTxt("bp-count", `${g.inventory.length} / ${INV_MAX_STACKS} stacks · ${invItems()} items`);
 
   const cd = document.getElementById("roulette-cd");
-  if (cd && !isRouletteSpinning) {
+  if (cd) {
     const rem = Math.max(0, Math.ceil((rouletteCooldownUntil - Date.now()) / 1000));
-    setTxt("roulette-cd", rem > 0 ? `COOLDOWN (${rem}s)` : "READY");
+    if (!isRouletteSpinning) setTxt("roulette-cd", rem > 0 ? `COOLDOWN (${rem}s)` : "READY");
+    // v8.7.5: během točení / cooldownu jsou sázky šedé a ukazují proč
+    const grid = document.querySelector("#view-roulette .bet-grid");
+    if (grid) {
+      const lab = isRouletteSpinning ? "🎰 SPINNING..." : rem > 0 ? `⏳ NEXT SPIN IN ${rem}s` : "";
+      grid.classList.toggle("cool", !!lab);
+      if (grid.getAttribute("data-cd") !== lab) grid.setAttribute("data-cd", lab);
+    }
   }
+  const ss = document.getElementById("btn-slots-spin");
+  if (ss) { ss.disabled = !!isSpinningSlots; setTxt("btn-slots-spin", isSpinningSlots ? "🎰 SPINNING..." : "PULL LEVER (SPIN)"); }
 }
 
 function updatePanels() {
@@ -3993,11 +4005,11 @@ function refreshLeaderboard() {
 
       if (Array.isArray(data.feed)) {
         const t = data.feed.map(f => `[${escapeHtml(f.time || "")} ${escapeHtml(f.user)}: ${escapeHtml(f.num)} ${escapeHtml(f.color)} - ${f.payout > 0 ? "WON " + Number(f.payout).toLocaleString() + " GC" : "LOST"}]`).join(" &bull; ");
-        document.getElementById("ticker-recent").innerHTML = `<span>${t || "No recent spins recorded."}</span>`;
+        document.getElementById("ticker-recent").innerHTML = `<span>${t || "No recent spins recorded."}</span>`; document.getElementById("ticker-recent").style.animation = t ? "" : "none";   // v8.7.5: prázdný text se nescrolluje pryč
       }
       if (Array.isArray(data.topWins)) {
         const t = data.topWins.map((w, i) => `#${i + 1} ${escapeHtml(w.user)}: +${Number(w.payout).toLocaleString()} GC on ${escapeHtml(w.num)}`).join(" &bull; ");
-        document.getElementById("ticker-top").innerHTML = `<span>${t || "No jackpots recorded yet."}</span>`;
+        document.getElementById("ticker-top").innerHTML = `<span>${t || "No jackpots recorded yet."}</span>`; document.getElementById("ticker-top").style.animation = t ? "" : "none";
       }
       if (data.chat) renderChatMessages(data.chat);
       if (data.rouletteHistory && window.setRouletteHistory) setRouletteHistory(data.rouletteHistory);
@@ -6611,6 +6623,16 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     }, true);
   })();
 
+  /** v8.7.5: červené tečky - zralé plody / zalití (MORE), plná energie nebo nedokončený trénink (FIGHT) */
+  function dots() {
+    if (typeof gameState === "undefined" || !gameLoaded) return;
+    const p = st(), pl = p.seed && (fruits() > 0 || canWater());
+    document.documentElement.classList.toggle("pl-glow", !!pl);
+    let hs = false;
+    try { if (window.Dungeon && Dungeon.unlocked && Dungeon.unlocked()) { const d = Dungeon.state(); hs = !d.cls || !d.tut || (window.HS_API && d.energy >= HS_API.emax()); } } catch (e) {}
+    document.documentElement.classList.toggle("hs-glow", hs);
+    const b = document.getElementById("dg-open-btn"); if (b) b.classList.toggle("dot", hs);
+  }
   window.Plant = { fx: fx, load: load, payload: payload, apply: apply, lpGainFor: lpGainFor, renderPanel: renderPanel, open: open, close: close, buy: buy, seed: plantSeed,
     respec: respec, harvest: harvest, water: water, stage: stage, invested: invested, fruits: fruits, NODES: NODES, TOTAL: TOTAL, isOpen: () => isOpen };
 
@@ -6620,8 +6642,107 @@ html.m #pl-screen { height: var(--app-h, 100%); }
       st(); apply(); renderPanel(true);
       if (gameState._plantMsg) { log(gameState._plantMsg, "special"); delete gameState._plantMsg; TT.saveSoon(); }
     });
-    setInterval(() => { if (!document.hidden) renderPanel(false); }, 1000);
+    setInterval(() => { if (!document.hidden) { renderPanel(false); dots(); } }, 1000);
     document.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") close(); });
+  })();
+})();
+</script>
+<style>
+/* ===== v8.7.5 WHAT'S NEW + UPDATE LOG ===== */
+#cl-ov { position: fixed; inset: 0; z-index: 9990; display: none; align-items: center; justify-content: center; padding: 14px; background: rgba(0,0,0,.78); }
+#cl-ov.open { display: flex; }
+.cl-box { width: 100%; max-width: 560px; max-height: min(86vh, 760px); display: flex; flex-direction: column; background: var(--bg-panel); border: 1px solid var(--amber); border-radius: 10px; box-shadow: 0 0 30px rgba(255,184,0,.25); }
+.cl-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+.cl-head h2 { flex: 1; margin: 0; font: 900 15px 'Orbitron', monospace; color: var(--amber); letter-spacing: 2px; }
+.cl-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 14px; }
+.cl-v { margin-bottom: 14px; }
+.cl-v h3 { margin: 0 0 4px; font: 800 12px 'Orbitron', monospace; color: var(--cyan); letter-spacing: 1px; display: flex; justify-content: space-between; gap: 8px; }
+.cl-v h3 small { color: var(--text-dim); font: 600 10px sans-serif; }
+.cl-v.new h3 { color: var(--emerald); }
+.cl-v ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; color: var(--text-main); }
+.cl-v li b { color: var(--amber); }
+.cl-foot { flex: none; display: flex; gap: 8px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border-subtle); }
+.cl-foot .btn { flex: 1; padding: 10px; }
+</style>
+<div id="cl-ov"><div class="cl-box">
+  <div class="cl-head"><h2 id="cl-title">📜 WHAT'S NEW</h2><button class="btn" style="padding:4px 10px;" onclick="Changelog.close()">✕</button></div>
+  <div class="cl-body" id="cl-body"></div>
+  <div class="cl-foot"><button class="btn" id="cl-all" onclick="Changelog.open(true)">📜 FULL UPDATE LOG</button><button class="btn btn-gold" onclick="Changelog.close()">OK, LET'S PLAY</button></div>
+</div></div>
+<script>
+(function () {
+  "use strict";
+  const LOG = [
+    { v: "8.7.5", d: "2026-10-19", i: [
+      "🎓 <b>HIGH STAKES TRAINING</b>: a short guided fight that teaches every move (+1 🎟 and XP the first time). Replay it from the HERO tab",
+      "✨ Ultimates now start with <b>TAP TO START</b> and a 3-2-1 countdown",
+      "🎰 Roulette bets are greyed out while spinning and show <b>NEXT SPIN IN …s</b>",
+      "❓ Fight help: tap <b>?</b> in a HIGH STAKES fight for a cheat sheet of all moves and enemy intents",
+      "🔴 Red dots on ⚔ FIGHT (full energy) and on the plant (ripe fruit / water)",
+      "📜 This update log",
+      "📱 Fixed the bottom tab bar disappearing on Android" ] },
+    { v: "8.7.4", d: "2026-10-18", i: [
+      "📴 <b>Offline backup</b>: progress is also saved on your device and uploaded automatically when you are back online",
+      "Hold-to-repeat fixed on iPhone (other taps no longer get stuck)",
+      "Consult ×5 shows and charges the real price" ] },
+    { v: "8.7.3", d: "2026-10-18", i: [
+      "⚒ <b>Merge upgraded items</b> by hand in the Merge Station (your equipped item counts): you keep the best ⚒ minus 1 stage. MERGE ALL skips them",
+      "Backpack shows 1 column on phones, 2 on PC" ] },
+    { v: "8.7.1 - 8.7.2", d: "2026-10-18", i: [ "Small fixes: bonus chips, update banner on phones" ] },
+    { v: "8.7", d: "2026-10-18", i: [
+      "🛡 <b>New parry</b>: random wind-up, the ring speeds up, PERFECT / GOOD, ☄ UNLEASH sends 3 rings, every boss has its own ring trick",
+      "✨ <b>Ultimate mini-games</b>: SysAdmin builds a wall, Engineer mashes the deploy, Cyber hits open ports (70-125% power)",
+      "🎰 <b>Gamble</b>: HOLD reels and re-spin once (+10 stamina); 🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you",
+      "👆 Hold buttons to repeat (chests, upgrades, plant, stats)",
+      "🌳 <b>THE OFFICE PLANT</b> replaced the Legacy shop: a tree of permanent upgrades, fruit every 4 h, water it once a day. More LP per prestige, old LP refunded" ] },
+    { v: "8.6.1", d: "2026-10-17", i: [ "Connecting screen with auto-retry", "No more false SAVE UPDATED ELSEWHERE on the same tab", "Softer enemy scaling" ] },
+    { v: "8.6", d: "2026-10-17", i: [
+      "New bosses: <b>The Italian Guy</b>, <b>Da Polishen</b>, <b>The Supreme Louis</b>, <b>The Cobol</b> and <b>The Administrator</b> (Tower floor 100)",
+      "♾ <b>CLEAR THE POOL</b>: endless mode unlocked by the Administrator, with its own leaderboard",
+      "Stamina only refills from QUICK and BLOCK, ultimates are one big hit, weekly boss has 15 turns",
+      "Prestige resets the campaign and tower, enemies get stronger every prestige",
+      "Boss titles, consult price scales with your scrap" ] },
+    { v: "8.5", d: "2026-10-16", i: [ "Tap anywhere during POWER / PARRY", "HIGH STAKES consumables removed", "iOS screen ghost fix" ] },
+    { v: "8.4", d: "2026-10-16", i: [ "🎲 GAMBLE panel (Basic / Advanced / Special)", "⛀ Checkers", "Prší for up to 6 players with 2nd place", "HUD summary, Pachinko on phones" ] },
+    { v: "8.3", d: "2026-10-16", i: [ "♣ <b>Prší</b> - the Czech card game for 2-4 players, any stake" ] },
+    { v: "8.2", d: "2026-10-16", i: [ "⚒ <b>Upgrade Station</b> (+1 to +15)", "Stars rework, compliance forms", "Weekly boss MK.II, MK.III...", "🏆 Hall of Fame: achievements, weekly boards, company events", "🌌 Prismatic (T6) from chest LV 50 after beating chapter bosses" ] },
+    { v: "8.0", d: "2026-10-15", i: [ "🎰 <b>HIGH STAKES</b>: action fights with a campaign, tower, on-call shift, weekly boss and arena", "Parry, break meter and charged attacks", "Battery ring around RESOLVE TICKET" ] },
+    { v: "7.0", d: "2026-10-15", i: [ "Incident Dungeon (now HIGH STAKES)", "Mega 5×5 slots, Crash, Pachinko physics", "Arena PvP, online presence dots", "New season economy, progressive unlocks" ] },
+    { v: "6.x", d: "2026-10-14", i: [ "Idle Royale goes online for friends: login, phones, instant tapping", "Heirloom, safe cloud saves" ] }
+  ];
+  const CUR = LOG[0].v, KEY = "ir_seen_ver";
+  const $ = (id) => document.getElementById(id);
+  function render(all) {
+    const list = all ? LOG : LOG.slice(0, 1);
+    $("cl-title").textContent = all ? "📜 UPDATE LOG" : "📜 WHAT'S NEW IN v" + CUR;
+    $("cl-all").style.display = all ? "none" : "";
+    $("cl-body").innerHTML = list.map((x, i) => `<div class="cl-v ${i === 0 ? "new" : ""}"><h3><span>v${x.v}${i === 0 ? " · LATEST" : ""}</span><small>${x.d}</small></h3><ul>${x.i.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("");
+    $("cl-body").scrollTop = 0;
+  }
+  function open(all) { render(!!all); $("cl-ov").classList.add("open"); }
+  function close() { $("cl-ov").classList.remove("open"); try { localStorage.setItem(KEY, CUR); } catch (e) {} }
+  $("cl-ov").addEventListener("click", (e) => { if (e.target.id === "cl-ov") close(); });
+  window.Changelog = { open: open, close: close, LOG: LOG, CUR: CUR };
+  (function boot() {
+    if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 150); return; }
+    const badge = document.querySelector(".user-badge");
+    if (badge && !$("cl-btn")) {
+      const b = document.createElement("button"); b.id = "cl-btn"; b.className = "btn btn-help"; b.type = "button"; b.textContent = "📜"; b.title = "Update log";
+      b.onclick = () => open(true);
+      const help = badge.querySelector(".btn-help:not(#m-compact)"); badge.insertBefore(b, help || null);
+    }
+    const addMore = () => {
+      const st = $("m-settings");
+      if (st && !$("cl-more")) { const r = st.querySelector(".row"); if (r) { const b = document.createElement("button"); b.id = "cl-more"; b.className = "btn"; b.type = "button"; b.textContent = "📜 UPDATE LOG"; b.onclick = () => open(true); r.insertBefore(b, r.firstChild); } }
+    };
+    addMore(); setTimeout(addMore, 500);
+    TT.onLoaded(() => {
+      addMore();
+      let seen = null; try { seen = localStorage.getItem(KEY); } catch (e) {}
+      if (seen === CUR) return;
+      if (!gameState.tutorialDone) { try { localStorage.setItem(KEY, CUR); } catch (e) {} return; }    // úplně nový hráč dostane tutorial, ne novinky
+      setTimeout(() => { if (!document.querySelector(".tt-overlay.open")) open(false); else { try { localStorage.setItem(KEY, CUR); } catch (e) {} } }, 1800);
+    });
   })();
 })();
 </script>
@@ -8764,6 +8885,19 @@ html.m #dg-open-btn { display: none; }
 .hs-port { position: absolute; padding: 6px 10px; font: 800 12px 'Orbitron', monospace; color: #00ff88; background: rgba(0,255,136,.12); border: 1px solid #00ff88; border-radius: 6px; cursor: pointer; animation: portIn .15s ease-out; }
 .hs-port.hit { background: #00ff88; color: #000; } .hs-port.gone { opacity: 0; pointer-events: none; transition: opacity .15s; }
 @keyframes portIn { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.hs-help-btn { padding: 1px 8px; font-size: 11px; border-radius: 50%; min-width: 22px; }
+.hs-hsec { font: 800 10px 'Orbitron', monospace; color: var(--amber); letter-spacing: 1px; margin: 10px 0 4px; }
+.hs-hrow { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.hs-hrow .i { width: 22px; flex: none; text-align: center; }
+.hs-hrow b { color: var(--text-main); font-family: 'Orbitron', monospace; font-size: 10.5px; }
+.hs-coach { margin-top: 8px; padding: 9px 10px; border-radius: 8px; background: linear-gradient(180deg, rgba(0,240,255,.10), rgba(0,240,255,.03)); border: 1px solid rgba(0,240,255,.45); font-size: 12px; line-height: 1.45; color: var(--text-main); }
+.hs-coach-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font: 800 11px 'Orbitron', monospace; color: var(--cyan); letter-spacing: 1px; }
+.hs-coach-h .btn { padding: 3px 8px; font-size: 9px; }
+.hs-coach-ok { color: var(--emerald); font-weight: 700; margin-bottom: 3px; }
+.hs-ultgo { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: rgba(5,7,11,.94); border-radius: 8px; cursor: pointer; z-index: 2; }
+.hs-ultgo b { font: 900 22px 'Orbitron', monospace; color: #ff4dff; letter-spacing: 2px; text-shadow: 0 0 14px rgba(255,77,255,.6); animation: tabGlow .6s ease-in-out infinite alternate; }
+.hs-ultgo b.cd { font-size: 54px; animation: none; }
+.hs-ultgo small { font-size: 11px; color: var(--text-dim); }
 .hs-ulttime { width: 86%; height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 8px; }
 .hs-ulttime div { height: 100%; width: 100%; background: #ff4dff; }
 .hs-reel { cursor: pointer; color: inherit; font-family: inherit; padding: 0; }
@@ -8928,7 +9062,7 @@ html.m #dg-open-btn { display: none; }
 
 
   // ------------------------------------------------------------------ OBRAZOVKA
-  function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); }
+  function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); const d = HS(); if (d.cls && !d.tut && !fight) setTimeout(tutStart, 300); }
   /** v8.2.1: v rozehraném boji OFFICE / záložky nabídnou útěk (dřív se nic nestalo a vypadalo to, že hra zamrzla) */
   function askFlee() {
     if (!fight || fight.over) return true;
@@ -9047,7 +9181,7 @@ html.m #dg-open-btn { display: none; }
         ${titlesHtml(d)}
         <div class="dg-h" style="margin-top:10px;"><span>STAT POINTS</span><span style="color:${d.pts ? "var(--emerald)" : "var(--text-dim)"};">${d.pts} free</span></div>${rows}
         <div class="dg-dim" style="margin-top:6px;">+3 points every level. Weapons (TOOL/AUGMENT/RELIC) multiply ATK, armor (HEAD/RIG/OS) multiplies HP.</div>
-        <div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
+        <div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 🎟)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
       <div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>
         <div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (1.9×) or <b>gold</b> (2.5×) zone, then it needs 2 turns to cool down.
         🎰 GAMBLE - spin 3 reels, <b>HOLD</b> the ones you like and re-spin the rest once (+10 stamina). Every symbol does something: 🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you (7️⃣7️⃣7️⃣ = 6× jackpot).
@@ -9081,6 +9215,7 @@ html.m #dg-open-btn { display: none; }
       gameState.coins -= cost; log(`HIGH STAKES: class changed to ${H.CLASSES[k].name}.`, "special");
     } else if (!d.cls) log(`🎰 HIGH STAKES: welcome, ${escapeHtml(gameState.ldap)} the ${H.CLASSES[k].name}!`, "special");
     d.cls = k; view = "camp"; TT.saveSoon(); updateUI(); render();
+    if (!d.tut) setTimeout(tutStart, 300);                                    // v8.7.5: nový hráč -> rovnou trénink
   }
   function respec() { $("dg-inner").innerHTML = classPickHtml(true); }
   function stat(k, n) { const d = HS(); n = Math.min(n, d.pts); if (n <= 0) return; d.stats[k] += n; HS(); TT.saveSoon(); render(); }
@@ -9163,7 +9298,7 @@ html.m #dg-open-btn { display: none; }
       const A = H.ACTIONS[a];
       return `<button class="btn ${a === "power" || a === "gamble" ? "btn-gold" : a === "block" || a === "dodge" ? "btn-cyan" : a === "skill" ? "btn-crimson" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${a === "skill" ? H.CLASSES[h.cls].skill.split(" ")[0] : A.name}<small id="hs-as-${a}">${a === "skill" ? "100 focus" : (A.gain ? "+" + A.gain + " STA" : A.sta + " STA")}</small></button>`;
     }).join("") + `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">FLEE<small>lose</small></button>`;
-    return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span id="hs-turn">TURN 0</span></div>
+    return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span style="display:flex;gap:6px;align-items:center;"><span id="hs-turn">TURN 0</span><button type="button" class="btn hs-help-btn" onclick="Dungeon.help()" title="How to fight">?</button></span></div>
       <div class="dg-dim" id="hs-hud">${fightCtx && fightCtx.hud ? fightCtx.hud(f) : "★ win · ★ 50%+ HP · ★ " + escapeHtml(starGoals(m)[2]) + (m.survive ? " · 🎯 survive " + m.survive + " turns" : "")}</div></div>
       <div class="hs-form" id="hs-form" style="display:none;"></div>
       <div class="hs-fight">
@@ -9181,6 +9316,7 @@ html.m #dg-open-btn { display: none; }
             <div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div></div></div>
       </div>
       <div class="dg-mech" id="dg-mech"></div>
+      <div class="hs-coach" id="hs-coach" style="display:none;"></div>
       <div class="hs-acts">${acts}</div>
       <div id="hs-ov-slot"></div>
       </div>
@@ -9189,6 +9325,7 @@ html.m #dg-open-btn { display: none; }
 
   function fightRefresh() {
     const f = fight; if (!f) return;
+    if (tut && fightCtx && fightCtx.tutorial) { const c = $("hs-coach"); if (c && !c.innerHTML) tutCoach(); }
     const h = f.h;
     const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
     const txt = (id, t) => { const el = $(id); if (el) el.textContent = t; };
@@ -9218,7 +9355,7 @@ html.m #dg-open-btn { display: none; }
         : `📋 FORM ${H.FORM_NO[f.demand]}: this turn use <b>${H.ACTIONS[f.demand].name}</b> (bonus damage) - anything else adds red tape`) : "") +
         (f.redTape ? `<span class="rt">RED TAPE ×${f.redTape}: -${8 * f.redTape}% ATK, -${4 * f.redTape}% dodge</span>` : "");
     }
-    const fl = $("hs-a-flee"); if (fl) fl.disabled = f.over || busyAnim;
+    const fl = $("hs-a-flee"); if (fl) { fl.disabled = f.over || busyAnim; fl.style.visibility = fightCtx && fightCtx.tutorial ? "hidden" : ""; }
   }
 
   function dlog(t, cls) {
@@ -9241,6 +9378,8 @@ html.m #dg-open-btn { display: none; }
   function resolve(a, timing) {
     const f = fight;
     const evs = H.step(f, a, timing);
+    if (fightCtx && fightCtx.onStep && !f.over) fightCtx.onStep(f, a, evs);
+    else if (fightCtx && fightCtx.onStep && f.over && tut) { f.over = false; f.win = false; fightCtx.onStep(f, a, evs); }
     play(evs); after();
   }
   function after() {
@@ -9393,9 +9532,10 @@ html.m #dg-open-btn { display: none; }
     else if (cls === "engineer") { hint = "MASH to push the deploy through!"; body = `<div class="hs-deploy"><div id="hs-ug"></div><span id="hs-ugt">deploying... 0%</span></div>`; }
     else { hint = "HIT THE OPEN PORTS!"; body = `<div class="hs-ports" id="hs-ug"></div>`; }
     box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;color:#ff4dff;">✨ ${sk}: ${hint}</div>${body}
-      <div class="hs-ulttime"><div id="hs-utb"></div></div><div class="hs-ovt" id="hs-uq">&nbsp;</div></div>`;
-    let taps = 0, last = 0, hits = 0, finished = false, raf = 0;
-    const t0 = performance.now(), ports = [];
+      <div class="hs-ulttime"><div id="hs-utb"></div></div><div class="hs-ovt" id="hs-uq">&nbsp;</div>
+      <div class="hs-ultgo" id="hs-ugo"><b>TAP TO START</b><small>${cls === "cyber" ? "then tap the ports as they pop up" : "then tap anywhere as fast as you can"} · 2 seconds</small></div></div>`;
+    let taps = 0, last = 0, hits = 0, finished = false, raf = 0, phase = "ready", t0 = 0;
+    const ports = [];
     function count() {
       const now = performance.now(); if (now - last < ULT_MIN_GAP) return; last = now;
       taps++;
@@ -9404,7 +9544,7 @@ html.m #dg-open-btn { display: none; }
       const uq = $("hs-uq"); if (uq && cls !== "cyber") uq.textContent = Math.round(tapsToQ(taps) * 100) + "%";
     }
     const PORTS = [22, 80, 443, 3389, 8080, 445];
-    if (cls === "cyber") {
+    function spawnPorts() {
       for (let i = 0; i < 4; i++) setTimeout(() => {
         if (finished) return;
         const g = $("hs-ug"); if (!g) return;
@@ -9415,15 +9555,32 @@ html.m #dg-open-btn { display: none; }
         setTimeout(() => { if (!el.classList.contains("hit")) el.classList.add("gone"); }, 620);
       }, 120 + i * 430 + Math.random() * 120);
     }
+    /** v8.7.5: TAP TO START -> odpočet 3-2-1 -> 2 s mini-hra (ťuknutí během odpočtu se nepočítají) */
+    function begin() {
+      if (phase !== "ready") return;
+      phase = "count";
+      const go = $("hs-ugo"); let n = 3;
+      const tickC = () => {
+        if (finished) return;
+        if (n > 0) { if (go) go.innerHTML = `<b class="cd">${n}</b>`; n--; setTimeout(tickC, 380); return; }
+        if (go) go.remove();
+        phase = "run"; t0 = performance.now();
+        if (cls === "cyber") spawnPorts();
+        raf = requestAnimationFrame(fr);
+      };
+      tickC();
+    }
     function onDown(e) {
       if (e.button > 0) return;
       e.preventDefault(); e.stopPropagation();
+      if (phase === "ready") { begin(); return; }
+      if (phase !== "run") return;
       if (cls !== "cyber") { count(); return; }
       const p = e.target && e.target.closest ? e.target.closest(".hs-port") : null;
       if (p && !p.classList.contains("hit") && !p.classList.contains("gone")) { p.classList.add("hit"); hits++; const uq = $("hs-uq"); if (uq) uq.textContent = hits + "/4 ports"; }
     }
     const eat = (e) => { e.preventDefault(); e.stopPropagation(); };
-    const key = (e) => { if (e.repeat || cls === "cyber") return; if (e.key === " " || e.key === "Enter" || e.key === "7") { e.preventDefault(); count(); } };
+    const key = (e) => { if (e.repeat) return; if (e.key === " " || e.key === "Enter" || e.key === "7") { e.preventDefault(); if (phase === "ready") begin(); else if (phase === "run" && cls !== "cyber") count(); } };
     document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("click", eat, true);
     document.addEventListener("keydown", key, true);
@@ -9432,7 +9589,6 @@ html.m #dg-open-btn { display: none; }
       if (t >= 1) return end();
       raf = requestAnimationFrame(fr);
     };
-    raf = requestAnimationFrame(fr);
     function end() {
       if (finished) return; finished = true; cancelAnimationFrame(raf);
       document.removeEventListener("pointerdown", onDown, true); document.removeEventListener("keydown", key, true);
@@ -9653,13 +9809,127 @@ html.m #dg-open-btn { display: none; }
   /** v8.5: consumables zrušené - "drop" je teď bonus GC (škáluje s levelem) */
   function dropItem(lines) { const gc = Math.round((1500 + 400 * HS().level) * (window.Meta ? Meta.mult("hsgc") : 1)); gameState.coins += gc; if (lines) lines.push(`💰 +${fmt(gc)} GC bonus`); return gc; }
 
+  // ---------- v8.7.5 TRAINING: výukový boj (spustí se každému jednou, znovu v HERO)
+  const TUT_STEPS = [
+    { a: "quick", t: "⚔ <b>QUICK</b> costs no stamina - it <b>recharges +15 stamina</b> and gives the most focus. Stamina does NOT refill by itself. Tap <b>QUICK</b>.",
+      setup: f => { f.sta = 20; f.intent = { k: "atk", val: Math.round(f.eatk), fake: false }; } },
+    { a: "strike", t: "🗡 <b>STRIKE</b> spends 25 stamina for a stronger hit. Watch the enemy's next move above its picture - right now it's a normal ⚔ ATTACK. Tap <b>STRIKE</b>.",
+      setup: f => { f.sta = Math.max(f.sta, 40); f.intent = { k: "atk", val: Math.round(f.eatk), fake: false }; } },
+    { a: "power", t: "💥 <b>POWER</b> is a timing hit: stop the needle in the <b style='color:var(--emerald);'>green</b> zone (1.9×) or the <b style='color:#ffd700;'>gold</b> one (2.5×). Tap POWER, then tap anywhere to stop the needle.",
+      setup: f => { f.sta = Math.max(f.sta, 50); delete f.cd.power; f.intent = { k: "defend", val: 0, fake: false }; } },
+    { a: "block", t: "The Trainer shows <b style='color:#ff8fa3;'>💥 HEAVY</b> - a big hit is coming. Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one. <b>PERFECT</b> = no damage + counter + stun, <b>GOOD</b> = -90%.",
+      setup: f => { f.intent = { k: "heavy", val: Math.round(f.eatk * 2.2), fake: false }; } },
+    { a: "strike", need: "break", t: "<b>⏳ CHARGING!</b> It is preparing a 2.7× attack. Fill its 💢 <b>BREAK</b> bar (under its HP) to cancel it - it's almost full. Hit it with <b>STRIKE</b>.",
+      setup: f => { f.sta = Math.max(f.sta, 40); f.brk = 88; f.vuln = false; f.intent = { k: "charge", val: 0, fake: false }; f.lastIntent = "atk"; } },
+    { a: "gamble", t: "🎰 <b>GAMBLE</b> spins 3 reels. Every symbol does something: 🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you. Tap the reels you like to <b>HOLD</b> them and re-spin the rest once (+10 stamina) - or just TAKE IT.",
+      setup: f => { f.sta = Math.max(f.sta, 60); f.intent = { k: "atk", val: Math.round(f.eatk), fake: false }; } },
+    { a: "skill", t: "✨ Your <b>ULTIMATE</b> is ready at 100 focus. Tap the pink skill button, then <b>TAP TO START</b> and play the 2-second mini-game - the better you do, the stronger it gets (70-125%).",
+      setup: f => { f.focus = 100; f.intent = { k: "atk", val: Math.round(f.eatk), fake: false }; } },
+    { a: "dodge", t: "Last one: 💨 <b>DODGE</b> (10 stamina) has a big chance to avoid the next hit, but dodging again right after works less often. Tap <b>DODGE</b>.",
+      setup: f => { f.sta = Math.max(f.sta, 30); f.intent = { k: "atk", val: Math.round(f.eatk), fake: false }; } }
+  ];
+  const ACTS = ["quick", "strike", "power", "gamble", "block", "dodge", "skill"];
+  let tut = null;
+  function tutApply(f) {
+    const s = TUT_STEPS[tut.i]; if (!s) return;
+    s.setup(f);
+    f.disabled = {}; ACTS.forEach(a => { if (a !== s.a) f.disabled[a] = 99; });
+    f.demand = null; f.stunNext = false;
+    tutCoach();
+  }
+  function tutCoach(extra) {
+    const c = $("hs-coach"); if (!c || !tut) return;
+    const s = TUT_STEPS[tut.i];
+    c.style.display = "";
+    c.innerHTML = `<div class="hs-coach-h"><span>🎓 TRAINING ${Math.min(tut.i + 1, TUT_STEPS.length)}/${TUT_STEPS.length}</span><button type="button" class="btn" onclick="Dungeon.tutSkip()">SKIP TUTORIAL ✕</button></div>
+      ${extra ? `<div class="hs-coach-ok">${extra}</div>` : ""}<div>${s ? s.t : ""}</div>`;
+  }
+  function tutStart() {
+    const d = HS(); if (!d.cls) return;
+    if (fight && !fight.over) return;
+    const h0 = hero();
+    tut = { i: 0 };
+    const m = { id: 900, ch: 0, idx: 0, name: "TRAINING: The Trainer", intro: "Learn the basics.", kind: "normal", bonus: {}, survive: 0,
+      enemy: { name: "The Trainer", icon: "🎓", hp: Math.round(h0.atk * 220), atk: Math.max(1, Math.round(h0.maxHp * 0.04)), pattern: { atk: 1 }, mech: "", sprite: 7 } };
+    view = "hero";
+    beginFight(m, { mode: "tutorial", tutorial: true,
+      hud: () => "🎓 Training - you can't lose here",
+      onStep: function (f, a, evs) {
+        f.hp = Math.max(f.hp, Math.round(f.h.maxHp * 0.6)); f.ehp = Math.max(f.ehp, Math.round(f.emax * 0.4));
+        const s = TUT_STEPS[tut.i];
+        let ok = a === s.a, msg = "";
+        if (s.need === "break") ok = evs.some(e => e.type === "break");
+        if (ok) {
+          const pr = evs.find(e => e.type === "parry"), gb = evs.find(e => e.type === "perfect");
+          msg = a === "block" ? (pr ? "✔ PERFECT PARRY! Nice." : gb ? "✔ GOOD block. Try to hit the ring exactly for a PERFECT next time." : "✔ Blocked - but you missed the ring. Tap exactly when it hits gold.")
+            : a === "power" ? "✔ " + ((evs.find(e => e.type === "pact" && e.timing) || {}).timing ? "Nice timing!" : "Hit! Try to stop the needle in the zone next time.")
+            : s.need === "break" ? "✔ BREAK! The charged attack is cancelled and your next hit deals 1.5×." : "✔ Done!";
+          tut.i++;
+        } else msg = s.need === "break" ? "Not broken yet - hit it again!" : "";
+        if (tut.i >= TUT_STEPS.length) { f.ehp = 0; f.over = true; f.win = true; tut.done = true; return; }
+        tutApply(f); if (msg) tutCoach(msg);
+      },
+      onEnd: function (f) {
+        const d = HS(), first = !d.tut, lines = [];
+        const done = !!(tut && tut.done);
+        d.tut = done ? 2 : (d.tut || 1);
+        if (done && first) { gameState.slotTokens += 1; gainXp(100, lines); lines.unshift("+100 XP", "+1 🎟 Slot Token"); log("🎓 TRAINING COMPLETE: +1 🎟 Slot Token, +100 XP. Good luck out there!", "special"); }
+        tut = null;
+        return { title: done ? "TRAINING COMPLETE" : "TRAINING SKIPPED", color: done ? "var(--emerald)" : "var(--text-dim)",
+          lines: done ? (lines.length ? lines : ["You already got the reward"]) : ["You can replay it any time from the HERO tab"],
+          note: done ? "Start with the 📖 CAMPAIGN. Tip: the enemy always shows its next move - play around it." : "",
+          buttons: [{ label: "📖 TO THE CAMPAIGN", cls: "btn-gold", fn: () => tab("camp") }] };
+      } });
+    tutApply(fight); fightRefresh();
+  }
+  function tutSkip() {
+    if (!fight || fight.over || !tut || busyAnim) return;
+    fight.over = true; fight.win = false; fight.fled = true; endFight();
+  }
+
+
+  // ---------- v8.7.5: tahák během boje
+  function help() {
+    if (busyAnim) return;
+    const ex = document.getElementById("hs-help"); if (ex) { ex.remove(); return; }
+    const A = H.ACTIONS, cls = fight ? fight.h.cls : HS().cls, C0 = H.CLASSES[cls || "sysadmin"];
+    const row = (i, n, t) => `<div class="hs-hrow"><span class="i">${i}</span><div><b>${n}</b> ${t}</div></div>`;
+    const el = document.createElement("div");
+    el.className = "tt-overlay open"; el.id = "hs-help"; el.style.zIndex = 10000;
+    el.onclick = (e) => { if (e.target === el) el.remove(); };
+    el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);max-height:86vh;overflow-y:auto;"><h2 style="color:var(--cyan);">❓ HOW TO FIGHT</h2>
+      <div class="hs-hsec">YOUR MOVES</div>
+      ${row("⚔", "QUICK", "0 stamina, <b>+15 stamina</b>, most focus. Use it to recharge.")}
+      ${row("🗡", "STRIKE", "25 stamina, reliable 1.15× hit.")}
+      ${row("💥", "POWER", "35 stamina, stop the needle: green 1.9×, gold 2.5×. 2-turn cooldown.")}
+      ${row("🎰", "GAMBLE", "20 stamina, HOLD reels + 1 re-spin (+10). 🍒 heal · 🔔 break · ⭐ focus · 7️⃣ dmg · 💀 hurts you.")}
+      ${row("🛡", "BLOCK", "+25 stamina, -60% damage. Against 💥 HEAVY / ☄ UNLEASH / 💸 tap when the ring hits gold: PERFECT = 0 dmg + counter + stun, GOOD = -90%.")}
+      ${row("💨", "DODGE", "10 stamina, big chance to avoid the hit (less if you dodge twice in a row).")}
+      ${row("✨", C0.skill, "at 100 focus: " + C0.skillTxt + " Tap to start, then the 2-second mini-game sets the power (70-125%).")}
+      <div class="hs-hsec">WHAT THE ENEMY SHOWS</div>
+      ${row("⚔", "ATTACK", "a normal hit - block or just trade blows.")}
+      ${row("💥", "HEAVY", "big hit - BLOCK and parry it!")}
+      ${row("⏳", "CHARGING", "next turn ☄ UNLEASH (2.7×). Fill the 💢 BREAK bar now to cancel it.")}
+      ${row("☄", "UNLEASH", "huge hit with 3 rings to parry.")}
+      ${row("🛡", "DEFEND", "takes 60% less damage - good turn for QUICK / BLOCK.")}
+      ${row("✨", "SPECIAL", "the enemy's own trick (heal, drain, lock your moves...).")}
+      ${row("😵", "STUNNED", "free turn - go all in.")}
+      ${row("❓", "???", "the LLM is lying about its move.")}
+      <div class="hs-hsec">TIPS</div>
+      <div class="dg-dim" style="line-height:1.55;">💢 <b>BREAK</b>: hits fill the bar under the enemy HP; at 100 it skips its turn and your next hit deals 1.5×.<br>
+      📋 Forms / decrees: do the asked move for bonus damage, otherwise RED TAPE lowers your ATK.<br>
+      Keys on PC: 1-7 = moves, space = timing / parry.</div>
+      <div style="margin-top:12px;"><button class="btn btn-cyan" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">GOT IT</button></div></div>`;
+    document.body.appendChild(el);
+  }
+
   window.Dungeon = {
     open: openScreen, close: closeScreen, tab: tab, chapter: chapter, mission: mission, start: start, act: act, flee: flee,
     leave: leave, retry: retry, next: nextM, pickClass: pickClass, respec: respec, tokenEnergy: tokenEnergy, stat: stat, resetStats: resetStats,
     netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, hsPayload: hsPayload, showProfile: function () {},
     state: HS, unlocked: unlocked,
     isBusy: () => !!(fight && !fight.over) || Object.keys(MODES).some(k => MODES[k].busy && MODES[k].busy()), onLeaderboard: function () {},
-    resBtn: resBtn, setTitle: setTitle, onPrestige: onPrestige, BOSS_TITLES: BOSS_TITLES, t6Slots: t6Slots, t6Unlocked: t6Unlocked, _fight: () => fight
+    resBtn: resBtn, help: help, tutStart: tutStart, tutSkip: tutSkip, setTitle: setTitle, onPrestige: onPrestige, BOSS_TITLES: BOSS_TITLES, t6Slots: t6Slots, t6Unlocked: t6Unlocked, _fight: () => fight
   };
 
   function boot() {
@@ -9912,7 +10182,7 @@ html.m #dg-open-btn { display: none; }
 .wb-bar span { position: absolute; inset: 0; text-align: center; font: 800 10px/16px 'Orbitron', monospace; color: #fff; text-shadow: 0 1px 2px #000; }
 .wb-lb div { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
 .dg-tabs { flex-wrap: wrap; }
-.dg-tabs button { flex: 1 0 15%; padding-left: 4px; padding-right: 4px; }
+.dg-tabs button { flex: 1 1 0; min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }   /* v8.7.5: na PC všech 7 záložek v jedné řadě */
 @media (max-width: 700px) { .dg-tabs button { flex: 1 0 30%; font-size: 10px; } .sh-choices { grid-template-columns: 1fr; } }
 </style>
 
@@ -10456,11 +10726,12 @@ html.m #dg-open-btn { display: none; }
    Stejná hra, jen jiné rozložení: horní lišta + mini HUD + obsah jedné záložky + spodní lišta.
    Záložka HRA má zamčený scroll a obří tlačítko, ostatní záložky se normálně posouvají. */
 #m-hud, #m-tabs { display: none; }
+html.m.kb body { bottom: auto; height: var(--app-h, 100%); }   /* otevřená klávesnice: výška nad klávesnicí */
 
 html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
 html.m body {
   display: flex; flex-direction: column; overflow: hidden;
-  position: fixed; top: 0; left: 0; width: 100%; height: var(--app-h, 100%);
+  position: fixed; top: 0; bottom: 0; left: 0; width: 100%; height: auto;   /* v8.7.5: přichyceno k hranám viditelné plochy (Android i iPhone) */
   -webkit-tap-highlight-color: transparent;
 }
 html.m .btn, html.m .btn-primary-action, html.m .casino-tab-btn, html.m #m-tabs button {
@@ -10520,6 +10791,8 @@ html.m #m-tabs button.active { color: var(--cyan); border-top-color: var(--cyan)
 html.m #m-tabs button { position: relative; }
 html.m #m-tabs button[data-go="fight"] { color: #ff4d6d; }
 html.has-unread #m-tabs button[data-go="more"]::after,
+html.pl-glow #m-tabs button[data-go="more"]::after,
+html.hs-glow #m-tabs button[data-go="fight"]::after,
 html.sd-glow #m-tabs button[data-go="casino"]::after { content: ""; position: absolute; top: 5px; right: 22%; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 6px var(--crimson); }
 
 html.m #fx-toggle, html.m #ir-logout { display: none !important; }
@@ -10638,13 +10911,16 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
     setTab(go);
   });
 
-  /* v8.7.3: iPhone (hlavně aplikace na ploše) hlásí visualViewport o kus menší než obrazovku -> spodní lišta se ořízla (chyběly popisky).
-     Bez klávesnice proto bereme celou výšku (100dvh), visualViewport jen když je otevřená klávesnice. */
-  var DVH = !!(window.CSS && CSS.supports && CSS.supports("height", "100dvh"));
+  /* v8.7.5: výška = skutečná viditelná plocha (pevný prvek top:0 + bottom:0), jen při psaní výška nad klávesnicí.
+     (v8.7.3 používal 100dvh - Chrome na Androidu ho počítal i pod adresní řádek a spodní lišta zmizela) */
+  var probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;top:0;bottom:0;left:0;width:0;visibility:hidden;pointer-events:none;";
+  document.documentElement.appendChild(probe);
   function typing() { var a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea,select,[contenteditable]")); }
   function setAppH() {
-    var vv = window.visualViewport, h = (vv && vv.height) || window.innerHeight;
-    if (DVH && !typing()) { document.documentElement.style.setProperty("--app-h", "100dvh"); return; }
+    var vv = window.visualViewport, kb = typing() && vv && vv.height < (probe.offsetHeight || window.innerHeight) - 80;
+    document.documentElement.classList.toggle("kb", !!kb);
+    var h = kb ? vv.height : (probe.offsetHeight || window.innerHeight);
     if (h) document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
   }
   document.addEventListener("focusin", function () { setTimeout(setAppH, 50); });
