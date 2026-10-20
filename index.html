@@ -6768,6 +6768,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.3.3", d: "2026-10-20", i: [ "📱 Android app on the home screen: the bottom tab bar was pushed off the screen (you got stuck on one tab) - fixed" ] },
     { v: "9.3.2", d: "2026-10-20", i: [ "📱 The Top 10 table fits on phones again (short numbers like 10.5M)" ] },
     { v: "9.3.1", d: "2026-10-20", i: [
       "📱 The Play tab scrolls again on phones (the room pushed things on top of each other)",
@@ -11983,8 +11984,9 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   function safeTop() { return parseFloat(getComputedStyle(sprobe).paddingTop) || 0; }
   function standalone() { return !!(navigator.standalone || (window.matchMedia && (matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches))); }
   /** v9.3.1: iPhone web app (černý průhledný status bar): viditelná výška = hlášená výška + výška status baru */
+  function isIOS() { var u = navigator.userAgent || ""; return /iPhone|iPad|iPod/.test(u) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
   function iosFull() {
-    if (!standalone() || !window.screen) return 0;
+    if (!isIOS() || !standalone() || !window.screen) return 0;            // v9.3.3: jen iPhone (Android aplikace má v screen.height i systémové lišty -> lišta zmizela pod okraj)
     var port = window.innerWidth < window.innerHeight;
     var sh = port ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
     var ph = probe.offsetHeight || window.innerHeight, st = safeTop(), d = sh - ph;
@@ -11993,7 +11995,7 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   }
   window.__viewInfo = function () {
     return "screen " + (window.screen ? screen.width + "×" + screen.height : "?") + " · inner " + window.innerWidth + "×" + window.innerHeight + " · fixed " + (probe.offsetHeight || 0) +
-      " · safe " + Math.round(safeTop()) + "/" + Math.round(parseFloat(getComputedStyle(sprobe).paddingBottom) || 0) + " · app " + (standalone() ? "yes" : "no") + " · fix " + (document.documentElement.classList.contains("iosfix") ? "on" : "off") +
+      " · safe " + Math.round(safeTop()) + "/" + Math.round(parseFloat(getComputedStyle(sprobe).paddingBottom) || 0) + " · app " + (standalone() ? "yes" : "no") + (isIOS() ? " ios" : "") + " · fix " + (document.documentElement.classList.contains("iosfix") ? "on" : "off") +
       " · body " + Math.round(document.body.getBoundingClientRect().height) + " · tabs " + Math.round(($("m-tabs") || document.body).getBoundingClientRect().bottom);
   };
   function setAppH() {
