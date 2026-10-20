@@ -16,7 +16,7 @@
 /* ==========================================================================
    TICKET TYCOON // CASINO ROYALE v5.2 - OBSIDIAN & CRIMSON MODULAR UI
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
   --bg-core: #07090e;
@@ -1130,7 +1130,7 @@ body {
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t3);">🟣 Epic T3</div><div class="odds-val" id="odd-t3" style="color:var(--rarity-t3);">0.20%</div></div>
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t4);">🟡 Legendary T4</div><div class="odds-val" id="odd-t4" style="color:var(--rarity-t4);">0.01%</div></div>
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t5);">🔴 Mythic T5</div><div class="odds-val" id="odd-t5" style="color:var(--rarity-t5);">0.001%</div></div>
-            <div class="odds-cell odds-t6" title="Prismatic (T6): every HIGH STAKES chapter boss unlocks T6 drops for one body slot (chest LV 50+)"><div class="odds-name" style="color:#ff4dff;">🌌 Prismatic T6</div><div class="odds-val" id="odd-t6" style="color:#ff4dff;">🔒 BOSS</div></div>
+            <div class="odds-cell odds-t6" title="Prismatic (T6): every HIGH STAKES chapter boss unlocks T6 drops for one body slot (chest LV 50+)"><div class="odds-name" style="color:var(--rarity-t6);">🌌 Prismatic T6</div><div class="odds-val" id="odd-t6" style="color:var(--rarity-t6);">🔒 BOSS</div></div>
           </div>
 
           <div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;" id="chest-next-info"></div>
@@ -2047,7 +2047,9 @@ function updateClickRing() {
   if (w !== ringW || h !== ringH) {
     ringW = w; ringH = h;
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    svg.querySelectorAll("rect").forEach(r => { r.setAttribute("x", 1.5); r.setAttribute("y", 1.5); r.setAttribute("width", w - 3); r.setAttribute("height", h - 3); r.setAttribute("rx", 9); });
+    const cb = document.getElementById("btn-click"), br = cb ? parseFloat(getComputedStyle(cb).borderTopLeftRadius) || 6 : 6;   // v9.0: oblouk podle tlačítka
+    const rx = Math.max(6, br + (cb ? (w - cb.offsetWidth) / 2 : 5) - 1.5);
+    svg.querySelectorAll("rect").forEach(r => { r.setAttribute("x", 1.5); r.setAttribute("y", 1.5); r.setAttribute("width", w - 3); r.setAttribute("height", h - 3); r.setAttribute("rx", rx); });
   }
   if (svg.classList.contains("flash")) return;
   const ac = gameState.autoclicker;
@@ -2972,7 +2974,8 @@ function updateHud() {
     // v8.7.5: během točení / cooldownu jsou sázky šedé a ukazují proč
     const grid = document.querySelector("#view-roulette .bet-grid");
     if (grid) {
-      const lab = isRouletteSpinning ? "🎰 SPINNING..." : rem > 0 ? `⏳ NEXT SPIN IN ${rem}s` : "";
+      let lab = isRouletteSpinning ? "🎰 SPINNING..." : rem > 0 ? `⏳ NEXT SPIN IN ${rem}s` : "";
+      if (lab && window.Theme && Theme.isNew()) lab = Theme.conv(lab);
       grid.classList.toggle("cool", !!lab);
       if (grid.getAttribute("data-cd") !== lab) grid.setAttribute("data-cd", lab);
     }
@@ -3916,10 +3919,11 @@ const TUTORIAL_STEPS = [
     <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
     <ul><li>⚔ Quick / 🗡 Strike = safe hits. 💥 <b>Power</b> = stop the needle in the green zone (1.9×) or gold (2.5×), then 2 turns cooldown. 🎰 <b>Gamble</b> = a mini slot machine (777 = 6×, 💀💀💀 = backfire)</li>
     <li>🛡 Block a HEAVY and tap when the ring hits gold: <b>PERFECT</b> parry (no damage, counter, stun) or <b>GOOD</b> (-90%). The ring comes after a random wind-up, UNLEASH sends 3 of them. 🎰 Gamble: HOLD reels and re-spin once. ✨ Ultimates are a 2-second mini-game (70-125% power). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. ⚡ Stamina does not refill by itself - QUICK and BLOCK recharge it for STRIKE and POWER. During POWER and PARRY you can tap <b>anywhere</b> on the screen</li>
-    <li>Campaign: 5 chapters, 50 missions. Each mission has 3 separate stars: ★ win, ★ win with 50%+ HP, ★ the bonus goal <b>or</b> a win within 3 turns. Stars you earn stay - you can collect them over several runs. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min, or turn a Slot Token into +4 ⚡ with the button at the top)</li>
+    <li>Campaign: 5 chapters, 50 missions. Each mission has 3 separate stars: ★ win, ★ win with 50%+ HP, ★ the bonus goal <b>or</b> a win within 3 turns. Stars you earn stay - you can collect them over several runs. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min, max 16, or turn a Slot Token into +4 ⚡ with the button at the top)</li>
     <li>📋 <b>Compliance audits</b>: every turn a form asks for one move. Do it = bonus damage. Ignore it = RED TAPE (-ATK, -dodge, stacks). Dodging twice in a row works less often</li>
     <li>🗼 <b>TOWER</b>: 100 floors, every 10 = +1% power. 📟 <b>SHIFT</b>: roguelite run with perks, HP carries over. 📊 <b>BOSS</b>: weekly company-wide boss, 1 attack per hour - kill it together for ×1.10 income next week. Kill it and a stronger MK.II spawns right away (then MK.III...) - the higher the MK, the bigger the weekly reward</li>
-    <li>Level up = +3 stat points. Weapons = ATK, armor = HP. Nothing here is reset by prestige</li>
+    <li>Level up = +3 stat points. ⚒ <b>Combat gear</b> (HERO tab): a weapon (ATK), armor (HP) and a trinket (both + crit). Upgrade them +1 to +5 with GC, then evolve to the next material: Paper → Cardboard → Wood → Plastic → Steel → Titanium → Carbon → Quantum. Chapter bosses, the Administrator and Pool floor 50 unlock the materials. Prestige resets the campaign, the tower and the gear +levels (materials stay). Office items only boost the office</li>
+    <li>♾ <b>CLEAR THE POOL</b> (after Tower floor 100): an endless tower, every floor is a fresh fight and your progress is saved. 🧑‍💼 <b>COLLEAGUE</b>: farms bosses you beat and clicks for you, even offline</li>
     <li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC</li></ul>` },
   { t: "9) 🏆 HALL OF FAME", b: `
     <p>Open it with the <b>🏆 HALL OF FAME</b> button (on mobile: MORE).</p>
@@ -6114,7 +6118,7 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
   <style>
 /* ===== UPGRADE STATION (forge.html): vylepšení nasazeného itemu +1..+15 za GC, tokeny za GC ===== */
 .enh-tag { color: #ffb800; font: 800 10px 'Orbitron', monospace; margin-left: 3px; }
-.odds-table .odds-t6 { grid-column: 1 / -1; border-color: rgba(255,77,255,.35); }
+.odds-table .odds-t6 { grid-column: 1 / -1; border-color: rgba(0,255,204,.35); }
 .fg-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 8px; }
 .fg-slots .btn { padding: 6px 2px; font-size: 10px; }
 .fg-slots .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
@@ -6666,7 +6670,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 .cl-foot .btn { flex: 1; padding: 10px; }
 </style>
 <div id="cl-ov"><div class="cl-box">
-  <div class="cl-head"><h2 id="cl-title">📜 WHAT'S NEW</h2><button class="btn" style="padding:4px 10px;" onclick="Changelog.close()">✕</button></div>
+  <div class="cl-head"><h2 id="cl-title">📜 What's new</h2><button class="btn" style="padding:4px 10px;" onclick="Changelog.close()">✕</button></div>
   <div class="cl-body" id="cl-body"></div>
   <div class="cl-foot"><button class="btn" id="cl-all" onclick="Changelog.open(true)">📜 FULL UPDATE LOG</button><button class="btn btn-gold" onclick="Changelog.close()">OK, LET'S PLAY</button></div>
 </div></div>
@@ -6674,6 +6678,15 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.0", d: "2026-10-20", i: [
+      "🎨 <b>New look</b>: calmer dark design, new font, no more CAPS LOCK everywhere and a big, squishy Resolve button. Prefer the old one? Tap 🎨 (on phones in More → Settings)",
+      "⚒ <b>Combat gear</b>: HIGH STAKES power now comes from a <b>weapon</b> (ATK), <b>armor</b> (HP) and a <b>trinket</b> (both + crit) in HERO. Upgrade them +1 to +5 with GC, then evolve: Paper → Cardboard → Wood → Plastic → Steel → Titanium → Carbon → Quantum",
+      "Chapter bosses, the Administrator and Pool floor 50 unlock the materials. Prestige resets the +levels, materials stay. Your old items were converted to gear with the same power",
+      "Office items now only boost the office (click, auto, mult)",
+      "♾ <b>Clear the Pool</b> is now an endless tower: every floor is its own fight with full HP, progress is saved, ⚡1 per fight, rewards for every new floor",
+      "🧑‍💼 Colleague: gets your old gear when you evolve, training is bought with GC",
+      "⚡ Max energy 16 (was 10)",
+      "Prismatic T6 is green in the chest odds too" ] },
     { v: "8.8", d: "2026-10-20", i: [
       "🧑‍💼 <b>THE COLLEAGUE</b>: beat the Administrator (Tower 100) to get a colleague with a random (sometimes very meme) name",
       "Give them your old items - better ones get equipped, the rest become XP. They can reach up to 60% of your power",
@@ -6721,9 +6734,9 @@ html.m #pl-screen { height: var(--app-h, 100%); }
   const $ = (id) => document.getElementById(id);
   function render(all) {
     const list = all ? LOG : LOG.slice(0, 1);
-    $("cl-title").textContent = all ? "📜 UPDATE LOG" : "📜 WHAT'S NEW IN v" + CUR;
+    $("cl-title").textContent = all ? "📜 Update log" : "📜 What's new in v" + CUR;
     $("cl-all").style.display = all ? "none" : "";
-    $("cl-body").innerHTML = list.map((x, i) => `<div class="cl-v ${i === 0 ? "new" : ""}"><h3><span>v${x.v}${i === 0 ? " · LATEST" : ""}</span><small>${x.d}</small></h3><ul>${x.i.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("");
+    $("cl-body").innerHTML = list.map((x, i) => `<div class="cl-v ${i === 0 ? "new" : ""}"><h3><span>v${x.v}${i === 0 ? " · latest" : ""}</span><small>${x.d}</small></h3><ul>${x.i.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("");
     $("cl-body").scrollTop = 0;
   }
   function open(all) { render(!!all); $("cl-ov").classList.add("open"); }
@@ -7378,7 +7391,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   var chest = $("chest-result");
   if (chest) {
     var lastChest = "";
-    var COLORS = { 3: "#a855f7", 4: "#fbbf24", 5: "#f43f5e", 6: "#ff4dff" };
+    var COLORS = { 3: "#a855f7", 4: "#fbbf24", 5: "#f43f5e", 6: "#00ffcc" };
     new MutationObserver(function () {
       var t = chest.textContent || "";
       if (!t || t === lastChest) return; lastChest = t;
@@ -8470,7 +8483,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "The Printer Is On Fire", e: "Jammed Printer", i: "🖨", p: "turtle", b: { type: "noGamble" }, t: "PC LOAD LETTER. What does that even mean? Fix it with violence." },
       { n: "Have You Tried Turning It Off", e: "Frozen Laptop", i: "💻", p: "normal", b: { type: "perfectBlock" }, t: "It's been loading since 2019. Time to hold the power button." },
       { n: "Reply-All Storm", e: "Email Chain Monster", i: "📧", p: "brute", k: "elite", b: { type: "hp", pct: 70 }, t: "347 people replied \"please remove me from this list\". The inbox has become self-aware." },
-      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "Management says Compliance Control arrives today. Their Vanguard brings forms: do what the form says (bonus damage) or drown in red tape." },
+      { n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "Management says Compliance Control arrives today. Their Vanguard brings forms: do what the form says (bonus damage) or drown in red tape." },
       { n: "Mouse Has Gone Rogue", e: "Wireless Mouse", i: "🖱", p: "normal", b: { type: "crits", n: 2 }, t: "Battery at 1%. It's moving on its own. It's angry." },
       { n: "Ticket Avalanche", e: "Ticket Golem", i: "🎫", p: "brute", b: { type: "turns", n: 9 }, t: "Monday, 9:01 AM. 214 new tickets. All marked URGENT." },
       { n: "The Coffee Machine", e: "Possessed Espresso Maker", i: "☕", p: "caster", mech: "heal", k: "elite", b: { type: "skill" }, t: "It brews despair and heals itself with every sip." },
@@ -8482,7 +8495,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Overheated Rack", e: "Thermal Rack", i: "🔥", p: "brute", b: { type: "perfectBlock" }, t: "The AC broke in 2017. The rack has been angry ever since." },
       { n: "RAID Is Not A Backup", e: "Degraded RAID Array", i: "💽", p: "caster", mech: "heal", b: { type: "turns", n: 10 }, t: "Two disks failed. The third is making clicking noises." },
       { n: "The Forbidden UPS", e: "Beeping UPS", i: "🔋", p: "normal", k: "elite", b: { type: "hp", pct: 70 }, t: "It beeps every 30 seconds. For six years. Nobody knows why." },
-      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "This time it's REAL. Compliance Control is coming to inspect the server room. Their Vanguard brings forms - comply or drown in red tape." },
+      { n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "This time it's REAL. Compliance Control is coming to inspect the server room. Their Vanguard brings forms - comply or drown in red tape." },
       { n: "Rogue Cron Job", e: "Cron Job at 3 AM", i: "⏰", p: "brute", b: { type: "crits", n: 2 }, t: "It runs every night at 3:00 and deletes something important." },
       { n: "Memory Leak", e: "Java Heap Monster", i: "🧠", p: "caster", mech: "drain", b: { type: "skill" }, t: "It eats RAM. Then it eats your stamina. Then it eats your soul." },
       { n: "Hey Dan, Listen", e: "The Cobol", i: "🥟", p: "caster", mech: "cobol", k: "elite", x: [0.8, 0.8], b: { type: "noBlock" }, t: "\"Hey Dan, listen...\" Older than the mainframe and it still runs. He will offer you bryndza (answer with BLOCK) and throw halušky at you." },
@@ -8494,7 +8507,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Sticky Note Password", e: "Post-it Note", i: "📝", p: "turtle", b: { type: "turns", n: 9 }, t: "Password123! - written on the monitor. Security level: maximum." },
       { n: "USB In The Parking Lot", e: "Mystery USB Stick", i: "🔌", p: "caster", mech: "drain", b: { type: "jackpot" }, t: "Labeled \"SALARIES 2026\". Someone plugged it in. Obviously." },
       { n: "Botnet", e: "DDoS Botnet", i: "🕸", p: "brute", k: "elite", b: { type: "perfectBlock" }, t: "10 000 smart fridges are attacking the website." },
-      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "After the breach, Compliance Control is DEFINITELY coming. Fill out the incident report - every form you ignore adds red tape." },
+      { n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "After the breach, Compliance Control is DEFINITELY coming. Fill out the incident report - every form you ignore adds red tape." },
       { n: "Crypto Miner", e: "Crypto-Miner Trojan", i: "⛏", p: "caster", mech: "drain", b: { type: "crits", n: 3 }, t: "The CPU is at 100% and the electricity bill tripled." },
       { n: "Zero-Day", e: "Zero-Day Broker", i: "🕵", p: "normal", b: { type: "skill" }, t: "He sells your vulnerabilities on the dark web. With a loyalty program." },
       { n: "Lateral Movement", e: "Insider Threat", i: "🥷", p: "brute", k: "elite", b: { type: "hp", pct: 60 }, t: "It's coming from INSIDE the network." },
@@ -8506,7 +8519,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       { n: "Surprise Bill", e: "AWS Invoice", i: "💸", p: "brute", b: { type: "turns", n: 9 }, t: "Someone left a GPU cluster running over the weekend. $48 000." },
       { n: "Kubernetes", e: "YAML Hydra", i: "🐙", p: "caster", mech: "heal", b: { type: "skill" }, t: "Fix one indentation, two more break." },
       { n: "Microservice Mesh", e: "Rogue Microservices", i: "🧬", p: "brute", k: "elite", b: { type: "perfectBlock", n: 2 }, t: "347 microservices. Each one needs the other 346." },
-      { n: "COMPLIANCE AUDIT INCOMING!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "Cloud compliance review! Compliance Control is coming for sure. 100%. Probably. Until then: forms." },
+      { n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "Cloud compliance review! Compliance Control is coming for sure. 100%. Probably. Until then: forms." },
       { n: "Public S3 Bucket", e: "Leaky Bucket", i: "🪣", p: "normal", b: { type: "crits", n: 3 }, t: "Customer data, public, indexed by Google. Great." },
       { n: "Deprecated API", e: "Breaking Change", i: "🧩", p: "brute", b: { type: "hp", pct: 60 }, t: "v1 is shut down tomorrow. Everything still uses v1." },
       { n: "Unstable Staging", e: "Staging Environment", i: "🧪", p: "caster", mech: "drain", k: "elite", b: { type: "noBlock" }, t: "Works on staging! (It doesn't work on staging either.)" },
@@ -8837,8 +8850,8 @@ html.m #dg-open-btn { display: none; }
 
 <div id="dg-screen">
   <div class="dg-top">
-    <button class="btn btn-cyan" onclick="Dungeon.close()">◀ OFFICE</button>
-    <h1>🎰 HIGH STAKES</h1>
+    <button class="btn btn-cyan" onclick="Dungeon.close()">◀<span class="dg-back-t"> OFFICE</span></button>
+    <h1><span class="dg-hic">🎰 </span>HIGH STAKES</h1>
     <button class="btn btn-cyan" id="dg-tokbtn" style="display:none;padding:3px 8px;font-size:10px;" onclick="Dungeon.tokenEnergy()"></button>
     <span class="dg-keys" id="dg-keys">⚡ -</span>
   </div>
@@ -8950,6 +8963,8 @@ html.m #dg-open-btn { display: none; }
 .hs-form { margin-top: 6px; padding: 6px 10px; border: 1px dashed var(--amber); border-radius: 6px; font-size: 11px; color: var(--amber); background: rgba(255,184,0,.06); text-align: center; }
 .hs-form b { color: #fff; } .hs-form .rt { display: block; color: var(--crimson); font-weight: 700; }
 .hs-acts .btn.want { box-shadow: 0 0 0 2px var(--amber) inset; }
+.dg-tabs .casino-tab-btn.tdot { position: relative; }
+.dg-tabs .casino-tab-btn.tdot::after { content: ""; position: absolute; top: 4px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); }
 @media (max-width: 700px) {
   .hs-ms { grid-template-columns: 1fr; }
   .hs-acts .btn { font-size: 10px; padding: 8px 1px; }
@@ -8962,7 +8977,7 @@ html.m #dg-open-btn { display: none; }
   const H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;   // E = starý engine (jen aréna na serveru)
   const $ = (id) => document.getElementById(id);
   const fmt = (n) => Math.floor(n).toLocaleString();
-  const ENERGY_BASE = 10, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
+  const ENERGY_BASE = 16, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
   function EMAX() { return ENERGY_BASE + (window.Plant ? Plant.fx("energy") : 0); }   // v8.7: Office Plant Sap Reserve
   const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
   const STAT_INFO = { str: ["STR", "damage"], vit: ["VIT", "max HP"], agi: ["AGI", "hit chance + dodge"], luck: ["LUCK", "crit, slot machine, timing zone"], end: ["END", "max stamina + stamina from QUICK / BLOCK"] };
@@ -9001,6 +9016,7 @@ html.m #dg-open-btn { display: none; }
     // starý dungeon: zachovat nejlepší patro pro score (nic se nemaže, jen se nahradí novým režimem)
     if (!d.pool || typeof d.pool !== "object") d.pool = { best: 0, unlocked: false, run: null };
     d.pool.best = Math.max(0, Math.floor(Number(d.pool.best) || 0));
+    if (d.pool.run !== undefined) delete d.pool.run;                       // v9.0: Pool je nekonečná věž, staré běhy (HP se přenášelo) končí
     if (d.tower.best >= 100) d.pool.unlocked = true;                       // v8.6: Clear The Pool se odemyká Administratorem (patro 100), navždy
     if (!d.bt || typeof d.bt !== "object") d.bt = {};
     if (d.tsel && !d.bt[d.tsel]) d.tsel = "";
@@ -9021,7 +9037,9 @@ html.m #dg-open-btn { display: none; }
     const n = Math.floor((now - d.energyAt) / ENERGY_MS);
     if (n > 0) { d.energy = Math.min(EMAX(), d.energy + n); d.energyAt = d.energy >= EMAX() ? now : d.energyAt + n * ENERGY_MS; }
   }
+  /** v9.0: síla v HIGH STAKES je z COMBAT GEAR (gear.html), kancelářské itemy jsou jen na Click/Auto/Mult */
   function gear() {
+    if (window.Gear) { const m = Gear.mult(); return { atk: m.atk, hp: m.hp, crit: m.crit }; }
     const lo = gameState.loadout || {};
     let a = 1, h = 1;
     WEAPON.forEach(s => { const it = lo[s]; if (it) a += E.gearSlotValue(it.tier, it.lvl); });
@@ -9033,6 +9051,7 @@ html.m #dg-open-btn { display: none; }
   function towerBonus() { return 0.01 * Math.floor(HS().tower.best / 10); }
   function hero() {
     const d = HS(), h = H.buildHero(Object.assign({}, d, { bonus: towerBonus() }), gear());
+    const gc = gear().crit || 0; if (gc) h.crit = Math.min(0.55, h.crit + gc);              // v9.0: talisman přidává crit
     if (window.Plant) { h.startFocus = Plant.fx("focus"); h.parryWin = Plant.fx("parry"); h.wildCherry = Plant.fx("wildCherry"); }   // v8.7: Office Plant
     return h;
   }
@@ -9086,7 +9105,7 @@ html.m #dg-open-btn { display: none; }
   function renderTabs() {
     const box = $("dg-tabs"); if (!box) return;
     const ids = Object.keys(MODES).sort((a, b) => (MODES[a].order || 50) - (MODES[b].order || 50));
-    const html = ids.map(id => `<button class="casino-tab-btn${id === view ? " active" : ""}" id="dg-t-${id}" onclick="Dungeon.tab('${id}')">${MODES[id].label}</button>`).join("");
+    const html = ids.map(id => `<button class="casino-tab-btn${id === view ? " active" : ""}${MODES[id].dot && MODES[id].dot() ? " tdot" : ""}" id="dg-t-${id}" onclick="Dungeon.tab('${id}')">${MODES[id].label}</button>`).join("");
     if (box.__h !== html) { box.innerHTML = html; box.__h = html; }
   }
   function tab(t) {
@@ -9099,12 +9118,13 @@ html.m #dg-open-btn { display: none; }
   function renderKeys() {
     const d = HS(), el = $("dg-keys"); if (!el) return;
     const next = d.energy >= EMAX() ? "" : " (" + fmtT(ENERGY_MS - (Date.now() - d.energyAt)) + ")";
-    el.textContent = `⚡${d.energy}/${EMAX()}${next} ⭐${totalStars(d)}`;
+    const kh = `⚡${d.energy}/${EMAX()}${next}<span class="dg-kstar"> ⭐${totalStars(d)}</span>`;
+    if (el.__h !== kh) { el.innerHTML = kh; el.__h = kh; }
     el.title = "Energy: +1 every 12 min, max " + EMAX();
     const tb = $("dg-tokbtn");
     if (tb) {
       const show = gameState.slotTokens > 0 && d.energy < EMAX() && !(fight && !fight.over);
-      const t = `TOKEN → +${TOKEN_ENERGY} ⚡ (${gameState.slotTokens})`;
+      const t = `🎟→+${TOKEN_ENERGY}⚡ (${gameState.slotTokens})`;
       tb.style.display = show ? "" : "none"; if (tb.textContent !== t) tb.textContent = t;
       tb.title = "Turn 1 Slot Token into " + TOKEN_ENERGY + " energy";
     }
@@ -9123,14 +9143,14 @@ html.m #dg-open-btn { display: none; }
   }
 
   registerMode("camp", { label: "📖 CAMPAIGN", order: 10, render: function (box) { box.innerHTML = campHtml(); } });
-  registerMode("hero", { label: "🧍 HERO", order: 80, render: function (box) { box.innerHTML = heroHtml(); } });
+  registerMode("hero", { label: "🧍 HERO", order: 80, render: function (box) { box.innerHTML = heroHtml(); }, dot: function () { try { return !!(window.Gear && Gear.affordable()) || HS().pts > 0; } catch (e) { return false; } } });
 
   function lockedHtml() {
     return `<div class="dg-card dg-lock"><div class="big">🔒</div>
       <div style="font:800 15px Orbitron,monospace;color:var(--crimson);margin:8px 0;">HIGH STAKES LOCKED</div>
       <div class="dg-dim">Reach <b>chest level 10</b> (you: ${maxChest()}) or <b>Prestige 1</b> to unlock HIGH STAKES:
       an action fighting game - every turn YOU choose: quick hit, power strike with timing, a slot-machine gamble, block or dodge.
-      5 chapters of office horror from the Helpdesk to the Boardroom. Your progress here is <b>never reset</b> by prestige.</div></div>`;
+      5 chapters of office horror from the Helpdesk to the Boardroom. Your level, stats and gear materials are <b>never reset</b> by prestige.</div></div>`;
   }
 
   function classPickHtml(respec) {
@@ -9172,7 +9192,7 @@ html.m #dg-open-btn { display: none; }
       <div class="dg-xp"><div style="width:${Math.min(100, d.xp / xpN * 100)}%"></div></div>
 </div>
       <div class="hs-ch">${chs}</div>
-      <div class="dg-card"><div class="dg-h"><span>${chSel === 5 ? "📋 SECRET" : ch.icon + " CHAPTER " + (chSel + 1) + ": " + ch.name.toUpperCase()}</span></div>
+      <div class="dg-card"><div class="dg-h"><span>${chSel === 5 ? "📋 SECRET" : ch.icon + " Chapter " + (chSel + 1) + ": " + ch.name}</span></div>
         <div class="dg-dim" style="margin-bottom:8px;">${chSel === 5 ? "You beat the whole company. One email remains unread..." : ch.desc}</div>
         <div class="hs-ms">${ms}</div></div>`;
   }
@@ -9184,12 +9204,12 @@ html.m #dg-open-btn { display: none; }
     const rows = Object.keys(STAT_INFO).map(k => `<div class="hs-stat"><b>${STAT_INFO[k][0]}</b><span class="v">${5 + d.stats[k]}</span><span class="d">${STAT_INFO[k][1]}</span>
       <button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} data-hold="stat-${k}" onclick="Dungeon.stat('${k}',1)">+1</button>
       <button class="btn" style="padding:3px 8px;" ${d.pts >= 5 ? "" : "disabled"} onclick="Dungeon.stat('${k}',5)">+5</button></div>`).join("");
-    return `<div class="dg-grid2">
+    return (window.Gear ? Gear.card() : "") + `<div class="dg-grid2">
       <div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${H.CLASSES[d.cls].name} · LV ${d.level}</span><span>${title()}</span></div>
         <div style="display:flex;gap:10px;align-items:center;">${playerSprite()}<div class="dg-dim">${statLine()}<br>Hit +${Math.round(h.hitBonus * 100)}% · timing zone ${Math.round(h.zone * 100)}% · gear ⚔×${g.atk.toFixed(2)} ❤×${g.hp.toFixed(2)}<br>✨ <b>${H.CLASSES[d.cls].skill}</b>: ${H.CLASSES[d.cls].skillTxt}<br>Wins ${d.wins} · Losses ${d.losses}</div></div>
         ${titlesHtml(d)}
         <div class="dg-h" style="margin-top:10px;"><span>STAT POINTS</span><span style="color:${d.pts ? "var(--emerald)" : "var(--text-dim)"};">${d.pts} free</span></div>${rows}
-        <div class="dg-dim" style="margin-top:6px;">+3 points every level. Weapons (TOOL/AUGMENT/RELIC) multiply ATK, armor (HEAD/RIG/OS) multiplies HP.</div>
+        <div class="dg-dim" style="margin-top:6px;">+3 points every level. Your ⚒ combat gear (above) multiplies ATK and HP - office items only boost the office.</div>
         <div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 🎟)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
       <div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>
         <div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (1.9×) or <b>gold</b> (2.5×) zone, then it needs 2 turns to cool down.
@@ -9211,6 +9231,7 @@ html.m #dg-open-btn { display: none; }
     if (d.tower.best >= 100) d.pool.unlocked = true;
     d.stars = {}; d.sm = {}; d.t6 = {}; d.tower = { best: 0 }; chSel = 0;
     HS();
+    if (window.Gear) Gear.onPrestige();
     log(`🎰 HIGH STAKES: campaign and tower reset - enemies are now ×${C.prestigeMult().toFixed(2)} stronger. Level and stats stay.`, "special");
   }
 
@@ -9805,11 +9826,12 @@ html.m #dg-open-btn { display: none; }
     /** Do savu jde "dungeon" jako souhrn kompatibilní se serverem (leaderboard, score, aréna) - starý dungeon se tím přepíše. */
   function payload() {
     const d = HS();
-    return { cls: d.cls, level: d.level, best: Math.max(cleared(d), d.legacyBest || 0), missions: cleared(d), tower: d.tower.best, wins: d.wins, losses: d.losses, title: title(d), arenaStance: d.arenaStance, pool: d.pool.best,
+    return { cls: d.cls, level: d.level, best: Math.max(cleared(d), d.legacyBest || 0), missions: cleared(d), tower: d.tower.best, wins: d.wins, losses: d.losses, title: title(d), arenaStance: d.arenaStance, pool: d.pool.best, gear: (function () { const g = gear(); return { atk: Math.round(g.atk * 100) / 100, hp: Math.round(g.hp * 100) / 100 }; })(),
+      gearTxt: window.Gear ? ["w", "a", "t"].map(k => { const p = Gear.st()[k]; return Gear.MATS[p.m].n + "+" + p.l; }).join(" ") : "",
       tier: 1, artifacts: {}, equipped: [], promos: {}, mode: "highstakes" };
   }
   function hsPayload() { const d = HS(); return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), stats: d.stats, energy: d.energy, energyAt: d.energyAt, stars: d.stars, wins: d.wins, losses: d.losses, arenaStance: d.arenaStance,
-    t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk, pool: d.pool, bt: d.bt, tsel: d.tsel, tut: d.tut, col: d.col }; }
+    t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk, pool: d.pool, bt: d.bt, tsel: d.tsel, tut: d.tut, col: d.col, gear: d.gear }; }
 
   /** vnitřek pro další soubory (aréna, tower, směna, world boss) */
   window.HS_API = { HS: HS, hero: hero, gear: gear, player: player, fmt: fmt, fmtT: fmtT, anim: anim, float: float, sprite: sprite, enemySprite: enemySprite,
@@ -9963,6 +9985,224 @@ html.m #dg-open-btn { display: none; }
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+<style>
+/* ===== v9.0 COMBAT GEAR: 3 kusy (zbraň, brnění, talisman), materiály Paper -> Quantum, +1..+5 a evoluce za GC ===== */
+.gr-list { display: grid; gap: 8px; }
+.gr-piece { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); }
+.gr-ic { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; background: color-mix(in srgb, var(--gm) 18%, transparent); border: 1px solid color-mix(in srgb, var(--gm) 55%, transparent); }
+.gr-t { min-width: 0; }
+.gr-t b { display: block; font-size: 14px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gr-t .gr-m { font-size: 12px; color: var(--gm); font-weight: 600; }
+.gr-t .gr-fx { font-size: 12px; color: var(--text-dim); }
+.gr-pips { display: flex; gap: 3px; margin-top: 5px; }
+.gr-pips i { width: 16px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); }
+.gr-pips i.on { background: var(--gm); }
+.gr-act { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 112px; }
+.gr-act .btn { padding: 8px 10px; font-size: 12px; line-height: 1.2; }
+.gr-act .btn small { display: block; font-size: 11px; opacity: .8; font-weight: 500; }
+.gr-act .lock { font-size: 11px; color: var(--text-dim); text-align: right; max-width: 130px; line-height: 1.3; }
+.gr-ladder { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 10px; }
+.gr-ladder div { text-align: center; padding: 6px 2px; border-radius: 8px; font-size: 10px; color: var(--text-muted); background: rgba(255,255,255,.02); border: 1px solid var(--border-subtle); min-width: 0; overflow: hidden; }
+.gr-ladder div span { display: block; font-size: 16px; filter: grayscale(1); opacity: .45; }
+.gr-ladder div.on { color: var(--text-main); border-color: color-mix(in srgb, var(--gm) 50%, transparent); }
+.gr-ladder div.on span { filter: none; opacity: 1; }
+.gr-ladder div.next { border-style: dashed; color: var(--text-dim); }
+.gr-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin-top: 8px; }
+.gr-sum b { color: var(--text-main); font-weight: 700; }
+@media (max-width: 700px) {
+  .gr-piece { grid-template-columns: 40px 1fr; }
+  .gr-ic { width: 40px; height: 40px; font-size: 20px; }
+  .gr-act { grid-column: 1 / -1; flex-direction: row; min-width: 0; }
+  .gr-act .btn { flex: 1; }
+  .gr-act .lock { max-width: none; text-align: left; }
+  .gr-ladder { grid-template-columns: repeat(4, 1fr); }
+}
+</style>
+<script>
+(function () {
+  "use strict";
+  const A = window.HS_API, C = window.HSCampaign;
+  const fmt = (n) => Math.floor(n).toLocaleString();
+  const short = (n) => { n = Math.floor(n); return n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "K" : n.toLocaleString(); };
+
+  // ---------- materiály (index 0-7) a co je odemyká
+  const MATS = [
+    { n: "Paper", i: "📄", c: "#c9d1dc" },
+    { n: "Cardboard", i: "📦", c: "#d0a46a" },
+    { n: "Wood", i: "🪵", c: "#c07a43" },
+    { n: "Plastic", i: "🧴", c: "#5bb8f0" },
+    { n: "Steel", i: "🔩", c: "#9fb4cc" },
+    { n: "Titanium", i: "💠", c: "#a9c7ff" },
+    { n: "Carbon", i: "⬛", c: "#8a93a6" },
+    { n: "Quantum", i: "⚛", c: "#3fe0c5" }
+  ];
+  const UNLOCK = [null,
+    { t: 'Beat The Great "I" (chapter 1 boss)' },
+    { t: "Beat The Italian Guy (chapter 2 boss)" },
+    { t: "Beat Da Polishen (chapter 3 boss)" },
+    { t: "Beat The Supreme Louis (chapter 4 boss)" },
+    { t: "Beat The Big Massi (final boss)" },
+    { t: "Beat The Administrator (Tower floor 100)" },
+    { t: "Clear Pool floor 50" }];
+  const POOL_QUANTUM = 50;
+  /** celkový násobič (ATK i HP) při stejné úrovni všech 3 kusů; +5 dojde 5/6 cesty k dalšímu materiálu, evoluce dorovná zbytek */
+  const G = [1.10, 1.40, 1.80, 2.20, 2.60, 3.00, 3.45, 3.95, 4.50];
+  const COST = [300, 1500, 5000, 15000, 45000, 150000, 450000, 1400000];
+  const LMAX = 5, EVOLVE_X = 4;
+  const PIECES = {
+    w: { n: "Weapon", i: "🗡", fx: "ATK", names: ["Rolled-Up Memo", "Cardboard Tube Sword", "Wooden Ruler", "Plastic Keyboard Blade", "Steel Stapler", "Titanium Letter Opener", "Carbon Monitor Arm", "Quantum Mouse"] },
+    a: { n: "Armor", i: "🛡", fx: "HP", names: ["Paper Armor", "Cardboard Box Armor", "Wooden Desk Shield", "Plastic Laptop Sleeve", "Steel Filing Cabinet", "Titanium Office Chair", "Carbon Server Rack", "Quantum Firewall"] },
+    t: { n: "Trinket", i: "📎", fx: "ATK + HP + crit", names: ["Paper Clip", "Cardboard Badge", "Wooden Rubber Stamp", "Plastic Lanyard", "Steel Thermos", "Titanium USB Key", "Carbon Coffee Mug", "Quantum Rubber Duck"] }
+  };
+  const KEYS = ["w", "a", "t"];
+
+  function Gm(m, l) { m = Math.max(0, Math.min(7, m | 0)); l = Math.max(0, Math.min(LMAX, l | 0)); return G[m] + (G[m + 1] - G[m]) * l / 6; }
+  function val(p) { return p ? (Gm(p.m, p.l) - 1) / 1.5 : 0; }
+  function multOf(g) {
+    g = g || {};
+    const w = val(g.w), a = val(g.a), t = val(g.t);
+    return { atk: 1 + w + t / 2, hp: 1 + a + t / 2, crit: g.t ? 0.005 * (g.t.m | 0) : 0 };
+  }
+  function upCost(p) { return Math.round(COST[p.m] * (1 + 0.5 * p.l)); }
+  function evoCost(p) { return COST[p.m] * EVOLVE_X; }
+  function name(k, p) { return PIECES[k].names[p.m] + (p.l ? " +" + p.l : ""); }
+
+  // ---------- stav (gameState.hs.gear)
+  let ready = false;
+  function norm(p) { p = p && typeof p === "object" ? p : {}; return { m: Math.max(0, Math.min(7, Math.floor(Number(p.m) || 0))), l: Math.max(0, Math.min(LMAX, Math.floor(Number(p.l) || 0))) }; }
+  function st() {
+    const d = A.HS();
+    if (!d.gear || typeof d.gear !== "object") d.gear = {};
+    const g = d.gear;
+    KEYS.forEach(k => { g[k] = norm(g[k]); });
+    if (g.mig !== 1) migrate(d, g);
+    g.unl = Math.max(0, Math.min(7, Math.floor(Number(g.unl) || 0)));
+    const before = g.unl;
+    let u = g.unl;
+    const s = d.stars || {}, bt = d.bt || {};
+    if (s[9] > 0) u = Math.max(u, 1);
+    if (s[19] > 0 || bt.italian) u = Math.max(u, 2);
+    if (s[29] > 0 || bt.polishen) u = Math.max(u, 3);
+    if (s[39] > 0 || bt.louis) u = Math.max(u, 4);
+    if (s[49] > 0) u = Math.max(u, 5);
+    if ((d.tower && d.tower.best >= 100) || (d.pool && d.pool.unlocked) || bt.admin) u = Math.max(u, 6);
+    if (d.pool && d.pool.best >= POOL_QUANTUM) u = Math.max(u, 7);
+    KEYS.forEach(k => { u = Math.max(u, g[k].m); });
+    g.unl = u;
+    if (u > before && ready) {
+      log(`🔓 New gear material: ${MATS[u].i} ${MATS[u].n}! Evolve your +5 gear in HIGH STAKES → HERO.`, "special");
+      if (u >= 5 && window.TT && TT.announce) try { TT.announce("UNLOCKED " + MATS[u].n.toUpperCase() + " GEAR", "HIGH STAKES", 0, 0); } catch (e) {}
+    }
+    return g;
+  }
+  /** v9.0: dřív se síla brala z kancelářských itemů -> převedeme ji na nový gear se stejnou silou */
+  function oldMult(lo, keys) {
+    let x = 1;
+    keys.forEach(s => { const it = lo && lo[s]; if (it && window.DungeonEngine) x += DungeonEngine.gearSlotValue(Number(it.tier) || 1, Number(it.lvl) || 0); });
+    return A.gearDR(x);
+  }
+  function fromValue(v) {
+    const target = 1 + 1.5 * Math.max(0, v);
+    let best = { m: 0, l: 0 };
+    for (let m = 0; m < 8; m++) for (let l = 0; l <= LMAX; l++) if (Gm(m, l) <= target + 1e-9) best = { m: m, l: l };
+    return best;
+  }
+  function convert(lo) {
+    const oa = oldMult(lo, ["TOOL", "AUGMENT", "RELIC"]), oh = oldMult(lo, ["HEAD", "RIG", "OS"]);
+    const vt = ((oa + oh) / 2 - 1) / 1.5;
+    return { w: fromValue(oa - 1 - vt / 2), a: fromValue(oh - 1 - vt / 2), t: fromValue(vt) };
+  }
+  function migrate(d, g) {
+    if (typeof gameLoaded !== "undefined" && !gameLoaded) return;              // počkat na načtení savu
+    const has = KEYS.some(k => g[k].m || g[k].l);
+    if (!has) {
+      const n = convert(gameState.loadout || {});
+      KEYS.forEach(k => { g[k] = n[k]; });
+      const tot = KEYS.reduce((a, k) => a + g[k].m * 10 + g[k].l, 0);
+      if (tot > 0) log(`⚒ v9.0: your HIGH STAKES power now comes from COMBAT GEAR. Your old items were converted: ${KEYS.map(k => MATS[g[k].m].n + " +" + g[k].l).join(", ")}.`, "special");
+    }
+    g.mig = 1;
+  }
+
+  function mult() { return multOf(st()); }
+  function canUp(k) { const g = st(), p = g[k]; return p.l < LMAX && gameState.coins >= upCost(p); }
+  function up(k) {
+    const g = st(), p = g[k];
+    if (!PIECES[k] || p.l >= LMAX) { TT.holdStop = true; return; }
+    const cost = upCost(p);
+    if (gameState.coins < cost) { TT.holdStop = true; log(`Upgrading ${PIECES[k].names[p.m]} costs ${fmt(cost)} GC.`, "warning"); return; }
+    gameState.coins -= cost; p.l++;
+    if (p.l >= LMAX) TT.holdStop = true;
+    after();
+  }
+  function evolve(k) {
+    const g = st(), p = g[k];
+    if (!PIECES[k] || p.l < LMAX || p.m >= 7) return;
+    if (g.unl <= p.m) { log(`${MATS[p.m + 1].n} is locked: ${UNLOCK[p.m + 1].t}.`, "warning"); return; }
+    const cost = evoCost(p);
+    if (gameState.coins < cost) { log(`Evolving to ${MATS[p.m + 1].n} costs ${fmt(cost)} GC.`, "warning"); return; }
+    gameState.coins -= cost;
+    const old = { m: p.m, l: p.l };
+    g[k] = { m: p.m + 1, l: 0 };
+    log(`⚒ ${PIECES[k].names[old.m]} +5 evolved into ${MATS[p.m + 1].i} ${PIECES[k].names[p.m + 1]}!`, "special");
+    if (window.Colleague && Colleague.takeGear) Colleague.takeGear(k, old);
+    after();
+  }
+  function onPrestige() {
+    const g = st();
+    KEYS.forEach(k => { g[k].l = 0; });
+    log("⚒ Gear upgrades reset to +0 (materials stay).", "warning");
+  }
+  function after() { TT.saveSoon(); if (typeof updateUI === "function") updateUI(); if (A.isOpen()) A.render(); }
+
+  // ---------- UI (karta v HERO)
+  function fxText(k, p) {
+    const v = val(p);
+    if (k === "w") return `+${Math.round(v * 100)}% ATK`;
+    if (k === "a") return `+${Math.round(v * 100)}% HP`;
+    return `+${Math.round(v * 50)}% ATK and HP · +${(0.5 * p.m).toFixed(1)}% crit`;
+  }
+  function pieceHtml(k) {
+    const g = st(), p = g[k], M = MATS[p.m], P = PIECES[k];
+    let act;
+    if (p.l < LMAX) {
+      const c = upCost(p), ok = gameState.coins >= c;
+      act = `<button class="btn ${ok ? "btn-gold" : ""}" ${ok ? "" : "disabled"} data-hold="gear-${k}" onclick="Gear.up('${k}')">Upgrade to +${p.l + 1} · ${short(c)} GC</button>`;
+    } else if (p.m >= 7) act = `<div class="lock">Maxed out. Nothing beats Quantum.</div>`;
+    else if (g.unl <= p.m) act = `<div class="lock">🔒 ${MATS[p.m + 1].n}: ${UNLOCK[p.m + 1].t}</div>`;
+    else {
+      const c = evoCost(p), ok = gameState.coins >= c;
+      act = `<button class="btn ${ok ? "btn-crimson" : ""}" ${ok ? "" : "disabled"} onclick="Gear.evolve('${k}')">Evolve to ${MATS[p.m + 1].i} ${MATS[p.m + 1].n} · ${short(c)} GC</button>`;
+    }
+    let pips = ""; for (let i = 0; i < LMAX; i++) pips += `<i class="${i < p.l ? "on" : ""}"></i>`;
+    return `<div class="gr-piece" style="--gm:${M.c};"><div class="gr-ic">${P.i}</div>
+      <div class="gr-t"><b>${escapeHtml(name(k, p))}</b><span class="gr-m">${M.i} ${M.n} ${P.n.toLowerCase()}</span> <span class="gr-fx">· ${fxText(k, p)}</span><div class="gr-pips">${pips}</div></div>
+      <div class="gr-act">${act}</div></div>`;
+  }
+  function card() {
+    const g = st(), m = multOf(g);
+    const ladder = MATS.map((M, i) => `<div class="${i <= g.unl ? "on" : i === g.unl + 1 ? "next" : ""}" style="--gm:${M.c};" title="${i <= g.unl ? "Unlocked" : escapeHtml(UNLOCK[i].t)}"><span>${M.i}</span>${M.n}</div>`).join("");
+    const nx = g.unl < 7 ? `Next material: <b>${MATS[g.unl + 1].n}</b> - ${escapeHtml(UNLOCK[g.unl + 1].t)}.` : "Every material unlocked.";
+    return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span class="dg-dim">GC: ${short(gameState.coins)}</span></div>
+      <div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
+      <div class="gr-sum"><span>Gear ATK <b>×${m.atk.toFixed(2)}</b></span><span>Gear HP <b>×${m.hp.toFixed(2)}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
+      <div class="gr-ladder">${ladder}</div>
+      <div class="dg-dim" style="margin-top:8px;">Upgrade each piece up to +5 with GC, then evolve it into the next material. ${nx} Prestige resets the +levels, your materials stay. When you evolve, your old piece goes to your colleague if it's better than theirs.</div></div>`;
+  }
+  /** červená tečka na HERO: jde evolvovat, nebo je kus na +0 (po prestiži / evoluci) a na upgrade máš */
+  function affordable() {
+    const g = st();
+    return KEYS.some(k => { const p = g[k]; if (p.l === 0) return gameState.coins >= upCost(p); if (p.l >= LMAX) return p.m < 7 && g.unl > p.m && gameState.coins >= evoCost(p); return false; });
+  }
+
+  window.Gear = { st: st, mult: mult, multOf: multOf, up: up, evolve: evolve, canUp: canUp, card: card, onPrestige: onPrestige, affordable: affordable, convert: convert, Gm: Gm, val: val,
+    MATS: MATS, PIECES: PIECES, G: G, COST: COST, upCost: upCost, evoCost: evoCost, POOL_QUANTUM: POOL_QUANTUM, name: name };
+  (function boot() {
+    if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
+    TT.onLoaded(() => { try { st(); } catch (e) { console.error(e); } setTimeout(() => { ready = true; }, 1500); });
+  })();
 })();
 </script>
 <script>
@@ -10526,10 +10766,10 @@ html.m #dg-open-btn { display: none; }
       } });
   }
 
-  // ================================================================== ♾ CLEAR THE POOL (v8.6: nekonečný mód, odemyká Administrator)
-  const POOL_COST = 2;
-  function poolGc(n) { return Math.round(2000 + 400 * Math.pow(n, 1.4)); }
-  function poolXp(n) { return Math.round(40 + 12 * n); }
+  // ================================================================== ♾ CLEAR THE POOL (v9.0: nekonečná věž - každé patro samostatný boj s plným HP, postup se ukládá)
+  const POOL_COST = 1, POOL_SEED = 90210;                 // stejná patra pro všechny (fér žebříček)
+  function poolGc(n) { return Math.round(3 * (2000 + 400 * Math.pow(n, 1.4))); }
+  function poolXp(n) { return Math.round(2 * (40 + 12 * n)); }
   const pb = { list: null, at: 0, loading: false };
   function poolBoardLoad(force) {
     if (pb.loading || (!force && pb.list && Date.now() - pb.at < 30000)) return;
@@ -10539,67 +10779,58 @@ html.m #dg-open-btn { display: none; }
       .withFailureHandler(() => { pb.loading = false; pb.at = Date.now(); pb.list = pb.list || []; }).poolBoard();
   }
   function poolHtml(box) {
-    const d = A.HS(), P = d.pool, r = P.run;
+    const d = A.HS(), P = d.pool;
     if (!P.unlocked) {
-      box.innerHTML = `<div class="dg-card dg-lock"><div class="big">♾</div><div style="font:800 14px Orbitron,monospace;color:var(--crimson);margin:8px 0;">CLEAR THE POOL - LOCKED</div>
+      box.innerHTML = `<div class="dg-card dg-lock"><div class="big">♾</div><div style="font:800 14px Orbitron,monospace;color:var(--crimson);margin:8px 0;">Clear the Pool is locked</div>
         <div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to unlock it (forever - prestige won't lock it again).<br>Tower: ${d.tower.best}/100</div></div>`;
       return;
     }
     poolBoardLoad(false);
     const lb = pb.list ? (pb.list.length ? pb.list.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>floor ${fmt(p.best)}</span></div>`).join("") : `<div class="dg-dim">Nobody yet. Be the first!</div>`) : `<div class="dg-dim">Loading...</div>`;
-    const next = r ? C.poolFloor(r.floor, r.seed) : null;
-    box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>♾ CLEAR THE POOL</span><span>best: floor ${fmt(P.best)}</span></div>
-      <div class="dg-dim">The ticket pool never ends. Endless random fights, every floor <b>+6%</b> harder, every 5th an elite, every 25th one of the company's bosses.
-      Your HP carries over - after each floor you only recover <b>25%</b>. Entry costs ⚡${POOL_COST}, then the run is free until you fall. XP and GC for every floor.</div></div>
-      ${r ? `<div class="dg-card"><div class="dg-h"><span>RUN · FLOOR ${r.floor}</span><span>❤ ${Math.round(r.hp * 100)}%</span></div>
-        <div class="hm-row">${A.enemySprite(next)}<div class="dg-dim"><b>${next.enemy.icon} ${esc(next.name)}</b> · ❤ ${fmt(next.enemy.hp)} · ⚔ ${fmt(next.enemy.atk)}${next.enemy.mech ? " · ⚙ " + esc(next.enemy.mech) : ""}<br>
-        This run: +${fmt(r.xp || 0)} XP · +${fmt(r.gc || 0)} GC<br>Your stats: ${A.statLine()}</div></div>
-        <div class="dg-row" style="margin-top:8px;"><button class="btn btn-gold" style="flex:2;padding:11px;" onclick="HSModes.poolGo()">⚔ FIGHT FLOOR ${r.floor}</button>
-        <button class="btn" style="flex:1;" onclick="HSModes.poolQuit()">CASH OUT</button></div></div>`
-      : `<div class="dg-card"><button class="btn btn-crimson" style="width:100%;padding:12px;" onclick="HSModes.poolStart()">♾ DIVE IN (⚡${POOL_COST})</button></div>`}
-      <div class="dg-card"><div class="dg-h">DEEPEST POOL</div><div class="wb-lb">${lb}</div></div>`;
+    const n = P.best + 1, m = C.poolFloor(n, POOL_SEED), q = window.Gear ? Gear.POOL_QUANTUM : 50;
+    const from = Math.floor(P.best / 10) * 10 + 1, cells = [];
+    for (let f = from; f < from + 20; f++) cells.push(`<div class="${f <= P.best ? "ok" : f === n ? "nx" : ""} ${f % 25 === 0 ? "bs" : ""}">${f % 25 === 0 ? "☠" : f}</div>`);
+    box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>♾ Clear the Pool</span><span>best: floor ${fmt(P.best)}</span></div>
+      <div class="dg-dim">An endless tower of tickets. Every floor is its own fight with <b>full HP</b> and your progress is saved - lose and just try the same floor again.
+      Floors get <b>+6%</b> harder, every 5th is an elite, every 25th one of the company's bosses. ⚡${POOL_COST} per fight, rewards for every new floor.
+      ${P.best < q ? `<br>🎯 Clear <b>floor ${q}</b> to unlock <b>⚛ Quantum</b> gear.` : ""}</div></div>
+      <div class="dg-card"><div class="dg-h"><span>Next: ${esc(m.name)}</span><span>⚡${POOL_COST}</span></div>
+        <div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}${m.enemy.mech ? " · ⚙ " + esc(m.enemy.mech) : ""}<br>
+        Reward: ${fmt(poolXp(n))} XP, ${fmt(poolGc(n))} GC${m.kind === "boss" ? " + GC bonus" : ""}${n === q ? " + <b>⚛ Quantum gear</b>" : ""}<br>Your stats: ${A.statLine()}</div></div>
+        <button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.poolGo()">⚔ Fight floor ${n} (⚡${POOL_COST})</button></div>
+      <div class="dg-card"><div class="dg-h">Floors</div><div class="tw-grid">${cells.join("")}</div></div>
+      <div class="dg-card"><div class="dg-h">Deepest pool</div><div class="wb-lb">${lb}</div></div>`;
   }
-  function poolStart() {
-    const d = A.HS();
-    if (!d.pool.unlocked || d.pool.run) return;
-    if (!A.spendEnergy(POOL_COST)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
-    d.pool.run = { floor: 1, hp: 1, seed: Math.floor(R() * 2147483647) + 1, xp: 0, gc: 0 };
-    TT.saveSoon(); poolGo();
-  }
-  function poolEnd(reason) {
-    const d = A.HS(), r = d.pool.run; if (!r) return;
-    const reached = r.floor - 1;
-    d.pool.run = null;
-    if (reached > 0) log(`♾ CLEAR THE POOL: ${reason} on floor ${r.floor} - cleared ${reached} floor${reached === 1 ? "" : "s"}, +${fmt(r.xp)} XP, +${fmt(r.gc)} GC.`, "special");
-    TT.saveSoon(); poolBoardLoad(true);
-  }
-  function poolQuit() { if (!confirm("Cash out and end this run? You keep everything you earned.")) return; poolEnd("cashed out"); A.render(); }
   function poolGo() {
-    const d = A.HS(), r = d.pool.run; if (!r) return;
-    const n = r.floor, m = C.poolFloor(n, r.seed);
-    A.beginFight(m, { mode: "pool", prepHero: (h) => { h.startHp = Math.max(1, r.hp * h.maxHp); },
+    const d = A.HS(); if (!d.pool.unlocked) return;
+    const n = d.pool.best + 1, m = C.poolFloor(n, POOL_SEED);
+    if (!A.spendEnergy(POOL_COST)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
+    A.beginFight(m, { mode: "pool",
       hud: () => `♾ Pool floor ${n}${m.kind === "boss" ? " · BOSS" : m.kind === "elite" ? " · ELITE" : ""} · best ${A.HS().pool.best}`,
       onEnd: function (fi) {
-        const dd = A.HS(), rr = dd.pool.run, lines = [];
-        if (!rr) return { title: "RUN OVER", lines: [], buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }] };
+        const dd = A.HS(), lines = [];
         if (fi.win) {
           dd.wins++;
-          const gc = poolGc(n), xp = poolXp(n);
-          gameState.coins += gc; rr.gc = (rr.gc || 0) + gc; rr.xp = (rr.xp || 0) + xp;
-          A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
-          if (m.kind === "boss") A.dropItem(lines);
-          const newBest = n > dd.pool.best;
-          if (newBest) { dd.pool.best = n; lines.push(`🏆 NEW BEST: floor ${n}`); }
-          if (newBest && n % 25 === 0) TT.announce("REACHED POOL FLOOR " + n, "HIGH STAKES", 0, gc);
-          rr.hp = Math.min(1, Math.max(0, fi.hp) / fi.h.maxHp + 0.25); rr.floor = n + 1;
-          TT.saveSoon();
-          return { title: `FLOOR ${n} CLEARED`, sub: `❤ ${Math.round(rr.hp * 100)}%`, lines: lines,
-            buttons: [{ label: "CASH OUT", fn: () => { poolEnd("cashed out"); Dungeon.tab("pool"); } }, { label: `FLOOR ${n + 1} ▶`, cls: "btn-gold", fn: poolGo }] };
+          if (n > dd.pool.best) {
+            dd.pool.best = n;
+            const gc = poolGc(n), xp = poolXp(n);
+            gameState.coins += gc;
+            A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
+            if (m.kind === "boss") A.dropItem(lines);
+            lines.push(`🏆 New best: floor ${n}`);
+            if (n % 25 === 0) TT.announce("REACHED POOL FLOOR " + n, "HIGH STAKES", 0, gc);
+            if (window.Gear && n === Gear.POOL_QUANTUM) { lines.push("⚛ QUANTUM gear unlocked!"); Gear.st(); }
+            log(`♾ POOL floor ${n} cleared - ${lines.join(", ")}`, "special");
+          }
+          TT.saveSoon(); poolBoardLoad(true);
+          return { title: `FLOOR ${n} CLEARED`, lines: lines,
+            buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: `FLOOR ${n + 1} ▶`, cls: "btn-gold", fn: poolGo }] };
         }
         dd.losses++;
-        poolEnd(fi.fled ? "fled" : "fell");
-        return { title: "THE POOL WINS", sub: `floor ${n}`, lines: [`Cleared ${n - 1} floor${n - 1 === 1 ? "" : "s"}`, `best: floor ${dd.pool.best}`],
-          buttons: [{ label: "◀ POOL", cls: "btn-gold", fn: () => Dungeon.tab("pool") }] };
+        const xp = fi.fled ? 0 : Math.round(poolXp(n) * 0.3); if (xp) A.gainXp(xp, lines);
+        lines.push(xp ? `+${xp} XP` : "no reward", "Your progress is saved - try again.");
+        return { title: "THE POOL WINS", sub: `floor ${n}`, lines: lines,
+          buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: "↻ RETRY", cls: "btn-cyan", fn: poolGo }] };
       } });
   }
 
@@ -10609,7 +10840,7 @@ html.m #dg-open-btn { display: none; }
   A.registerMode("shift", { label: "📟 SHIFT", order: 30, render: shiftHtml });
   A.registerMode("boss", { label: "📊 BOSS", order: 40, render: wbHtml, busy: () => wb.busy });
   window.HSModes = { week: week, towerGo: towerGo, shiftStart: shiftStart, shiftGo: shiftGo, shiftPerk: shiftPerk, shiftEvent: shiftEvent, shiftBuy: shiftBuy,
-    shiftRest: shiftRest, shiftShopDone: shiftShopDone, shiftQuit: shiftQuit, wbGo: wbGo, poolStart: poolStart, poolGo: poolGo, poolQuit: poolQuit, PERKS: PERKS, applyPerks: applyPerks };
+    shiftRest: shiftRest, shiftShopDone: shiftShopDone, shiftQuit: shiftQuit, wbGo: wbGo, poolGo: poolGo, PERKS: PERKS, applyPerks: applyPerks };
   // načíst world boss po startu (kvůli odměně z minulého týdne)
   (function wait() { if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(wait, 200); return; } TT.onLoaded(() => setTimeout(() => wbLoad(true), 4000)); })();
   setInterval(() => { if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-ov")) { const b = document.querySelector('[onclick="HSModes.wbGo()"]'); if (b && b.disabled && wb.st) A.render(); } }, 1000);
@@ -10646,7 +10877,6 @@ html.m #dg-open-btn { display: none; }
   const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
   const esc = (t) => escapeHtml(String(t));
   const FIGHT_MS = 20 * 60000, CLICK_MS = 30000, AWAY_MAX = 8 * 3600000, POWER_CAP = 0.6, WAKE_BOSS = 29;
-  const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
 
   // ---------- jména
   const FIRST = ["David", "Dan", "Gabriel", "Kevin", "Steve", "Mike", "Tom", "Paul", "Martin", "Lukas", "Jakub", "Honza", "Pepa", "Franta", "Jarda", "Ondra", "Filip", "Adam", "Petr", "Vojta",
@@ -10678,11 +10908,17 @@ html.m #dg-open-btn { display: none; }
     const c = d.col;
     c.level = Math.max(1, Math.floor(Number(c.level) || 1)); c.xp = Math.max(0, Number(c.xp) || 0);
     if (!c.gear || typeof c.gear !== "object") c.gear = {};
+    if (c.gmig !== 1 && window.Gear) { c.gear = (c.gear.HEAD || c.gear.RIG || c.gear.TOOL || c.gear.AUGMENT || c.gear.OS || c.gear.RELIC) ? Gear.convert(c.gear) : {}; c.gmig = 1; }   // v9.0: staré itemy -> combat gear
     if (!c.stats || typeof c.stats !== "object") c.stats = { w: 0, l: 0, gc: 0, clicks: 0 };
     if (!Array.isArray(c.log)) c.log = [];
     if (c.cls !== "sysadmin" && c.cls !== "engineer" && c.cls !== "cyber") c.cls = "engineer";
     if (!c.unlocked && (d.tower.best >= 100 || (d.pool && d.pool.unlocked))) c.unlocked = true;     // Administrator už padl
     if (c.unlocked && !c.name) { const r = rollName(); c.name = r.name; c.quip = r.quip; }
+    if (c.unlocked && window.Gear && d.gear) ["w", "a", "t"].forEach(k => {            // v9.0: kolega má aspoň tvůj předchozí materiál na +5 (tvoje staré kusy)
+      const mine = d.gear[k]; if (!mine || mine.m < 1) return;
+      const floor = { m: mine.m - 1, l: 5 }, cur = c.gear[k];
+      if (!cur || Gear.Gm(cur.m, cur.l) < Gear.Gm(floor.m, floor.l)) c.gear[k] = floor;
+    });
     return c;
   }
   function awake() { const d = A.HS(), c = st(); return !!c.unlocked && (d.stars[WAKE_BOSS] || 0) > 0; }
@@ -10691,20 +10927,20 @@ html.m #dg-open-btn { display: none; }
     C.LIST.forEach(m => { if ((m.k === "boss" || m.k === "mini" || m.k === "secret" || m.k === "elite") && (d.stars[m.id] || 0) > 0) out.push(m.id); });
     return out;
   }
-  /** v8.8: kolega má 80 % tvého levelu; darované itemy navíc dávají TRÉNINK (+2 % síly za level, max 15) */
+  /** v8.8: kolega má 80 % tvého levelu; v9.0: TRÉNINK se kupuje za GC (+2 % síly za level, max 15) */
   const TRAIN_MAX = 15;
+  function trainCost() { return Math.round(25000 * Math.pow(1.55, trainLv())); }
   function colLevel() { return Math.max(1, Math.round(A.HS().level * 0.8)); }
   function xpToNext(L) { return 150 + 90 * L; }
   function trainLv() { return Math.min(TRAIN_MAX, st().level - 1); }
   /** kolega: vlastní výbava + level, nikdy silnější než 60 % tebe */
   function hero() {
     const c = st();
-    let a = 1, h = 1;
-    WEAPON.forEach(s => { const it = c.gear[s]; if (it) a += E.gearSlotValue(it.tier, it.lvl); });
-    ARMOR.forEach(s => { const it = c.gear[s]; if (it) h += E.gearSlotValue(it.tier, it.lvl); });
+    const g = window.Gear ? Gear.multOf(c.gear) : { atk: 1, hp: 1, crit: 0 };
     const L = colLevel(), pts = H.statPoints(L);
     const stats = { str: Math.round(pts * 0.4), vit: Math.round(pts * 0.4), end: pts - 2 * Math.round(pts * 0.4) };
-    const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, { atk: A.gearDR(a), hp: A.gearDR(h) });
+    const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, { atk: g.atk, hp: g.hp });
+    hh.crit = Math.min(0.55, hh.crit + (g.crit || 0));
     const tb = 1 + 0.02 * trainLv();                                   // trénink z darovaných itemů: +2 % za level
     hh.atk *= tb; hh.maxHp = Math.round(hh.maxHp * tb);
     const me = A.hero();
@@ -10773,26 +11009,24 @@ html.m #dg-open-btn { display: none; }
   }
 
   // ---------- akce
-  function itemXp(it) { return Math.round(15 * it.tier * it.tier * (1 + 0.5 * (it.lvl || 0)) * (1 + 0.3 * enhOf(it).length)); }
-  function give(key) {
-    const c = st(), s = invByKey(key); if (!s || !c.unlocked) { TT.holdStop = true; return; }
-    const it = { slot: s.slot, tier: s.tier, lvl: s.lvl || 0 }; if (s.e) it.e = s.e;
-    if (!invTake(key, 1)) return;
-    c.named = true;
-    const cur = c.gear[it.slot];
-    let msg;
-    if (!cur || itemRating(it) > itemRating(cur)) {
-      c.gear[it.slot] = it;
-      if (cur) addXp(itemXp(cur));
-      msg = `${esc(c.name)} equipped ${esc(itemName(it))} +${it.lvl}${cur ? " (old one → +" + itemXp(cur) + " XP)" : ""}`;
-    } else { addXp(itemXp(it)); msg = `${esc(c.name)} studied ${esc(itemName(it))}: +${itemXp(it)} XP`; }
-    log("🧑‍💼 " + msg, "success");
+  /** v9.0: trénink za GC */
+  function train() {
+    const c = st(); if (!c.unlocked || trainLv() >= TRAIN_MAX) { TT.holdStop = true; return; }
+    const cost = trainCost();
+    if (gameState.coins < cost) { TT.holdStop = true; log(`Training costs ${fmt(cost)} GC.`, "warning"); return; }
+    gameState.coins -= cost; c.level++; c.xp = 0; c.named = true;
+    log(`🧑‍💼 ${esc(c.name)} reached training level ${trainLv()} (+${2 * trainLv()}% power)!`, "special");
+    if (trainLv() >= TRAIN_MAX) TT.holdStop = true;
     after();
   }
-  function addXp(n) {
-    const c = st(); c.xp += n;
-    while (trainLv() < TRAIN_MAX && c.xp >= xpToNext(c.level)) { c.xp -= xpToNext(c.level); c.level++; log(`🧑‍💼 ${esc(c.name)} reached training level ${trainLv()} (+${2 * trainLv()}% power)!`, "special"); }
-    if (trainLv() >= TRAIN_MAX) c.xp = 0;
+  /** v9.0: po evoluci tvůj starý kus dostane kolega (když je lepší než jeho) */
+  function takeGear(k, old) {
+    const c = st(); if (!c.unlocked || !window.Gear) return false;
+    const cur = c.gear[k];
+    if (cur && Gear.Gm(cur.m, cur.l) >= Gear.Gm(old.m, old.l)) return false;
+    c.gear[k] = { m: old.m, l: old.l }; c.named = true;
+    log(`🧑‍💼 ${esc(c.name)} took your old ${Gear.name(k, old)}.`, "success");
+    return true;
   }
   function target(id) { const c = st(); if (bossesBeaten().indexOf(id) < 0) return; work(true); c.target = id; c.fightAt = Date.now(); after(); }
   function cls(k) { const c = st(); if (c.named) return; c.cls = k; after(); }
@@ -10823,11 +11057,11 @@ html.m #dg-open-btn { display: none; }
         ${c.named ? `<div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Colleague.rename()">✏ RENAME</button></div>` :
         `<div class="dg-row" style="margin-top:8px;flex-wrap:wrap;"><button class="btn btn-cyan" onclick="Colleague.reroll()">🎲 REROLL NAME</button><button class="btn" onclick="Colleague.rename()">✏ CUSTOM NAME</button>
           ${["sysadmin", "engineer", "cyber"].map(k => `<button class="btn ${c.cls === k ? "btn-gold" : ""}" onclick="Colleague.cls('${k}')">${H.CLASSES[k].icon}</button>`).join("")}</div>
-          <div class="dg-dim" style="margin-top:4px;">Name and class lock in when you give the first item.</div>`}
-        <div class="cl-slots">${SLOTS.map(s => { const it = c.gear[s]; return `<div class="cl-slot"><span style="opacity:.6;">${SLOT_ICONS[s]} ${s}</span><b style="color:${it ? "var(--rarity-t" + it.tier + ")" : "var(--text-muted)"};">${it ? esc(itemName(it)) + " +" + (it.lvl || 0) : "empty"}</b></div>`; }).join("")}</div></div>`;
+          <div class="dg-dim" style="margin-top:4px;">Name and class lock in after the first training or gear.</div>`}
+        <div class="cl-slots">${["w", "a", "t"].map(k => { const p = c.gear[k], P = window.Gear ? Gear.PIECES[k] : { i: "", n: k }; return `<div class="cl-slot"><span style="opacity:.6;">${P.i} ${P.n}</span><b style="color:${p ? Gear.MATS[p.m].c : "var(--text-muted)"};">${p ? esc(Gear.name(k, p)) : "nothing yet"}</b></div>`; }).join("")}</div></div>`;
     if (!aw) {
       box.innerHTML = head + `<div class="dg-card cl-sleep"><div class="big">💤</div><div style="font:800 13px Orbitron,monospace;color:var(--text-dim);margin:6px 0;">${esc(c.name)} is still sleeping...</div>
-        <div class="dg-dim">After every prestige your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS).enemy.name)}</b> (chapter 3 boss) to get them back to work. You can still give them items.</div></div>` + giveHtml(c);
+        <div class="dg-dim">After every prestige your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS).enemy.name)}</b> (chapter 3 boss) to get them back to work. You can still train them.</div></div>` + trainHtml(c);
       return;
     }
     const ids = bossesBeaten();
@@ -10839,15 +11073,13 @@ html.m #dg-open-btn { display: none; }
     }).join("") || `<div class="dg-dim">Beat some elites or bosses in the campaign first.</div>`;
     box.innerHTML = head + `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>🎯 BOSS TO FARM</span><span class="dg-dim">${tgt != null ? "next fight in " + A.fmtT(nextF) : "pick one"}</span></div>
       <div class="dg-dim" style="margin-bottom:6px;">One fight every 20 min (no energy), win chance on the right. Harder bosses pay more but ${esc(c.name)} wins less often. Every 30 s they also resolve a ticket with your click power. Works while you're away for up to 8 h.</div>${bosses}</div>
-      <div><div class="dg-card"><div class="dg-h">📋 WORK LOG</div><div class="cl-log">${c.log.length ? c.log.map(l => `<div>${l}</div>`).join("") : `<div>Nothing yet.</div>`}</div></div>${giveHtml(c)}</div></div>`;
+      <div><div class="dg-card"><div class="dg-h">📋 WORK LOG</div><div class="cl-log">${c.log.length ? c.log.map(l => `<div>${l}</div>`).join("") : `<div>Nothing yet.</div>`}</div></div>${trainHtml(c)}</div></div>`;
   }
-  function giveHtml(c) {
-    const list = gameState.inventory.slice().sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0))).slice(0, 30);
-    return `<div class="dg-card"><div class="dg-h"><span>🎁 GIVE OLD ITEMS</span><span class="dg-dim">from your backpack</span></div>
-      <div class="dg-dim" style="margin-bottom:4px;">Better than what ${esc(c.name)} wears → they equip it. Worse → training XP (+2% power per training level, max ${TRAIN_MAX}). Given items don't come back.</div>
-      ${list.length ? list.map(s => { const cur = c.gear[s.slot], better = !cur || itemRating(s) > itemRating(cur);
-        return `<div class="cl-give"><span style="color:var(--rarity-t${s.tier});">${SLOT_ICONS[s.slot]} ${esc(itemName(s))} +${s.lvl || 0}${enhOf(s) ? " ⚒" + enhOf(s).length : ""} <span class="dg-dim">×${s.n} · ${better ? "<b style='color:var(--emerald);'>equip</b>" : "+" + itemXp(s) + " XP"}</span></span>
-          <button class="btn ${better ? "btn-gold" : ""}" data-hold="col-${esc(stackKey(s))}" onclick="Colleague.give('${esc(stackKey(s))}')">GIVE</button></div>`; }).join("") : `<div class="dg-dim">Your backpack is empty.</div>`}</div>`;
+  function trainHtml(c) {
+    const L = trainLv(), max = L >= TRAIN_MAX, cost = max ? 0 : trainCost(), ok = !max && gameState.coins >= cost;
+    return `<div class="dg-card"><div class="dg-h"><span>📚 Training</span><span class="dg-dim">${L}/${TRAIN_MAX} · +${2 * L}% power</span></div>
+      <div class="dg-dim" style="margin-bottom:6px;">Send ${esc(c.name)} to a course: +2% ATK and HP per level (max ${TRAIN_MAX}). Gear comes from you - when you evolve a piece, your old one goes to them if it's better.</div>
+      <button class="btn ${ok ? "btn-gold" : ""}" style="width:100%;padding:10px;" ${ok ? "" : "disabled"} data-hold="col-train" onclick="Colleague.train()">${max ? "Fully trained" : `Train to level ${L + 1} · ${short(cost)} GC`}</button></div>`;
   }
 
   // ---------- report po návratu
@@ -10872,7 +11104,7 @@ html.m #dg-open-btn { display: none; }
   }
 
   A.registerMode("colleague", { label: "🧑‍💼 COLLEAGUE", order: 70, render: html });
-  window.Colleague = { give: give, target: target, cls: cls, reroll: reroll, rename: rename, work: work, chip: chip, hero: hero, winRate: winRate, simFight: simFight, rollName: rollName, MEME: MEME, FIRST: FIRST };
+  window.Colleague = { train: train, takeGear: takeGear, trainCost: trainCost, target: target, cls: cls, reroll: reroll, rename: rename, work: work, chip: chip, hero: hero, winRate: winRate, simFight: simFight, rollName: rollName, MEME: MEME, FIRST: FIRST };
   let wasAwake = null;
   (function boot() {
     if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
@@ -11154,7 +11386,7 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   function tag(el, name) { if (el) el.setAttribute("data-tab", name); }
 
   tag(panelOf("btn-click"), "play");
-  tag(panelByHeader(/SCRAP FABRICATION/), "chest");
+  tag(panelByHeader(/SCRAP FABRICATION/i), "chest");
   tag(panelOf("btn-open-chest"), "chest");
   tag(panelOf("slot-HEAD"), "bag");
   tag(panelOf("backpack-grid"), "bag");
@@ -11255,7 +11487,7 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   }, 250);
 
   // ---------- nastavení ----------
-  $("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/.test(t.textContent)) ? "✨ EFFECTS: OFF" : "✨ EFFECTS: ON"; });
+  $("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/i.test(t.textContent)) ? "✨ EFFECTS: OFF" : "✨ EFFECTS: ON"; });
   $("m-logout").addEventListener("click", function () { var t = $("ir-logout"); if (t) t.click(); });
 
   // ---------- rychlé ťukání: tlačítko reaguje hned na dotyk, každý prst = 1 klik ----------
@@ -11283,6 +11515,378 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   document.addEventListener("touchmove", function (e) {
     if (mq.matches && tab === "play" && !(e.target.closest && e.target.closest("input,textarea,select,#dg-screen,.tt-overlay"))) e.preventDefault();   // HIGH STAKES a modaly se scrollují
   }, { passive: false });
+})();
+</script>
+<style>
+/* ======================= v9.0 NEW LOOK (styl C) =======================
+   Klidnější tmavý vzhled: Space Grotesk, žádné CAPS LOCK nadpisy, ploché panely, jedno velké "hmatatelné" tlačítko.
+   Vše je pod html.v9 -> přepínač 🎨 vrátí klasický vzhled. */
+html.v9 {
+  --bg-core: #10131c;
+  --bg-panel: #161b27;
+  --bg-panel-elevated: #1e2433;
+  --border-subtle: #262d3d;
+  --border-glow: rgba(255, 71, 102, .35);
+  --crimson: #ff4766;
+  --crimson-glow: none;
+  --cyan: #63c5ff;
+  --cyan-glow: none;
+  --amber: #f5b942;
+  --emerald: #4fd39a;
+  --text-main: #e8ecf3;
+  --text-dim: #8a94a8;
+  --text-muted: #5b657a;
+  --rarity-t2: #4a8cff;
+  --rarity-t6: #2fe6c8;
+  --v9-line: #262d3d;
+  --v9-hi: #262e40;
+  --v9-r: 14px;
+  color-scheme: dark;
+}
+html.v9 body, html.v9 body * {
+  font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  text-shadow: none !important;
+}
+html.v9 body { font-size: 13px; line-height: 1.45; background: var(--bg-core); background-image: none; font-variant-numeric: tabular-nums; }
+html.v9 b, html.v9 strong { font-weight: 700; }
+html.v9 ::selection { background: rgba(255, 71, 102, .35); }
+html.v9 * { scrollbar-color: #2b3345 transparent; }
+
+/* ---------- horní lišta ---------- */
+html.v9 .top-bar { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 10px 18px; }
+html.v9 .brand-title { font-size: 17px; font-weight: 700; color: var(--text-main); }
+html.v9 .brand-title .v9-acc { color: var(--crimson); font-weight: 600; }
+html.v9 .user-badge { font-size: 12px; color: var(--text-dim); }
+html.v9 .user-badge strong { font-weight: 600; }
+html.v9 .status-pill { background: rgba(79, 211, 154, .1); border: 0; font-weight: 500; }
+html.v9 .status-dot { box-shadow: none; }
+html.v9 #dg-open-btn, html.v9 .btn-help { padding: 5px 10px; font-size: 12px; }
+
+/* ---------- panely ---------- */
+html.v9 .main-wrapper { gap: 14px; }
+html.v9 .grid-columns, html.v9 .column { gap: 14px; }
+html.v9 .panel { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 18px; padding: 16px; box-shadow: none; }
+html.v9 .panel-header { font-size: 15px; font-weight: 700; color: var(--text-main); border-bottom: 0; padding-bottom: 0; margin-bottom: 12px; gap: 8px; }
+html.v9 .panel-header > span:not(:first-child), html.v9 .panel-header small { font-size: 12px !important; font-weight: 500; color: var(--text-dim); }
+html.v9 .panel-header #multiplier-badge { color: var(--amber) !important; font-weight: 600; }
+
+/* ---------- tlačítka ---------- */
+html.v9 .btn { font-size: 12px; font-weight: 600; border-radius: 10px; padding: 8px 12px; background: var(--v9-hi); border: 1px solid transparent; color: var(--text-main); transition: background .15s, transform .08s; }
+html.v9 .btn:hover:not(:disabled) { background: #2d3649; border-color: transparent; box-shadow: none; }
+html.v9 .btn:active:not(:disabled) { transform: translateY(1px); }
+html.v9 .btn:disabled { opacity: .38; }
+html.v9 .btn-cyan { background: rgba(99, 197, 255, .13); color: var(--cyan); border-color: transparent; }
+html.v9 .btn-cyan:hover:not(:disabled) { background: rgba(99, 197, 255, .22); box-shadow: none; }
+html.v9 .btn-crimson { background: rgba(255, 71, 102, .14); color: #ff7088; border-color: transparent; }
+html.v9 .btn-crimson:hover:not(:disabled) { background: rgba(255, 71, 102, .24); box-shadow: none; }
+html.v9 .btn-gold { background: rgba(245, 185, 66, .15); color: var(--amber); border-color: transparent; }
+html.v9 .btn-gold:hover:not(:disabled) { background: rgba(245, 185, 66, .25); }
+html.v9 .btn:focus-visible, html.v9 .casino-tab-btn:focus-visible, html.v9 #m-tabs button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* ---------- hlavní tlačítko RESOLVE ---------- */
+html.v9 .btn-primary-action {
+  border: 0; border-radius: 22px; padding: 22px 14px; font-size: 20px; font-weight: 700; color: #fff;
+  background: radial-gradient(circle at 50% 30%, #ff6580 0%, #e3304f 55%, #c9213f 100%);
+  box-shadow: 0 7px 0 #8c1530, 0 14px 26px rgba(0, 0, 0, .45);
+  transition: transform .06s, box-shadow .06s;
+}
+html.v9 .btn-primary-action:hover { transform: translateY(-1px); box-shadow: 0 8px 0 #8c1530, 0 16px 28px rgba(0, 0, 0, .45); }
+html.v9 .btn-primary-action:active, html.v9 .btn-primary-action.pressed { transform: translateY(5px) !important; box-shadow: 0 2px 0 #8c1530, 0 6px 14px rgba(0, 0, 0, .45); }
+html.v9 #btn-click .v9-sub { display: block; font-size: 14px; font-weight: 500; opacity: .85; margin-top: 4px; }
+html.v9 #btn-click .v9-main { display: block; }
+html.v9 .click-btn-wrap { margin: 6px 0 16px; }
+html.v9 #click-ring { left: -6px; top: -6px; width: calc(100% + 12px); height: calc(100% + 12px); }
+html.v9 #click-ring .prg { filter: none; }
+html.v9 #click-ring-pop { font-weight: 700; }
+html.v9 #btn-click.overheated { filter: grayscale(.85) brightness(.6); }
+
+/* ---------- HUD a statistiky ---------- */
+html.v9 .stat-box { background: transparent; border: 0; padding: 4px 2px; }
+html.v9 .stat-label { font-size: 12px; color: var(--text-dim); }
+html.v9 .stat-val { font-size: 18px; font-weight: 700; }
+html.v9 .heat-row { font-size: 12px; }
+html.v9 .heat-bar, html.v9 .ac-bar, html.v9 .ac-bar-next { background: rgba(0, 0, 0, .35); border: 0; border-radius: 99px; height: 6px; }
+html.v9 .ac-bar-fill { background: var(--amber); }
+html.v9 .buff-row { gap: 6px; }
+html.v9 .buff-chip { font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 99px; background: var(--v9-hi); border: 0; color: var(--text-dim); }
+html.v9 .buff-chip.on { background: rgba(79, 211, 154, .12); color: var(--emerald); }
+html.v9 .buff-chip.lp { background: rgba(245, 185, 66, .12); color: var(--amber); }
+html.v9 .buff-chip.bad { background: rgba(255, 71, 102, .14); color: #ff7088; }
+html.v9 .ac-box { background: var(--bg-panel-elevated); border: 0; border-radius: var(--v9-r); padding: 12px; margin-top: 10px; }
+html.v9 .ac-row { font-size: 13px; font-weight: 600; }
+
+/* ---------- záložky (segmenty) ---------- */
+html.v9 .tab-row { border-bottom: 0; gap: 4px; padding: 3px; background: rgba(0, 0, 0, .25); border-radius: 12px; }
+html.v9 .casino-tab-btn { font-size: 12px; font-weight: 600; background: transparent; border: 0; border-radius: 9px; color: var(--text-dim); padding: 8px 6px; box-shadow: none; }
+html.v9 .casino-tab-btn:hover { color: var(--text-main); }
+html.v9 .casino-tab-btn.active { background: var(--v9-hi); color: var(--text-main); box-shadow: none; border: 0; }
+html.v9 .casino-tab-btn.glow { color: var(--amber) !important; background: rgba(245, 185, 66, .14); animation: none; }
+
+/* ---------- formuláře ---------- */
+html.v9 input:not([type=checkbox]):not([type=radio]):not([type=range]), html.v9 select, html.v9 textarea, html.v9 .adv-select {
+  background: #0d1018 !important; border: 1px solid var(--v9-line) !important; border-radius: 10px !important; color: var(--text-main) !important; padding: 8px 10px; font-size: 13px;
+}
+html.v9 input:focus, html.v9 select:focus, html.v9 textarea:focus { outline: 2px solid rgba(99, 197, 255, .45); outline-offset: 0; }
+html.v9 input[type=checkbox] { accent-color: var(--crimson); }
+
+/* ---------- bedna, merge, inventář ---------- */
+html.v9 .chest-box { background: var(--bg-panel-elevated); border: 0; border-radius: var(--v9-r); }
+html.v9 .chest-lvl-tag { font-size: 16px; font-weight: 700; }
+html.v9 .odds-table { gap: 6px; }
+html.v9 .odds-cell { background: var(--bg-panel-elevated); border: 0; border-radius: 12px; padding: 8px 10px; }
+html.v9 .odds-name { font-size: 12px; font-weight: 500; }
+html.v9 .odds-val { font-size: 15px; font-weight: 700; }
+html.v9 .odds-table .odds-t6 { background: rgba(47, 230, 200, .07); }
+html.v9 .merge-card { background: var(--bg-panel-elevated); border-radius: 12px; border-left-width: 3px; padding: 10px 12px; }
+html.v9 .merge-card-title { font-size: 13px; }
+html.v9 .loadout-slot { background: var(--bg-panel-elevated); border: 1px dashed #303a4f; border-radius: 12px; }
+html.v9 .loadout-slot.filled { background: var(--bg-panel-elevated); border: 1px solid transparent; }
+html.v9 .loadout-slot-label { font-size: 11px; }
+html.v9 .backpack-container { background: transparent; border: 0; padding: 0; gap: 8px; }
+html.v9 .item-card { background: var(--bg-panel-elevated); border-radius: 12px; padding: 10px 12px; box-shadow: none; }
+html.v9 .item-name { font-size: 13px; }
+html.v9 .item-stats { font-size: 12px; }
+html.v9 .item-count-badge { background: var(--v9-hi); color: var(--amber); font-weight: 600; }
+html.v9 .item-actions button { padding: 6px 0; font-size: 11px; }
+html.v9 .bp-controls { font-size: 12px; }
+
+/* ---------- log, chat, žebříček ---------- */
+html.v9 .log-container, html.v9 .chat-container { background: rgba(0, 0, 0, .22) !important; border: 0 !important; border-radius: 12px; font-size: 12px; }
+html.v9 table.lb-table th { font-size: 11px; font-weight: 500; color: var(--text-dim); }
+html.v9 table.lb-table td { border-color: var(--v9-line); }
+
+/* ---------- modaly ---------- */
+html.v9 .tt-overlay { background: rgba(6, 8, 13, .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+html.v9 .tt-modal { background: var(--bg-panel); border: 1px solid var(--v9-line) !important; border-radius: 20px; padding: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+html.v9 .tt-modal h2 { font-size: 18px; font-weight: 700; color: var(--text-main) !important; }
+html.v9 .tt-modal .tt-body b { color: var(--text-main); }
+html.v9 .cl-box { border: 1px solid var(--v9-line); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+html.v9 .cl-head h2 { font-size: 17px; font-weight: 700; color: var(--text-main); }
+html.v9 .update-banner { background: var(--bg-panel-elevated); border: 0; border-radius: 12px; color: var(--amber); font-weight: 600; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+html.v9 #fx-toggle, html.v9 #ir-logout { border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--bg-panel-elevated); border: 0; }
+
+/* ---------- mobil ---------- */
+html.v9.m .top-bar { padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 4px calc(14px + env(safe-area-inset-left)); background: var(--bg-core); border-bottom: 0; }
+html.v9.m .brand-title { font-size: 17px; }
+html.v9.m #m-hud { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 6px 14px 12px; gap: 6px; }
+html.v9.m #m-hud div { text-align: left; }
+html.v9.m #m-hud div:last-child { text-align: right; }
+html.v9.m #m-hud small { font-size: 11px; font-weight: 500; color: var(--text-dim); }
+html.v9.m #m-hud b { font-size: 18px; font-weight: 700; }
+html.v9.m #mh-t, html.v9.m #mh-s, html.v9.m #mh-p { color: var(--text-main) !important; }
+html.v9.m .main-wrapper { padding: 14px; gap: 14px; }
+html.v9.m .panel { padding: 14px; border-radius: 18px; }
+html.v9.m [data-tab="play"].panel { background: transparent; border: 0; padding: 0; }
+html.v9.m [data-tab="play"] .panel-header { margin-bottom: 8px; }
+html.v9.m [data-tab="play"] #btn-click { border-radius: 26px; font-size: 26px; }
+html.v9.m [data-tab="play"] #btn-click .v9-sub { font-size: 15px; }
+html.v9.m [data-tab="play"] .click-btn-wrap { margin: 4px 0 18px; }
+html.v9.m #m-tabs { background: var(--bg-panel); border-top: 1px solid var(--v9-line); }
+html.v9.m #m-tabs button { font-size: 11px; font-weight: 500; color: var(--text-dim); border-top: 0; padding: 9px 2px 9px; }
+html.v9.m #m-tabs button span { font-size: 19px; margin-bottom: 3px; filter: grayscale(.55); opacity: .75; transition: filter .15s, opacity .15s; }
+html.v9.m #m-tabs button.active { color: var(--text-main); background: transparent; }
+html.v9.m #m-tabs button.active span { filter: none; opacity: 1; }
+html.v9.m #m-tabs button.active::before { content: ""; position: absolute; top: 0; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: var(--crimson); }
+html.v9.m #m-tabs button[data-go="fight"] { color: var(--text-dim); }
+html.v9.m #m-tabs button[data-go="fight"].active { color: var(--text-main); }
+html.v9 #m-tabs button::after { box-shadow: none !important; }
+
+/* ---------- HIGH STAKES ---------- */
+html.v9 #dg-screen { background: var(--bg-core); }
+html.v9 .dg-top { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: calc(10px + env(safe-area-inset-top)) 14px 10px; }
+html.v9 .dg-top h1 { font-size: 18px; font-weight: 700; color: var(--text-main); }
+html.v9 .dg-keys { font-size: 13px; font-weight: 600; }
+html.v9 .dg-tabs { padding: 10px 14px 4px; gap: 4px; }
+html.v9 .dg-tabs .casino-tab-btn { background: var(--bg-panel); }
+html.v9 .dg-tabs .casino-tab-btn.active { background: var(--v9-hi); }
+html.v9 .dg-body { padding: 10px 14px calc(16px + env(safe-area-inset-bottom)); }
+html.v9 .dg-card { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
+html.v9 .dg-h { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
+html.v9 .dg-dim { font-size: 12.5px; line-height: 1.55; }
+html.v9 .dg-dim b { color: var(--text-main); }
+html.v9 .dg-xp, html.v9 .hs-bar, html.v9 .dg-bar { border: 0; background: rgba(0, 0, 0, .4); border-radius: 99px; }
+html.v9 .dg-xp div { background: var(--emerald); }
+html.v9 .hs-ch .btn { border-radius: 12px; padding: 8px 2px; font-size: 12px; }
+html.v9 .hs-ch .btn.sel { box-shadow: none; background: var(--v9-hi); color: var(--text-main); outline: 2px solid var(--amber); outline-offset: -2px; }
+html.v9 .hs-m { background: var(--bg-panel-elevated); border: 1px solid transparent; border-radius: 14px; padding: 10px 12px; }
+html.v9 .hs-m:hover { border-color: #33405a; }
+html.v9 .hs-m.boss { border-color: rgba(255, 71, 102, .35); background: linear-gradient(90deg, rgba(255, 71, 102, .10), var(--bg-panel-elevated) 70%); }
+html.v9 .hs-m.compliance { border-color: rgba(245, 185, 66, .3); }
+html.v9 .hs-m .t b { font-size: 13px; font-weight: 600; }
+html.v9 .hs-stars { color: var(--amber); }
+html.v9 .dg-arena { background: linear-gradient(180deg, #151a26, #121620); border: 1px solid var(--v9-line); border-radius: 18px; }
+html.v9 .dg-name { font-size: 13px; font-weight: 700; }
+html.v9 .dg-vs { font-size: 15px; font-weight: 700; color: var(--text-muted); }
+html.v9 .hs-acts .btn { border-radius: 12px; font-size: 12px; padding: 10px 2px; }
+html.v9 .hs-acts .btn small { font-size: 10px; }
+html.v9 .hs-intent { font-size: 12px; font-weight: 700; border-radius: 99px; }
+html.v9 .hs-lbl { font-size: 10px; font-weight: 600; }
+html.v9 .dg-float { text-shadow: 0 2px 0 rgba(0, 0, 0, .8) !important; font-weight: 700; }
+html.v9 .fx-float { text-shadow: 0 2px 0 rgba(0, 0, 0, .7) !important; font-weight: 700; }
+html.v9 .dg-log { background: rgba(0, 0, 0, .25); border: 0; border-radius: 12px; font-size: 12px; }
+html.v9 .hs-ov { border-radius: 18px; }
+html.v9 .hs-res .big { font-size: 26px; font-weight: 700; }
+html.v9 .hs-stat { font-size: 13px; }
+html.v9 .hs-stat b { font-size: 12px; font-weight: 700; }
+html.v9 .hs-coach { border-radius: 14px; }
+html.v9 .tw-grid div { border-radius: 6px; font-size: 10px; font-weight: 600; }
+html.v9 .sh-choice { border-radius: 14px; background: var(--bg-panel-elevated); }
+html.v9 .cl-name { font-size: 17px; font-weight: 700; }
+html.v9 .cl-slot, html.v9 .cl-boss { border-radius: 12px; }
+html.v9 .dg-class { border-radius: 16px; }
+html.v9 .dg-stances button.sel { box-shadow: 0 0 0 2px var(--amber) inset; }
+
+html.v9 .hs-reel.held::after { content: "Hold"; font-size: 10px; font-weight: 700; }
+html.v9 .bet-grid.cool::after { font-size: 14px; font-weight: 700; }
+html.v9 .mt-toast { background: var(--bg-panel-elevated); border: 1px solid rgba(245, 185, 66, .45); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); border-radius: 16px; }
+html.v9 .mt-toast b { color: var(--amber); font-size: 12px; font-weight: 700; }
+/* mobil: horní lišta jen s ikonami */
+html.v9.m .user-badge > span { display: none !important; }
+html.v9.m .user-badge { gap: 6px; }
+html.v9.m .user-badge .btn-help { padding: 6px 9px; font-size: 13px; border-radius: 10px; }
+html.v9.m .user-badge .btn-help:not(#cl-btn):not(#th-btn):not(#m-compact) { font-size: 0; }
+html.v9.m .user-badge .btn-help:not(#cl-btn):not(#th-btn):not(#m-compact)::before { content: "?"; font-size: 14px; font-weight: 700; }
+/* HIGH STAKES: lišta a záložky na mobilu */
+html.v9 .dg-top .btn { white-space: nowrap; }
+html.v9 .dg-top h1 { min-width: 0; }
+html.v9 #dg-tokbtn { white-space: nowrap; font-size: 11px !important; }
+html.v9.m .dg-top h1 { font-size: 16px; }
+html.v9.m .dg-keys { font-size: 12px; }
+html.v9.m .dg-kstar, html.v9.m .dg-back-t, html.v9.m .dg-hic { display: none; }
+html.v9.m .dg-top > .btn:first-child { padding: 7px 12px; font-size: 14px; }
+html.v9.m #m-settings .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+html.v9.m #m-settings .btn { padding: 12px 8px; font-size: 13px; }
+html.v9.m .dg-top { gap: 8px; }
+html.v9.m .dg-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 6px; }
+html.v9.m .dg-tabs::-webkit-scrollbar { display: none; }
+html.v9.m .dg-tabs button { flex: none !important; padding: 8px 12px; font-size: 12px !important; }
+@media (max-width: 1000px) { html.v9:not(.m) .top-bar { align-items: flex-start; } }
+</style>
+<script>
+(function () {
+  "use strict";
+  var KEY = "ir_theme";
+  var root = document.documentElement;
+  function classic() { try { return localStorage.getItem(KEY) === "classic"; } catch (e) { return false; } }
+
+  // ---------- CAPS LOCK -> věta (jen texty psané celé velkými písmeny) ----------
+  var KEEP = {};
+  ("GC LP XP HP ATK STA CPS LV OS HUD CPU ID AI LLM IT SME EMEA APAC PVP QA FX OK UI PC CEO CTO HR MK II III IV VI VII VIII IX ASC RNG NPC USB VIP KPI AFK DPS GG LOL OMG ASAP SQL PDF API URL FAQ EU CZ USD EUR BJ TT T1 T2 T3 T4 T5 T6 RIP DM HQ AM PM GO").split(" ").forEach(function (k) { KEEP[k] = 1; });
+  var PHRASES = [
+    ["high stakes", "High Stakes"], ["idle royale", "Idle Royale"], ["casino royale", "Casino Royale"], ["hall of fame", "Hall of Fame"],
+    ["the office plant", "the Office Plant"], ["office plant", "Office Plant"], ["clear the pool", "Clear the Pool"], ["server tower", "Server Tower"],
+    ["quarterly review", "Quarterly Review"], ["on-call shift", "On-Call Shift"], ["the administrator", "the Administrator"], ["google coins", "Google Coins"],
+    ["slot token", "Slot Token"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
+    ["big massi", "Big Massi"], ["da polishen", "Da Polishen"], ["italian guy", "Italian Guy"], ["supreme louis", "Supreme Louis"], ["the cobol", "The Cobol"],
+    ["company chest", "Company Chest"], ["upgrade station", "Upgrade Station"], ["merge station", "Merge Station"], ["corporate climb", "Corporate Climb"]
+  ];
+  var UP = /\p{Lu}{3}/u, LOW = /\p{Ll}/u, UNIT = /\d\p{Ll}{1,2}\b/gu, WORD = /[\p{L}\d][\p{L}\d.'’]*/gu, FIRST = /^[^\p{L}\d]*\p{L}/u;
+  function hasLow(s) { return LOW.test(s.replace(UNIT, "")); }       // "+1s", "45m" nejsou malá písmena věty
+  function conv(s, mid) {
+    if (!s || s.length < 3 || !UP.test(s) || hasLow(s)) return s;
+    var out = s.replace(WORD, function (w) {
+      var core = w.replace(/[.'’]+$/, "");
+      if (/\d/.test(core) || core.length === 1 || KEEP[core] || KEEP[core.replace(/\./g, "")]) return w;
+      if (/^MK\./.test(core)) return w;
+      return w.toLowerCase();
+    });
+    for (var i = 0; i < PHRASES.length; i++) {
+      var p = PHRASES[i][0], k = out.indexOf(p);
+      while (k >= 0) {
+        var a = k === 0 ? "" : out.charAt(k - 1), z = out.charAt(k + p.length);
+        if (!/[\p{L}]/u.test(a) && !/[\p{L}]/u.test(z)) out = out.slice(0, k) + PHRASES[i][1] + out.slice(k + p.length);
+        k = out.indexOf(p, k + 1);
+      }
+    }
+    if (!mid) out = out.replace(FIRST, function (c) { return c.slice(0, -1) + c.slice(-1).toUpperCase(); });
+    return out;
+  }
+  var SKIP = "script,style,textarea,input,select,option,#chat-messages,.lb-table tbody,.no-case,[data-nocase],.cl-name,.dg-name";
+  function fixNode(t) {
+    var v = t.nodeValue;
+    if (!v || v.length < 3 || !UP.test(v) || hasLow(v)) return;
+    var p = t.parentNode; if (!p || p.nodeType !== 1) return;
+    if (p.closest && p.closest(SKIP)) return;
+    var prev = t.previousSibling, mid = /^\s/.test(v) && !!prev && !(prev.nodeType === 1 && /^(BR|DIV|SPAN)$/.test(prev.nodeName) && !prev.textContent.trim());
+    if (prev && prev.nodeType === 1 && prev.nodeName === "BR") mid = false;
+    var n = conv(v, mid);
+    if (n !== v) t.nodeValue = n;
+  }
+  function walk(el) {
+    if (!el) return;
+    if (el.nodeType === 3) { fixNode(el); return; }
+    if (el.nodeType !== 1) return;
+    var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n;
+    while ((n = w.nextNode())) fixNode(n);
+  }
+  var obs = null;
+  function startCase() {
+    if (obs || !window.MutationObserver) return;
+    walk(document.body);
+    obs = new MutationObserver(function (ms) {
+      for (var i = 0; i < ms.length; i++) {
+        var m = ms[i];
+        if (m.type === "characterData") fixNode(m.target);
+        else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
+      }
+    });
+    obs.observe(document.body, { childList: true, characterData: true, subtree: true });
+  }
+  function stopCase() { if (obs) { obs.disconnect(); obs = null; } }
+  window.UICase = conv;
+
+  // ---------- hlavní tlačítko: "Resolve ticket" + menší řádek s hodnotou ----------
+  function splitResolve() {
+    var b = document.getElementById("btn-click"), cv = document.getElementById("click-val");
+    if (!b || !cv || b.querySelector(".v9-main")) return;
+    var main = document.createElement("span"); main.className = "v9-main"; main.textContent = "RESOLVE TICKET";
+    var sub = document.createElement("span"); sub.className = "v9-sub";
+    sub.appendChild(document.createTextNode("+")); sub.appendChild(cv); sub.appendChild(document.createTextNode(" per click"));
+    while (b.firstChild) b.removeChild(b.firstChild);
+    b.appendChild(main); b.appendChild(sub);
+  }
+  function brand() {
+    var t = document.querySelector(".brand-title"); if (!t || t.querySelector(".v9-acc")) return;
+    var m = /^(.*?)\s*\/\/\s*(.*)$/.exec(t.textContent || "");
+    if (!m) return;
+    t.textContent = "";
+    t.appendChild(document.createTextNode(m[1].trim() + " "));
+    var a = document.createElement("span"); a.className = "v9-acc"; a.textContent = "/" + m[2].trim().toLowerCase(); t.appendChild(a);
+  }
+
+  function apply(on) {
+    root.classList.toggle("v9", on);
+    if (on) { splitResolve(); brand(); startCase(); } else stopCase();
+    var b = document.getElementById("th-btn"); if (b) b.title = on ? "Switch to the classic look" : "Switch to the new look";
+    var m = document.getElementById("th-more"); if (m) m.textContent = on ? "🎨 Classic look" : "🎨 New look";
+  }
+  function toggle() {
+    var on = !root.classList.contains("v9");
+    try { localStorage.setItem(KEY, on ? "new" : "classic"); } catch (e) {}
+    if (!on) { location.reload(); return; }                 // návrat ke klasice = čisté texty z kódu
+    apply(true);
+  }
+  window.Theme = { toggle: toggle, conv: conv, isNew: function () { return root.classList.contains("v9"); } };
+
+  if (!classic()) root.classList.add("v9");              // hned, ať se neukáže starý vzhled
+  function boot() {
+    if (!document.body) { setTimeout(boot, 30); return; }
+    apply(!classic());
+    var badge = document.querySelector(".user-badge");
+    if (badge && !document.getElementById("th-btn")) {
+      var b = document.createElement("button"); b.id = "th-btn"; b.className = "btn btn-help"; b.type = "button"; b.textContent = "🎨";
+      b.onclick = toggle; b.title = root.classList.contains("v9") ? "Switch to the classic look" : "Switch to the new look";
+      var help = badge.querySelector(".btn-help:not(#m-compact)"); badge.insertBefore(b, help || null);
+    }
+    function addMore() {
+      var st = document.getElementById("m-settings");
+      if (st && !document.getElementById("th-more")) { var r = st.querySelector(".row"); if (r) { var x = document.createElement("button"); x.id = "th-more"; x.className = "btn"; x.type = "button"; x.onclick = toggle; x.textContent = root.classList.contains("v9") ? "🎨 Classic look" : "🎨 New look"; r.appendChild(x); } }
+    }
+    addMore(); setTimeout(addMore, 800);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
 </script>
 

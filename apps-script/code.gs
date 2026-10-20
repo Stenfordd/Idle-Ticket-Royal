@@ -366,7 +366,7 @@ function buildLeaderboard_(db, currentSeason) {
         chestLvl: Math.max(Number(s.maxChestLevel) || 0, Number(s.chestLevel) || 1),
         gambleNet: s.gambleNet || 0,
         peakCps: Number(s.peakCps) || 0,
-        gear: cleanTxt_(gear.join(' '), 80),
+        gear: cleanTxt_(dg.gearTxt ? String(dg.gearTxt) : gear.join(' '), 80),
         dungeon: { cls: cleanTxt_(dg.cls, 12), level: Number(dg.level) || 0, best: Number(dg.best) || 0, wins: Number(dg.wins) || 0, losses: Number(dg.losses) || 0, title: cleanTxt_(dg.title, 40), honor: arenaHonorOf_(saves[i][0]) },
         ach: (function () { var u = s.hs && s.hs.ach && s.hs.ach.u; if (!u || typeof u !== 'object') return []; return Object.keys(u).slice(0, 60).map(function (k) { return cleanTxt_(k, 20); }); })(),
         score: computeScore_(s),
@@ -1008,6 +1008,8 @@ function arenaPlayer_(s) {
   var lo = s.loadout || {}, g = { atk: 1, hp: 1 };
   ['TOOL', 'AUGMENT', 'RELIC'].forEach(function (k) { var it = lo[k]; if (it) g.atk += DungeonEngine.gearSlotValue(Number(it.tier) || 1, Number(it.lvl) || 0); });
   ['HEAD', 'RIG', 'OS'].forEach(function (k) { var it = lo[k]; if (it) g.hp += DungeonEngine.gearSlotValue(Number(it.tier) || 1, Number(it.lvl) || 0); });
+  // v9.0: combat gear (klient posílá násobiče) - kancelářské itemy už sílu v boji neovlivňují
+  if (d.gear && Number(d.gear.atk) > 0 && Number(d.gear.hp) > 0) g = { atk: Math.min(5, Number(d.gear.atk)), hp: Math.min(5, Number(d.gear.hp)) };
   var arts = d.artifacts || {}, eq = Array.isArray(d.equipped) ? d.equipped.filter(function (id) { return arts[id]; }).slice(0, 6) : [];
   var dd = { cls: d.cls, level: Math.max(1, Math.min(999, Number(d.level) || 1)), tier: Math.max(1, Math.min(4, Number(d.tier) || 1)), branch: d.branch === 'a' || d.branch === 'b' ? d.branch : '',
     artifacts: arts, equipped: eq, exec: !!(d.promos && d.promos.bod) };
