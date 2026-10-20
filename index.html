@@ -6765,6 +6765,9 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.3.1", d: "2026-10-20", i: [
+      "📱 The Play tab scrolls again on phones (the room pushed things on top of each other)",
+      "iPhone home-screen app: another fix for the cut-off tab bar. If it's still cut off, send a screenshot of the small grey line in More → Settings" ] },
     { v: "9.3", d: "2026-10-20", i: [
       "🏠 <b>Your office is now a room</b>: tap the desk, the closet, the chest, the roulette or the TV and your character walks over and opens it. Tapping Resolve sits you down at your desk to type. The tabs still work as shortcuts",
       "🎮 High Stakes lives on the TV: sit on the couch, grab the controller. The TV shows the Office Royale logo while you're away",
@@ -11892,6 +11895,7 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
 </nav>
 <div class="panel" id="m-settings" data-tab="more">
   <div class="panel-header">SETTINGS</div>
+  <div id="m-viewinfo" data-nocase="1" style="font-size:10px;color:var(--text-muted);margin:-4px 0 8px;line-height:1.4;"></div>
   <div class="row">
     <button class="btn btn-cyan" id="m-fx" type="button">✨ EFFECTS</button>
     <button class="btn btn-crimson" id="m-logout" type="button">LOG OUT</button>
@@ -11969,13 +11973,25 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   document.documentElement.appendChild(probe);
   function typing() { var a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea,select,[contenteditable]")); }
   /* v9.0.1: iPhone aplikace z plochy (černý průhledný status bar) hlásí výšku bez status baru -> spodní lišta byla useknutá */
+  var sprobe = document.createElement("div");
+  sprobe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);";
+  document.documentElement.appendChild(sprobe);
+  function safeTop() { return parseFloat(getComputedStyle(sprobe).paddingTop) || 0; }
+  function standalone() { return !!(navigator.standalone || (window.matchMedia && (matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches))); }
+  /** v9.3.1: iPhone web app (černý průhledný status bar): viditelná výška = hlášená výška + výška status baru */
   function iosFull() {
-    if (!navigator.standalone || !window.screen) return 0;
+    if (!standalone() || !window.screen) return 0;
     var port = window.innerWidth < window.innerHeight;
     var sh = port ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-    var d = sh - (probe.offsetHeight || window.innerHeight);
-    return d > 20 && d < 120 ? sh : 0;
+    var ph = probe.offsetHeight || window.innerHeight, st = safeTop(), d = sh - ph;
+    if (d > 20 && d < 120) return Math.min(sh, ph + (st > 10 && Math.abs(d - st) < 8 ? st : d));
+    return 0;
   }
+  window.__viewInfo = function () {
+    return "screen " + (window.screen ? screen.width + "×" + screen.height : "?") + " · inner " + window.innerWidth + "×" + window.innerHeight + " · fixed " + (probe.offsetHeight || 0) +
+      " · safe " + Math.round(safeTop()) + "/" + Math.round(parseFloat(getComputedStyle(sprobe).paddingBottom) || 0) + " · app " + (standalone() ? "yes" : "no") + " · fix " + (document.documentElement.classList.contains("iosfix") ? "on" : "off") +
+      " · body " + Math.round(document.body.getBoundingClientRect().height) + " · tabs " + Math.round(($("m-tabs") || document.body).getBoundingClientRect().bottom);
+  };
   function setAppH() {
     var vv = window.visualViewport, kb = typing() && vv && vv.height < (probe.offsetHeight || window.innerHeight) - 80;
     document.documentElement.classList.toggle("kb", !!kb);
@@ -11991,7 +12007,7 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   window.addEventListener("orientationchange", function () { setTimeout(setAppH, 250); });
   if (window.visualViewport) window.visualViewport.addEventListener("resize", setAppH);
   window.addEventListener("pageshow", setAppH);
-  setInterval(setAppH, 2000);     // pojistka: Chrome při schování/zobrazení lišty někdy resize nepošle
+  setInterval(function () { setAppH(); var vi = $("m-viewinfo"); if (vi && document.body.getAttribute("data-mtab") === "more") vi.textContent = window.__viewInfo(); }, 2000);     // pojistka: Chrome při schování/zobrazení lišty někdy resize nepošle
 
   function applyMode() {
     var on = isM();
@@ -12515,8 +12531,12 @@ html.v9.m .dg-tabs button { flex: none !important; padding: 8px 12px; font-size:
 .rm .rm-float { animation: rmFloat 3s ease-in-out infinite; }
 @keyframes rmFloat { 50% { transform: translateY(-3px); } }
 html.m [data-tab="play"] .rm { margin-bottom: 10px; border-radius: 18px; flex: none; }
+/* v9.3.1: Play na mobilu se normálně posouvá (místnost + tlačítko pevné výšky), nic se nemačká přes sebe */
 html.m body[data-mtab="play"] .main-wrapper { overflow-y: auto; }
-html.m body[data-mtab="play"] [data-tab="play"] .click-btn-wrap { min-height: 120px; }
+html.m body[data-mtab="play"] .grid-columns { flex: none; min-height: auto; }
+html.m body[data-mtab="play"] [data-tab="play"] { display: block; flex: none; min-height: 0; }
+html.m [data-tab="play"] .click-btn-wrap { display: flex; flex: none; height: clamp(130px, 22vh, 190px); min-height: 0; }
+html.m [data-tab="play"] .rm-o, html.m [data-tab="play"] .rm { touch-action: pan-y; }
 @media (prefers-reduced-motion: reduce) { .rm .rm-tv-logo, .rm .rm-led, .rm .rm-float { animation: none; } }
 </style>
 <script>
