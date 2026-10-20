@@ -6734,19 +6734,58 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     { v: "7.0", d: "2026-10-15", i: [ "Incident Dungeon (now HIGH STAKES)", "Mega 5×5 slots, Crash, Pachinko physics", "Arena PvP, online presence dots", "New season economy, progressive unlocks" ] },
     { v: "6.x", d: "2026-10-14", i: [ "Idle Royale goes online for friends: login, phones, instant tapping", "Heirloom, safe cloud saves" ] }
   ];
+  /** v9.0.1: souhrn posledních dní (8.7 - 9.0.1) - updaty přišly rychle po sobě, ukáže se každému jednou */
+  const RECAP_ID = "recap-9.0", RECAP_KEY = "ir_seen_recap";
+  const RECAP = [
+    { h: "🎨 New look", i: [
+      "Calmer dark design, a new font, no more CAPS LOCK and a big squishy Resolve button",
+      "Prefer the old style? Tap 🎨 at the top (on phones: More → Settings → Classic look)" ] },
+    { h: "⚒ Combat gear (HIGH STAKES → Hero)", i: [
+      "Your fighting power now comes from 3 pieces: a <b>weapon</b> (ATK), <b>armor</b> (HP) and a <b>trinket</b> (ATK + HP + crit)",
+      "Upgrade each piece +1 to +5 with GC, then <b>evolve</b> it: Paper → Cardboard → Wood → Plastic → Steel → Titanium → Carbon → Quantum",
+      "New materials unlock by beating the chapter bosses (Great \"I\", Italian Guy, Da Polishen, Louis, Big Massi), the Administrator (Tower 100) and Pool floor 50",
+      "Prestige resets only the +levels, the material stays. Your old items were converted to gear with the same power",
+      "Office items from the chest now only boost the office (click, auto, mult)" ] },
+    { h: "🧑‍💼 The Colleague", i: [
+      "Beat the Administrator on Tower floor 100 and you get a colleague with a random (sometimes very meme) name",
+      "Pick a boss you already beat: they fight it every 20 minutes and resolve a ticket every 30 s - also while you're away (up to 8 h), with a report when you're back",
+      "They get your old gear piece when you evolve, and you can send them to training for GC",
+      "After a prestige they fall asleep - beat Da Polishen (chapter 3 boss) to wake them up" ] },
+    { h: "♾ Clear the Pool", i: [
+      "Now an endless tower: every floor is its own fight with full HP and your progress is saved",
+      "⚡1 per fight, rewards for every new floor, floor 50 unlocks ⚛ Quantum gear" ] },
+    { h: "🌳 The Office Plant", i: [
+      "Replaced the Legacy shop: spend Legacy Points on a tree of permanent upgrades (office, casino, HIGH STAKES)",
+      "It grows fruit every 4 hours (harvest it in More) and you can water it once a day. Your old LP were refunded" ] },
+    { h: "⚔ Better fights", i: [
+      "New parry: the ring comes after a random wind-up and speeds up - <b>PERFECT</b> or <b>GOOD</b>. UNLEASH sends 3 rings and every boss has its own trick",
+      "Ultimates are a 2-second mini-game (tap to start, 70-125% power). Gamble: HOLD reels and re-spin once",
+      "🎓 Training fight in Hero (+1 🎟 the first time) and a ❓ cheat sheet in every fight" ] },
+    { h: "📱 Smaller things", i: [
+      "Max energy 16 · hold buttons to repeat (chests, upgrades, plant) · merge upgraded ⚒ items by hand",
+      "Offline backup on your phone · red dots when energy is full or the plant needs you · 📜 full update log at the top" ] }
+  ];
   const CUR = LOG[0].v, KEY = "ir_seen_ver";
   const $ = (id) => document.getElementById(id);
-  function render(all) {
-    const list = all ? LOG : LOG.slice(0, 1);
-    $("cl-title").textContent = all ? "📜 Update log" : "📜 What's new in v" + CUR;
-    $("cl-all").style.display = all ? "none" : "";
-    $("cl-body").innerHTML = list.map((x, i) => `<div class="cl-v ${i === 0 ? "new" : ""}"><h3><span>v${x.v}${i === 0 ? " · latest" : ""}</span><small>${x.d}</small></h3><ul>${x.i.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("");
+  let mode = "new";
+  function render(m) {
+    mode = m;
+    $("cl-all").style.display = m === "all" ? "none" : "";
+    if (m === "recap") {
+      $("cl-title").textContent = "📜 What you might have missed";
+      $("cl-body").innerHTML = `<div class="dg-dim" style="margin-bottom:10px;font-size:13px;line-height:1.5;color:var(--text-dim);">A lot of updates landed in the last few days. Here's everything in one place:</div>` +
+        RECAP.map(x => `<div class="cl-v new"><h3><span>${x.h}</span></h3><ul>${x.i.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("");
+    } else {
+      const list = m === "all" ? LOG : LOG.slice(0, 1);
+      $("cl-title").textContent = m === "all" ? "📜 Update log" : "📜 What's new in v" + CUR;
+      $("cl-body").innerHTML = list.map((x, i) => `<div class="cl-v ${i === 0 ? "new" : ""}"><h3><span>v${x.v}${i === 0 ? " · latest" : ""}</span><small>${x.d}</small></h3><ul>${x.i.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("");
+    }
     $("cl-body").scrollTop = 0;
   }
-  function open(all) { render(!!all); $("cl-ov").classList.add("open"); }
-  function close() { $("cl-ov").classList.remove("open"); try { localStorage.setItem(KEY, CUR); } catch (e) {} }
+  function open(all) { render(all === "recap" ? "recap" : all ? "all" : "new"); $("cl-ov").classList.add("open"); }
+  function close() { $("cl-ov").classList.remove("open"); try { localStorage.setItem(KEY, CUR); localStorage.setItem(RECAP_KEY, RECAP_ID); } catch (e) {} }
   $("cl-ov").addEventListener("click", (e) => { if (e.target.id === "cl-ov") close(); });
-  window.Changelog = { open: open, close: close, LOG: LOG, CUR: CUR };
+  window.Changelog = { open: open, close: close, LOG: LOG, CUR: CUR, RECAP: RECAP };
   (function boot() {
     if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 150); return; }
     const badge = document.querySelector(".user-badge");
@@ -6762,10 +6801,10 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     addMore(); setTimeout(addMore, 500);
     TT.onLoaded(() => {
       addMore();
-      let seen = null; try { seen = localStorage.getItem(KEY); } catch (e) {}
-      if (seen === CUR) return;
-      if (!gameState.tutorialDone) { try { localStorage.setItem(KEY, CUR); } catch (e) {} return; }    // úplně nový hráč dostane tutorial, ne novinky
-      setTimeout(() => { if (!document.querySelector(".tt-overlay.open")) open(false); else { try { localStorage.setItem(KEY, CUR); } catch (e) {} } }, 1800);
+      let seen = null, rec = null; try { seen = localStorage.getItem(KEY); rec = localStorage.getItem(RECAP_KEY); } catch (e) {}
+      if (seen === CUR && rec === RECAP_ID) return;
+      if (!gameState.tutorialDone) { try { localStorage.setItem(KEY, CUR); localStorage.setItem(RECAP_KEY, RECAP_ID); } catch (e) {} return; }    // úplně nový hráč dostane tutorial, ne novinky
+      setTimeout(() => { if (!document.querySelector(".tt-overlay.open")) open(rec !== RECAP_ID ? "recap" : false); else if (rec === RECAP_ID) { try { localStorage.setItem(KEY, CUR); } catch (e) {} } }, 1800);
     });
   })();
 })();
