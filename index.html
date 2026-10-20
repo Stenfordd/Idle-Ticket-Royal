@@ -6678,6 +6678,10 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.0.1", d: "2026-10-20", i: [
+      "📱 iPhone (app on the home screen): the bottom tab bar is no longer cut off - the labels are back",
+      "Tickets are blue again and the numbers at the top always fit",
+      "Company events show as a thin strip under the numbers on phones instead of covering buttons" ] },
     { v: "9.0", d: "2026-10-20", i: [
       "🎨 <b>New look</b>: calmer dark design, new font, no more CAPS LOCK everywhere and a big, squishy Resolve button. Prefer the old one? Tap 🎨 (on phones in More → Settings)",
       "⚒ <b>Combat gear</b>: HIGH STAKES power now comes from a <b>weapon</b> (ATK), <b>armor</b> (HP) and a <b>trinket</b> (both + crit) in HERO. Upgrade them +1 to +5 with GC, then evolve: Paper → Cardboard → Wood → Plastic → Steel → Titanium → Carbon → Quantum",
@@ -11243,7 +11247,8 @@ html.m #dg-open-btn { display: none; }
    Stejná hra, jen jiné rozložení: horní lišta + mini HUD + obsah jedné záložky + spodní lišta.
    Záložka HRA má zamčený scroll a obří tlačítko, ostatní záložky se normálně posouvají. */
 #m-hud, #m-tabs { display: none; }
-html.m.kb body { bottom: auto; height: var(--app-h, 100%); }   /* otevřená klávesnice: výška nad klávesnicí */
+html.m.kb body { bottom: auto; height: var(--app-h, 100%); }
+html.m.iosfix body { bottom: auto; height: var(--app-h, 100%); }   /* otevřená klávesnice: výška nad klávesnicí */
 
 html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
 html.m body {
@@ -11434,10 +11439,20 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   probe.style.cssText = "position:fixed;top:0;bottom:0;left:0;width:0;visibility:hidden;pointer-events:none;";
   document.documentElement.appendChild(probe);
   function typing() { var a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea,select,[contenteditable]")); }
+  /* v9.0.1: iPhone aplikace z plochy (černý průhledný status bar) hlásí výšku bez status baru -> spodní lišta byla useknutá */
+  function iosFull() {
+    if (!navigator.standalone || !window.screen) return 0;
+    var port = window.innerWidth < window.innerHeight;
+    var sh = port ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+    var d = sh - (probe.offsetHeight || window.innerHeight);
+    return d > 20 && d < 120 ? sh : 0;
+  }
   function setAppH() {
     var vv = window.visualViewport, kb = typing() && vv && vv.height < (probe.offsetHeight || window.innerHeight) - 80;
     document.documentElement.classList.toggle("kb", !!kb);
-    var h = kb ? vv.height : (probe.offsetHeight || window.innerHeight);
+    var full = kb ? 0 : iosFull();
+    document.documentElement.classList.toggle("iosfix", !!full);
+    var h = kb ? vv.height : (full || probe.offsetHeight || window.innerHeight);
     if (h) document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
   }
   document.addEventListener("focusin", function () { setTimeout(setAppH, 50); });
@@ -11479,6 +11494,10 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   function mirror(from, to) {
     var a = $(from), b = $(to); if (!a || !b) return;
     var t = a.textContent;
+    if (to !== "mh-p") {                                  // v9.0.1: od miliardy zkráceně, ať se to vejde (13.40B)
+      var n = Number(t.replace(/[^\d]/g, ""));
+      if (n >= 1e9) t = n >= 1e15 ? n.toExponential(2) : n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : (n / 1e9).toFixed(2) + "B";
+    }
     if (cache[to] !== t) { cache[to] = t; b.textContent = t; }
   }
   setInterval(function () {
@@ -11670,12 +11689,15 @@ html.v9 #fx-toggle, html.v9 #ir-logout { border-radius: 10px; font-size: 12px; f
 /* ---------- mobil ---------- */
 html.v9.m .top-bar { padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 4px calc(14px + env(safe-area-inset-left)); background: var(--bg-core); border-bottom: 0; }
 html.v9.m .brand-title { font-size: 17px; }
-html.v9.m #m-hud { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 6px 14px 12px; gap: 6px; }
+html.v9.m #m-hud { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 6px 14px 12px; gap: 10px; grid-template-columns: auto auto auto auto; justify-content: space-between; }
 html.v9.m #m-hud div { text-align: left; }
 html.v9.m #m-hud div:last-child { text-align: right; }
 html.v9.m #m-hud small { font-size: 11px; font-weight: 500; color: var(--text-dim); }
-html.v9.m #m-hud b { font-size: 18px; font-weight: 700; }
-html.v9.m #mh-t, html.v9.m #mh-s, html.v9.m #mh-p { color: var(--text-main) !important; }
+html.v9.m #m-hud b { font-size: 17px; font-weight: 700; overflow: visible; text-overflow: clip; }
+/* firemní event: na mobilu tenký pruh pod HUDem (nic nepřekrývá) */
+html.v9.m #mt-event { position: static; transform: none; left: auto; bottom: auto; top: auto; flex: none; max-width: none; width: 100%; border-radius: 0; justify-content: center;
+  padding: 6px 14px; font-size: 12px; font-weight: 600; animation: none; box-shadow: none; background: linear-gradient(90deg, rgba(255, 71, 102, .9), rgba(245, 185, 66, .9)); }
+html.v9.m #mt-event small { font-size: 11px; font-weight: 500; }
 html.v9.m .main-wrapper { padding: 14px; gap: 14px; }
 html.v9.m .panel { padding: 14px; border-radius: 18px; }
 html.v9.m [data-tab="play"].panel { background: transparent; border: 0; padding: 0; }
@@ -11688,7 +11710,7 @@ html.v9.m #m-tabs button { font-size: 11px; font-weight: 500; color: var(--text-
 html.v9.m #m-tabs button span { font-size: 19px; margin-bottom: 3px; filter: grayscale(.55); opacity: .75; transition: filter .15s, opacity .15s; }
 html.v9.m #m-tabs button.active { color: var(--text-main); background: transparent; }
 html.v9.m #m-tabs button.active span { filter: none; opacity: 1; }
-html.v9.m #m-tabs button.active::before { content: ""; position: absolute; top: 0; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: var(--crimson); }
+html.v9.m #m-tabs button.active::before { content: ""; position: absolute; top: 1px; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: var(--crimson); }
 html.v9.m #m-tabs button[data-go="fight"] { color: var(--text-dim); }
 html.v9.m #m-tabs button[data-go="fight"].active { color: var(--text-main); }
 html.v9 #m-tabs button::after { box-shadow: none !important; }
@@ -11856,9 +11878,17 @@ html.v9.m .dg-tabs button { flex: none !important; padding: 8px 12px; font-size:
     var a = document.createElement("span"); a.className = "v9-acc"; a.textContent = "/" + m[2].trim().toLowerCase(); t.appendChild(a);
   }
 
+  /** firemní event na mobilu do toku stránky (pod HUD), jinak plovoucí */
+  function placeEvent() {
+    var ev = document.getElementById("mt-event"), hud = document.getElementById("m-hud"); if (!ev) return;
+    var inFlow = root.classList.contains("v9") && root.classList.contains("m") && hud;
+    if (inFlow && ev.previousElementSibling !== hud) hud.parentNode.insertBefore(ev, hud.nextSibling);
+    else if (!inFlow && ev.parentNode !== document.body) document.body.appendChild(ev);
+  }
   function apply(on) {
     root.classList.toggle("v9", on);
     if (on) { splitResolve(); brand(); startCase(); } else stopCase();
+    placeEvent();
     var b = document.getElementById("th-btn"); if (b) b.title = on ? "Switch to the classic look" : "Switch to the new look";
     var m = document.getElementById("th-more"); if (m) m.textContent = on ? "🎨 Classic look" : "🎨 New look";
   }
@@ -11885,6 +11915,7 @@ html.v9.m .dg-tabs button { flex: none !important; padding: 8px 12px; font-size:
       if (st && !document.getElementById("th-more")) { var r = st.querySelector(".row"); if (r) { var x = document.createElement("button"); x.id = "th-more"; x.className = "btn"; x.type = "button"; x.onclick = toggle; x.textContent = root.classList.contains("v9") ? "🎨 Classic look" : "🎨 New look"; r.appendChild(x); } }
     }
     addMore(); setTimeout(addMore, 800);
+    setInterval(placeEvent, 1500);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
