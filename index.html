@@ -6768,6 +6768,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.3.4", d: "2026-10-21", i: [ "📱 iPhone app on the home screen: the bottom tab bar sits fully on screen again (no more cut-off edge)" ] },
     { v: "9.3.3", d: "2026-10-20", i: [ "📱 Android app on the home screen: the bottom tab bar was pushed off the screen (you got stuck on one tab) - fixed" ] },
     { v: "9.3.2", d: "2026-10-20", i: [ "📱 The Top 10 table fits on phones again (short numbers like 10.5M)" ] },
     { v: "9.3.1", d: "2026-10-20", i: [
@@ -11785,7 +11786,9 @@ html.m #dg-open-btn { display: none; }
    Záložka HRA má zamčený scroll a obří tlačítko, ostatní záložky se normálně posouvají. */
 #m-hud, #m-tabs { display: none; }
 html.m.kb body { bottom: auto; height: var(--app-h, 100%); }
-html.m.iosfix body { bottom: auto; height: var(--app-h, 100%); }   /* otevřená klávesnice: výška nad klávesnicí */
+/* v9.3.4: iPhone aplikace na ploše - webview končí nad home proužkem, takže lišta nepotřebuje safe-area odsazení; pozadí stránky v barvě lišty */
+html.m.iosgap #m-tabs { padding-bottom: 4px !important; }
+html.m.iosgap { background: var(--bg-panel, #0a0e16) !important; }
 
 html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
 html.m body {
@@ -11990,20 +11993,18 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
     var port = window.innerWidth < window.innerHeight;
     var sh = port ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
     var ph = probe.offsetHeight || window.innerHeight, st = safeTop(), d = sh - ph;
-    if (d > 20 && d < 120) return Math.min(sh, ph + (st > 10 && Math.abs(d - st) < 8 ? st : d));
-    return 0;
+    return d > 20 && d < 120 ? d : 0;     // v9.3.4: iOS spodních d bodů vůbec nevykreslí -> hru už NEnatahujeme, jen to označíme (iosgap)
   }
   window.__viewInfo = function () {
     return "screen " + (window.screen ? screen.width + "×" + screen.height : "?") + " · inner " + window.innerWidth + "×" + window.innerHeight + " · fixed " + (probe.offsetHeight || 0) +
-      " · safe " + Math.round(safeTop()) + "/" + Math.round(parseFloat(getComputedStyle(sprobe).paddingBottom) || 0) + " · app " + (standalone() ? "yes" : "no") + (isIOS() ? " ios" : "") + " · fix " + (document.documentElement.classList.contains("iosfix") ? "on" : "off") +
+      " · safe " + Math.round(safeTop()) + "/" + Math.round(parseFloat(getComputedStyle(sprobe).paddingBottom) || 0) + " · app " + (standalone() ? "yes" : "no") + (isIOS() ? " ios" : "") + " · gap " + (document.documentElement.classList.contains("iosgap") ? "on" : "off") +
       " · body " + Math.round(document.body.getBoundingClientRect().height) + " · tabs " + Math.round(($("m-tabs") || document.body).getBoundingClientRect().bottom);
   };
   function setAppH() {
     var vv = window.visualViewport, kb = typing() && vv && vv.height < (probe.offsetHeight || window.innerHeight) - 80;
     document.documentElement.classList.toggle("kb", !!kb);
-    var full = kb ? 0 : iosFull();
-    document.documentElement.classList.toggle("iosfix", !!full);
-    var h = kb ? vv.height : (full || probe.offsetHeight || window.innerHeight);
+    document.documentElement.classList.toggle("iosgap", !kb && !!iosFull());
+    var h = kb ? vv.height : (probe.offsetHeight || window.innerHeight);
     if (h) document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
   }
   document.addEventListener("focusin", function () { setTimeout(setAppH, 50); });
