@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#07090e">
+  <meta name="theme-color" content="#10131c">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Office Royale">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Idle Royale</title>
+  <title>Office Royale</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -929,10 +930,11 @@ body {
   <script>window.CLIENT_VERSION = "";</script>
 </head>
 <body>
+<div id="ir-cover" style="position:fixed;inset:0;z-index:309;background:#10131c;"></div>
 
   <!-- TOP HEADER -->
   <div class="top-bar">
-    <div class="brand-title">IDLE ROYALE // HOME</div>
+    <div class="brand-title">OFFICE ROYALE // HOME</div>
     <div class="user-badge">
       <span>AGENT: <strong id="user-display" style="color:var(--cyan);">CONNECTING...</strong></span>
       <span>SEASON: <strong id="season-display" style="color:var(--amber);">1</strong></span>
@@ -1352,7 +1354,7 @@ body {
   <div class="tt-overlay" id="tab-block">
     <div class="tt-modal" style="text-align:center;">
       <h2>GAME ALREADY OPEN</h2>
-      <div class="tt-body" style="min-height:60px;">Idle Royale is open in another tab. Two tabs would overwrite each other's progress.</div>
+      <div class="tt-body" style="min-height:60px;">Office Royale is open in another tab. Two tabs would overwrite each other's progress.</div>
       <button class="btn btn-gold" style="padding:10px 18px;" onclick="takeOverTab()">USE THIS TAB</button>
     </div>
   </div>
@@ -1382,20 +1384,33 @@ body {
 .ir-msg.ok { color: var(--emerald); }
 .ir-switch { text-align: center; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
 .ir-switch a { color: var(--cyan); cursor: pointer; text-decoration: underline; }
-/* v8.6.1: obrazovka "CONNECTING TO SERVER" místo prázdné hry během načítání */
+/* v9.1: úvodní obrazovka OFFICE ROYALE - tiket + razítko, běží během připojování a načítání savu */
 #ir-conn {
-  position: fixed; inset: 0; z-index: 310; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: radial-gradient(ellipse at 50% 20%, #1a0a14 0%, var(--bg-core, #07090e) 60%); padding: 16px; text-align: center;
+  position: fixed; inset: 0; z-index: 310; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  background: #10131c; padding: 16px; text-align: center; font-family: 'Space Grotesk', system-ui, sans-serif;
 }
 #ir-conn.open { display: flex; }
-#ir-conn .ic-t { font: 900 16px 'Orbitron', monospace; letter-spacing: 3px; color: var(--cyan); text-shadow: var(--cyan-glow); }
-#ir-conn .ic-s { font-size: 12px; color: var(--text-dim); min-height: 16px; max-width: 360px; }
-#ir-conn .ic-s.err { color: var(--crimson); }
-#ir-conn .ic-spin { width: 42px; height: 42px; border-radius: 50%; border: 3px solid rgba(0,240,255,.15); border-top-color: var(--cyan); animation: icspin .9s linear infinite; }
-#ir-conn.fail .ic-spin { display: none; }
-#ir-conn .ic-b { display: none; gap: 8px; }
+#ir-conn .ic-logo { display: flex; align-items: center; gap: 14px; position: relative; will-change: transform; }
+#ir-conn .ic-tk { width: 84px; height: 57px; position: relative; flex: none; }
+#ir-conn .ic-tk svg { width: 100%; height: 100%; overflow: visible; display: block; }
+#ir-conn .ic-stamp { position: absolute; left: 2px; top: -6px; width: 66px; height: 66px; opacity: 0; pointer-events: none; }
+#ir-conn .ic-ring { position: absolute; left: 33px; top: 28px; width: 10px; height: 10px; margin: -5px; border-radius: 50%; border: 2px solid #ff4766; opacity: 0; }
+#ir-conn .ic-word { display: flex; font-weight: 700; font-size: 32px; letter-spacing: -.5px; color: #e8ecf3; white-space: nowrap; line-height: 1.1; }
+#ir-conn .ic-word span { display: inline-block; }
+#ir-conn .ic-word .r { color: #ff4766; }
+#ir-conn .ic-dash { stroke-dasharray: 3 4; }
+#ic-crown { transform-box: fill-box; transform-origin: center; }
+#ir-conn.pre .ic-logo { opacity: 0; }                     /* zakrývá hru od prvního vykreslení, logo až s animací */
+#ir-conn.wait .ic-dash { animation: icRun .9s linear infinite; }
+#ir-conn.wait .ic-tk { animation: icBreathe 2.4s ease-in-out infinite; }
+@keyframes icRun { to { stroke-dashoffset: -14; } }
+@keyframes icBreathe { 50% { transform: scale(1.04); } }
+#ir-conn .ic-s { margin-top: 34px; font-size: 13px; color: #8a94a8; min-height: 18px; max-width: 360px; transition: opacity .3s; }
+#ir-conn .ic-s.err { color: #ff6b84; }
+#ir-conn .ic-b { display: none; gap: 8px; margin-top: 14px; }
 #ir-conn.fail .ic-b { display: flex; }
-@keyframes icspin { to { transform: rotate(360deg); } }
+#ir-conn.fail .ic-dash { animation: none; }
+@media (prefers-reduced-motion: reduce) { #ir-conn.wait .ic-tk, #ir-conn.wait .ic-dash { animation: none; } }
 #ir-logout {
   position: fixed; left: 92px; bottom: 10px; z-index: 50; display: none;
   font: 700 10px 'Orbitron', monospace; letter-spacing: .5px; padding: 5px 9px; border-radius: 4px; cursor: pointer;
@@ -1406,7 +1421,7 @@ body {
 
 <div id="ir-login">
   <form class="ir-card" id="ir-form" autocomplete="on">
-    <div class="ir-title" id="ir-name">IDLE ROYALE</div>
+    <div class="ir-title" id="ir-name"><svg viewBox="0 0 112 76" width="40" height="27" aria-hidden="true" style="vertical-align:-4px;margin-right:8px;"><rect width="112" height="76" rx="10" fill="#efe9dc"/><path d="M24 50 L28 26 L38 38 L44 20 L50 38 L60 26 L64 50 Z" fill="#ff4766"/><rect x="24" y="53" width="40" height="6" rx="2" fill="#ff4766"/></svg>OFFICE ROYALE</div>
     <div class="ir-sub" id="ir-sub">Log in with your nickname and PIN</div>
     <label for="ir-nick">NICKNAME</label>
     <input id="ir-nick" name="username" type="text" maxlength="16" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -1417,7 +1432,19 @@ body {
     <div class="ir-switch" id="ir-switch"></div>
   </form>
 </div>
-<div id="ir-conn"><div class="ic-spin"></div><div class="ic-t">CONNECTING TO SERVER...</div><div class="ic-s" id="ir-conn-s"></div>
+<div id="ir-conn" class="open pre"><div class="ic-logo" id="ic-logo">
+    <div class="ic-tk" id="ic-tk"><svg viewBox="0 0 112 76" aria-hidden="true">
+      <defs><mask id="ic-m"><rect width="112" height="76" fill="#fff"/><circle cx="0" cy="38" r="9" fill="#000"/><circle cx="112" cy="38" r="9" fill="#000"/></mask></defs>
+      <rect width="112" height="76" rx="10" fill="#efe9dc" mask="url(#ic-m)"/>
+      <line class="ic-dash" x1="86" y1="9" x2="86" y2="67" stroke="#b9b1a0" stroke-width="2.4" stroke-linecap="round"/>
+      <g id="ic-crown"><path d="M24 50 L28 26 L38 38 L44 20 L50 38 L60 26 L64 50 Z" fill="#ff4766"/><rect x="24" y="53" width="40" height="6" rx="2" fill="#ff4766"/>
+        <circle cx="28" cy="25" r="3" fill="#ff4766"/><circle cx="44" cy="19" r="3" fill="#ff4766"/><circle cx="60" cy="25" r="3" fill="#ff4766"/></g></svg>
+      <div class="ic-ring" id="ic-ring"></div>
+      <svg class="ic-stamp" id="ic-stamp" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38" fill="#2a1118" stroke="#ff4766" stroke-width="5"/><circle cx="42" cy="42" r="29" fill="none" stroke="#ff4766" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="42" y="46" text-anchor="middle" font-size="11" font-weight="700" fill="#ff4766" style="font-family:'Space Grotesk',sans-serif">RESOLVED</text></svg>
+    </div>
+    <div class="ic-word" id="ic-word" data-nocase="1"><span>O</span><span>f</span><span>f</span><span>i</span><span>c</span><span>e</span><span>&nbsp;</span><span class="r">R</span><span class="r">o</span><span class="r">y</span><span class="r">a</span><span class="r">l</span><span class="r">e</span></div>
+  </div><div class="ic-s" id="ir-conn-s"></div>
   <div class="ic-b"><button class="btn btn-cyan" type="button" id="ir-conn-retry" style="padding:10px 22px;">↻ RETRY</button><button class="btn" type="button" id="ir-conn-acc" style="padding:10px 14px;">ACCOUNT</button></div></div>
 <button id="ir-logout" type="button">LOG OUT</button>
 
@@ -1498,10 +1525,68 @@ body {
   // ---------- v8.6.1: připojovací obrazovka + automatické opakování ----------
   function transient(e) { var m = String(e && e.message || e); return /did not respond|fetch|network|load failed|Server error|busy|timed out|NetworkError/i.test(m) && !/wrong|invalid|PIN|nickname|taken/i.test(m); }
   var connRetry = null;
+  // ---------- v9.1: úvodní animace (tiket přiletí, razítko, nápis), smyčka během čekání, odlet do horní lišty ----------
+  var intro = { state: "off", anims: [], done: null };
+  function ia(el, kf, o) { if (!el || !el.animate) return null; var a = el.animate(kf, Object.assign({ fill: "forwards" }, o)); if (intro.fast) a.playbackRate = 4; intro.anims.push(a); return a; }
+  function fin(a) { return a && a.finished ? a.finished.catch(function () {}) : Promise.resolve(); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms / (intro.fast ? 4 : 1)); }); }
+  function introFull() {                               // celé intro jen při prvním spuštění za den, jinak rovnou hotové logo
+    var day = new Date().toDateString(), last = null;
+    try { last = localStorage.getItem("ir_intro_day"); localStorage.setItem("ir_intro_day", day); } catch (e) {}
+    var rm = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    return last !== day && !rm;
+  }
+  function introStart() {
+    if (intro.state !== "off") return;
+    var c = $("ir-conn"), tk = $("ic-tk"), word = $("ic-word");
+    if (c) c.classList.remove("pre");
+    if (!c || !tk || !word || !tk.animate || !introFull()) { intro.state = "wait"; if (c) c.classList.add("wait"); return; }
+    intro.state = "play";
+    // všechno naplánované najednou (běží i když je hlavní vlákno při startu hry vytížené)
+    var spans = [].slice.call(word.children), sh = "translateX(" + ((word.offsetWidth + 14) / 2) + "px)", E = "cubic-bezier(.2,.8,.2,1)";
+    ia(tk, [{ opacity: 0, transform: sh + " translateY(220px) rotate(-18deg) scale(.8)" }, { opacity: 1, transform: sh + " translateY(-12px) rotate(4deg) scale(1.02)", offset: .7 }, { opacity: 1, transform: sh }], { duration: 620, easing: E });
+    ia($("ic-stamp"), [{ opacity: 0, transform: "translateY(-200px) scale(1.5) rotate(-12deg)" }, { opacity: 1, transform: "translateY(0) scale(1.08) rotate(-4deg)" }], { duration: 250, delay: 620, easing: "cubic-bezier(.55,0,1,.45)", fill: "both" });
+    ia(tk, [{ transform: sh }, { transform: sh + " translateY(3px) scale(1.06,.9)" }, { transform: sh + " scale(.98,1.03)" }, { transform: sh }], { duration: 300, delay: 870, easing: "ease-out", fill: "none" });
+    ia($("ic-crown"), [{ opacity: 0, transform: "scale(1.3)" }, { opacity: 1, transform: "scale(1)" }], { duration: 300, delay: 870, easing: "ease-out", fill: "both" });
+    ia($("ic-ring"), [{ opacity: .9, transform: "scale(1)" }, { opacity: 0, transform: "scale(9)" }], { duration: 500, delay: 870, easing: "ease-out", fill: "none" });
+    ia($("ic-stamp"), [{ opacity: 1, transform: "translateY(0) scale(1.08) rotate(-4deg)" }, { opacity: 0, transform: "translateY(-110px) scale(1.25) rotate(8deg)" }], { duration: 340, delay: 1010, easing: E });
+    ia(tk, [{ transform: sh }, { transform: "none" }], { duration: 520, delay: 1010, easing: E });
+    spans.forEach(function (sp, i) { ia(sp, [{ transform: "translateY(60%)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 360, delay: 1130 + i * 34, easing: E, fill: "both" }); });
+    var all = intro.anims.slice();
+    intro.done = Promise.all(all.map(fin)).then(function () { if (intro.state === "play") { intro.state = "wait"; c.classList.add("wait"); } });
+  }
+  async function introEnd() {
+    var c = $("ir-conn"); if (!c) return;
+    if (intro.state === "play") {                      // hra je načtená dřív než intro: dohrát ho 4× rychleji (max ~0.6 s)
+      intro.fast = true; intro.anims.forEach(function (a) { try { a.playbackRate = 4; } catch (e) {} });
+      try { await Promise.race([intro.done, new Promise(function (r) { setTimeout(r, 700); })]); } catch (e) {}
+    }
+    intro.fast = false;
+    intro.state = "out"; c.classList.remove("wait");
+    var logo = $("ic-logo"), brand = document.querySelector(".brand-title");
+    if (logo && logo.animate && !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+      ia($("ic-stamp"), [{ opacity: 0, transform: "translateY(-90px) scale(1.25)" }, { opacity: 1, transform: "translateY(0) scale(1.05) rotate(-4deg)" }, { opacity: 0, transform: "translateY(-60px) scale(1.15)" }], { duration: 420 });
+      await sleep(190);
+      ia($("ic-ring"), [{ opacity: .9, transform: "scale(1)" }, { opacity: 0, transform: "scale(12)" }], { duration: 420, easing: "ease-out" });
+      var r = logo.getBoundingClientRect(), b = brand && brand.getBoundingClientRect(), to = "translateY(-40px) scale(.9)";
+      if (b && b.width && r.width) { var sc = Math.max(.25, Math.min(1, b.height / r.height * 1.1)); to = "translate(" + (b.left - r.left) + "px," + (b.top + b.height / 2 - (r.top + r.height / 2)) + "px) scale(" + sc + ")"; }
+      logo.style.transformOrigin = "0 50%";
+      ia(logo, [{ transform: "none", opacity: 1 }, { transform: to, opacity: 0 }], { duration: 480, easing: "cubic-bezier(.6,0,.2,1)" });
+      await fin(ia(c, [{ opacity: 1 }, { opacity: 0 }], { duration: 380, delay: 150 }));
+    }
+    c.classList.remove("open", "fail");
+    intro.anims.forEach(function (a) { try { a.cancel(); } catch (e) {} });
+    intro.anims = []; intro.state = "off"; intro.fast = false; c.style.opacity = ""; logo && (logo.style.transformOrigin = "");
+  }
+  function uncover() { var x = $("ir-cover"); if (x) x.remove(); }
   var conn = {
-    show: function (msg) { var c = $("ir-conn"); if (!c) return; c.classList.add("open"); c.classList.remove("fail"); var s = $("ir-conn-s"); s.className = "ic-s"; s.textContent = msg || ""; },
-    hide: function () { var c = $("ir-conn"); if (c) c.classList.remove("open", "fail"); },
-    fail: function (msg, retry) { var c = $("ir-conn"); if (!c) return; c.classList.add("open", "fail"); var s = $("ir-conn-s"); s.className = "ic-s err"; s.textContent = msg || "Server unreachable."; connRetry = retry || null; }
+    show: function (msg) { uncover(); var c = $("ir-conn"); if (!c) return; if (intro.state === "out") return; c.classList.add("open"); c.classList.remove("fail"); var s = $("ir-conn-s"); s.className = "ic-s"; s.textContent = msg || ""; introStart(); },
+    hide: function (now) {
+      uncover(); var c = $("ir-conn"); if (!c) return;
+      if (now) { intro.anims.forEach(function (a) { try { a.cancel(); } catch (e) {} }); intro.anims = []; intro.state = "off"; c.classList.remove("open", "fail", "wait", "pre"); return; }
+      if (c.classList.contains("open") && intro.state !== "out") introEnd();
+    },
+    fail: function (msg, retry) { uncover(); var c = $("ir-conn"); if (!c) return; c.classList.add("open", "fail"); var s = $("ir-conn-s"); s.className = "ic-s err"; s.textContent = msg || "Server unreachable."; connRetry = retry || null; introStart(); }
   };
   window.__irConn = conn;
   /** volání s opakováním (studený start serveru / výpadek sítě): 3 pokusy */
@@ -1596,9 +1681,9 @@ body {
   });
 
   $("ir-conn-retry").addEventListener("click", function () { var f = connRetry; connRetry = null; if (f) f(); else location.reload(); });
-  $("ir-conn-acc").addEventListener("click", function () { conn.hide(); showLogin(); setMsg(""); });
+  $("ir-conn-acc").addEventListener("click", function () { conn.hide(true); showLogin(); setMsg(""); });
 
-  if (CFG.NAME) { $("ir-name").textContent = CFG.NAME.toUpperCase(); document.title = CFG.NAME; }
+  document.title = "Office Royale";                       // v9.1: nové jméno (config.js zůstává beze změny)
 
   // ---------- start ----------
   function start() {
@@ -1607,10 +1692,11 @@ body {
     if (saved && saved.nick && saved.h) {
       auth = saved;
       callRetry("login", [saved.nick, saved.h], false, "Logging in").then(function () { boot(); }).catch(function (e) {
-        if (/wrong|invalid|PIN|nickname/i.test(e.message)) { clearAuth(); auth = null; conn.hide(); showLogin(); setMsg(e.message); return; }
+        if (/wrong|invalid|PIN|nickname/i.test(e.message)) { clearAuth(); auth = null; conn.hide(true); showLogin(); setMsg(e.message); return; }
         conn.fail("Server unreachable: " + e.message, start);
       });
     } else {
+      conn.hide(true);
       showLogin();
     }
   }
@@ -1621,7 +1707,7 @@ body {
 
   <script>
 /**
- * IDLE ROYALE - CORE  (soubor "script")
+ * OFFICE ROYALE - CORE  (soubor "script")
  * Stav hry, TT API, klikání + CPS, autoclicker, prestiž + Legacy Points, bedna, inventář (stacky), merge, HUD.
  * Ostatní soubory: casino (ruleta/sloty/blackjack/consult), sync (tutorial/leaderboard/save/načtení/verze), advanced_minigames.
  */
@@ -3875,7 +3961,7 @@ html.m .crash-mult { font-size: 28px; }
 // 1. TUTORIAL
 // ==========================================================================
 const TUTORIAL_STEPS = [
-  { t: "WELCOME TO IDLE ROYALE", b: `
+  { t: "WELCOME TO OFFICE ROYALE", b: `
     <p>Grind <b>Tickets</b>, turn them into <b>Scrap</b>, open the <b>Company Chest</b> for gear, gamble your <b>Google Coins (GC)</b>, <b>Prestige</b> for permanent bonuses and fight your way through the office in <b>HIGH STAKES</b>.</p>
     <ul><li>Currencies: <b>Tickets</b>, <b>Scrap</b>, <b>GC</b>, <b>Legacy Points</b> (prestige) and HIGH STAKES <b>energy</b> ⚡</li>
     <li>Cloud save every few seconds, after every bet and when you leave the app</li>
@@ -6678,6 +6764,10 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.1", d: "2026-10-20", i: [
+      "👑 <b>Idle Royale is now Office Royale</b> - new name, new logo (a ticket with a crown) and a new app icon",
+      "🎬 New intro: while the game connects and loads your save, the ticket gets stamped and the logo builds itself (full show once a day, it never makes loading longer)",
+      "Added the game to your home screen? Remove it and add it again to get the new icon and name" ] },
     { v: "9.0.1", d: "2026-10-20", i: [
       "📱 iPhone (app on the home screen): the bottom tab bar is no longer cut off - the labels are back",
       "Tickets are blue again and the numbers at the top always fit",
@@ -11616,6 +11706,10 @@ html.v9 * { scrollbar-color: #2b3345 transparent; }
 html.v9 .top-bar { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 10px 18px; }
 html.v9 .brand-title { font-size: 17px; font-weight: 700; color: var(--text-main); }
 html.v9 .brand-title .v9-acc { color: var(--crimson); font-weight: 600; }
+html.v9 .brand-title { display: flex; align-items: center; white-space: nowrap; }
+html.v9 .brand-title .v9-mark { display: inline-flex; width: 28px; height: 19px; margin-right: 9px; flex: none; }
+html.v9 .brand-title .v9-mark svg { width: 100%; height: 100%; }
+html.v9 .brand-title .v9-acc { margin-left: 5px; }
 html.v9 .user-badge { font-size: 12px; color: var(--text-dim); }
 html.v9 .user-badge strong { font-weight: 600; }
 html.v9 .status-pill { background: rgba(79, 211, 154, .1); border: 0; font-weight: 500; }
@@ -11801,6 +11895,10 @@ html.v9 .dg-stances button.sel { box-shadow: 0 0 0 2px var(--amber) inset; }
 
 html.v9 .hs-reel.held::after { content: "Hold"; font-size: 10px; font-weight: 700; }
 html.v9 .bet-grid.cool::after { font-size: 14px; font-weight: 700; }
+html.v9 #ir-login { background: var(--bg-core); }
+html.v9 .ir-card { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .45); }
+html.v9 .ir-title { color: var(--text-main); font-size: 24px; font-weight: 700; }
+html.v9 .ir-card label { font-size: 12px; font-weight: 600; }
 html.v9 .mt-toast { background: var(--bg-panel-elevated); border: 1px solid rgba(245, 185, 66, .45); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); border-radius: 16px; }
 html.v9 .mt-toast b { color: var(--amber); font-size: 12px; font-weight: 700; }
 /* mobil: horní lišta jen s ikonami */
@@ -11836,7 +11934,7 @@ html.v9.m .dg-tabs button { flex: none !important; padding: 8px 12px; font-size:
   var KEEP = {};
   ("GC LP XP HP ATK STA CPS LV OS HUD CPU ID AI LLM IT SME EMEA APAC PVP QA FX OK UI PC CEO CTO HR MK II III IV VI VII VIII IX ASC RNG NPC USB VIP KPI AFK DPS GG LOL OMG ASAP SQL PDF API URL FAQ EU CZ USD EUR BJ TT T1 T2 T3 T4 T5 T6 RIP DM HQ AM PM GO").split(" ").forEach(function (k) { KEEP[k] = 1; });
   var PHRASES = [
-    ["high stakes", "High Stakes"], ["idle royale", "Idle Royale"], ["casino royale", "Casino Royale"], ["hall of fame", "Hall of Fame"],
+    ["high stakes", "High Stakes"], ["office royale", "Office Royale"], ["idle royale", "Idle Royale"], ["casino royale", "Casino Royale"], ["hall of fame", "Hall of Fame"],
     ["the office plant", "the Office Plant"], ["office plant", "Office Plant"], ["clear the pool", "Clear the Pool"], ["server tower", "Server Tower"],
     ["quarterly review", "Quarterly Review"], ["on-call shift", "On-Call Shift"], ["the administrator", "the Administrator"], ["google coins", "Google Coins"],
     ["slot token", "Slot Token"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
@@ -11913,6 +12011,9 @@ html.v9.m .dg-tabs button { flex: none !important; padding: 8px 12px; font-size:
     var m = /^(.*?)\s*\/\/\s*(.*)$/.exec(t.textContent || "");
     if (!m) return;
     t.textContent = "";
+    var ic = document.createElement("span"); ic.className = "v9-mark"; ic.setAttribute("aria-hidden", "true");
+    ic.innerHTML = '<svg viewBox="0 0 112 76"><rect width="112" height="76" rx="10" fill="#efe9dc"/><path d="M24 50 L28 26 L38 38 L44 20 L50 38 L60 26 L64 50 Z" fill="#ff4766"/><rect x="24" y="53" width="40" height="6" rx="2" fill="#ff4766"/></svg>';
+    t.appendChild(ic);
     t.appendChild(document.createTextNode(m[1].trim() + " "));
     var a = document.createElement("span"); a.className = "v9-acc"; a.textContent = "/" + m[2].trim().toLowerCase(); t.appendChild(a);
   }
