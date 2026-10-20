@@ -4068,6 +4068,9 @@ function refreshLeaderboard() {
 
       if (data.leaderboard) {
         window.__lbRows = data.leaderboard;
+        // v9.3.2: na mobilu zkrácená čísla (10.5M), ať se tabulka vejde na šířku obrazovky
+        const mob = document.documentElement.classList.contains("m");
+        const num = (n) => { n = Math.floor(n); if (!mob) return n.toLocaleString(); const a = Math.abs(n), sg = n < 0 ? "-" : ""; return a >= 1e9 ? sg + (a / 1e9).toFixed(a >= 1e11 ? 0 : 1) + "B" : a >= 1e6 ? sg + (a / 1e6).toFixed(a >= 1e8 ? 0 : 1) + "M" : a >= 1e4 ? sg + Math.round(a / 1e3) + "K" : n.toLocaleString(); };
         document.getElementById("lb-body").innerHTML = data.leaderboard.map((u, i) => {
           const isMe = (u.ldap === gameState.ldap);
           const gn = u.gambleNet || 0;
@@ -4076,8 +4079,8 @@ function refreshLeaderboard() {
             <td style="color:var(--crimson);">${u.prestige || 0}</td>
             <td style="color:var(--cyan);">${u.chestLvl || 1}</td>
             <td style="color:#ff4d6d;">${(u.dungeon && u.dungeon.best) || 0}</td>
-            <td style="color:var(--amber);">${Math.floor(u.score || 0).toLocaleString()}</td>
-            <td style="color:${gn >= 0 ? "var(--emerald)" : "var(--crimson)"};">${gn >= 0 ? "+" : ""}${Math.floor(gn).toLocaleString()}</td>
+            <td style="color:var(--amber);">${num(u.score || 0)}</td>
+            <td style="color:${gn >= 0 ? "var(--emerald)" : "var(--crimson)"};">${gn >= 0 ? "+" : ""}${num(gn)}</td>
           </tr>`;
         }).join("");
       }
@@ -6765,6 +6768,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.3.2", d: "2026-10-20", i: [ "📱 The Top 10 table fits on phones again (short numbers like 10.5M)" ] },
     { v: "9.3.1", d: "2026-10-20", i: [
       "📱 The Play tab scrolls again on phones (the room pushed things on top of each other)",
       "iPhone home-screen app: another fix for the cut-off tab bar. If it's still cut off, send a screenshot of the small grey line in More → Settings" ] },
@@ -12224,6 +12228,11 @@ html.v9 .bp-controls { font-size: 12px; }
 html.v9 .log-container, html.v9 .chat-container { background: rgba(0, 0, 0, .22) !important; border: 0 !important; border-radius: 12px; font-size: 12px; }
 html.v9 table.lb-table th { font-size: 11px; font-weight: 500; color: var(--text-dim); }
 html.v9 table.lb-table td { border-color: var(--v9-line); }
+html.v9.m table.lb-table { font-size: 12px; table-layout: auto; }
+html.v9.m table.lb-table th, html.v9.m table.lb-table td { padding: 7px 3px; white-space: nowrap; }
+html.v9.m table.lb-table td:nth-child(2) { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+html.v9.m table.lb-table th:first-child, html.v9.m table.lb-table td:first-child { padding-left: 0; }
+html.v9.m .panel:has(> .lb-table), html.v9.m .panel:has(table.lb-table) { overflow-x: auto; }
 
 /* ---------- modaly ---------- */
 html.v9 .tt-overlay { background: rgba(6, 8, 13, .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
