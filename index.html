@@ -6768,6 +6768,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.3.6", d: "2026-10-21", i: [ "📱 iPhone app: the bottom tab bar is really back now (the page was taller than what iOS draws)", "📱 Play tab scrolls on phones again (only swiping on the big button is blocked)", "🎒 Bag on phones: no more stretched item cards, the list scrolls with the page" ] },
     { v: "9.3.5", d: "2026-10-21", i: [ "📱 iPhone app: the bottom tab bar is back (9.3.4 pushed it off the screen)" ] },
     { v: "9.3.4", d: "2026-10-21", i: [ "📱 iPhone app on the home screen: the bottom tab bar sits fully on screen again (no more cut-off edge)" ] },
     { v: "9.3.3", d: "2026-10-20", i: [ "📱 Android app on the home screen: the bottom tab bar was pushed off the screen (you got stuck on one tab) - fixed" ] },
@@ -11789,6 +11790,10 @@ html.m #dg-open-btn { display: none; }
 html.m.kb body { bottom: auto; height: var(--app-h, 100%); }
 /* v9.3.4: iPhone aplikace na ploše - webview končí nad home proužkem, takže lišta nepotřebuje safe-area odsazení; pozadí stránky v barvě lišty */
 html.m.iosgap #m-tabs { padding-bottom: 4px !important; }
+html.m body { min-height: 0 !important; }   /* v9.3.6: style.html má min-height:100vh - na iPhonu je 100vh celá obrazovka (852), i když se kreslí jen 793 -> lišta mizela pod okraj */
+/* v9.3.6: batoh na mobilu bez vnořeného scrollu (karty se v něm na Androidu roztahovaly) */
+html.m .backpack-container { display: flex !important; flex-direction: column; max-height: none; overflow: visible; min-height: 0; }
+html.m .backpack-container > .item-card { flex: none; }
 html.m.iosgap body { bottom: auto !important; height: var(--app-h, 100%) !important; }   /* v9.3.5: iOS dá fixed body 852 i když kreslí jen 793 -> výška natvrdo podle sondy */
 html.m.iosgap { background: var(--bg-panel, #0a0e16) !important; }
 
@@ -12086,7 +12091,7 @@ html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
   // zákaz pinch-zoomu a přetahování stránky na záložce HRA
   document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
   document.addEventListener("touchmove", function (e) {
-    if (mq.matches && tab === "play" && !(e.target.closest && e.target.closest("input,textarea,select,#dg-screen,.tt-overlay"))) e.preventDefault();   // HIGH STAKES a modaly se scrollují
+    if (mq.matches && e.target.closest && e.target.closest("#btn-click")) e.preventDefault();   // v9.3.6: blokuje se jen tah po tlačítku, záložka HRA se jinak normálně posouvá
   }, { passive: false });
 })();
 </script>
