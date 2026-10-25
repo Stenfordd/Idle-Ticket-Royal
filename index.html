@@ -995,6 +995,7 @@ body {
               <span>LP: <strong id="lp-count" style="color:var(--amber);">0</strong></span>
             </div>
             <button class="btn btn-crimson" id="btn-prestige" style="width:100%;" onclick="performPrestige()">ASCEND PRESTIGE</button>
+            <button class="btn" id="btn-restart-run" style="width:100%;margin-top:6px;font-size:11px;opacity:.8;" onclick="restartRun()" title="Start this prestige over: tickets, GC, scrap, chest and items reset. Prestige, Legacy Points, the plant and HIGH STAKES stay.">↺ RESTART RUN (no prestige)</button>
           </div>
         </div>
 
@@ -2330,6 +2331,36 @@ function performPrestige() {
   updateUI();
 }
 
+/** v9.4: RESTART RUN - začne aktuální prestiž znovu (proti zaseknutí). Prestiž, LP, kytka a HIGH STAKES zůstávají, nic se nezíská. */
+let restartArmedUntil = 0, restartTimer = 0;
+function restartRun() {
+  const b = document.getElementById("btn-restart-run"), now = Date.now();
+  if (now > restartArmedUntil) {
+    restartArmedUntil = now + 8000;
+    let n = 3;
+    const tick = () => { if (!b) return; if (Date.now() > restartArmedUntil) { b.textContent = "↺ RESTART RUN (no prestige)"; b.classList.remove("btn-crimson"); return; }
+      b.textContent = n > 0 ? `Wipes tickets, GC, scrap, chest & items… confirm in ${n}` : "⚠ TAP AGAIN TO RESTART THIS RUN"; b.classList.add("btn-crimson"); n--; restartTimer = setTimeout(tick, 1000); };
+    clearTimeout(restartTimer); tick();
+    log("RESTART RUN: this wipes tickets, GC, scrap, the chest and all items of this run. Prestige, Legacy Points, the plant and HIGH STAKES stay. Tap again after the countdown to confirm.", "warning");
+    return;
+  }
+  if (now < restartArmedUntil - 5000) return;            // potvrzení až po odpočtu 3 s
+  restartArmedUntil = 0; clearTimeout(restartTimer);
+  if (b) { b.textContent = "↺ RESTART RUN (no prestige)"; b.classList.remove("btn-crimson"); }
+  gameState.tickets = 0;
+  gameState.coins = 250 + (window.Plant ? Plant.fx("startGc") : 500 * gameState.lpUp.start);
+  gameState.scrap = 0;
+  gameState.chestLevel = 1;
+  gameState.tokBuy = 0;
+  gameState.inventory = [];
+  gameState.loadout = { HEAD: null, RIG: null, TOOL: null, AUGMENT: null, OS: null, RELIC: null };
+  gameState.focusAutogenActive = false;
+  gameState.focusAutogenRemaining = 0;
+  log(`RUN RESTARTED at prestige ${gameState.prestige}. Fresh start with ${gameState.coins.toLocaleString()} GC.`, "special");
+  saveGame();
+  updateUI();
+}
+
 function lpLevel(id) { return gameState.lpUp[id] || 0; }
 
 /** v8.7: Legacy shop nahradil THE OFFICE PLANT (plant.html) */
@@ -3108,6 +3139,12 @@ const CONSULT_WIN_MIN = 5, CONSULT_WIN_MAX = 30;      // výhra = Auto GC/s x 60
 const CONSULT_LOSS_MIN = 1, CONSULT_LOSS_MAX = 10;    // prohra = Auto GC/s x 60 x (1..10 minut)
 const CONSULT_BUG_WIN_MIN = 5, CONSULT_BUG_WIN_MAX = 10;   // BUG výhra = click power x (5..10) na 60 s
 const CONSULT_MIN_WIN = 1000, CONSULT_MIN_LOSS = 200;
+/** v9.4: denní strop výher z consultu = 4 h Auto GC (dřív šlo hromadu scrapu z Climbu nekonečně měnit na GC) */
+const CONSULT_DAY_MIN = 240;
+function consultDayKey() { const d = new Date(); return "ir_cday_" + (gameState && gameState.ldap || "") + "_" + d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+function consultDayGot() { try { return Number(localStorage.getItem(consultDayKey())) || 0; } catch (e) { return 0; } }
+function consultDayAdd(v) { try { localStorage.setItem(consultDayKey(), String(consultDayGot() + Math.max(0, v))); } catch (e) {} }
+function consultDayLeft(rate) { return Math.max(0, Math.floor(rate * 60 * CONSULT_DAY_MIN) - consultDayGot()); }
 
 const ROULETTE_NUMBERS = [
   0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
@@ -3467,8 +3504,12 @@ function applyConsult(res) {
   const rate = calculateAutoGcRate();
   if (res.outcome === "win") {
     const minutes = randInt(CONSULT_WIN_MIN, CONSULT_WIN_MAX);
-    const reward = Math.max(CONSULT_MIN_WIN, Math.floor(rate * 60 * minutes));
+    const full = Math.max(CONSULT_MIN_WIN, Math.floor(rate * 60 * minutes));
+    const left = consultDayLeft(rate), reward = Math.max(CONSULT_MIN_WIN, Math.min(full, left));     // v9.4: denní strop výher
+    consultDayAdd(reward);
     gameState.coins += reward;
+    if (reward < full) return { gc: reward, html: `<span style="color:var(--amber);">SUCCESS, BUT TODAY'S CONSULT BUDGET IS USED UP (+${reward.toLocaleString()} GC)</span>`,
+      log: `CONSULT WIN [${res.zone.toUpperCase()}]: daily consult budget reached (${CONSULT_DAY_MIN / 60} h of Auto GC) - +${reward.toLocaleString()} GC. Resets tomorrow.`, type: "warning" };
     return { gc: reward, html: `<span style="color:var(--emerald);">SUCCESS! ${minutes} MIN OF AUTO GC (+${reward.toLocaleString()} GC)</span>`,
       log: `CONSULT WIN [${res.zone.toUpperCase()}]: ${minutes} min of Auto GC = +${reward.toLocaleString()} GC!`, type: "special" };
   }
@@ -4001,7 +4042,7 @@ const TUTORIAL_STEPS = [
     <li><b>⚡ ADVANCED</b>: <b>MEGA 5×5</b> (10 lines, ⭐ wild, 💰×5 = 250× jackpot), <b>CRASH</b> (cash out before the rocket explodes), <b>Chicken Road</b>, <b>Pachinko</b></li>
     <li><b>👥 SPECIAL</b>: <b>Showdown</b> PvP, <b>Corporate Climb</b>, <b>♣ PRŠÍ</b> (Czech card game for 2-6 players, the winner takes the pot, the rest play on for 2nd place) and <b>⛀ CHECKERS</b> (Czech checkers 1 vs 1: capturing is mandatory, the queen flies). A glowing section means someone is waiting for you</li></ul>` },
   { t: "7) CONSULT", b: `
-    <p><b>Consult</b> (5,000 scrap): win/lose minutes of Auto GC, 10% BUG chamber. <b>×5 INSTANT</b> rolls 5 at once, <b>BUGROLL</b> keeps rolling until a bug drops.</p>` },
+    <p><b>Consult</b> (5,000 scrap): win/lose minutes of Auto GC, 10% BUG chamber. Wins are capped at <b>4 hours of Auto GC per day</b>. <b>×5 INSTANT</b> rolls 5 at once, <b>BUGROLL</b> keeps rolling until a bug drops.</p>` },
   { t: "8) 🎰 HIGH STAKES", b: `
     <p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
     <ul><li>⚔ Quick / 🗡 Strike = safe hits. 💥 <b>Power</b> = stop the needle in the green zone (1.9×) or gold (2.5×), then 2 turns cooldown. 🎰 <b>Gamble</b> = a mini slot machine (777 = 6×, 💀💀💀 = backfire)</li>
@@ -5229,7 +5270,8 @@ window.__startGame = initGame;
   const W = 360, H = 504, PXM = 20;                      // 1 metr = 20 px
   const ZONE_M = 40, TOP_M = 200;
   const ZONES = [["Helpdesk", "#0b1220", "#3b82f6"], ["Server Room", "#0a1a14", "#22c55e"], ["Security Floor", "#1a0b14", "#ef4444"], ["Cloud Level", "#0d1426", "#a5b4fc"], ["The Roof", "#1a1405", "#ffd700"]];
-  const TIERS = [{ id: "A", s: 60, cost: 1e6, mult: 1 }, { id: "B", s: 120, cost: 15e6, mult: 16 }, { id: "C", s: 300, cost: 200e6, mult: 220 }];   // odměna roste aspoň tak rychle jako cena
+  // v9.4: odměna = počet "beden" (ceny scrapu za otevření chestu) při dosažení střechy. Dřív ×220 × 4840 m-bodů / 20 = 53 000 beden -> 642 mld scrapu.
+  const TIERS = [{ id: "A", s: 60, cost: 1e6, mult: 1, chests: 6 }, { id: "B", s: 120, cost: 15e6, mult: 3, chests: 20 }, { id: "C", s: 300, cost: 200e6, mult: 8, chests: 60 }];
   const G = 1500, CHARGE_MS = 600, DT = 1 / 120;
   const jk = { built: false, plat: null, run: null, raf: 0, keys: {}, charge: 0, charging: false, dir: 0, last: 0, acc: 0, fx: [], t: 0 };
 
@@ -5271,7 +5313,7 @@ window.__startGame = initGame;
     for (let z = 0; z < ZONES.length; z++) { const a = z * ZONE_M, b = Math.min(m, a + ZONE_M); if (b > a) v += (b - a) * Math.pow(3, z); }
     return v;
   }
-  function reward(m, tier) { return Math.floor(heightValue(m) * scrapBase() * tier.mult); }
+  function reward(m, tier) { return Math.floor(heightValue(m) / heightValue(TOP_M) * Math.max(1, getChestScrapCost()) * tier.chests); }
 
   // ---------- UI
   function show() {
@@ -5284,7 +5326,7 @@ window.__startGame = initGame;
         <div class="jk-side"><div class="adv-info"><b>CORPORATE CLIMB</b> - climb the office tower Jump King style. <b>Hold</b> a button (or Space + ←/→) to charge the jump, release to jump.
           You can fall all the way down. Buy climbing time with GC, the reward is <b>Scrap</b> based on your <b>highest point</b>. Higher zones are worth <b>3× more per meter</b>, and longer runs multiply everything.
           Every desk can be reached - if you are standing right under the next one, hop sideways first.</div>
-          <div class="jk-tiers">${TIERS.map((t, i) => `<button class="btn ${i === 2 ? "btn-crimson" : i === 1 ? "btn-gold" : "btn-cyan"}" id="jk-buy-${t.id}" onclick="JumpKing.start(${i})">${t.s / 60} MIN<small>${fmtShort(t.cost)} GC · ×${t.mult}</small></button>`).join("")}</div>
+          <div class="jk-tiers">${TIERS.map((t, i) => `<button class="btn ${i === 2 ? "btn-crimson" : i === 1 ? "btn-gold" : "btn-cyan"}" id="jk-buy-${t.id}" onclick="JumpKing.start(${i})">${t.s / 60} MIN<small>${fmtShort(t.cost)} GC · up to ${t.chests} chests</small></button>`).join("")}</div>
           <div id="jk-info" class="adv-info"></div>
           <div id="jk-zones" style="margin-top:6px;"></div></div></div>`;
       const cv = $("jk-canvas");
@@ -5313,7 +5355,7 @@ window.__startGame = initGame;
     const s = stats(), el = $("jk-info"); if (!el) return;
     TIERS.forEach(t => { const b = $("jk-buy-" + t.id); if (b) b.disabled = !!jk.run || gameState.coins < t.cost; });
     el.innerHTML = jk.run ? `Climbing... reward so far: <b style="color:var(--amber);">${fmtShort(reward(jk.run.best, jk.run.tier))} scrap</b>` :
-      `Your record: <b>${s.best.toFixed(1)} m</b> / ${TOP_M} m · runs ${s.runs} · scrap earned ${fmtShort(s.scrap)}<br>1 m in the first zone = ${fmtShort(Math.round(scrapBase()))} scrap × tier`;
+      `Your record: <b>${s.best.toFixed(1)} m</b> / ${TOP_M} m · runs ${s.runs} · scrap earned ${fmtShort(s.scrap)}<br>The roof pays the scrap of ${TIERS.map(t => t.chests).join(" / ")} chest openings (1 / 2 / 5 min). Higher zones are worth 3× more per metre.`;
     const z = $("jk-zones");
     if (z) z.innerHTML = ZONES.map((zz, i) => `<div class="jk-zone"><span style="color:${zz[2]};">${i * ZONE_M}-${(i + 1) * ZONE_M} m · ${zz[0]}</span><span>×${Math.pow(3, i)} / m</span></div>`).join("");
   }
@@ -6768,6 +6810,14 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.4", d: "2026-10-25", i: [
+      "📟 On-Call Shift rebalanced: enemies are now based on YOUR stats instead of exploding with your level (a level 176 Post-it Note had 329k HP and hit for 77k). Better gear still makes fights noticeably easier",
+      "📟 Shift enemies have types: 🛡 tanks (lots of HP, weak hits), 🗡 glass cannons (fragile, hit hard), balanced ones and ✨ specialists with mechanics. Every enemy rolls ±15% stats, the shift starts easier and builds up to the boss",
+      "📊 Quarterly Review boss: its attack now follows your HP instead of your level (it hit for 146k at level 176)",
+      "🧗 Corporate Climb: rewards are now measured in chest openings (the roof pays 6 / 20 / 60 chests of scrap). It used to pay over 600 billion scrap",
+      "🧑‍💼 Consult: wins are capped at 4 hours of Auto GC per day (no more endless scrap → GC)",
+      "↺ RESTART RUN under the prestige button: start your current prestige over if you got stuck (prestige, Legacy Points, plant and HIGH STAKES stay)"
+    ] },
     { v: "9.3.6", d: "2026-10-21", i: [ "📱 iPhone app: the bottom tab bar is really back now (the page was taller than what iOS draws)", "📱 Play tab scrolls on phones again (only swiping on the big button is blocked)", "🎒 Bag on phones: no more stretched item cards, the list scrolls with the page" ] },
     { v: "9.3.5", d: "2026-10-21", i: [ "📱 iPhone app: the bottom tab bar is back (9.3.4 pushed it off the screen)" ] },
     { v: "9.3.4", d: "2026-10-21", i: [ "📱 iPhone app on the home screen: the bottom tab bar sits fully on screen again (no more cut-off edge)" ] },
@@ -8782,8 +8832,40 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       intro: src.t, kind: kind, bonus: { type: "hp", pct: 50 }, survive: 0, energy: 1, enemy: e };
   }
 
-  /** ON-CALL SHIFT (roguelite): nepřítel podle levelu hráče; node = "fight" | "elite" | "boss"; asc = obtížnost */
-  function shiftEnemy(L, node, step, asc, seed) {
+  // ------------------------------------------------------------------ v9.4: SÍLA PODLE TVÝCH STATŮ (Shift, world boss)
+  // Dřív: exponenciálně podle levelu (lvl 176 = Post-it s 329k HP a 77k ATK proti 17k HP hráče). Teď základ = tvé skutečné staty,
+  // ale jen zčásti (^0.75 proti "typické" postavě tvého levelu): lepší gear = znatelně lehčí boje, nikdy ne triviální ani nemožné.
+  /** typická postava levelu L (staty rozdělené rovnoměrně, střední gear) - kotva, ke které se síla nepřítele táhne */
+  function refHero(L) {
+    L = Math.max(1, L | 0); const pts = 3 * (L - 1), g = 1.5;
+    return { atk: (8 + 2.2 * (5 + pts * 0.4) + 1.2 * (L - 1)) * g, maxHp: (80 + 12 * (5 + pts * 0.35) + 8 * (L - 1)) * g };
+  }
+  function pull(v, ref) { v = Math.max(1, v || 1); ref = Math.max(1, ref || v); return Math.pow(v, 0.75) * Math.pow(ref, 0.25); }
+  /** typy nepřátel: [HP, ATK] - tank vydrží, glass cannon bolí, specialista má mechaniku */
+  const ARCH = { tank: [1.55, 0.72, "🛡 Tank"], glass: [0.62, 1.42, "🗡 Glass cannon"], bal: [1, 1, ""], spec: [0.85, 0.9, "✨ Specialist"] };
+  function archOf(src) { if (src.mech) return "spec"; return ["tank", "glass", "bal"][(src.id | 0) % 3]; }
+  function jit(seed, k) { let a = ((seed | 0) * 2654435761 + k * 40503) >>> 0; a ^= a >>> 15; a = Math.imul(a, 2246822519) >>> 0; a ^= a >>> 13; return 0.85 + ((a >>> 0) % 1000) / 1000 * 0.3; }
+
+  /** ON-CALL SHIFT (roguelite). me = { atk, maxHp } tvé postavy (bez perků); bez me = starý výpočet podle levelu. */
+  function shiftEnemy(L, node, step, asc, seed, me) {
+    if (me && me.atk && me.maxHp) return shiftEnemy2(L, node, step, asc, seed, me);
+    return shiftEnemyOld(L, node, step, asc, seed);
+  }
+  function shiftEnemy2(L, node, step, asc, seed, me) {
+    const ref = refHero(L), atk = pull(me.atk, ref.atk), hp = pull(me.maxHp, ref.maxHp);
+    const curve = 0.72 + 0.58 * Math.min(1, Math.max(0, step) / 9);          // začátek směny ~60-70 %, boss ~130 %
+    const ha = 1 + 0.07 * asc, aa = 1 + 0.05 * asc;
+    let src, kind, km;
+    if (node === "boss") { src = srcOf(THEMED[seed % THEMED.length]); kind = "boss"; km = [2.0, 1.05]; }
+    else { const pool = LIST.filter(m => (m.k || "normal") === (node === "elite" ? "elite" : "normal")); src = pool[seed % pool.length]; kind = node === "elite" ? "elite" : "normal"; km = node === "elite" ? [1.4, 1.15] : [1, 1]; }
+    const ar = kind === "boss" ? "bal" : archOf(src), A = ARCH[ar];
+    const e = { name: kind === "boss" ? "SHIFT BOSS: " + src.e : src.e, icon: src.i, sprite: src.id, pattern: Object.assign({}, kind === "boss" ? P.boss : (P[src.p] || P.normal)), mech: src.mech || "",
+      hp: Math.max(10, Math.round(atk * 5.2 * curve * km[0] * A[0] * ha * jit(seed, 1))),
+      atk: Math.max(1, Math.round(hp * 0.062 * curve * km[1] * A[1] * aa * jit(seed, 2) * 10) / 10), arch: A[2] };
+    if (kind !== "boss" && e.mech === "compliance") e.mech = "";
+    return { id: 2000 + step, name: e.name, intro: (A[2] ? A[2] + ". " : "") + (src.t || ""), kind: kind, bonus: {}, survive: 0, enemy: e };
+  }
+  function shiftEnemyOld(L, node, step, asc, seed) {
     const x = levelToX(L) + step * 0.2, ha = 1 + 0.07 * asc, aa = 1 + 0.05 * asc, F = [0.52, 0.46];
     const pool = LIST.filter(m => (m.k || "normal") === (node === "elite" ? "elite" : "normal"));
     if (node === "boss") {
@@ -8814,10 +8896,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     { e: "The Administrator (Root Review)", i: "🕶", mech: "admin", src: "admin", t: "Access denied." }
   ];
   function mkName(mk) { return "MK." + (["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][mk] || mk); }
-  function worldBoss(idx, L, hpLeft, mk) {
+  function worldBoss(idx, L, hpLeft, mk, me) {
     const w = WB[((idx % WB.length) + WB.length) % WB.length], src = srcOf(w.src);
     mk = Math.max(1, mk | 0 || 1);
     const e = enemyFrom(src, levelToX(L), 1, 1 + 0.15 * (mk - 1), { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id });
+    if (me && me.maxHp) e.atk = Math.max(1, Math.round(pull(me.maxHp, refHero(L).maxHp) * 0.085 * (1 + 0.15 * (mk - 1)) * 10) / 10);   // v9.4: útok podle tvého HP (dřív exponenciálně podle levelu)
     e.hp = Math.max(1, Math.round(hpLeft));
     e.pattern = Object.assign({}, P.boss);
     return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 turns, deal as much damage as you can.",
@@ -8852,7 +8935,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
 
   const api = { CHAPTERS: CH, LIST: LIST, mission: mission, setStats: setStats, xpFor: xpFor, gcFor: gcFor, xpToNext: xpToNext, COUNT: 51,
-    BOSS_SLOT: BOSS_SLOT, setPrestige: setPrestige, prestigeMult: prestigeMult, ADMIN: ADMIN, THEMED: THEMED, TOWER_BOSS: TOWER_BOSS, poolFloor: poolFloor, srcOf: srcOf, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, shiftEnemy: shiftEnemy, WB: WB, worldBoss: worldBoss, mkName: mkName };
+    BOSS_SLOT: BOSS_SLOT, setPrestige: setPrestige, prestigeMult: prestigeMult, ADMIN: ADMIN, THEMED: THEMED, TOWER_BOSS: TOWER_BOSS, poolFloor: poolFloor, srcOf: srcOf, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, shiftEnemy: shiftEnemy, refHero: refHero, WB: WB, worldBoss: worldBoss, mkName: mkName };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSCampaign = api;
 })(typeof window !== "undefined" ? window : this);
@@ -11142,7 +11225,7 @@ html.m #dg-open-btn { display: none; }
   }
   function shiftFight(node) {
     const r = run();
-    const m = C.shiftEnemy(A.HS().level, node, r.step, r.asc, r.seed + r.step * 31);
+    const m = C.shiftEnemy(A.HS().level, node, r.step, r.asc, r.seed + r.step * 31, A.hero());
     A.beginFight(m, { mode: "shift",
       prepHero: function (h) { applyPerks(h, r.perks); h.startHp = Math.max(1, r.hp * h.maxHp); },
       hud: () => `📟 Shift stop ${r.step + 1}/${SHIFT_STEPS}${r.asc ? " · ASC " + r.asc : ""} · ${node.toUpperCase()} · HP carries over!`,
@@ -11264,7 +11347,7 @@ html.m #dg-open-btn { display: none; }
     wbLoad(false);
     const s = wb.st;
     if (!s) { box.innerHTML = `<div class="dg-card"><div class="dg-dim">${wb.err ? "⚠ " + esc(wb.err) : "Loading the Quarterly Review..."}</div></div>`; return; }
-    const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
+    const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk, A.hero()), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
     const wait = Math.max(0, c.me.wait - (Date.now() - wb.at)), dead = false, rw = wbReward(kills, false), rwN = wbReward(kills + 1, false);
     const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
     const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
@@ -11286,7 +11369,7 @@ html.m #dg-open-btn { display: none; }
     const s = wb.st; if (!s || wb.busy) return;
     const c = s.cur;
     if (c.me.wait - (Date.now() - wb.at) > 0) return;
-    const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1);
+    const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1, A.hero());
     let atkUsed = 0;
     A.beginFight(m, { mode: "boss", prepHero: (h) => { atkUsed = h.atk; },
       hud: (f) => `📊 Quarterly Review · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,
