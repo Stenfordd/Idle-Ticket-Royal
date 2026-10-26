@@ -1,3 +1,241 @@
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
+const trim = (x) => x.toFixed(2).replace(/\.?0+$/, "");
+const short = (n) => n >= 1e9 ? trim(n / 1e9) + "B" : n >= 1e6 ? trim(n / 1e6) + "M" : n >= 1e4 ? trim(n / 1e3) + "K" : Math.floor(n).toLocaleString();
+const SUITS = ["Hearts", "Bells", "Leaves", "Acorns"], RANKS = ["7", "8", "9", "10", "J", "Q", "K", "A"], RANK_N = ["7", "8", "9", "10", "Jack (spodek)", "Queen (svršek)", "King", "Ace"];
+const ICON = [
+'<svg viewBox="0 0 32 32"><path d="M16 29 C10 23 3 18 3 11 C3 6.5 6.5 3.5 10.5 3.5 C13 3.5 15 5 16 7 C17 5 19 3.5 21.5 3.5 C25.5 3.5 29 6.5 29 11 C29 18 22 23 16 29Z" fill="#d61f3c" stroke="#7a0c1e" stroke-width="1.2"/><path d="M9 8 C7 9 6 11 6.5 13" stroke="#ff9aa9" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
+'<svg viewBox="0 0 32 32"><circle cx="16" cy="17" r="11" fill="#f2b705" stroke="#8a6200" stroke-width="1.3"/><path d="M6 14 H26 M5.5 19 H26.5" stroke="#b5161d" stroke-width="2.4"/><circle cx="16" cy="17" r="3" fill="#8a6200"/><circle cx="12" cy="11" r="2" fill="#fff6c7" opacity=".8"/></svg>',
+'<svg viewBox="0 0 32 32"><path d="M16 3 C24 8 27 15 24 22 C22 26 19 27.5 16 28 C13 27.5 10 26 8 22 C5 15 8 8 16 3Z" fill="#22a447" stroke="#0e5a25" stroke-width="1.3"/><path d="M16 6 V30 M16 13 L11 10 M16 13 L21 10 M16 19 L10 16 M16 19 L22 16" stroke="#0e5a25" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>',
+'<svg viewBox="0 0 32 32"><ellipse cx="16" cy="20" rx="8" ry="9.5" fill="#c98a3c" stroke="#6b3d12" stroke-width="1.3"/><path d="M6.5 13 C7 7 12 5 16 5 C20 5 25 7 25.5 13 Z" fill="#7a4b20" stroke="#4a2a0c" stroke-width="1.3"/><path d="M9 10 H23 M8 12 H24" stroke="#5b3510" stroke-width="1"/><path d="M16 5 V2" stroke="#4a2a0c" stroke-width="2" stroke-linecap="round"/><ellipse cx="13" cy="19" rx="2" ry="4" fill="#e7b46d" opacity=".6"/></svg>'
+];
+const suit = (c) => Math.floor(c / 8), rank = (c) => c % 8;
+const P = { list: null, view: null, id: "", rev: -1, busy: false, msg: "", msgC: "", pick: -1, pollT: 0, listT: 0, recvAt: 0, myTurnSeen: "", built: false, lastList: 0 };
+function cardHtml(c, cls, extra) {
+const s = suit(c), r = rank(c), face = r >= 4 && r <= 6;
+return `<div class="pr-card s${s} ${cls || ""}" ${extra || ""} title="${RANK_N[r]} of ${SUITS[s]}"><span class="rk">${RANKS[r]}</span><span class="si">${ICON[s]}</span>${face ? `<span class="fc">${RANKS[r]}</span>` : ""}<span class="big">${ICON[s]}</span><span class="rk2">${RANKS[r]}</span></div>`;
+}
+function playable(v, c) {
+const r = rank(c), top = v.top;
+if (v.pen > 0) return r === 0;
+if (v.skip) return r === 7;
+if (r === 5) return true;
+return suit(c) === v.suit || r === rank(top);
+}
+function me() { return gameState.ldap; }
+function visible() { const el = $("adv-view-prsi"); return !!(el && el.style.display !== "none" && el.offsetParent); }
+function say(t, c) { P.msg = t; P.msgC = c || ""; render(); }
+function run(fn, args) {
+return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); });
+}
+function takePay(pay) {
+(pay || []).forEach(p => {
+if (p.why === "WIN") { TT.win(p.amt); log(`♣ PRŠÍ: you won the table! +${fmt(p.amt)} GC`, "special"); if (window.Meta && Meta.count) { Meta.count("prsiWins", 1); } TT.announce("WON A PRŠÍ TABLE", "PRŠÍ", 0, p.amt); }
+else { gameState.coins += p.amt; gameState.gambleNet = (gameState.gambleNet || 0) + p.amt; log(`♣ PRŠÍ: stake refunded +${fmt(p.amt)} GC`, "success"); }
+});
+if (pay && pay.length) { updateUI(); TT.saveSoon(); }
+}
+async function loadList() {
+if (P.listBusy) return; P.listBusy = true;
+try {
+const r = await run("prsList", []);
+P.lastList = Date.now();
+if (r && r.ok) {
+P.list = r; takePay(r.pay);
+if (r.mine && !P.id) { P.id = r.mine; P.rev = -1; poll(); }
+const waiting = r.tables.filter(t => t.status === "wait" && t.players.indexOf(me()) < 0).length;
+glow(waiting > 0 && !visible());
+}
+} catch (e) { P.list = P.list || { tables: [], stakes: [], max: 2 }; }
+finally { P.listBusy = false; }
+render();
+}
+async function poll() {
+clearTimeout(P.pollT);
+if (!P.id) return;
+try {
+const r = await run("prsPoll", [P.id, P.rev]);
+if (r && r.ok) {
+takePay(r.pay);
+if (r.gone) { P.id = ""; P.view = null; P.rev = -1; loadList(); return; }
+if (r.view) apply(r.view);
+else if (r.same && P.view) { P.view.left = r.left; P.recvAt = Date.now(); }
+}
+} catch (e) {}
+if (P.id) P.pollT = setTimeout(poll, visible() ? 1200 : (P.view && P.view.status === "play" ? 2500 : 5000));
+}
+function apply(v) {
+const prev = P.view;
+P.view = v; P.rev = v.rev; P.recvAt = Date.now();
+if (v.status === "play" && v.turn === me() && P.myTurnSeen !== v.rev + "") {
+P.myTurnSeen = v.rev + "";
+if (!visible()) { glow(true); if (!prev || prev.turn !== me()) log("♣ PRŠÍ: it's your turn!", "special"); }
+}
+if (prev && prev.status === "wait" && v.status === "play") log("♣ PRŠÍ: the game started - good luck!", "special");
+render();
+}
+function glow(on) { const t = $("adv-tab-prsi"); if (t) t.classList.toggle("glow", !!on); }
+async function create() {
+if (P.busy) return;
+const L = P.list || {}, stake = TT.cleanBet($("pr-stake").value, L.minStake || 10, Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9)), seats = Number($("pr-seats").value);
+$("pr-stake").value = stake; P.lastStake = stake;
+if (!(stake > 0)) { say("Enter a stake.", "var(--crimson)"); return; }
+if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
+P.busy = true; TT.spend(stake);
+try {
+const r = await run("prsCreate", [stake, seats]);
+if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You are already at a table.", full: "Both tables are busy - wait a moment.", stake: "Invalid stake." }[r && r.reason] || "Could not open the table.", "var(--crimson)"); }
+} catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { P.busy = false; loadList(); }
+}
+async function join(id, stake) {
+if (P.busy) return;
+if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
+P.busy = true; TT.spend(stake);
+try {
+const r = await run("prsJoin", [id]);
+if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You are already at a table.", seats: "The table is full.", gone: "That table is gone." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); }
+} catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { P.busy = false; }
+}
+function refund(stake) { gameState.coins += stake; gameState.gambleNet = (gameState.gambleNet || 0) + stake; updateUI(); TT.saveSoon(); }
+async function start() { if (P.busy || !P.id) return; P.busy = true; try { await run("prsStart", [P.id]); } catch (e) {} P.busy = false; poll(); }
+async function leave() {
+if (P.busy || !P.id) return;
+const v = P.view;
+if (v && v.status === "play" && v.out.indexOf(me()) < 0 && (v.fin || []).indexOf(me()) < 0 && !window.confirm("Leave the game? Your stake stays in the pot.")) return;
+P.busy = true;
+try { await run("prsLeave", [P.id]); } catch (e) {}
+P.busy = false; P.id = ""; P.view = null; P.rev = -1; clearTimeout(P.pollT); loadList();
+}
+async function move(mv) {
+const v = P.view; if (!v || P.busy || v.status !== "play" || v.turn !== me()) return;
+P.busy = true;
+if (mv.t === "play") {                                         // hned to ukázat (optimisticky)
+v.mine = v.mine.filter(c => c !== mv.c); v.under = v.top; v.top = mv.c; v.suit = rank(mv.c) === 5 ? mv.suit : suit(mv.c); v.turn = "";
+if (rank(mv.c) === 0) { v.pen += 2; if (v.pen >= 6 && window.Meta && Meta.count) Meta.count("prsiStack", 1); }
+render();
+}
+try {
+const r = await run("prsMove", [P.id, mv]);
+if (r && r.view) apply(r.view);
+if (r && !r.ok && r.reason === "card") say("That card can't be played.", "var(--crimson)");
+} catch (e) { say("Connection problem - retrying...", "var(--crimson)"); P.rev = -1; }
+P.busy = false; poll();
+}
+function play(c) {
+const v = P.view; if (!v || v.turn !== me() || !playable(v, c)) return;
+if (rank(c) === 5) { P.pick = c; render(); return; }
+move({ t: "play", c: c });
+}
+function pickSuit(s) { const c = P.pick; P.pick = -1; if (c < 0) return; move({ t: "play", c: c, suit: s }); }
+function draw() { move({ t: "draw" }); }
+function render() {
+const box = $("prs-mount"); if (!box) return;
+const ae = document.activeElement;
+if (!P.id && ae && box.contains(ae) && /INPUT|SELECT/.test(ae.tagName)) return;   // nepřepisovat, když hráč zrovna píše vklad
+box.innerHTML = P.id && P.view ? tableHtml(P.view) : P.id ? `<div class="pr-info">Loading the table...</div>` : lobbyHtml();
+const h = box.querySelector(".pr-hand"); if (h && P.handScroll) h.scrollLeft = P.handScroll;
+}
+function rulesHtml() {
+return `<div class="pr-info">2-6 players, everyone puts in the same stake, <b>the winner takes the pot</b> (-5%) - the rest play on for 2nd place (for glory, it goes to the chat). 4 cards each, play the same <b>suit</b> or <b>rank</b>, or draw 1.
+<b>7</b> = next player takes 2 (stack 7s: 4, 6, 8...). <b>Ace</b> = next player stands (only an ace beats it). <b>Queen</b> (Q = svršek) goes on anything and changes the suit. J = spodek.
+First one out of cards wins. 30 s per turn - 3 timeouts in a row and you are out.</div>`;
+}
+function lobbyHtml() {
+const L = P.list;
+if (!L) return rulesHtml() + `<div class="pr-info">Loading tables...</div>`;
+const active = L.tables.length;
+const rows = L.tables.map(t => `<div class="pr-trow"><div class="t">♣ <b>${short(t.stake)} GC</b> · ${esc(t.host)}'s table · ${t.players.length}/${t.seats} players<br><span style="color:var(--text-dim);font-size:10px;">${t.players.map(esc).join(", ")}</span></div>
+${t.status === "wait" && t.players.length < t.seats ? `<button class="btn btn-gold" ${gameState.coins >= t.stake && !P.busy ? "" : "disabled"} onclick="Prsi.join('${t.id}',${t.stake})">JOIN (${short(t.stake)})</button>` : `<span style="color:var(--text-dim);font-size:10px;">${t.status === "play" ? "PLAYING" : "FULL"}</span>`}</div>`).join("");
+return rulesHtml() + `<div class="pr-create">
+<span style="font-size:11px;">STAKE:</span><input type="number" class="adv-input" id="pr-stake" min="${L.minStake || 10}" step="10" value="${P.lastStake || 1000}" style="width:120px;" oninput="Prsi._st(this.value)">
+<span style="font-size:10px;color:var(--text-dim);">max ${short(Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9))}</span>
+<select id="pr-seats" onchange="Prsi._se(this.value)">${[2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === (P.lastSeats || 4) ? "selected" : ""}>${n} players</option>`).join("")}</select>
+<button class="btn btn-crimson" ${active >= (L.max || 2) || P.busy ? "disabled" : ""} onclick="Prsi.create()">♣ OPEN A TABLE</button>
+<button class="btn" onclick="Prsi.refresh()">↻</button></div>
+${P.msg ? `<div class="pr-info" style="color:${P.msgC || "var(--amber)"};">${esc(P.msg)}</div>` : ""}
+<div class="pr-tables">${rows || `<div class="pr-info">No open tables. Open one and your friends get a message in the chat.</div>`}</div>
+<div class="pr-info" style="margin-top:6px;">Max ${L.max || 2} tables at once. An unfilled table closes after 2 minutes and everyone gets their stake back.</div>`;
+}
+function timeLeft(v) { return Math.max(0, (v.left || 0) - (Date.now() - P.recvAt)); }
+function tableHtml(v) {
+const myTurn = v.status === "play" && v.turn === me();
+let html = `<div class="pr-felt">`;
+html += `<div class="pr-top"><span>♣ PRŠÍ · stake ${short(v.stake)}</span><span class="pot">POT ${fmt(v.pot || v.stake * v.players.length)} GC</span><button class="btn" style="padding:3px 10px;font-size:10px;" ${P.busy ? "disabled" : ""} onclick="Prsi.leave()">${v.status === "done" ? "◀ LOBBY" : "LEAVE"}</button></div>`;
+if (v.status === "wait") {
+const seats = []; for (let i = 0; i < v.seats; i++) seats.push(v.players[i] ? `<span class="pr-seat on">${esc(v.players[i])}${v.players[i] === v.host ? " 👑" : ""}</span>` : `<span class="pr-seat">empty seat</span>`);
+html += `<div class="pr-done"><div class="big" style="font-size:16px;">WAITING FOR PLAYERS</div><div style="margin:10px 0;">${seats.join("")}</div>
+<div class="pr-info" style="color:#cfe9d4;">Starts automatically when all ${v.seats} seats are taken${v.host === me() ? " - or start now with at least 2 players" : ""}. Closes in ${Math.ceil(Math.max(0, v.waitLeft - (Date.now() - P.recvAt)) / 1000)} s if nobody comes (stakes refunded).</div>
+${v.host === me() ? `<button class="btn btn-gold" ${v.players.length >= 2 && !P.busy ? "" : "disabled"} onclick="Prsi.start()">▶ START NOW (${v.players.length} players)</button>` : ""}</div>`;
+return html + `</div>`;
+}
+if (v.status === "done") {
+html += `<div class="pr-done"><div class="big">${v.winner === me() ? "🏆 YOU WIN!" : "🏆 " + esc(v.winner) + " WINS"}</div>
+<div style="margin-top:8px;">${v.winner === me() ? `+${fmt(v.win || Math.floor(v.pot * 0.95))} GC` : "Better luck next time."}</div>
+${v.second ? `<div style="margin-top:6px;">🥈 ${v.second === me() ? "You finished" : esc(v.second) + " finished"} second</div>` : ""}
+<div style="margin-top:12px;"><button class="btn btn-gold" onclick="Prsi.leave()">◀ BACK TO LOBBY</button></div></div>`;
+return html + logHtml(v) + `</div>`;
+}
+const others = v.order.filter(n => n !== me()), fin = v.fin || [];
+const tl = timeLeft(v), pctT = Math.min(100, tl / 300);
+html += `<div class="pr-opps">${others.map(n => { const out = v.out.indexOf(n) >= 0, k = v.hands[n] || 0, turn = v.turn === n;
+const backs = []; for (let i = 0; i < Math.min(k, 8); i++) backs.push("<i></i>");
+const place = fin.indexOf(n);
+return `<div class="pr-opp ${turn ? "turn" : ""} ${out ? "out" : ""}"><div class="nm">${place === 0 ? "🏆 " : place === 1 ? "🥈 " : ""}${esc(n)}</div><div class="pr-backs">${backs.join("")}</div><div style="font-size:10px;">${out ? "OUT" : place >= 0 ? (place === 0 ? "WINNER" : "2ND") : k + " card" + (k === 1 ? "" : "s")}${(v.miss[n] || 0) ? " · ⏱" + v.miss[n] : ""}</div>
+${turn ? `<div class="pr-tbar"><div style="width:${pctT}%"></div></div>` : ""}</div>`; }).join("")}</div>`;
+const topIsOver = v.top >= 0 && rank(v.top) === 5;
+const badges = [];
+if (v.top >= 0 && (topIsOver || v.suit !== suit(v.top))) badges.push(`<span class="pr-badge">${ICON[v.suit]} ${SUITS[v.suit].toUpperCase()}</span>`);
+if (v.pen > 0) badges.push(`<span class="pr-badge pen">+${v.pen} CARDS</span>`);
+if (v.skip) badges.push(`<span class="pr-badge skip">ACE: STAND</span>`);
+const canDraw = myTurn && !P.busy;
+html += `<div class="pr-center">
+<div class="pr-deck ${canDraw ? "can" : ""}" ${canDraw ? `onclick="Prsi.draw()"` : ""} title="Draw"><div class="pr-card"></div><div class="cnt">${v.deck}</div></div>
+<div class="pr-pile">${v.under >= 0 ? cardHtml(v.under, "under") : ""}${v.top >= 0 ? cardHtml(v.top) : ""}</div>
+<div class="pr-badges">${badges.join("")}</div></div>`;
+const hand = v.mine.slice().sort((a, b) => suit(a) - suit(b) || rank(a) - rank(b));
+const amOut = v.out.indexOf(me()) >= 0, myPlace = fin.indexOf(me());
+if (v.winner && v.status === "play") html += `<div class="pr-info" style="text-align:center;color:#ffd700;">🏆 ${v.winner === me() ? "You won " + fmt(v.win) + " GC!" : esc(v.winner) + " won the pot."} The rest play on for 2nd place.</div>`;
+html += `<div class="pr-me ${myTurn ? "turn" : ""}">${myPlace === 0 ? "You won - watch or leave whenever you want." : amOut ? "You are out of this game." : myTurn ? `YOUR TURN · ${Math.ceil(tl / 1000)} s` : `Waiting for ${esc(v.turn)}...`}</div>`;
+html += `<div class="pr-hand" onscroll="Prsi._sc(this)">${hand.map(c => { const ok = myTurn && !P.busy && playable(v, c); return cardHtml(c, myTurn ? (ok ? "ok" : "no") : "", ok ? `onclick="Prsi.play(${c})"` : ""); }).join("")}</div>`;
+if (myTurn) {
+const has = hand.some(c => playable(v, c));
+const lbl = v.pen > 0 ? `TAKE ${v.pen} CARDS` : v.skip ? "STAND (ACE)" : "DRAW 1";
+html += `<div class="pr-acts"><button class="btn ${has ? "" : "btn-gold"}" ${P.busy ? "disabled" : ""} onclick="Prsi.draw()">${lbl}</button></div>`;
+if (!has) html += `<div class="pr-info" style="text-align:center;color:#ffd700;margin:4px 0 0;">No card fits - ${v.pen > 0 ? "take the cards" : v.skip ? "you stand this turn" : "draw one"}.</div>`;
+}
+if (P.msg) html += `<div class="pr-info" style="text-align:center;color:${P.msgC || "var(--amber)"};margin-top:4px;">${esc(P.msg)}</div>`;
+if (P.pick >= 0) html += `<div class="pr-pick"><div style="font:800 13px Orbitron,monospace;color:#ffd700;">QUEEN: PICK THE NEW SUIT</div><div class="row">${[0, 1, 2, 3].map(s => `<button onclick="Prsi.suit(${s})">${ICON[s]}${SUITS[s].toUpperCase()}</button>`).join("")}</div><button class="btn" onclick="Prsi.suit(-2)">CANCEL</button></div>`;
+return html + logHtml(v) + `</div>`;
+}
+function logHtml(v) { return `<div class="pr-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div>`; }
+function show() { glow(false); if (P.id) poll(); else loadList(); render(); }
+function tick() {
+if (!visible()) return;
+if (P.view && P.view.status === "play") { const el = document.querySelector(".pr-me.turn"); if (el && P.view.turn === me()) el.textContent = `YOUR TURN · ${Math.ceil(timeLeft(P.view) / 1000)} s`; const tb = document.querySelector(".pr-opp.turn .pr-tbar div"); if (tb) tb.style.width = Math.min(100, timeLeft(P.view) / 300) + "%"; }
+else if (P.view && P.view.status === "wait") render();
+else if (!P.id && Date.now() - P.lastList > 5000) loadList();
+}
+window.Prsi = { show: show, create: create, join: join, start: start, leave: leave, play: play, draw: draw,
+suit: function (s) { if (s === -2) { P.pick = -1; render(); return; } pickSuit(s); }, refresh: loadList, _st: function (v) { P.lastStake = Math.floor(Number(v)) || 0; }, _se: function (v) { P.lastSeats = Number(v) || 4; }, _sc: function (el) { P.handScroll = el.scrollLeft; },
+state: () => P, playable: playable };
+function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 200); return; }
+TT.onLoaded(() => setTimeout(loadList, 5000));                       // návrat ke stolu po obnovení stránky + vyplacení
+setInterval(tick, 1000);
+setInterval(() => { if (!P.id && !visible()) loadList(); }, 60000);   // svítící záložka, když někdo čeká u stolu
+const prev = TT.isBusy; TT.isBusy = function () { return prev() || !!(P.view && P.view.status === "play" && P.view.out.indexOf(me()) < 0 && (P.view.fin || []).indexOf(me()) < 0); };
+}
+boot();
+})();
+</script>
 <style>
 /* ===== CHECKERS (v8.4) - česká dáma pro 2 hráče ===== */
 .ck-board { position: relative; width: min(100%, 380px); aspect-ratio: 1; margin: 6px auto; display: grid; grid-template-columns: repeat(8, 1fr); border: 4px solid #5b3a1e; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.5); user-select: none; -webkit-user-select: none; }
@@ -349,251 +587,5 @@ window.Gamble = { sec: sec, game: game, open: () => open };
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
 </script>
-<style>
-/* ===== UPGRADE STATION (forge.html): vylepšení nasazeného itemu +1..+15 za GC, tokeny za GC ===== */
-.enh-tag { color: #ffb800; font: 800 10px 'Orbitron', monospace; margin-left: 3px; }
-.odds-table .odds-t6 { grid-column: 1 / -1; border-color: rgba(0,255,204,.35); }
-.fg-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 8px; }
-.fg-slots .btn { padding: 6px 2px; font-size: 10px; }
-.fg-slots .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
-.fg-card { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px; margin-bottom: 8px; font-size: 11px; }
-.fg-card .nm { font: 800 12px 'Orbitron', monospace; }
-.fg-pips { display: flex; gap: 2px; margin: 6px 0; }
-.fg-pips i { flex: 1; height: 6px; border-radius: 2px; background: #1e2636; }
-.fg-pips i.c { background: var(--emerald); } .fg-pips i.a { background: var(--cyan); } .fg-pips i.m { background: #ff4dff; }
-.fg-pips i.r { outline: 1px solid rgba(255,23,68,.5); }
-.fg-st { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 2px 6px; margin-top: 4px; }
-.fg-st b { color: var(--emerald); }
-.fg-choice { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; }
-.fg-choice .btn { padding: 6px 2px; font-size: 10px; }
-.fg-choice .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
-.fg-info { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; line-height: 1.5; }
-.fg-info b { color: var(--amber); }
-.fg-opt { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; cursor: pointer; }
-.fg-msg { font: 700 11px 'Orbitron', monospace; text-align: center; min-height: 16px; margin: 6px 0; }
-.fg-tok { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--border-subtle); padding-top: 8px; margin-top: 4px; font-size: 11px; }
-.fg-tok .btn { padding: 5px 10px; font-size: 10px; }
-</style>
-<script>
-(function () {
-"use strict";
-const $ = (id) => document.getElementById(id);
-const CHANCE_HI = [45, 38, 31, 25, 20];             // ⚒11..⚒15
-const TOKEN_BASE = 25000, TOKEN_GROWTH = 1.3;
-const CH = { c: ["🖱", "CLICK", "+12% Click"], a: ["⚙", "AUTO", "+12% Auto"], m: ["✨", "MULT", "+0.5% Mult"] };
-let sel = "TOOL", choice = "c", guarantee = false, protect = true, msg = { t: "", c: "" }, lastSig = "";
-try { sel = localStorage.getItem("ir_fg_slot") || "TOOL"; choice = localStorage.getItem("ir_fg_ch") || "c"; } catch (e) {}
-if (!CH[choice]) choice = "c";
-function short(n) { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? (n / 1e3).toFixed(1) + "K" : n.toLocaleString(); }
-function chance(t) { return t <= 5 ? 100 : t <= 10 ? 100 - 10 * (t - 5) : CHANCE_HI[t - 11] || 20; }
-function cost(it) { return Math.round(it.tier * it.tier * 2000 * (1 + 0.15 * (it.lvl || 0)) * Math.pow(1.5, enhOf(it).length)); }
-function tokenPrice() { return Math.round(TOKEN_BASE * Math.pow(TOKEN_GROWTH, gameState.tokBuy || 0)); }
-function item() { return gameState.loadout ? gameState.loadout[sel] : null; }
-function build() {
-const m = $("forge-mount"); if (!m || $("forge-panel")) return;
-m.innerHTML = `<div class="panel" id="forge-panel" data-tab="bag">
-<div class="panel-header"><span>⚒ UPGRADE STATION</span><span style="font-size:10px;color:var(--amber);" id="fg-tokens"></span></div>
-<div id="fg-body"></div></div>`;
-}
-function statsTxt(s) { return [s.c ? s.c.toLocaleString() + " Click" : "", s.a ? s.a.toLocaleString() + " Auto" : "", s.m ? (s.m * 100).toFixed(1) + "% Mult" : ""].filter(Boolean).join(" · ") || "-"; }
-function render(force) {
-const body = $("fg-body"); if (!body || typeof gameState === "undefined") return;
-const g = gameState, it = item(), e = it ? enhOf(it) : "", E = e.length, t = E + 1;
-const c = it ? cost(it) : 0, ch = chance(t), tp = tokenPrice();
-const sig = [sel, it ? it.tier + "_" + (it.lvl || 0) + "_" + e : "-", choice, guarantee, protect, g.slotTokens, g.tokBuy, g.coins >= c, g.coins >= tp, g.coins >= tp * 5, msg.t,
-SLOTS.map(s => g.loadout[s] ? g.loadout[s].tier + enhOf(g.loadout[s]) : "-").join(",")].join("|");
-if (!force && sig === lastSig) return;
-lastSig = sig;
-const tk = $("fg-tokens"); if (tk) tk.textContent = "🎟 " + g.slotTokens + " TOKEN" + (g.slotTokens === 1 ? "" : "S");
-const slots = SLOTS.map(s => { const x = g.loadout[s];
-return `<button class="btn ${s === sel ? "sel" : ""}" onclick="Forge.slot('${s}')" ${x ? "" : "disabled"}>${SLOT_ICONS[s]} ${s}${x && enhOf(x) ? " ⚒" + enhOf(x).length : ""}</button>`; }).join("");
-let html = `<div class="fg-slots">${slots}</div>`;
-if (!it) {
-html += `<div class="fg-info">Equip an item in <b>${sel}</b> to upgrade it. Upgrades stay on the item (+1 to +15).</div>`;
-} else {
-const pips = []; for (let i = 0; i < 15; i++) pips.push(`<i class="${e[i] || ""} ${i >= 10 ? "r" : ""}"></i>`);
-const now = itemStats(it);
-html += `<div class="fg-card"><div class="nm" style="color:var(--rarity-t${it.tier});">${itemName(it)} +${it.lvl || 0} <span class="enh-tag">⚒${E}/15</span></div>
-<div class="fg-pips">${pips.join("")}</div>
-<div>Now: ${statsTxt(now)}</div>
-${E < 15 ? `<div>⚒${t}: <b style="color:var(--emerald);">${statsTxt(itemStats({ slot: it.slot, tier: it.tier, lvl: it.lvl, e: e + choice }))}</b></div>` : ""}</div>`;
-if (E >= 15) html += `<div class="fg-msg" style="color:var(--amber);">MAXED OUT ⚒15</div>`;
-else {
-html += `<div class="fg-choice">${Object.keys(CH).map(k => `<button class="btn ${k === choice ? "sel" : ""}" onclick="Forge.pick('${k}')">${CH[k][0]} ${CH[k][1]}<br><small>${CH[k][2]}</small></button>`).join("")}</div>`;
-const risk = ch >= 100 ? "always succeeds" : t >= 11 ? `fail = GC lost <b style="color:var(--crimson);">and the item drops to ⚒${E - 1 < 0 ? 0 : E - 1}</b>` : "fail = only the GC is lost";
-html += `<div class="fg-info">Every stage: +8% all stats + your bonus. Cost <b>${short(c)} GC</b> · chance <b>${guarantee ? 100 : ch}%</b> · ${guarantee ? "guaranteed" : risk}</div>`;
-if (ch < 100) html += `<label class="fg-opt"><input type="checkbox" ${guarantee ? "checked" : ""} onchange="Forge.opt('g',this.checked)"> ✅ Guarantee success (2 🎟)</label>`;
-if (t >= 11 && !guarantee) html += `<label class="fg-opt"><input type="checkbox" ${protect ? "checked" : ""} onchange="Forge.opt('p',this.checked)"> 🛡 Protect from the drop (1 🎟, only spent if it fails)</label>`;
-const can = g.coins >= c && (!guarantee || g.slotTokens >= 2);
-html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} data-hold="forge-go" onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 🎟" : ""})</button>`;
-}
-}
-html += `<div class="fg-msg" style="color:${msg.c || "var(--text-dim)"};">${msg.t}</div>`;
-html += `<div class="fg-tok"><span>🎟 Slot Token: <b style="color:var(--amber);">${short(tp)} GC</b></span>
-<button class="btn btn-cyan" ${g.coins >= tp ? "" : "disabled"} data-hold="forge-buy1" onclick="Forge.buy(1)">BUY 1</button>
-<button class="btn btn-cyan" ${g.coins >= tp * 5 ? "" : "disabled"} onclick="Forge.buy(5)">BUY 5</button>
-<span style="color:var(--text-dim);font-size:10px;width:100%;">Price +30% per token, resets on prestige. Tokens also give +1 merge level (USE SLOT TOKEN) or HIGH STAKES energy.</span></div>`;
-body.innerHTML = html;
-}
-function say(t, c) { msg = { t: t, c: c }; render(true); }
-function go() {
-const g = gameState, it = item();
-if (!it) return;
-const e = enhOf(it), E = e.length, t = E + 1;
-if (E >= 15) return;
-const c = cost(it);
-if (g.coins < c) { say("Not enough GC.", "var(--crimson)"); return; }
-if (guarantee && g.slotTokens < 2) { say("Need 2 tokens for a guarantee.", "var(--crimson)"); return; }
-g.coins -= c;
-let ok;
-if (guarantee) { g.slotTokens -= 2; ok = true; }
-else ok = Math.random() * 100 < chance(t);
-const name = itemName(it);
-if (!ok) TT.holdStop = true;                          // v8.7: držení tlačítka se po neúspěchu zastaví
-if (ok) {
-it.e = e + choice;
-say(`✔ SUCCESS! ${name} is now ⚒${t} (${CH[choice][2]})`, "var(--emerald)");
-log(`⚒ UPGRADE: ${name} → ⚒${t} (${CH[choice][2]}) for ${short(c)} GC.`, t >= 10 ? "special" : "success");
-if (t >= 13) TT.announce("UPGRADED TO +" + t, name, c, 0);
-} else if (t >= 11 && protect && g.slotTokens >= 1) {
-g.slotTokens -= 1;
-say(`✖ FAILED - 🛡 token saved ${name} at ⚒${E}`, "var(--amber)");
-log(`⚒ UPGRADE FAILED on ${name} ⚒${t}, protected by a token.`, "warning");
-} else if (t >= 11) {
-it.e = e.slice(0, -1);
-if (!it.e) delete it.e;
-say(`✖ FAILED - ${name} dropped to ⚒${E - 1}`, "var(--crimson)");
-log(`⚒ UPGRADE FAILED: ${name} dropped to ⚒${E - 1}.`, "error");
-} else {
-say(`✖ FAILED (${chance(t)}%) - ${short(c)} GC lost`, "var(--crimson)");
-log(`⚒ UPGRADE FAILED on ${name} ⚒${t}: -${short(c)} GC.`, "warning");
-}
-updateUI(); TT.saveSoon(); render(true);
-}
-function buy(n) {
-const g = gameState; let got = 0, paid = 0;
-for (let i = 0; i < n; i++) {
-const p = tokenPrice();
-if (g.coins < p) break;
-g.coins -= p; paid += p; g.slotTokens += 1; g.tokBuy = (g.tokBuy || 0) + 1; got++;
-}
-if (!got) { say("Not enough GC.", "var(--crimson)"); return; }
-say(`🎟 +${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC`, "var(--amber)");
-log(`🎟 Bought ${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC (you have ${g.slotTokens}).`, "success");
-updateUI(); TT.saveSoon();
-}
-window.Forge = {
-slot: function (s) { if (SLOTS.indexOf(s) < 0) return; sel = s; msg = { t: "", c: "" }; try { localStorage.setItem("ir_fg_slot", s); } catch (e) {} render(true); },
-pick: function (k) { if (!CH[k]) return; choice = k; try { localStorage.setItem("ir_fg_ch", k); } catch (e) {} render(true); },
-opt: function (k, v) { if (k === "g") guarantee = !!v; else protect = !!v; render(true); },
-go: go, buy: buy, render: render, cost: cost, chance: chance, tokenPrice: tokenPrice
-};
-build();
-function boot() {
-if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
-TT.onLoaded(function () {
-if (!item()) { const f = SLOTS.find(s => gameState.loadout[s]); if (f) sel = f; }
-render(true);
-setInterval(function () { if (!document.hidden) render(false); }, 500);
-});
-setInterval(function () {
-const el = $("consult-scrap"); if (!el || typeof gameState === "undefined") return;
-const v = Math.floor(gameState.scrap || 0).toLocaleString();
-if (el.textContent !== v) el.textContent = v;
-}, 500);
-}
-boot();
-})();
-</script>
-<style>
-/* ===== v8.7 THE OFFICE PLANT (místo Legacy shopu) + držení tlačítek ===== */
-.pl-top { display: flex; gap: 10px; align-items: center; }
-.pl-art { flex: none; width: 92px; height: 92px; border-radius: 8px; background: radial-gradient(circle at 50% 30%, #13261b, #070b0a 75%); border: 1px solid rgba(0,255,136,.18); display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
-.pl-art svg { width: 88px; height: 88px; image-rendering: pixelated; }
-.pl-info { flex: 1; min-width: 0; font-size: 11px; color: var(--text-dim); line-height: 1.45; }
-.pl-info b { color: var(--amber); }
-.pl-stage { font: 800 11px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
-.pl-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-.pl-row .btn { flex: 1; padding: 7px 4px; font-size: 10px; min-width: 90px; }
-.pl-fx { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
-.pl-fx span { font-size: 9px; padding: 2px 6px; border-radius: 9px; background: rgba(0,255,136,.08); border: 1px solid rgba(0,255,136,.25); color: #a7f3d0; }
-#pl-screen { position: fixed; inset: 0; z-index: 206; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #0d1f14 0%, var(--bg-core, #07090e) 60%); color: var(--text-main); }
-#pl-screen.open { display: flex; }
-html.m #pl-screen { height: var(--app-h, 100%); }
-.pl-head { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
-.pl-head h1 { flex: 1; margin: 0; font: 900 15px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pl-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
-.pl-inner { max-width: 1000px; margin: 0 auto; }
-.pl-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
-.pl-br { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-@media (max-width: 760px) { .pl-br { grid-template-columns: 1fr; } }
-.pl-bh { font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; margin-bottom: 6px; display: flex; justify-content: space-between; }
-.pl-n { display: flex; gap: 8px; align-items: center; padding: 7px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 6px; }
-.pl-n.lock { opacity: .4; }
-.pl-n.max { border-color: rgba(0,255,136,.45); }
-.pl-n.key { border-color: rgba(255,215,0,.35); background: linear-gradient(90deg, rgba(255,215,0,.07), transparent); }
-.pl-n .ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; background: #0b1610; border: 1px solid rgba(0,255,136,.3); }
-.pl-n .t { flex: 1; min-width: 0; font-size: 11px; }
-.pl-n .t b { display: block; font: 800 10.5px 'Orbitron', monospace; }
-.pl-n .t span { font-size: 10px; color: var(--text-dim); }
-.pl-n .lv { font: 700 9px 'Orbitron', monospace; color: var(--emerald); }
-.pl-n .btn { flex: none; padding: 6px 8px; font-size: 10px; min-width: 58px; }
-.pl-pips { display: flex; gap: 2px; margin-top: 3px; }
-.pl-pips i { width: 9px; height: 4px; border-radius: 2px; background: #1e2636; }
-.pl-pips i.on { background: var(--emerald); }
-</style>
-<div id="pl-screen">
-<div class="pl-head"><button class="btn btn-cyan" onclick="Plant.close()">◀ OFFICE</button><h1>🌳 THE OFFICE PLANT</h1><span id="pl-lp" style="font:800 12px Orbitron,monospace;color:var(--amber);"></span></div>
-<div class="pl-body"><div class="pl-inner" id="pl-inner"></div></div>
-</div>
-<script>
-/**
-* THE OFFICE PLANT (v8.7) - nahrazuje Legacy shop. Měna = Legacy Points.
-* Semínko -> strom roste ve fázích podle investovaných LP, 3 větve uzlů, keystone plody, sklizeň plodů každé 4 h, zalévání 1× denně.
-* Kvůli kompatibilitě strom dál plní gameState.lpUp (click/auto/scrap/start/heirloom), takže starý kód funguje beze změny.
-*/
-(function () {
-"use strict";
-const $ = (id) => document.getElementById(id);
-const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
-const SEED_COST = 1, FRUIT_MS = 4 * 3600000, FRUIT_MAX = 3, WATER_MS = 2 * 3600000;
-const STAGES = [
-{ at: 0, name: "SEED", icon: "🌰" },
-{ at: 0, name: "SPROUT", icon: "🌱" },
-{ at: 6, name: "SAPLING", icon: "🌿" },
-{ at: 18, name: "TREE", icon: "🌳" },
-{ at: 40, name: "ANCIENT TREE", icon: "🌲" }
-];
-const BR = {
-office: { name: "💼 OFFICE", color: "var(--cyan)" },
-casino: { name: "🎰 CASINO", color: "var(--amber)" },
-hs: { name: "⚔ HIGH STAKES", color: "var(--crimson)" }
-};
-/** row = potřebná fáze stromu (1 sprout ... 4 ancient), req = uzel, který musí mít aspoň 1 level */
-const NODES = [
-{ id: "o_click", br: "office", row: 1, icon: "👆", name: "Sunlight", desc: l => `+${10 * l}% click power`, next: "+10% click", costs: [1, 1, 2, 2] },
-{ id: "o_auto", br: "office", row: 1, icon: "⚙", name: "Photosynthesis", desc: l => `+${10 * l}% Auto GC`, next: "+10% auto", costs: [1, 1, 2, 2] },
-{ id: "o_start", br: "office", row: 2, icon: "💰", name: "Fertilizer", req: "o_auto", desc: l => `start every run with +${short(2000 * l)} GC`, next: "+2,000 start GC", costs: [1, 1, 1] },
-{ id: "o_scrap", br: "office", row: 2, icon: "📦", name: "Compost", req: "o_click", desc: l => `chests cost ${4 * l}% less scrap`, next: "-4% chest cost", costs: [1, 1, 2, 2] },
-{ id: "o_heir", br: "office", row: 3, icon: "🏺", name: "Heirloom Roots", req: "o_scrap", desc: l => `Heirloom ${1 + l}: keep your best ${1 + l} items on prestige`, next: "+1 Heirloom item", costs: [1, 2, 2, 3, 3] },
-{ id: "k_ever", br: "office", row: 3, icon: "🌲", name: "Evergreen", key: true, req: "o_start", desc: () => "Autogen runs 60 min instead of 45", costs: [3] },
-{ id: "k_roots", br: "office", row: 4, icon: "🌰", name: "Deep Roots", key: true, req: "o_heir", desc: () => "Keep 10% of your GC on prestige", costs: [5] },
-{ id: "c_bet", br: "casino", row: 1, icon: "🎲", name: "High Roller Leaves", desc: l => `max bets ×${Math.pow(1.5, l).toFixed(2)}`, next: "max bet ×1.5", costs: [1, 2, 2] },
-{ id: "c_cons", br: "casino", row: 2, icon: "🧑‍💼", name: "Consultant Bark", req: "c_bet", desc: l => `consult costs ${10 * l}% less`, next: "-10% consult", costs: [1, 1, 2] },
-{ id: "c_tok", br: "casino", row: 2, icon: "🎟", name: "Token Blossom", req: "c_bet", desc: l => `Slot Token chance from chests +${50 * l}%`, next: "+50% token chance", costs: [2, 2, 3] },
-{ id: "k_cherry", br: "casino", row: 4, icon: "🍒", name: "Lucky Cherry", key: true, req: "c_tok", desc: () => "HIGH STAKES gamble: 🍒 counts as a wild symbol", costs: [5] },
-{ id: "h_xp", br: "hs", row: 1, icon: "📈", name: "Growth Rings", desc: l => `+${8 * l}% HIGH STAKES XP`, next: "+8% XP", costs: [1, 1, 1, 2] },
-{ id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
-{ id: "h_foc", br: "hs", row: 2, icon: "✨", name: "Morning Dew", req: "h_xp", desc: l => `start fights with +${10 * l} focus`, next: "+10 start focus", costs: [1, 2, 2] },
-{ id: "h_parry", br: "hs", row: 3, icon: "🛡", name: "Thick Bark", req: "h_foc", desc: l => `parry windows +${15 * l}%`, next: "+15% parry window", costs: [2, 3] },
-{ id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] }
-];
-const BY = {}; NODES.forEach(n => { BY[n.id] = n; });
-const TOTAL = SEED_COST + NODES.reduce((a, n) => a + n.costs.reduce((x, y) => x + y, 0), 0);
-/** nový přísun LP za prestiž (dřív 1 + floor(p/3)) */
-function lpGainFor(p) { return 2 + Math.floor(p / 2); }
-function oldLpGainFor(p) { return 1 + Math.floor(p / 3); }
-const OLD_COST = { click: l => 2 + l, auto: l => 2 + l, scrap: l => 2 + l, start: l => 1 + l, heirloom: l => 5 * (l + 1) };
-function blank() { return { seed: false, n: {}, fruitAt: 0, waterDay: "", respecP: -1, mig: 1, harvested: 0 }; }
-;(window.__TT_FILES = window.__TT_FILES || {})["meta"] = 1;
-// END-OF-FILE: meta (the script continues in the next file)
+<script>(window.__TT_FILES = window.__TT_FILES || {})["meta"] = 1;</script>
+<!-- END-OF-FILE: meta -->

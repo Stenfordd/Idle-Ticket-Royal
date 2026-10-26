@@ -1,0 +1,635 @@
+<script>
+(function () {
+"use strict";
+const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
+const esc = (t) => escapeHtml(String(t));
+const FIGHT_MS = 20 * 60000, CLICK_MS = 30000, AWAY_MAX = 8 * 3600000, POWER_CAP = 0.6, WAKE_BOSS = 29;
+const FIRST = ["David", "Dan", "Gabriel", "Kevin", "Steve", "Mike", "Tom", "Paul", "Martin", "Lukas", "Jakub", "Honza", "Pepa", "Franta", "Jarda", "Ondra", "Filip", "Adam", "Petr", "Vojta",
+"Tereza", "Klara", "Brenda", "Sandra", "Olga", "Zoe", "Nancy", "Linda", "Eva", "Karen"];
+const NICK = ["Hotfix", "Legacy", "Overtime", "Root", "Sudo", "Spaghetti", "Ctrl+C", "The Intern", "Senior", "No Docs", "Rollback", "Merge Master", "404", "Coffee", "Monday", "Burnout", "Rubber Duck", "Ticket Killer"];
+const MEME = [
+["Kevin from Accounting", "I counted the GC twice, it's fine."], ["Steve (Unpaid Intern)", "Do I get paid for this? ...no? Okay."], ["Gary the Printer Whisperer", "The printer and I have an understanding."],
+["Mr. Works On My Machine", "Works on my machine. Ship it."], ["Chad Deploy-on-Friday", "Pushed to prod. On Friday. You're welcome."], ["Legacy Larry", "Don't touch it. It works. Nobody knows why."],
+["Bobby Tables", "'); DROP TABLE bosses;--"], ["Reply-All Randy", "Replying all to confirm I replied all."], ["Copy-Paste Pete", "Found the answer on page 7 of a forum from 2009."],
+["Merge Conflict Mike", "Accept both changes. What could go wrong?"], ["Null Pointer Nancy", "undefined is not a function. Neither is this boss."], ["Stack Overflow Steve", "Marked as duplicate. Boss closed."],
+["Jira Jerry", "Moved the boss to DONE."], ["Hotfix Hank", "Hotfix deployed. Hotfix for the hotfix incoming."], ["Quick Sync Quinn", "Just a quick 5-minute fight."],
+["Synergy Sandra", "Let's leverage our core synergies going forward."], ["Excel Ernie", "I made a pivot table of the boss's weaknesses."], ["Out-Of-Office Olga", "I'm out of office. But also I won."],
+["Ctrl+Z Zoe", "Undid my mistakes. All of them."], ["Sudo Sam", "sudo win"], ["Patch Tuesday Tom", "Rebooting the boss. Please wait."],
+["404 Dave", "Nobody could find me. Including the boss."], ["Dev Null", "Sent the boss to /dev/null."], ["Coffee-Driven Kyle", "Third coffee. Fourth boss."],
+["Lunch Break Luke", "Back from lunch. What did I miss?"], ["Jarda z IT", "Did you try turning it off and on again?"], ["Pepa od tiskárny", "PC LOAD LETTER. Sorted."]
+];
+const QUIPS = ["Another one done.", "Tickets closed, boss closed.", "Coffee was cold, the fight was hot.", "I'll put it in the weekly report.", "Easy. Well, mostly.", "Can I go home now?"];
+function rollName() {
+if (Math.random() < 0.3) { const m = MEME[Math.floor(Math.random() * MEME.length)]; return { name: m[0], quip: m[1] }; }
+let n = FIRST[Math.floor(Math.random() * FIRST.length)];
+if (Math.random() < 0.3) n += " '" + NICK[Math.floor(Math.random() * NICK.length)] + "'";
+return { name: n, quip: "" };
+}
+function st() {
+const d = A.HS();
+if (!d.col || typeof d.col !== "object") d.col = {};
+const c = d.col;
+c.level = Math.max(1, Math.floor(Number(c.level) || 1)); c.xp = Math.max(0, Number(c.xp) || 0);
+if (!c.gear || typeof c.gear !== "object") c.gear = {};
+if (c.gmig !== 1 && window.Gear) { c.gear = (c.gear.HEAD || c.gear.RIG || c.gear.TOOL || c.gear.AUGMENT || c.gear.OS || c.gear.RELIC) ? Gear.convert(c.gear) : {}; c.gmig = 1; }   // v9.0: staré itemy -> combat gear
+if (!c.stats || typeof c.stats !== "object") c.stats = { w: 0, l: 0, gc: 0, clicks: 0 };
+if (!Array.isArray(c.log)) c.log = [];
+if (c.cls !== "sysadmin" && c.cls !== "engineer" && c.cls !== "cyber") c.cls = "engineer";
+if (!c.unlocked && (d.tower.best >= 100 || (d.pool && d.pool.unlocked))) c.unlocked = true;     // Administrator už padl
+if (c.unlocked && !c.name) { const r = rollName(); c.name = r.name; c.quip = r.quip; }
+if (c.unlocked && window.Gear && d.gear) ["w", "a", "t"].forEach(k => {            // v9.0: kolega má aspoň tvůj předchozí materiál na +5 (tvoje staré kusy)
+const mine = d.gear[k]; if (!mine || mine.m < 1) return;
+const floor = { m: mine.m - 1, l: 5 }, cur = c.gear[k];
+if (!cur || Gear.Gm(cur.m, cur.l) < Gear.Gm(floor.m, floor.l)) c.gear[k] = floor;
+});
+return c;
+}
+function awake() { const d = A.HS(), c = st(); return !!c.unlocked && (d.stars[WAKE_BOSS] || 0) > 0; }
+function bossesBeaten() {
+const d = A.HS(), out = [];
+C.LIST.forEach(m => { if ((m.k === "boss" || m.k === "mini" || m.k === "secret" || m.k === "elite") && (d.stars[m.id] || 0) > 0) out.push(m.id); });
+return out;
+}
+/** v8.8: kolega má 80 % tvého levelu; v9.0: TRÉNINK se kupuje za GC (+2 % síly za level, max 15) */
+const TRAIN_MAX = 15;
+function trainCost() { return Math.round(25000 * Math.pow(1.55, trainLv())); }
+function colLevel() { return Math.max(1, Math.round(A.HS().level * 0.8)); }
+function xpToNext(L) { return 150 + 90 * L; }
+function trainLv() { return Math.min(TRAIN_MAX, st().level - 1); }
+/** kolega: vlastní výbava + level, nikdy silnější než 60 % tebe */
+function hero() {
+const c = st();
+const g = window.Gear ? Gear.multOf(c.gear) : { atk: 1, hp: 1, crit: 0 };
+const L = colLevel(), pts = H.statPoints(L);
+const stats = { str: Math.round(pts * 0.4), vit: Math.round(pts * 0.4), end: pts - 2 * Math.round(pts * 0.4) };
+const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, { atk: g.atk, hp: g.hp });
+hh.crit = Math.min(0.55, hh.crit + (g.crit || 0));
+const tb = 1 + 0.02 * trainLv();                                   // trénink z darovaných itemů: +2 % za level
+hh.atk *= tb; hh.maxHp = Math.round(hh.maxHp * tb);
+const me = A.hero();
+hh.atk = Math.min(hh.atk, me.atk * POWER_CAP); hh.maxHp = Math.round(Math.min(hh.maxHp, me.maxHp * POWER_CAP));
+return hh;
+}
+/** souboj kolegy = stejný engine, jen hraje počítač (a hůř trefuje parry a ulti než ty) */
+function simFight(id, seed) {
+const PS = H.PARRY_SKILL, US = H.ULT_SKILL, keep = [PS.perfect, PS.good, US.q, US.all];
+PS.perfect = 0.15; PS.good = 0.35; US.q = 0.9; US.all = 0.3;
+try { return H.simulate(hero(), C.mission(id), seed); }
+finally { PS.perfect = keep[0]; PS.good = keep[1]; US.q = keep[2]; US.all = keep[3]; }
+}
+const wrCache = {};
+function winRate(id) {
+const c = st(), key = id + "|" + c.level + "|" + c.cls + "|" + JSON.stringify(c.gear) + "|" + A.HS().level + "|" + (gameState.prestige || 0);
+if (wrCache[id] && wrCache[id].k === key) return wrCache[id].v;
+let w = 0; for (let i = 0; i < 24; i++) if (simFight(id, 777 + i * 131).win) w++;
+const v = w / 24; wrCache[id] = { k: key, v: v }; return v;
+}
+function reward(id) {
+const gc = Math.round(C.gcFor(id, false) * 2 + (typeof calculateAutoGcRate === "function" ? calculateAutoGcRate() : 0) * (120 + 6 * id));   // + 2-7 min autogenu
+const scrap = Math.round((typeof getChestScrapCost === "function" ? getChestScrapCost() : 100) * (1 + id / 20));
+const xp = Math.round(C.xpFor(id, false) * 0.5);
+return { gc: gc, scrap: scrap, xp: xp };
+}
+let lastReport = null;
+function work(silent) {
+if (typeof gameState === "undefined" || !gameLoaded) return null;
+const c = st(), now = Date.now();
+if (!c.unlocked) return null;
+if (!awake()) { c.fightAt = now; c.clickAt = now; return null; }
+if (!c.fightAt) c.fightAt = now; if (!c.clickAt) c.clickAt = now;
+const from = Math.max(c.fightAt, now - AWAY_MAX), fromC = Math.max(c.clickAt, now - AWAY_MAX);
+const nf = Math.floor((now - from) / FIGHT_MS), nc = Math.floor((now - fromC) / CLICK_MS);
+if (!nf && !nc) return null;
+const rep = { w: 0, l: 0, gc: 0, scrap: 0, xp: 0, tok: 0, clicks: nc, tickets: 0, boss: "" };
+if (nc) {
+const t = (typeof calculateClickPower === "function" ? calculateClickPower() : 1) * nc;
+gameState.tickets += t; gameState.lifetimeTickets = (gameState.lifetimeTickets || 0) + t; rep.tickets = t; c.stats.clicks += nc;
+}
+c.clickAt = fromC + nc * CLICK_MS;
+const ids = bossesBeaten();
+if (nf && c.target != null && ids.indexOf(c.target) >= 0) {
+const id = c.target, m = C.mission(id); rep.boss = m.enemy.name;
+const wr = winRate(id), r = reward(id);
+for (let i = 0; i < nf; i++) {
+if (Math.random() < wr) { rep.w++; rep.gc += r.gc; rep.scrap += r.scrap; rep.xp += r.xp; if (Math.random() < 0.02) rep.tok++; }
+else rep.l++;
+}
+gameState.coins += rep.gc; gameState.scrap += rep.scrap; gameState.slotTokens += rep.tok;
+if (rep.xp) { const lines = []; A.gainXp(rep.xp, lines); }
+c.stats.w += rep.w; c.stats.l += rep.l; c.stats.gc += rep.gc;
+}
+c.fightAt = from + nf * FIGHT_MS;
+if (rep.w || rep.l) {
+const line = `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${esc(rep.boss)}: ${rep.w}W ${rep.l}L · +${short(rep.gc)} GC · +${short(rep.scrap)} scrap${rep.tok ? " · +" + rep.tok + " 🎟" : ""}`;
+c.log.unshift(line); c.log = c.log.slice(0, 12);
+if (!silent) log(`🧑‍💼 ${esc(c.name)}: ${rep.w ? "beat " + esc(rep.boss) + (rep.w > 1 ? " " + rep.w + "×" : "") : "lost to " + esc(rep.boss)} → +${short(rep.gc)} GC, +${short(rep.scrap)} scrap${rep.tok ? ", +" + rep.tok + " 🎟" : ""}`, rep.w ? "success" : "warning");
+}
+TT.saveSoon();
+return rep;
+}
+/** v9.0: trénink za GC */
+function train() {
+const c = st(); if (!c.unlocked || trainLv() >= TRAIN_MAX) { TT.holdStop = true; return; }
+const cost = trainCost();
+if (gameState.coins < cost) { TT.holdStop = true; log(`Training costs ${fmt(cost)} GC.`, "warning"); return; }
+gameState.coins -= cost; c.level++; c.xp = 0; c.named = true;
+log(`🧑‍💼 ${esc(c.name)} reached training level ${trainLv()} (+${2 * trainLv()}% power)!`, "special");
+if (trainLv() >= TRAIN_MAX) TT.holdStop = true;
+after();
+}
+/** v9.0: po evoluci tvůj starý kus dostane kolega (když je lepší než jeho) */
+function takeGear(k, old) {
+const c = st(); if (!c.unlocked || !window.Gear) return false;
+const cur = c.gear[k];
+if (cur && Gear.Gm(cur.m, cur.l) >= Gear.Gm(old.m, old.l)) return false;
+c.gear[k] = { m: old.m, l: old.l }; c.named = true;
+log(`🧑‍💼 ${esc(c.name)} took your old ${Gear.name(k, old)}.`, "success");
+return true;
+}
+function target(id) { const c = st(); if (bossesBeaten().indexOf(id) < 0) return; work(true); c.target = id; c.fightAt = Date.now(); after(); }
+function cls(k) { const c = st(); if (c.named) return; c.cls = k; after(); }
+function reroll() { const c = st(); if (c.named) return; const r = rollName(); c.name = r.name; c.quip = r.quip; after(); }
+function rename() {
+const c = st(); const n = prompt("Name your colleague (max 24 characters):", c.name || "");
+if (n == null) return; const t = String(n).replace(/[<>]/g, "").trim().slice(0, 24); if (!t) return;
+c.name = t; c.quip = ""; after();
+}
+function after() { TT.saveSoon(); if (A.isOpen() && A.view() === "colleague") A.render(); if (typeof updateUI === "function") updateUI(); }
+function html(box) {
+const d = A.HS(), c = st();
+if (!c.unlocked) {
+box.innerHTML = `<div class="dg-card dg-lock"><div class="big">🧑‍💼</div><div style="font:800 14px Orbitron,monospace;color:var(--emerald);margin:8px 0;">THE COLLEAGUE - LOCKED</div>
+<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to get a colleague. They farm bosses you have beaten and resolve tickets for you - even while you're away (up to 8 h).<br>Tower: ${d.tower.best}/100</div></div>`;
+return;
+}
+work(false);
+const aw = awake(), h = hero(), me = A.hero();
+const sp = window.HSRig ? HSRig.player(c.cls, c.gear) : A.sprite(["sysadmin", "engineer", "cyber"].indexOf(c.cls), "p");
+const head = `<div class="dg-card"><div class="cl-row">${sp}<div style="flex:1;min-width:0;">
+<div class="cl-name">${esc(c.name)}</div>${c.quip ? `<div class="cl-quip">“${esc(c.quip)}”</div>` : ""}
+<div class="dg-dim" style="margin-top:4px;">${H.CLASSES[c.cls].icon} ${H.CLASSES[c.cls].name} · LV ${colLevel()} (80% of yours) · 📚 training ${trainLv()}/${TRAIN_MAX}${trainLv() < TRAIN_MAX ? ` (XP ${fmt(c.xp)}/${fmt(xpToNext(c.level))})` : " MAX"}<br>
+❤ ${fmt(h.maxHp)} · ⚔ ${fmt(h.atk)} <span style="opacity:.7;">(max ${Math.round(POWER_CAP * 100)}% of yours: ❤ ${fmt(me.maxHp * POWER_CAP)} ⚔ ${fmt(me.atk * POWER_CAP)})</span><br>
+Record: ${c.stats.w}W / ${c.stats.l}L · earned ${short(c.stats.gc)} GC · ${fmt(c.stats.clicks)} clicks</div></div></div>
+${c.named ? `<div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Colleague.rename()">✏ RENAME</button></div>` :
+`<div class="dg-row" style="margin-top:8px;flex-wrap:wrap;"><button class="btn btn-cyan" onclick="Colleague.reroll()">🎲 REROLL NAME</button><button class="btn" onclick="Colleague.rename()">✏ CUSTOM NAME</button>
+${["sysadmin", "engineer", "cyber"].map(k => `<button class="btn ${c.cls === k ? "btn-gold" : ""}" onclick="Colleague.cls('${k}')">${H.CLASSES[k].icon}</button>`).join("")}</div>
+<div class="dg-dim" style="margin-top:4px;">Name and class lock in after the first training or gear.</div>`}
+<div class="cl-slots">${["w", "a", "t"].map(k => { const p = c.gear[k], P = window.Gear ? Gear.PIECES[k] : { i: "", n: k }; return `<div class="cl-slot"><span style="opacity:.6;">${P.i} ${P.n}</span><b style="color:${p ? Gear.MATS[p.m].c : "var(--text-muted)"};">${p ? esc(Gear.name(k, p)) : "nothing yet"}</b></div>`; }).join("")}</div></div>`;
+if (!aw) {
+box.innerHTML = head + `<div class="dg-card cl-sleep"><div class="big">💤</div><div style="font:800 13px Orbitron,monospace;color:var(--text-dim);margin:6px 0;">${esc(c.name)} is still sleeping...</div>
+<div class="dg-dim">After every prestige your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS).enemy.name)}</b> (chapter 3 boss) to get them back to work. You can still train them.</div></div>` + trainHtml(c);
+return;
+}
+const ids = bossesBeaten();
+const tgt = c.target != null && ids.indexOf(c.target) >= 0 ? c.target : null;
+const nextF = tgt != null ? Math.max(0, FIGHT_MS - (Date.now() - c.fightAt)) : 0;
+const bosses = ids.slice().reverse().map(id => {
+const m = C.mission(id), wr = winRate(id), r = reward(id), col = wr >= 0.7 ? "var(--emerald)" : wr >= 0.35 ? "var(--amber)" : "var(--crimson)";
+return `<div class="cl-boss ${tgt === id ? "sel" : ""}" onclick="Colleague.target(${id})"><span class="ic">${m.enemy.icon}</span><div class="t"><b>${esc(m.enemy.name)}</b><span class="dg-dim">win: +${short(r.gc)} GC · +${short(r.scrap)} scrap · +${fmt(r.xp)} XP</span></div><span class="wr" style="color:${col};">${Math.round(wr * 100)}%</span></div>`;
+}).join("") || `<div class="dg-dim">Beat some elites or bosses in the campaign first.</div>`;
+box.innerHTML = head + `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>🎯 BOSS TO FARM</span><span class="dg-dim">${tgt != null ? "next fight in " + A.fmtT(nextF) : "pick one"}</span></div>
+<div class="dg-dim" style="margin-bottom:6px;">One fight every 20 min (no energy), win chance on the right. Harder bosses pay more but ${esc(c.name)} wins less often. Every 30 s they also resolve a ticket with your click power. Works while you're away for up to 8 h.</div>${bosses}</div>
+<div><div class="dg-card"><div class="dg-h">📋 WORK LOG</div><div class="cl-log">${c.log.length ? c.log.map(l => `<div>${l}</div>`).join("") : `<div>Nothing yet.</div>`}</div></div>${trainHtml(c)}</div></div>`;
+}
+function trainHtml(c) {
+const L = trainLv(), max = L >= TRAIN_MAX, cost = max ? 0 : trainCost(), ok = !max && gameState.coins >= cost;
+return `<div class="dg-card"><div class="dg-h"><span>📚 Training</span><span class="dg-dim">${L}/${TRAIN_MAX} · +${2 * L}% power</span></div>
+<div class="dg-dim" style="margin-bottom:6px;">Send ${esc(c.name)} to a course: +2% ATK and HP per level (max ${TRAIN_MAX}). Gear comes from you - when you evolve a piece, your old one goes to them if it's better.</div>
+<button class="btn ${ok ? "btn-gold" : ""}" style="width:100%;padding:10px;" ${ok ? "" : "disabled"} data-hold="col-train" onclick="Colleague.train()">${max ? "Fully trained" : `Train to level ${L + 1} · ${short(cost)} GC`}</button></div>`;
+}
+function report(rep) {
+const c = st();
+if (!rep || (!rep.w && !rep.l && rep.clicks < 20)) return;
+const el = document.createElement("div");
+el.className = "tt-overlay open"; el.style.zIndex = 9995;
+el.onclick = (e) => { if (e.target === el) el.remove(); };
+const q = c.quip || QUIPS[Math.floor(Math.random() * QUIPS.length)];
+el.innerHTML = `<div class="tt-modal" style="border-color:var(--emerald);"><h2 style="color:var(--emerald);">🧑‍💼 WHILE YOU WERE AWAY</h2>
+<div class="tt-body" style="min-height:0;font-size:13px;line-height:1.6;"><b style="color:var(--emerald);">${esc(c.name)}</b>${rep.boss ? ` fought <b>${esc(rep.boss)}</b> ${rep.w + rep.l}× (${rep.w} won, ${rep.l} lost)` : ""}${rep.boss ? " and" : ""} resolved ${fmt(rep.clicks)} tickets.<br>
+💰 +${short(rep.gc)} GC · ⚙ +${short(rep.scrap)} scrap · 🎫 +${short(rep.tickets)} tickets${rep.xp ? " · +" + fmt(rep.xp) + " XP" : ""}${rep.tok ? " · 🎟 +" + rep.tok : ""}
+<div class="cl-quip" style="margin-top:8px;">“${esc(q)}”</div></div>
+<div style="margin-top:12px;"><button class="btn btn-gold" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">NICE</button></div></div>`;
+document.body.appendChild(el);
+}
+function chip() {
+if (typeof gameState === "undefined" || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return "";
+const c = gameState.hs.col;
+return awake() ? `<span class="buff-chip on" title="Your colleague is farming bosses and clicking for you">🧑‍💼 ${esc(c.name)}</span>` : `<span class="buff-chip" title="Beat the chapter 3 boss to wake them up">💤 ${esc(c.name)}</span>`;
+}
+A.registerMode("colleague", { label: "🧑‍💼 COLLEAGUE", order: 70, render: html });
+window.Colleague = { train: train, takeGear: takeGear, trainCost: trainCost, target: target, cls: cls, reroll: reroll, rename: rename, work: work, chip: chip, hero: hero, winRate: winRate, simFight: simFight, rollName: rollName, MEME: MEME, FIRST: FIRST };
+let wasAwake = null;
+(function boot() {
+if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
+TT.onLoaded(() => setTimeout(() => { try { wasAwake = awake(); const r = work(true); report(r); } catch (e) { console.error(e); } }, 2500));
+setInterval(() => {
+try {
+if (typeof gameState === "undefined" || !gameLoaded || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return;
+const a = awake();
+if (wasAwake === false && a) log(`☕ ${esc(gameState.hs.col.name)} woke up. Back to work!`, "special");
+if (wasAwake === true && !a) log(`💤 ${esc(gameState.hs.col.name)} fell asleep after your prestige. Beat ${esc(C.mission(WAKE_BOSS).enemy.name)} to wake them up.`, "warning");
+wasAwake = a;
+work(false);
+if (A.isOpen() && A.view() === "colleague" && !document.querySelector(".hs-ov") && !document.querySelector(".tt-overlay.open")) A.render();
+} catch (e) { console.error(e); }
+}, 10000);
+})();
+})();
+</script>
+<style>
+/* ===== POSTUPNÉ ODEMYKÁNÍ + ZJEDNODUŠENÍ UI ===== */
+.gate-locked > :not(.gate-card) { display: none !important; }
+.gb-sec.gate-locked { padding: 6px 8px; }
+.gate-card { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
+.gate-card .ic { font-size: 22px; opacity: .7; }
+.gate-card .t { flex: 1; min-width: 0; }
+.gate-card b { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--text-dim); }
+.gate-card .dg-dim, .gate-card small { display: block; font-size: 11px; color: var(--text-muted, #667); margin-top: 2px; }
+.gate-bar { height: 4px; background: #000; border-radius: 2px; overflow: hidden; margin-top: 5px; }
+.gate-bar div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--amber)); }
+.panel.gate-hidden { display: none !important; }
+.pres-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: #3b4252; }
+.pres-dot.on { background: #00ff88; box-shadow: 0 0 6px #00ff88; animation: presPulse 1.6s ease-in-out infinite; }
+.pres-dot.afk { background: #ffb800; box-shadow: 0 0 5px rgba(255,184,0,.7); }
+@keyframes presPulse { 50% { opacity: .45; } }
+/* Telemetry: sbalitelný */
+.tele-toggle { cursor: pointer; user-select: none; }
+.tele-toggle::after { content: " ▾"; color: var(--text-dim); }
+.tele-collapsed .tele-toggle::after { content: " ▸"; }
+.tele-collapsed .stats-grid { display: none; }
+/* Autoclicker + autogen kompaktně */
+.ac-box { padding: 6px 8px; }
+.ac-box > .ac-row:nth-child(3), .ac-box > .ac-bar-next { display: none; }
+.ac-box .ac-bar { margin-bottom: 4px; height: 6px; }
+.ac-box .btn, #btn-autogen { padding: 6px 4px; font-size: 10px; }
+.ag-compact { margin-top: 6px !important; padding: 6px 8px !important; }
+/* Kasino taby ve dvou řadách */
+#tab-btn-roulette { margin-left: 0; }
+.panel .tab-row:has(#tab-btn-roulette) { flex-wrap: wrap; gap: 4px; }
+.panel .tab-row:has(#tab-btn-roulette) .casino-tab-btn { flex: 1 0 30%; }
+</style>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const GATES = [
+{ key: "casino", find: () => $("gb-sec-basic") || panelOf("view-roulette"), chest: 5, icon: "🎰", name: "BASIC CASINO", what: "Roulette, Slots, Blackjack" },
+{ key: "adv", find: () => $("gb-sec-adv"), chest: 10, icon: "⚡", name: "ADVANCED", what: "MEGA 5×5, Crash, Chicken Road, Pachinko" },
+{ key: "special", find: () => $("gb-sec-special"), chest: 10, icon: "👥", name: "SPECIAL", what: "Showdown PvP, Corporate Climb, Prší, Checkers" },
+{ key: "consult", find: () => panelOf("btn-consult-launch"), chest: 15, icon: "🐞", name: "SME CONSULT", what: "Escalate tickets for big GC wins (and bugs)" },
+{ key: "legacy", find: () => panelOf("lp-shop"), prestige: 1, icon: "★", name: "THE OFFICE PLANT", what: "A tree of permanent upgrades grown with Legacy Points" }
+];
+function panelOf(id) { const el = $(id); return el ? (el.closest(".panel") || el) : null; }
+function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
+function isOpen(g) {
+if (g.prestige) return (gameState.prestige || 0) >= g.prestige || (gameState.lp || 0) > 0;
+return maxChest() >= g.chest;
+}
+const state = {};
+let booted = false;
+function apply() {
+if (typeof gameState === "undefined" || !gameLoaded) return;
+GATES.forEach(g => {
+const p = g.find(); if (!p) return;
+const open = isOpen(g);
+if (state[g.key] === false && open && booted) {
+log(`🔓 UNLOCKED: ${g.name}! ${g.what}.`, "special");
+const b = $("fx-banner");
+if (b) { b.style.color = "var(--amber)"; b.innerHTML = "UNLOCKED<small>" + g.name + "</small>"; b.classList.remove("go"); void b.offsetWidth; b.classList.add("go"); }
+}
+state[g.key] = open;
+p.classList.toggle("gate-locked", !open);
+let card = p.querySelector(":scope > .gate-card");
+if (!open) {
+const pct = g.prestige ? 0 : Math.min(100, (maxChest() - 1) / (g.chest - 1) * 100);
+const html = `<span class="ic">🔒</span><div class="t"><b>${g.icon} ${g.name}</b><small>${g.what}</small>
+<small>Unlocks at ${g.prestige ? "Prestige " + g.prestige : "chest level " + g.chest + " (you: " + maxChest() + ")"}</small>
+${g.prestige ? "" : `<div class="gate-bar"><div style="width:${pct}%"></div></div>`}</div>`;
+if (!card) { card = document.createElement("div"); card.className = "gate-card"; p.insertBefore(card, p.firstChild); }
+if (card.__h !== html) { card.innerHTML = html; card.__h = html; }
+} else if (card) card.remove();
+});
+const mp = panelOf("merge-list");
+if (mp) {
+const any = gameState.inventory.some(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL);
+mp.classList.toggle("gate-hidden", !any);
+}
+const mt = document.querySelector('#m-tabs button[data-go="casino"] span');
+if (mt) { const t = isOpen(GATES[0]) ? "🎰" : "🔒"; if (mt.textContent !== t) mt.textContent = t; }
+const ft = document.querySelector('#m-tabs button[data-go="fight"] span');
+if (ft && window.Dungeon) { const t = Dungeon.unlocked() ? "⚔" : "🔒"; if (ft.textContent !== t) ft.textContent = t; }
+booted = true;
+}
+function boot() {
+if (typeof gameState === "undefined" || !window.TT) { setTimeout(boot, 50); return; }
+const tp = panelOf("stat-tickets");
+if (tp) {
+const h = tp.querySelector(".panel-header");
+if (h) {
+h.classList.add("tele-toggle");
+let col = true; try { col = localStorage.getItem("ir_tele") !== "open"; } catch (e) {}
+tp.classList.toggle("tele-collapsed", col);
+h.addEventListener("click", () => { const c = tp.classList.toggle("tele-collapsed"); try { localStorage.setItem("ir_tele", c ? "closed" : "open"); } catch (e) {} });
+}
+}
+const ag = $("btn-autogen"); if (ag && ag.parentElement) ag.parentElement.classList.add("ag-compact");
+TT.onLoaded(() => { apply(); setInterval(apply, 1000); });
+}
+window.Gate = { apply: apply };
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+<style>
+/* ======================= MOBILNÍ REŽIM (html.m) =======================
+Stejná hra, jen jiné rozložení: horní lišta + mini HUD + obsah jedné záložky + spodní lišta.
+Záložka HRA má zamčený scroll a obří tlačítko, ostatní záložky se normálně posouvají. */
+#m-hud, #m-tabs { display: none; }
+html.m.kb body { bottom: auto; height: var(--app-h, 100%); }
+/* v9.3.4: iPhone aplikace na ploše - webview končí nad home proužkem, takže lišta nepotřebuje safe-area odsazení; pozadí stránky v barvě lišty */
+html.m.iosgap #m-tabs { padding-bottom: 4px !important; }
+html.m body { min-height: 0 !important; }   /* v9.3.6: style.html má min-height:100vh - na iPhonu je 100vh celá obrazovka (852), i když se kreslí jen 793 -> lišta mizela pod okraj */
+/* v9.3.6: batoh na mobilu bez vnořeného scrollu (karty se v něm na Androidu roztahovaly) */
+html.m .backpack-container { display: flex !important; flex-direction: column; max-height: none; overflow: visible; min-height: 0; }
+html.m .backpack-container > .item-card { flex: none; }
+html.m.iosgap body { bottom: auto !important; height: var(--app-h, 100%) !important; }   /* v9.3.5: iOS dá fixed body 852 i když kreslí jen 793 -> výška natvrdo podle sondy */
+html.m.iosgap { background: var(--bg-panel, #0a0e16) !important; }
+html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
+html.m body {
+display: flex; flex-direction: column; overflow: hidden;
+position: fixed; top: 0; bottom: 0; left: 0; width: 100%; height: auto;   /* v8.7.5: přichyceno k hranám viditelné plochy (Android i iPhone) */
+-webkit-tap-highlight-color: transparent;
+}
+html.m .btn, html.m .btn-primary-action, html.m .casino-tab-btn, html.m #m-tabs button {
+-webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+}
+html.m .top-bar { flex: none; padding: calc(6px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 6px calc(10px + env(safe-area-inset-left)); flex-direction: row; gap: 6px; }
+html.m .brand-title { font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
+html.m .user-badge { gap: 8px; font-size: 10px; flex-wrap: nowrap; }
+html.m .status-pill { display: none; }
+html.m .user-badge > span:nth-child(2) { display: none; }
+html.m .btn-help { padding: 3px 7px; font-size: 10px; }
+html.m #m-hud {
+flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 5px 8px;
+background: #0a0e16; border-bottom: 1px solid var(--border-subtle);
+}
+html.m #m-hud div { text-align: center; line-height: 1.15; min-width: 0; }
+html.m #m-hud small { display: block; font: 700 8px 'Orbitron', monospace; letter-spacing: .5px; color: var(--text-dim); }
+html.m #m-hud b { display: block; font: 800 13px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.m .main-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px; gap: 8px; max-width: none; width: 100%; box-sizing: border-box; }
+html.m .grid-columns { display: flex; flex-direction: column; gap: 8px; flex: none; }
+html.m .grid-columns { align-items: stretch; }
+html.m .grid-columns > *, html.m .main-wrapper > * { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
+html.m #adv-minigames-mount, html.m .adv-wrap { min-width: 0; max-width: 100%; overflow: hidden; }
+html.m .cr-road { max-width: 100%; }
+html.m .column { display: contents; }
+html.m [data-tab] { display: none; }
+html.m body[data-mtab="play"]   [data-tab="play"],
+html.m body[data-mtab="chest"]  [data-tab="chest"],
+html.m body[data-mtab="bag"]    [data-tab="bag"],
+html.m body[data-mtab="casino"] [data-tab="casino"],
+html.m body[data-mtab="more"]   [data-tab="more"] { display: block; }
+/* --- záložka HRA: nic se neposouvá, tlačítko vyplní zbytek výšky --- */
+html.m body[data-mtab="play"] .main-wrapper { overflow: hidden; }
+html.m body[data-mtab="play"] .grid-columns { flex: 1 1 auto; min-height: 0; }
+html.m body[data-mtab="play"] [data-tab="play"] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+html.m [data-tab="play"] .click-btn-wrap { flex: 1 1 auto; display: flex; min-height: 130px; }
+html.m [data-tab="play"] #btn-click { flex: 1; height: auto; font-size: 20px; line-height: 1.3; border-radius: 10px; }
+html.m [data-tab="play"] #btn-click:active, html.m [data-tab="play"] #btn-click.pressed { transform: scale(.985); }
+/* na mobilu se nic neoznačuje (dvojklik / podržení), kromě polí pro psaní */
+html.m body, html.m body * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.m input, html.m textarea, html.m select, html.m [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+html.m #btn-click { touch-action: none; }
+html.m #m-tabs {
+flex: none; display: flex; background: #0a0e16; border-top: 1px solid var(--border-subtle);
+padding-bottom: env(safe-area-inset-bottom);
+}
+html.m #m-tabs button {
+flex: 1; padding: 9px 2px 8px; background: none; border: 0; border-top: 2px solid transparent; color: var(--text-dim);
+font: 700 9px 'Orbitron', monospace; letter-spacing: .5px; cursor: pointer;
+}
+html.m #m-tabs button span { display: block; font-size: 17px; margin-bottom: 2px; }
+html.m #m-tabs button.active { color: var(--cyan); border-top-color: var(--cyan); background: rgba(0,240,255,.06); }
+html.m #m-tabs button { position: relative; }
+html.m #m-tabs button[data-go="fight"] { color: #ff4d6d; }
+html.has-unread #m-tabs button[data-go="more"]::after,
+html.pl-glow #m-tabs button[data-go="more"]::after,
+html.hs-glow #m-tabs button[data-go="fight"]::after,
+html.sd-glow #m-tabs button[data-go="casino"]::after { content: ""; position: absolute; top: 5px; right: 22%; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 6px var(--crimson); }
+html.m #fx-toggle, html.m #ir-logout { display: none !important; }
+html.m .panel { padding: 10px; }
+html.m .stats-grid { grid-template-columns: repeat(2, 1fr); }
+html.m input, html.m select, html.m textarea { font-size: 16px; }   /* iOS nezoomuje při fokusu */
+html.m canvas { max-width: 100%; height: auto; }
+html.m table.lb-table { font-size: 11px; }
+html.m #backpack-grid { grid-template-columns: minmax(0, 1fr) !important; }
+html.m #m-tabs button { min-width: 0; overflow: hidden; }
+html.m .item-actions { flex-wrap: wrap; }
+html.m .item-actions .btn { padding: 8px 10px; }
+html.m #fx-banner { font-size: 22px; }
+html.m .tt-modal, html.m .modal { max-width: 94vw; }
+html.m #update-banner { top: calc(8px + env(safe-area-inset-top)); bottom: auto; width: max-content; max-width: calc(100% - 24px); text-align: center; line-height: 1.4; }   /* v8.7.2: dřív top:0 + bottom:14px = roztažené přes celou obrazovku */
+/* panel Nastavení (jen mobil) */
+#m-settings { display: none; }
+html.m body[data-mtab="more"] #m-settings { display: block; }
+#m-settings .row { display: flex; gap: 8px; }
+#m-settings .btn { flex: 1; padding: 10px; }
+/* PC: přepínač na kompaktní (mobilní) rozložení */
+#m-compact { white-space: nowrap; }
+@media (max-width: 820px) { #m-compact { display: none !important; } }
+html.m.mc .main-wrapper { max-width: 860px; width: 100%; margin: 0 auto; align-self: center; }
+html.m.mc #m-tabs { justify-content: center; }
+html.m.mc #m-tabs button { flex: 0 1 140px; }
+html.m.mc #m-hud { max-width: 860px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
+#m-logout { display: none !important; }
+</style>
+<div id="m-hud">
+<div><small>TICKETS</small><b id="mh-t" style="color:var(--cyan);">0</b></div>
+<div><small>GC</small><b id="mh-c" style="color:var(--amber);">0</b></div>
+<div><small>SCRAP</small><b id="mh-s" style="color:var(--text-main);">0</b></div>
+<div><small>CPS</small><b id="mh-p" style="color:var(--emerald);">0.0</b></div>
+</div>
+<nav id="m-tabs">
+<button data-go="play"><span>🎯</span>PLAY</button>
+<button data-go="chest"><span>📦</span>CHEST</button>
+<button data-go="bag"><span>🎒</span>BAG</button>
+<button data-go="casino"><span>🎰</span>CASINO</button>
+<button data-go="fight"><span>⚔</span>FIGHT</button>
+<button data-go="more"><span>☰</span>MORE</button>
+</nav>
+<div class="panel" id="m-settings" data-tab="more">
+<div class="panel-header">SETTINGS</div>
+<div id="m-viewinfo" data-nocase="1" style="font-size:10px;color:var(--text-muted);margin:-4px 0 8px;line-height:1.4;"></div>
+<div class="row">
+<button class="btn btn-cyan" id="m-fx" type="button">✨ EFFECTS</button>
+<button class="btn btn-crimson" id="m-logout" type="button">LOG OUT</button>
+</div>
+</div>
+<script>
+(function () {
+"use strict";
+var $ = function (id) { return document.getElementById(id); };
+var mq = window.matchMedia ? window.matchMedia("(max-width: 820px)") : { matches: false };
+var tab = "play", compact = false;
+try { tab = localStorage.getItem("ir_tab") || "play"; compact = localStorage.getItem("ir_compact") === "1"; } catch (e) {}
+function isM() { return !!mq.matches || compact; }
+var tb = document.querySelector(".top-bar"); if (tb && $("m-hud")) tb.parentNode.insertBefore($("m-hud"), tb.nextSibling);
+var mwEl = document.querySelector(".main-wrapper"); if (mwEl && $("m-settings")) mwEl.appendChild($("m-settings"));
+var tabsEl = $("m-tabs"); if (mwEl && tabsEl) mwEl.parentNode.insertBefore(tabsEl, mwEl.nextSibling);
+function panelOf(id) { var el = $(id); return el ? (el.closest(".panel") || el) : null; }
+function panelByHeader(re) {
+var all = document.querySelectorAll(".panel");
+for (var i = 0; i < all.length; i++) { var h = all[i].querySelector(".panel-header"); if (h && re.test(h.textContent)) return all[i]; }
+return null;
+}
+function tag(el, name) { if (el) el.setAttribute("data-tab", name); }
+tag(panelOf("btn-click"), "play");
+tag(panelByHeader(/SCRAP FABRICATION/i), "chest");
+tag(panelOf("btn-open-chest"), "chest");
+tag(panelOf("slot-HEAD"), "bag");
+tag(panelOf("backpack-grid"), "bag");
+tag(panelOf("merge-list"), "bag");
+tag(panelOf("view-roulette"), "casino");
+tag($("adv-minigames-mount"), "casino");
+tag(panelOf("btn-consult-launch"), "casino");
+tag(panelOf("stat-tickets"), "more");
+tag(panelOf("lp-shop"), "more");
+tag(panelOf("log"), "more");
+tag(panelOf("lb-body"), "more");
+/* v8.5.1: iOS po zavření fullscreen překryvu (HIGH STAKES) občas nepřekreslí horní část a zůstane "duch" - vynutíme repaint */
+window.ttRepaint = function () {
+var b = document.body; if (!b) return;
+b.style.transform = "translateZ(0)"; void b.offsetHeight;
+requestAnimationFrame(function () {
+b.style.transform = "";
+var mw = document.querySelector(".main-wrapper");
+if (mw) { var st = mw.scrollTop; mw.scrollTop = st + 1; mw.scrollTop = st; }
+setTimeout(function () { b.style.opacity = "0.999"; requestAnimationFrame(function () { b.style.opacity = ""; }); }, 60);
+});
+};
+function setTab(t) {
+tab = t;
+document.body.setAttribute("data-mtab", t);
+var bs = document.querySelectorAll("#m-tabs button");
+for (var i = 0; i < bs.length; i++) bs[i].classList.toggle("active", bs[i].getAttribute("data-go") === t);
+var mw = document.querySelector(".main-wrapper"); if (mw) mw.scrollTop = 0;
+try { localStorage.setItem("ir_tab", t); } catch (e) {}
+if (t === "more" && typeof chatVisible === "function" && chatVisible() && typeof chatUnread !== "undefined" && chatUnread) { chatUnread = 0; renderChatUnread(); }
+if (window.ttRepaint) window.ttRepaint();
+window.dispatchEvent(new Event("resize"));      // ruleta si přepočítá šířku
+}
+document.getElementById("m-tabs").addEventListener("click", function (ev) {
+var b = ev.target.closest("button[data-go]"); if (!b) return;
+var go = b.getAttribute("data-go");
+if (go === "fight") { if (window.Dungeon) Dungeon.open(); return; }
+setTab(go);
+});
+/* v8.7.5: výška = skutečná viditelná plocha (pevný prvek top:0 + bottom:0), jen při psaní výška nad klávesnicí.
+(v8.7.3 používal 100dvh - Chrome na Androidu ho počítal i pod adresní řádek a spodní lišta zmizela) */
+var probe = document.createElement("div");
+probe.style.cssText = "position:fixed;top:0;bottom:0;left:0;width:0;visibility:hidden;pointer-events:none;";
+document.documentElement.appendChild(probe);
+function typing() { var a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea,select,[contenteditable]")); }
+/* v9.0.1: iPhone aplikace z plochy (černý průhledný status bar) hlásí výšku bez status baru -> spodní lišta byla useknutá */
+var sprobe = document.createElement("div");
+sprobe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);";
+document.documentElement.appendChild(sprobe);
+function safeTop() { return parseFloat(getComputedStyle(sprobe).paddingTop) || 0; }
+function standalone() { return !!(navigator.standalone || (window.matchMedia && (matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches))); }
+/** v9.3.1: iPhone web app (černý průhledný status bar): viditelná výška = hlášená výška + výška status baru */
+function isIOS() { var u = navigator.userAgent || ""; return /iPhone|iPad|iPod/.test(u) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function iosFull() {
+if (!isIOS() || !standalone() || !window.screen) return 0;            // v9.3.3: jen iPhone (Android aplikace má v screen.height i systémové lišty -> lišta zmizela pod okraj)
+var port = window.innerWidth < window.innerHeight;
+var sh = port ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+var ph = probe.offsetHeight || window.innerHeight, st = safeTop(), d = sh - ph;
+return d > 20 && d < 120 ? d : 0;     // v9.3.4: iOS spodních d bodů vůbec nevykreslí -> hru už NEnatahujeme, jen to označíme (iosgap)
+}
+window.__viewInfo = function () {
+return "screen " + (window.screen ? screen.width + "×" + screen.height : "?") + " · inner " + window.innerWidth + "×" + window.innerHeight + " · fixed " + (probe.offsetHeight || 0) +
+" · safe " + Math.round(safeTop()) + "/" + Math.round(parseFloat(getComputedStyle(sprobe).paddingBottom) || 0) + " · app " + (standalone() ? "yes" : "no") + (isIOS() ? " ios" : "") + " · gap " + (document.documentElement.classList.contains("iosgap") ? "on" : "off") +
+" · body " + Math.round(document.body.getBoundingClientRect().height) + " · tabs " + Math.round(($("m-tabs") || document.body).getBoundingClientRect().bottom);
+};
+function setAppH() {
+var vv = window.visualViewport, kb = typing() && vv && vv.height < (probe.offsetHeight || window.innerHeight) - 80;
+document.documentElement.classList.toggle("kb", !!kb);
+document.documentElement.classList.toggle("iosgap", !kb && !!iosFull());
+var h = kb ? vv.height : (probe.offsetHeight || window.innerHeight);
+if (h) document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
+}
+document.addEventListener("focusin", function () { setTimeout(setAppH, 50); });
+document.addEventListener("focusout", function () { setTimeout(setAppH, 50); });
+setAppH();
+window.addEventListener("resize", setAppH);
+window.addEventListener("orientationchange", function () { setTimeout(setAppH, 250); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", setAppH);
+window.addEventListener("pageshow", setAppH);
+setInterval(function () { setAppH(); var vi = $("m-viewinfo"); if (vi && document.body.getAttribute("data-mtab") === "more") vi.textContent = window.__viewInfo(); }, 2000);     // pojistka: Chrome při schování/zobrazení lišty někdy resize nepošle
+function applyMode() {
+var on = isM();
+document.documentElement.classList.toggle("m", on);
+document.documentElement.classList.toggle("mc", on && !mq.matches);
+var cb = $("m-compact"); if (cb) cb.textContent = compact ? "🖥 FULL UI" : "📱 COMPACT";
+if (on) setTab(/^(play|chest|bag|casino|more)$/.test(tab) ? tab : "play");
+else document.body.removeAttribute("data-mtab");
+}
+if (mq.addEventListener) mq.addEventListener("change", applyMode); else if (mq.addListener) mq.addListener(applyMode);
+var badge = document.querySelector(".user-badge");
+if (badge && !$("m-compact")) {
+var cbt = document.createElement("button");
+cbt.id = "m-compact"; cbt.type = "button"; cbt.className = "btn btn-cyan btn-help";
+cbt.title = "Switch between the full PC layout and the compact layout with tabs at the bottom";
+cbt.addEventListener("click", function () {
+compact = !compact;
+try { localStorage.setItem("ir_compact", compact ? "1" : "0"); } catch (e) {}
+applyMode();
+window.dispatchEvent(new Event("resize"));
+});
+badge.insertBefore(cbt, badge.firstChild);
+}
+applyMode();
+var cache = {};
+function mirror(from, to) {
+var a = $(from), b = $(to); if (!a || !b) return;
+var t = a.textContent;
+if (to !== "mh-p") {                                  // v9.0.1: od miliardy zkráceně, ať se to vejde (13.40B)
+var n = Number(t.replace(/[^\d]/g, ""));
+if (n >= 1e9) t = n >= 1e15 ? n.toExponential(2) : n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : (n / 1e9).toFixed(2) + "B";
+}
+if (cache[to] !== t) { cache[to] = t; b.textContent = t; }
+}
+setInterval(function () {
+if (!isM() || document.hidden) return;
+mirror("stat-tickets", "mh-t"); mirror("stat-coins", "mh-c"); mirror("stat-scrap", "mh-s"); mirror("stat-cps", "mh-p");
+}, 250);
+$("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/i.test(t.textContent)) ? "✨ EFFECTS: OFF" : "✨ EFFECTS: ON"; });
+$("m-logout").addEventListener("click", function () { var t = $("ir-logout"); if (t) t.click(); });
+var cbtn = $("btn-click");
+if (cbtn && "ontouchstart" in window) {
+cbtn.addEventListener("touchstart", function (e) {
+e.preventDefault();                      // žádný zpožděný click, dvojklik-zoom ani označení textu
+cbtn.classList.add("pressed");
+for (var i = 0; i < e.changedTouches.length; i++) {
+var t = e.changedTouches[i];
+if (typeof handleManualClick === "function") handleManualClick(e);
+if (window.__fxTap) window.__fxTap(t.clientX, t.clientY);
+}
+}, { passive: false });
+var unpress = function () { cbtn.classList.remove("pressed"); };
+cbtn.addEventListener("touchend", unpress); cbtn.addEventListener("touchcancel", unpress);
+}
+function isField(t) { return t && t.closest && t.closest("input,textarea,select,[contenteditable]"); }
+document.addEventListener("selectstart", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("dblclick", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("contextmenu", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+document.addEventListener("touchmove", function (e) {
+if (mq.matches && e.target.closest && e.target.closest("#btn-click")) e.preventDefault();   // v9.3.6: blokuje se jen tah po tlačítku, záložka HRA se jinak normálně posouvá
+}, { passive: false });
+})();
+</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["part18"] = 1;</script>
+<!-- END-OF-FILE: part18 -->

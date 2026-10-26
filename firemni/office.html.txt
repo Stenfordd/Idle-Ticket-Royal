@@ -1,4 +1,4 @@
-<script>
+<script type="text/plain" data-tt="ttbig1" data-i="1">
 /**
 * TICKET TYCOON v6.1 - CORE  (soubor "script")
 * Stav hry, TT API, klikání + CPS, autoclicker, prestiž + Legacy Points, bedna, inventář (stacky), merge, HUD.
@@ -975,5 +975,8 @@ if (g.eq) gameState.loadout[g.slot] = res;
 else invAdd(res.slot, res.tier, res.lvl, 1, res.e);
 updateUI(); TT.saveSoon();
 }
-;(window.__TT_FILES = window.__TT_FILES || {})["office"] = 1;
-// END-OF-FILE: office (the script continues in the next file)
+function renderMergeStation() {
+const box = document.getElementById("merge-list");
+if (!box) return;</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["office"] = 1;</script>
+<!-- END-OF-FILE: office -->

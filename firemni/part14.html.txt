@@ -1,576 +1,617 @@
-function arenaAttack(nick) {
-if (arena.busy) return;
-arena.busy = true;
-$("dg-inner").innerHTML = arenaHtml();
-const go = () => google.script.run.withSuccessHandler(r => {
-arena.busy = false;
-if (!r || !r.ok) {
-const why = { limit: "No attacks left today.", cooldown: "You fought this player recently.", target: "Opponent not available.", missing: "Save not found - try again in a few seconds.", noclass: "Pick a HIGH STAKES class first.", busy: "Server busy, try again." }[r && r.reason] || "Fight failed.";
-arena.err = why; log("ARENA: " + why, "warning"); arenaLoad(); return;
-}
-gameState.coins += r.reward;              // odměna hned (i kdyby se replay nedokoukal)
-TT.saveSoon(); updateUI();
-log(`🏟 ARENA ${r.win ? "WIN" : "LOSS"} vs ${escapeHtml(r.opp.nick)}: ${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}), +${fmt(r.reward)} GC.`, r.win ? "special" : "error");
-arena.replay = { r: r, idx: 0, hp: [r.max[0], r.max[1]], sh: [0, 0], lines: [] };
-$("dg-inner").innerHTML = arenaReplayHtml();
-arenaStep();
-}).withFailureHandler(e => { arena.busy = false; arena.err = String(e && e.message || e); arenaLoad(); }).arenaFight(nick, arena.atkStance);
-saveGame(() => go());                      // nejdřív uložit aktuální build, server bojuje s uloženým
-}
-function arenaReplayHtml() {
-const rp = arena.replay, r = rp.r, d = A.HS();
-return `<div class="dg-arena" id="dg-arena">
-<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${E.CLASSES[d.cls].name} · ${STANCE_TXT[arena.atkStance][0]}</div>
-<div id="ar-a">${playerSprite()}</div>
-<div class="dg-bar"><div class="hp-p" id="ar-ahp" style="width:100%"></div><div class="sh" id="ar-ash" style="width:0%"></div></div><div class="dg-hpt" id="ar-ahpt"></div></div>
-<div class="dg-vs">VS</div>
-<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(r.opp.nick)}</div><div class="dg-sub">${E.CLASSES[r.opp.cls] ? E.CLASSES[r.opp.cls].name : ""} LV ${r.opp.level} · ${STANCE_TXT[r.defStance][0]}</div>
-<div id="ar-b">${sprite(CLS_IDX[r.opp.cls] || 0, "p")}</div>
-<div class="dg-bar"><div class="hp-b" id="ar-bhp" style="width:100%"></div><div class="sh" id="ar-bsh" style="width:0%"></div></div><div class="dg-hpt" id="ar-bhpt"></div></div>
-</div>
-<div class="dg-mech" id="ar-res">${r.first === 0 ? "You strike first!" : escapeHtml(r.opp.nick) + " strikes first!"}</div>
-<div class="dg-row"><button class="btn" style="flex:1;" id="ar-skip" onclick="Dungeon.arenaSkip()">SKIP ⏭</button>
-<button class="btn btn-gold" style="flex:1;" id="ar-back" disabled onclick="Dungeon.arenaBack()">BACK TO ARENA</button></div>
-<div class="dg-card" style="margin-top:10px;"><div class="dg-h">FIGHT LOG</div><div class="dg-log" id="ar-log"></div></div>`;
-}
-function arenaBars() {
-const rp = arena.replay; if (!rp) return;
-const m = rp.r.max;
-const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
-set("ar-ahp", rp.hp[0] / m[0] * 100); set("ar-bhp", rp.hp[1] / m[1] * 100);
-set("ar-ash", rp.sh[0] / m[0] * 100); set("ar-bsh", rp.sh[1] / m[1] * 100);
-const a = $("ar-ahpt"); if (a) a.textContent = fmt(rp.hp[0]) + " / " + fmt(m[0]);
-const b = $("ar-bhpt"); if (b) b.textContent = fmt(rp.hp[1]) + " / " + fmt(m[1]);
-}
-function arenaLine(e) {
-const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">T${e.t}</span> `;
-if (e.type === "hit") return [T + `${nm(e.i)} ${e.kind === "jp" ? "🎰 <b>JACKPOT</b>" : "hit"} <b>${fmt(e.val)}</b> (${e.mult}×)${e.rev ? " - 🔌 POWER CYCLE!" : ""}`, e.i === 0 ? (e.kind === "jp" ? "y" : "g") : "r"];
-if (e.type === "bf") return [T + `💥 ${nm(e.i)} BACKFIRED for ${fmt(e.val)}`, e.i === 0 ? "r" : "g"];
-if (e.type === "dodge") return [T + `🌀 ${nm(1 - e.i)} dodged`, e.i === 0 ? "r" : "c"];
-if (e.type === "reflect") return [T + `${nm(e.i)} reflected ${fmt(e.val)}`, "c"];
-if (e.type === "heal") return [T + `${nm(e.i)} healed ${fmt(e.val)}`, "g"];
-if (e.type === "dot") return [T + `Zero-day payload ticks ${fmt(e.val)}`, "c"];
-return [T + e.type, ""];
-}
-function arenaApply(e, animate) {
-const rp = arena.replay;
-rp.hp = e.hp.slice(); rp.sh = e.sh.slice();
-const ln = arenaLine(e); rp.lines.unshift(ln);
-const el = $("ar-log"); if (el) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
-if (animate && !document.hidden) {
-const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a";
-if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit") anim(def, "hit"); }
-if (e.type === "bf") anim(atk, "hit");
-const side = (e.type === "hit" || e.type === "dot") ? (e.i === 0 ? "b" : "p") : (e.type === "bf" || e.type === "heal") ? (e.i === 0 ? "p" : "b") : (e.type === "dodge" ? (e.i === 0 ? "b" : "p") : (e.i === 0 ? "b" : "p"));
-const txt = e.type === "hit" ? (e.kind === "jp" ? "JACKPOT " + fmt(e.val) : fmt(e.val)) : e.type === "bf" ? "BACKFIRE" : e.type === "dodge" ? "DODGE" : e.type === "heal" ? "+" + fmt(e.val) : fmt(e.val || 0);
-float(txt, side, e.type === "hit" ? (e.kind === "jp" ? "#ffb800" : "#ffffff") : e.type === "bf" ? "#ff1744" : e.type === "dodge" ? "#00f0ff" : "#00ff88", e.kind === "jp");
-}
-arenaBars();
-}
-function arenaStep() {
-const rp = arena.replay; if (!rp) return;
-clearTimeout(arena.timer);
-if (rp.idx >= rp.r.events.length) { arenaEnd(); return; }
-arenaApply(rp.r.events[rp.idx++], true);
-arena.timer = setTimeout(arenaStep, document.hidden ? 30 : 520);
-}
-function arenaSkip() { const rp = arena.replay; if (!rp) return; clearTimeout(arena.timer); while (rp.idx < rp.r.events.length) arenaApply(rp.r.events[rp.idx++], false); arenaEnd(); }
-function arenaEnd() {
-const rp = arena.replay, r = rp.r;
-rp.done = true;
-const res = $("ar-res");
-if (res) res.innerHTML = `<span style="font:900 18px Orbitron,monospace;color:${r.win ? "var(--emerald)" : "var(--crimson)"};">${r.win ? "🏆 VICTORY" : "☠ DEFEAT"}</span><br>${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}) · +${fmt(r.reward)} GC · ${r.left} attacks left today`;
-const loser = document.querySelector(r.win ? "#ar-b .dg-sprite" : "#ar-a .dg-sprite"); if (loser) loser.classList.add("dead");
-const b = $("ar-back"); if (b) b.disabled = false;
-const s = $("ar-skip"); if (s) s.disabled = true;
-}
-function arenaRestore() {
-$("dg-inner").innerHTML = arenaReplayHtml();
-const rp = arena.replay;
-const el = $("ar-log"); if (el) el.innerHTML = rp.lines.slice().reverse().map(l => `<div class="${l[1]}">${l[0]}</div>`).join("");
-arenaBars();
-if (rp.done) arenaEnd();
-}
-function arenaBack() { clearTimeout(arena.timer); arena.replay = null; arena.data = null; A.render(); }
-function showProfile(u) {
-if (!u) return;
-const dg = u.dungeon || {};
-const cls = dg.cls && H.CLASSES[dg.cls];
-const old = $("dg-profile"); if (old) old.remove();
-const el = document.createElement("div");
-el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
-el.onclick = (e) => { if (e.target === el) el.remove(); };
-el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
-<h2 style="color:var(--cyan);">${escapeHtml(u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
-<div style="display:flex;gap:12px;align-items:center;">
-${cls ? sprite(["sysadmin", "engineer", "cyber"].indexOf(dg.cls), "p") : '<div style="font-size:48px;">👤</div>'}
-<div class="tt-body" style="min-height:0;font-size:13px;">
-${cls ? `🎰 <b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "Not in HIGH STAKES yet<br>"}
-Missions cleared: <b>${dg.best || 0}/51</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
-Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
-Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
-${u.gear ? `<br>Gear: ${u.gear}` : ""}
-${window.Meta ? Meta.badgesHtml(u.ach) : ""}
-</div></div>
-<div style="text-align:right;margin-top:10px;"><button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
-document.body.appendChild(el);
-}
-A.registerMode("arena", { label: "🏟 ARENA", order: 90,
-render: function (box) { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); },
-busy: function () { return arena.busy || !!(arena.replay && !arena.replay.done); } });
-Object.assign(window.Dungeon, { arenaAttack: arenaAttack, arenaAtkStance: arenaAtkStance, arenaDefStance: arenaDefStance, arenaSkip: arenaSkip, arenaBack: arenaBack,
-arenaRefresh: function () { arena.data = null; A.render(); }, showProfile: showProfile });
-})();
-</script>
-<style>
-/* ===== HIGH STAKES - TOWER, ON-CALL SHIFT (roguelite), QUARTERLY REVIEW (world boss) ===== */
-.tw-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-top: 8px; max-width: 460px; }
-.tw-grid div { aspect-ratio: 1; border-radius: 3px; background: #10151f; border: 1px solid #1e2636; font: 700 9px 'Orbitron', monospace; display: flex; align-items: center; justify-content: center; color: #3b4252; }
-.tw-grid .ok { background: rgba(0,255,136,.15); border-color: rgba(0,255,136,.4); color: var(--emerald); }
-.tw-grid .nx { background: rgba(255,184,0,.2); border-color: var(--amber); color: var(--amber); animation: tabGlow .7s ease-in-out infinite alternate; }
-.tw-grid .bs { border-color: rgba(255,23,68,.5); }
-.hm-row { display: flex; gap: 10px; align-items: center; }
-.hm-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
-.sh-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-.sh-choice { padding: 12px 8px; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); cursor: pointer; text-align: center; }
-.sh-choice:hover { border-color: var(--cyan); }
-.sh-choice .ic { font-size: 26px; }
-.sh-choice b { display: block; font: 800 11px 'Orbitron', monospace; margin: 4px 0; }
-.sh-perks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.sh-perks span { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: rgba(168,85,247,.15); border: 1px solid rgba(168,85,247,.4); color: #d8b4fe; }
-.sh-path { display: flex; gap: 3px; margin: 6px 0; }
-.sh-path div { flex: 1; height: 6px; border-radius: 3px; background: #1e2636; }
-.sh-path .done { background: var(--emerald); } .sh-path .cur { background: var(--amber); }
-.wb-bar { height: 16px; background: #000; border: 1px solid rgba(255,23,68,.5); border-radius: 8px; overflow: hidden; position: relative; margin: 6px 0; }
-.wb-bar div { height: 100%; background: linear-gradient(90deg, #7f1d1d, #ff1744); transition: width .4s; }
-.wb-bar span { position: absolute; inset: 0; text-align: center; font: 800 10px/16px 'Orbitron', monospace; color: #fff; text-shadow: 0 1px 2px #000; }
-.wb-lb div { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
-.dg-tabs { flex-wrap: wrap; }
-.dg-tabs button { flex: 1 1 0; min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }   /* v8.7.5: na PC všech 7 záložek v jedné řadě */
-@media (max-width: 700px) { .dg-tabs button { flex: 1 0 30%; font-size: 10px; } .sh-choices { grid-template-columns: 1fr; } }
-</style>
-<script>
+<script type="text/plain" data-tt="ttbig2" data-i="1">
 (function () {
 "use strict";
-const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign;
+const H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;   // E = starý engine (jen aréna na serveru)
 const $ = (id) => document.getElementById(id);
-const fmt = A.fmt, fmtT = A.fmtT;
-const R = () => TT.rnd();
-const pick = (arr) => arr[Math.floor(R() * arr.length)];
-const esc = (t) => escapeHtml(String(t));
-function towerGc(f) { return Math.round(400 + 60 * Math.pow(f, 1.6)); }
-function towerXp(f) { return Math.round(30 + 14 * f); }
-function towerHtml(box) {
-const d = A.HS(), b = d.tower.best, next = Math.min(100, b + 1), m = C.towerFloor(next);
-const cells = [];
-for (let f = 1; f <= 100; f++) { const bs = !!C.TOWER_BOSS[f]; cells.push(`<div class="${f <= b ? "ok" : f === b + 1 ? "nx" : ""} ${bs ? "bs" : ""}">${f === 100 ? "🕶" : bs ? "☠" : f}</div>`); }
-box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>🗼 SERVER TOWER</span><span>${b}/100</span></div>
-<div class="dg-dim">Climb 100 floors of the server tower. Every 5th floor is an elite, every 10th floor (and floor 95) a boss. On floor 100 waits <b>THE ADMINISTRATOR</b> - beat him to unlock <b>♾ CLEAR THE POOL</b> forever.
-Every 10 floors = <b>+1% ATK and HP</b> in all HIGH STAKES modes (now <b>+${Math.floor(b / 10)}%</b>). The tower resets on prestige and gets <b>+25% harder</b> per prestige (now ×${C.prestigeMult().toFixed(2)}).</div></div>
-${b >= 100 ? `<div class="dg-card dg-lock"><div class="big">🏆</div><div style="font:800 14px Orbitron,monospace;color:var(--amber);">TOWER CONQUERED</div><div class="dg-dim">All 100 floors cleared. Respect.</div></div>` :
-`<div class="dg-card"><div class="dg-h"><span>NEXT: ${esc(m.name)}</span><span>⚡1</span></div>
-<div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}<br>
-Reward: ${fmt(towerXp(next))} XP, ${fmt(towerGc(next))} GC${next % 10 === 0 ? ", a GC bonus and +1% permanent power" : ""}<br>Your stats: ${A.statLine()}</div></div>
-<button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.towerGo()">⚔ CLIMB TO FLOOR ${next} (⚡1)</button></div>`}
-<div class="dg-card"><div class="dg-h">FLOORS</div><div class="tw-grid">${cells.join("")}</div></div>`;
+const fmt = (n) => Math.floor(n).toLocaleString();
+const ENERGY_BASE = 16, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
+function EMAX() { return ENERGY_BASE + (window.Plant ? Plant.fx("energy") : 0); }   // v8.7: Office Plant Sap Reserve
+const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
+const STAT_INFO = { str: ["STR", "damage"], vit: ["VIT", "max HP"], agi: ["AGI", "hit chance + dodge"], luck: ["LUCK", "crit, slot machine, timing zone"], end: ["END", "max stamina + stamina from QUICK / BLOCK"] };
+/** v8.6: tituly za první zabití tematických bossů */
+const BOSS_TITLES = { louis: "Siesta Survivor", italian: "Ate the Spaghetti", cobol: "Bryndza Approved", polishen: "Survived the Withdrawal", admin: "Root Access" };
+let view = "camp", chSel = 0, open = false, fight = null, fightMission = null, fightCtx = null, busyAnim = false, result = null, flog = [];
+function HS() {
+const g = gameState;
+if (!g.hs || typeof g.hs !== "object") g.hs = {};
+const d = g.hs;
+if (d.cls !== "sysadmin" && d.cls !== "engineer" && d.cls !== "cyber") d.cls = null;
+d.level = Math.max(1, Math.floor(Number(d.level) || 1));
+d.xp = Math.max(0, Number(d.xp) || 0);
+if (!d.stats || typeof d.stats !== "object") d.stats = {};
+["str", "vit", "agi", "luck", "end"].forEach(k => { d.stats[k] = Math.max(0, Math.floor(Number(d.stats[k]) || 0)); });
+const spent = Object.values(d.stats).reduce((a, b) => a + b, 0);
+d.pts = Math.max(0, H.statPoints(d.level) - spent);
+if (typeof d.energy !== "number" || !isFinite(d.energy)) { d.energy = EMAX(); d.energyAt = Date.now(); }
+if (!d.energyAt) d.energyAt = Date.now();
+if (!d.stars || typeof d.stars !== "object") d.stars = {};
+if (!d.sm || typeof d.sm !== "object") d.sm = {};
+Object.keys(d.stars).forEach(id => { const n = Number(d.stars[id]) || 0, old = n >= 3 ? 7 : n === 2 ? 3 : n === 1 ? 1 : 0; d.sm[id] = (Number(d.sm[id]) || 0) | old; });
+Object.keys(d.sm).forEach(id => { d.sm[id] = (Number(d.sm[id]) || 0) & 7; d.stars[id] = H.starCount(d.sm[id]); });
+delete d.items;                                                           // v8.5: consumables (coffee, energy drink...) jsou pryč
+d.wins = Math.max(0, Number(d.wins) || 0); d.losses = Math.max(0, Number(d.losses) || 0);
+if (d.arenaStance !== "safe" && d.arenaStance !== "normal" && d.arenaStance !== "allin") d.arenaStance = "normal";
+if (!d.t6 || typeof d.t6 !== "object") d.t6 = {};                        // prismatic: odemčené části těla (přežije prestiž)
+if (d.stars && typeof d.stars === "object") Object.keys(C.BOSS_SLOT).forEach(id => { if (d.stars[id] > 0) d.t6[C.BOSS_SLOT[id]] = true; });
+if (!d.tower || typeof d.tower !== "object") d.tower = { best: 0 };
+d.tower.best = Math.max(0, Math.min(100, Math.floor(Number(d.tower.best) || 0)));
+if (!d.shift || typeof d.shift !== "object") d.shift = { best: 0, asc: 0, runs: 0, clears: 0 };
+if (!d.wb || typeof d.wb !== "object") d.wb = {};
+if (!d.pool || typeof d.pool !== "object") d.pool = { best: 0, unlocked: false, run: null };
+d.pool.best = Math.max(0, Math.floor(Number(d.pool.best) || 0));
+if (d.pool.run !== undefined) delete d.pool.run;                       // v9.0: Pool je nekonečná věž, staré běhy (HP se přenášelo) končí
+if (d.tower.best >= 100) d.pool.unlocked = true;                       // v8.6: Clear The Pool se odemyká Administratorem (patro 100), navždy
+if (!d.bt || typeof d.bt !== "object") d.bt = {};
+if (d.tsel && !d.bt[d.tsel]) d.tsel = "";
+C.setPrestige(gameState.prestige || 0);                                   // v8.6.1: kampaň + tower +25 % za prestiž
+if (d.legacyBest == null) { const old = g.dungeon || {}; d.legacyBest = old.mode === "highstakes" ? 0 : Math.max(0, Math.floor(Number(old.best) || 0)); }
+d.tier = 1; d.branch = ""; d.artifacts = {}; d.equipped = []; d.promos = {}; d.exec = false;
+return d;
 }
-function towerGo() {
-const d = A.HS(), f = d.tower.best + 1;
-if (f > 100) return;
-if (!A.spendEnergy(1)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
-const m = C.towerFloor(f);
-A.beginFight(m, { mode: "tower", hud: () => `🗼 Floor ${f}/100${f % 10 === 0 ? " · BOSS" : f % 5 === 0 ? " · ELITE" : ""}`,
-onEnd: function (fi) {
-const lines = [], dd = A.HS();
-if (fi.win) {
-dd.wins++;
-if (f > dd.tower.best) dd.tower.best = f;
-gameState.coins += towerGc(f); lines.push(`+${fmt(towerGc(f))} GC`);
-A.gainXp(towerXp(f), lines); lines.unshift(`+${fmt(towerXp(f))} XP`);
-if (f % 10 === 0) { A.dropItem(lines); lines.push(`💪 +1% permanent power`); }
-if (f === 100) { TT.announce("CONQUERED THE SERVER TOWER", "HIGH STAKES", 0, towerGc(f)); if (!dd.pool.unlocked) { dd.pool.unlocked = true; lines.push("♾ CLEAR THE POOL unlocked!"); log("♾ The Administrator is down. CLEAR THE POOL is now unlocked - how deep can you go?", "special"); } }
-log(`🗼 TOWER floor ${f} cleared - ${lines.join(", ")}`, "special");
-} else { dd.losses++; const xp = fi.fled ? 0 : Math.round(towerXp(f) * 0.3); if (xp) A.gainXp(xp, lines); lines.push(xp ? `+${xp} XP` : "no reward"); }
-const btns = [{ label: "◀ TOWER", fn: () => Dungeon.tab("tower") }];
-if (fi.win && f < 100) btns.push({ label: `FLOOR ${f + 1} ▶`, cls: "btn-gold", fn: towerGo });
-else if (!fi.win) btns.push({ label: "↻ RETRY", cls: "btn-cyan", fn: towerGo });
-return { title: fi.win ? `FLOOR ${f} CLEARED` : "FALLEN", lines: lines, buttons: btns };
-} });
+const D = HS;                                               // aréna používá D()
+function cleared(d) { d = d || HS(); return Object.keys(d.stars).filter(k => d.stars[k] > 0).length; }
+function totalStars(d) { d = d || HS(); return Object.values(d.stars).reduce((a, b) => a + (Number(b) || 0), 0); }
+function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
+function unlocked() { const d = HS(); return (gameState.prestige || 0) >= 1 || maxChest() >= 10 || !!d.cls; }
+function regenEnergy() {
+const d = HS(), now = Date.now();
+if (d.energy >= EMAX()) { d.energyAt = now; return; }
+const n = Math.floor((now - d.energyAt) / ENERGY_MS);
+if (n > 0) { d.energy = Math.min(EMAX(), d.energy + n); d.energyAt = d.energy >= EMAX() ? now : d.energyAt + n * ENERGY_MS; }
 }
-const SHIFT_COST = 3, SHIFT_STEPS = 10, ASC_MAX = 10;
-const PERKS = {
-cpu:   { n: "Overclocked CPU", i: "🔥", t: "+12% ATK", st: true },
-ram:   { n: "Extra RAM", i: "🧠", t: "+15% max HP", st: true },
-l7:    { n: "Lucky 7s", i: "7️⃣", t: "Gamble: much better odds for 7️⃣ and ⭐", st: true },
-caff:  { n: "Caffeine Addict", i: "☕", t: "Block gives +6 focus", st: true },
-mon:   { n: "Wide Monitor", i: "🖥", t: "Power Strike zone +5%", st: true },
-duck:  { n: "Rubber Duck", i: "🦆", t: "Once per fight survive a lethal hit with 1 HP" },
-glove: { n: "Rubber Gloves", i: "🧤", t: "💀💀💀 no longer backfires" },
-vamp:  { n: "Vampire Script", i: "🧛", t: "Heal 8% of damage dealt", st: true },
-thorn: { n: "Thorny Firewall", i: "🌵", t: "Reflect 15% of damage taken", st: true },
-hot:   { n: "Hot Reload", i: "♻", t: "Heal 3% max HP every turn", st: true },
-early: { n: "Early Bird", i: "🐦", t: "First hit of every fight ×2" },
-root:  { n: "Root Access", i: "🔑", t: "Break meter fills 30% faster", st: true },
-chair: { n: "Ergonomic Chair", i: "🪑", t: "Start every fight with a 15% HP shield", st: true },
-mm:    { n: "Muscle Memory", i: "🥋", t: "Parry window much bigger" },
-eyes:  { n: "Sharp Eyes", i: "👁", t: "+6% crit", st: true },
-ninja: { n: "Ninja Mode", i: "🥷", t: "+5% dodge", st: true }
+/** v9.0: síla v HIGH STAKES je z COMBAT GEAR (gear.html), kancelářské itemy jsou jen na Click/Auto/Mult */
+function gear() {
+if (window.Gear) { const m = Gear.mult(); return { atk: m.atk, hp: m.hp, crit: m.crit }; }
+const lo = gameState.loadout || {};
+let a = 1, h = 1;
+WEAPON.forEach(s => { const it = lo[s]; if (it) a += E.gearSlotValue(it.tier, it.lvl); });
+ARMOR.forEach(s => { const it = lo[s]; if (it) h += E.gearSlotValue(it.tier, it.lvl); });
+return { atk: gearDR(a), hp: gearDR(h) };
+}
+/** v8.2: klesající přínos gearu - do ×2 lineárně, pak se blíží stropu ×3.2 (dřív T5/T6 gear dal až ×7) */
+function gearDR(x) { const r = x - 1; return r <= 1 ? x : 2 + 1.2 * (1 - Math.exp(-(r - 1) / 1.5)); }
+function towerBonus() { return 0.01 * Math.floor(HS().tower.best / 10); }
+function hero() {
+const d = HS(), h = H.buildHero(Object.assign({}, d, { bonus: towerBonus() }), gear());
+const gc = gear().crit || 0; if (gc) h.crit = Math.min(0.55, h.crit + gc);              // v9.0: talisman přidává crit
+if (window.Plant) { h.startFocus = Plant.fx("focus"); h.parryWin = Plant.fx("parry"); h.wildCherry = Plant.fx("wildCherry"); }   // v8.7: Office Plant
+return h;
+}
+function t6Unlocked(slot) { return !!HS().t6[slot]; }
+function t6Slots() { const t = HS().t6; return SLOTS.filter(s => t[s]); }
+function player() { const d = HS(); return E.buildPlayer({ cls: d.cls, level: d.level, tier: 1 }, gear()); }   // pro arénu
+function title(d) {
+d = d || HS();
+if (!d.cls) return "Rookie";
+if (d.tsel && d.bt && d.bt[d.tsel] && BOSS_TITLES[d.tsel]) return BOSS_TITLES[d.tsel];
+const c = cleared(d);
+const t = c >= 51 ? "Compliance Survivor" : c >= 50 ? "High Roller" : c >= 40 ? "Boardroom Brawler" : c >= 30 ? "Cloud Crusher" : c >= 20 ? "Breach Buster" : c >= 10 ? "Server Room Survivor" : "Helpdesk Hero";
+return t;
+}
+function wbBuff() { const w = HS().wb; return w.buffWeek && w.buffWeek === (window.HSModes && HSModes.week ? HSModes.week() : "") ? (Number(w.buff) || 0) : 0; }
+function netMultBonus() { const d = HS(); return (1 + 0.005 * totalStars(d) + (d.stars[50] ? 0.1 : 0)) * (1 + wbBuff()); }
+function clickCritBonus() { return HS().cls === "engineer" ? 0.03 : 0; }
+const sprite = (i, k) => HSArt.sprite(i, k), enemySprite = (m) => HSArt.enemySprite(m);
+/** v9.2: postava s tvým combat gearem (HSRig), jinak starý pixel sprite */
+function playerSprite() { const cls = HS().cls || "sysadmin"; return window.HSRig ? HSRig.player(cls, window.Gear ? Gear.st() : null) : sprite(["sysadmin", "engineer", "cyber"].indexOf(cls), "p"); }
+const RIG_MAP = { "atk-l": "a-quick", "atk-r": "a-quick", "hit": "a-hit" };
+function anim(id, cls) {
+if (window.HSRig && RIG_MAP[cls] && HSRig.act(id, RIG_MAP[cls])) return;
+const el = $(id); const s = el && el.firstElementChild; if (!s) return; s.classList.remove(cls); void s.getBoundingClientRect(); s.classList.add(cls); setTimeout(() => s.classList.remove(cls), 400);
+}
+/** v9.2: akční animace postav (útok podle akce, blok, úskok, zásah) + efekty arény */
+function pose(side, kind) { if (window.HSRig && HSRig.act(side === "p" ? "dg-ps" : "dg-bs", kind)) return; anim(side === "p" ? "dg-ps" : "dg-bs", kind === "a-hit" ? "hit" : side === "p" ? "atk-l" : "atk-r"); }
+function sfx(kind, side, color) { if (!window.HSRig) return; if (kind === "spark") HSRig.spark(side, color); else if (kind === "shake") HSRig.fx("shake", 320); else if (kind === "cheer") HSRig.fx("cheer", 1500); else if (kind === "slowmo") HSRig.fx("slowmo", 520); }
+function float(txt, side, color, big) {
+const ar = $("dg-arena"); if (!ar || document.hidden) return;
+const el = document.createElement("div");
+el.className = "dg-float" + (big ? " big" : "");
+el.textContent = txt; el.style.color = color;
+el.style.left = (side === "b" ? (big ? 52 : 60) + Math.random() * 10 : 8 + Math.random() * 10) + "%";
+el.style.top = (30 + Math.random() * 20) + "%";
+ar.appendChild(el);
+setTimeout(() => el.remove(), 1150);
+}
+function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); const d = HS(); if (d.cls && !d.tut && !fight) setTimeout(tutStart, 300); }
+/** v8.2.1: v rozehraném boji OFFICE / záložky nabídnou útěk (dřív se nic nestalo a vypadalo to, že hra zamrzla) */
+function askFlee() {
+if (!fight || fight.over) return true;
+if (busyAnim) return false;
+if (!window.confirm("You are in the middle of a fight.\nFlee and leave? (counts as a loss, energy is not refunded)")) return false;
+flee(); return true;
+}
+function closeScreen() { if (fight && !fight.over && !askFlee()) return; open = false; $("dg-screen").classList.remove("open"); if (window.ttRepaint) window.ttRepaint(); }
+const MODES = {};
+function registerMode(id, def) { MODES[id] = def; renderTabs(); }
+function renderTabs() {
+const box = $("dg-tabs"); if (!box) return;
+const ids = Object.keys(MODES).sort((a, b) => (MODES[a].order || 50) - (MODES[b].order || 50));
+const html = ids.map(id => `<button class="casino-tab-btn${id === view ? " active" : ""}${MODES[id].dot && MODES[id].dot() ? " tdot" : ""}" id="dg-t-${id}" onclick="Dungeon.tab('${id}')">${MODES[id].label}</button>`).join("");
+if (box.__h !== html) { box.innerHTML = html; box.__h = html; }
+}
+function tab(t) {
+if (!MODES[t]) return;
+if (fight && !fight.over && !askFlee()) return;
+if (MODES[view] && MODES[view].busy && MODES[view].busy()) return;
+view = t; result = null; fight = null; fightCtx = null;
+renderTabs(); render();
+}
+function renderKeys() {
+const d = HS(), el = $("dg-keys"); if (!el) return;
+const next = d.energy >= EMAX() ? "" : " (" + fmtT(ENERGY_MS - (Date.now() - d.energyAt)) + ")";
+const kh = `⚡${d.energy}/${EMAX()}${next}<span class="dg-kstar"> ⭐${totalStars(d)}</span>`;
+if (el.__h !== kh) { el.innerHTML = kh; el.__h = kh; }
+el.title = "Energy: +1 every 12 min, max " + EMAX();
+const tb = $("dg-tokbtn");
+if (tb) {
+const show = gameState.slotTokens > 0 && d.energy < EMAX() && !(fight && !fight.over);
+const t = `🎟→+${TOKEN_ENERGY}⚡ (${gameState.slotTokens})`;
+tb.style.display = show ? "" : "none"; if (tb.textContent !== t) tb.textContent = t;
+tb.title = "Turn 1 Slot Token into " + TOKEN_ENERGY + " energy";
+}
+}
+function fmtT(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+function render() {
+if (!open) return;
+regenEnergy(); renderKeys();
+const box = $("dg-inner"), d = HS();
+if (!unlocked()) { box.innerHTML = lockedHtml(); return; }
+if (!d.cls) { box.innerHTML = classPickHtml(false); return; }
+if (fight) { box.innerHTML = fightHtml(); fightRefresh(); restoreLog(); if (result) showResult(); return; }
+renderTabs();
+(MODES[view] || MODES.camp).render(box);
+}
+registerMode("camp", { label: "📖 CAMPAIGN", order: 10, render: function (box) { box.innerHTML = campHtml(); } });
+registerMode("hero", { label: "🧍 HERO", order: 80, render: function (box) { box.innerHTML = heroHtml(); }, dot: function () { try { return !!(window.Gear && Gear.affordable()) || HS().pts > 0; } catch (e) { return false; } } });
+function lockedHtml() {
+return `<div class="dg-card dg-lock"><div class="big">🔒</div>
+<div style="font:800 15px Orbitron,monospace;color:var(--crimson);margin:8px 0;">HIGH STAKES LOCKED</div>
+<div class="dg-dim">Reach <b>chest level 10</b> (you: ${maxChest()}) or <b>Prestige 1</b> to unlock HIGH STAKES:
+an action fighting game - every turn YOU choose: quick hit, power strike with timing, a slot-machine gamble, block or dodge.
+5 chapters of office horror from the Helpdesk to the Boardroom. Your level, stats and gear materials are <b>never reset</b> by prestige.</div></div>`;
+}
+function classPickHtml(respec) {
+return `<div class="dg-card"><div class="dg-h">${respec ? "CHANGE CLASS (" + fmt(respecCost()) + " GC)" : "WELCOME TO HIGH STAKES - CHOOSE YOUR CLASS"}</div>
+<div class="dg-dim" style="margin-bottom:8px;">Each turn you pick an action. The enemy shows what it will do next (⚔ attack, 💥 HEAVY, 🛡 defend) - play around it. ${respec ? "Level, stars and stat points stay." : ""}</div>
+<div class="dg-classes">${Object.keys(H.CLASSES).map(k => { const c = H.CLASSES[k];
+return `<div class="dg-class" onclick="Dungeon.pickClass('${k}')">${sprite(["sysadmin", "engineer", "cyber"].indexOf(k), "p")}<div class="ic">${c.icon}</div>
+<div style="font:800 12px Orbitron,monospace;margin:4px 0;">${c.name}</div><div class="dg-dim">${c.desc}<br><b>✨ ${c.skill}</b>: ${c.skillTxt}</div></div>`; }).join("")}</div>
+${respec ? `<div style="text-align:right;margin-top:8px;"><button class="btn" onclick="Dungeon.tab('hero')">CANCEL</button></div>` : ""}</div>`;
+}
+function starHtml(n, max) { let s = ""; for (let i = 0; i < (max || 3); i++) s += i < n ? "★" : `<span class="off">★</span>`; return `<span class="hs-stars">${s}</span>`; }
+/** 3 hvězdy mise podle bitmasky (každá je samostatný úkol) */
+function maskHtml(m) { return `<span class="hs-stars">${[1, 2, 4].map(b => m & b ? "★" : `<span class="off">★</span>`).join("")}</span>`; }
+function starGoals(m) { const b = m.bonus || {}; return ["Win the fight", "Win with 50%+ HP left", b.type === "turns" && b.n >= H.QUICK_WIN ? H.bonusText(b) : H.bonusText(b) + " - or win within " + H.QUICK_WIN + " turns"]; }
+function missionOpen(id) {
+const d = HS();
+if (id === 50) return (d.stars[49] || 0) > 0;
+return id === 0 || (d.stars[id - 1] || 0) > 0;
+}
+function chapterOpen(ci) { return ci === 0 || missionOpen(ci * 10); }
+function campHtml() {
+const d = HS(), xpN = C.xpToNext(d.level);
+const chs = C.CHAPTERS.map((c, i) => {
+const got = c.missions.reduce((a, _, mi) => a + (d.stars[i * 10 + mi] || 0), 0);
+return `<button class="btn ${chSel === i ? "sel" : ""}" ${chapterOpen(i) ? "" : "disabled"} onclick="Dungeon.chapter(${i})">${c.icon} ${i + 1}<br><small>${chapterOpen(i) ? got + "/30★" : "🔒"}</small></button>`;
+}).join("") + (missionOpen(50) ? `<button class="btn ${chSel === 5 ? "sel" : ""}" onclick="Dungeon.chapter(5)">📋 ?<br><small>SECRET</small></button>` : "");
+const ch = C.CHAPTERS[chSel];
+const ids = chSel === 5 ? [50] : ch.missions.map((_, mi) => chSel * 10 + mi);
+const ms = ids.map(id => {
+const m = C.mission(id), st = d.sm[id] || 0, op = missionOpen(id);
+return `<div class="hs-m ${op ? "" : "locked"} ${m.kind === "boss" || m.kind === "secret" ? "boss" : ""} ${m.kind === "compliance" ? "compliance" : ""}" ${op ? `onclick="Dungeon.mission(${id})"` : ""}>
+<div class="ic">${op ? m.enemy.icon : "🔒"}</div><div class="t"><b>${m.idx + 1}. ${escapeHtml(m.name)}</b>
+<span class="dg-dim">${m.kind === "normal" ? "" : m.kind.toUpperCase() + " · "}⚡${m.energy}</span></div>${maskHtml(st)}</div>`;
+}).join("");
+return `<div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${escapeHtml(gameState.ldap)} · LV ${d.level} · ${title()}</span><span style="color:var(--text-dim);">${cleared()}/51 · ⭐ ${totalStars()}</span></div>
+<div class="dg-dim">${statLine()} · stars boost the office: <b>×${netMultBonus().toFixed(2)}</b>${d.pts ? ` · <b style="color:var(--emerald);">${d.pts} stat points to spend!</b>` : ""}</div>
+<div class="dg-xp"><div style="width:${Math.min(100, d.xp / xpN * 100)}%"></div></div>
+</div>
+<div class="hs-ch">${chs}</div>
+<div class="dg-card"><div class="dg-h"><span>${chSel === 5 ? "📋 SECRET" : ch.icon + " Chapter " + (chSel + 1) + ": " + ch.name}</span></div>
+<div class="dg-dim" style="margin-bottom:8px;">${chSel === 5 ? "You beat the whole company. One email remains unread..." : ch.desc}</div>
+<div class="hs-ms">${ms}</div></div>`;
+}
+function statLine() { const h = hero(); return `❤ <b>${fmt(h.maxHp)}</b> · ⚔ <b>${fmt(h.atk)}</b> · ⚡ <b>${h.staMax}</b> · 🌀 <b>${Math.round(h.dodge * 100)}%</b> · 💥 crit <b>${Math.round(h.crit * 100)}%</b>`; }
+function heroHtml() {
+const d = HS(), h = hero(), g = gear();
+const rows = Object.keys(STAT_INFO).map(k => `<div class="hs-stat"><b>${STAT_INFO[k][0]}</b><span class="v">${5 + d.stats[k]}</span><span class="d">${STAT_INFO[k][1]}</span>
+<button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} data-hold="stat-${k}" onclick="Dungeon.stat('${k}',1)">+1</button>
+<button class="btn" style="padding:3px 8px;" ${d.pts >= 5 ? "" : "disabled"} onclick="Dungeon.stat('${k}',5)">+5</button></div>`).join("");
+return (window.Gear ? Gear.card() : "") + `<div class="dg-grid2">
+<div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${H.CLASSES[d.cls].name} · LV ${d.level}</span><span>${title()}</span></div>
+<div style="display:flex;gap:10px;align-items:center;">${playerSprite()}<div class="dg-dim">${statLine()}<br>Hit +${Math.round(h.hitBonus * 100)}% · timing zone ${Math.round(h.zone * 100)}% · gear ⚔×${g.atk.toFixed(2)} ❤×${g.hp.toFixed(2)}<br>✨ <b>${H.CLASSES[d.cls].skill}</b>: ${H.CLASSES[d.cls].skillTxt}<br>Wins ${d.wins} · Losses ${d.losses}</div></div>
+${titlesHtml(d)}
+<div class="dg-h" style="margin-top:10px;"><span>STAT POINTS</span><span style="color:${d.pts ? "var(--emerald)" : "var(--text-dim)"};">${d.pts} free</span></div>${rows}
+<div class="dg-dim" style="margin-top:6px;">+3 points every level. Your ⚒ combat gear (above) multiplies ATK and HP - office items only boost the office.</div>
+<div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 🎟)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
+<div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>
+<div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (1.9×) or <b>gold</b> (2.5×) zone, then it needs 2 turns to cool down.
+🎰 GAMBLE - spin 3 reels, <b>HOLD</b> the ones you like and re-spin the rest once (+10 stamina). Every symbol does something: 🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you (7️⃣7️⃣7️⃣ = 6× jackpot).
+🛡 BLOCK when the enemy shows 💥 HEAVY, ☄ UNLEASH or 💸 WITHDRAWAL: the ring comes after a random wind-up and speeds up - tap when it hits the gold ring. <b>PERFECT</b> = 0 damage, counter, stun · <b>GOOD</b> = -90% · miss = normal block. ☄ UNLEASH sends 3 rings, every boss has its own trick (watch out for the Administrator's fake rings).
+✨ Ultimates are a 2-second mini-game: tap fast (SysAdmin, Engineer) or hit the open ports (Cyber) - 70% to 125% power. 💢 Fill the enemy's <b>BREAK</b> bar to stagger it (it loses its turn, your next hit 1.5×) - breaking a ⏳ CHARGING enemy cancels its big attack. 💨 DODGE avoids the hit (dodging again right after is less likely to work).
+✨ SKILL needs 100 focus (you start with 30, QUICK gives the most). <b>Stamina does NOT refill by itself</b> - ⚔ QUICK (+15) and 🛡 BLOCK (+25, parry +35) recharge it for STRIKE and POWER.</div></div></div>`;
+}
+function titlesHtml(d) {
+const keys = Object.keys(BOSS_TITLES);
+return `<div class="dg-h" style="margin-top:10px;"><span>BOSS TITLES</span><span class="dg-dim">${keys.filter(k => d.bt[k]).length}/${keys.length}</span></div><div class="dg-row" style="flex-wrap:wrap;">` +
+keys.map(k => d.bt[k] ? `<button class="btn ${d.tsel === k ? "btn-gold" : ""}" style="padding:3px 8px;" onclick="Dungeon.setTitle('${k}')">${BOSS_TITLES[k]}</button>` : `<span class="dg-dim" style="padding:3px 6px;">🔒 ???</span>`).join("") +
+(d.tsel ? `<button class="btn" style="padding:3px 8px;" onclick="Dungeon.setTitle('')">default</button>` : "") + `</div>`;
+}
+function setTitle(k) { const d = HS(); d.tsel = k && d.bt[k] ? k : ""; TT.saveSoon(); render(); }
+/** v8.6: prestiž resetuje kampaň (hvězdy, prismatic) i tower; Clear The Pool zůstává odemčený */
+function onPrestige() {
+const d = HS();
+if (d.tower.best >= 100) d.pool.unlocked = true;
+d.stars = {}; d.sm = {}; d.t6 = {}; d.tower = { best: 0 }; chSel = 0;
+HS();
+if (window.Gear) Gear.onPrestige();
+log(`🎰 HIGH STAKES: campaign and tower reset - enemies are now ×${C.prestigeMult().toFixed(2)} stronger. Level and stats stay.`, "special");
+}
+function respecCost() { return 50000 * (1 + (gameState.prestige || 0)); }
+function pickClass(k) {
+const d = HS();
+if (d.cls && d.cls !== k) {
+const cost = respecCost();
+if (gameState.coins < cost) { log(`Changing class costs ${fmt(cost)} GC.`, "warning"); return; }
+gameState.coins -= cost; log(`HIGH STAKES: class changed to ${H.CLASSES[k].name}.`, "special");
+} else if (!d.cls) log(`🎰 HIGH STAKES: welcome, ${escapeHtml(gameState.ldap)} the ${H.CLASSES[k].name}!`, "special");
+d.cls = k; view = "camp"; TT.saveSoon(); updateUI(); render();
+if (!d.tut) setTimeout(tutStart, 300);                                    // v8.7.5: nový hráč -> rovnou trénink
+}
+function respec() { $("dg-inner").innerHTML = classPickHtml(true); }
+function stat(k, n) { const d = HS(); n = Math.min(n, d.pts); if (n <= 0) return; d.stats[k] += n; HS(); TT.saveSoon(); render(); }
+function resetStats() {
+const d = HS(), cost = Math.floor(respecCost() / 2);
+if (gameState.coins < cost) { log(`Resetting stats costs ${fmt(cost)} GC.`, "warning"); return; }
+gameState.coins -= cost; d.stats = {}; HS(); TT.saveSoon(); updateUI(); render();
+}
+function chapter(i) { chSel = i; render(); }
+function tokenEnergy() {
+const d = HS(); regenEnergy();
+if (gameState.slotTokens < 1 || d.energy >= EMAX()) return;
+gameState.slotTokens -= 1; d.energy = Math.min(EMAX(), d.energy + TOKEN_ENERGY);
+if (d.energy >= EMAX()) d.energyAt = Date.now();
+TT.saveSoon(); updateUI(); if (fight) renderKeys(); else render();
+}
+function mission(id) {
+if (!missionOpen(id)) return;
+const m = C.mission(id), d = HS(), st = d.stars[id] || 0, sm = d.sm[id] || 0;
+const el = document.createElement("div");
+el.className = "tt-overlay open"; el.id = "hs-intro"; el.style.zIndex = 10000;
+el.onclick = (e) => { if (e.target === el) el.remove(); };
+el.innerHTML = `<div class="tt-modal" style="border-color:${m.kind === "boss" || m.kind === "secret" ? "var(--crimson)" : "var(--cyan)"};">
+<h2 style="color:${m.kind === "boss" || m.kind === "secret" ? "var(--crimson)" : "var(--cyan)"};">${m.enemy.icon} ${escapeHtml(m.name)}</h2>
+<div style="display:flex;gap:12px;align-items:center;">${enemySprite(m)}<div class="tt-body" style="min-height:0;font-size:13px;">${escapeHtml(m.intro)}<br><br>
+<b>${escapeHtml(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}${m.survive ? `<br>🎯 <b>Survive ${m.survive} turns</b>` : ""}</div></div>
+<div class="dg-dim" style="margin-top:8px;line-height:1.6;">${starGoals(m).map((t, i) => `<span style="color:${sm & (1 << i) ? "#ffd700" : "var(--text-dim)"};">${sm & (1 << i) ? "★" : "☆"}</span> ${escapeHtml(t)}`).join("<br>")}</div>
+<div class="dg-dim" style="margin-top:4px;">Each star is its own goal and stays earned - collect them over several runs. Rewards: ${fmt(C.xpFor(id, !st))} XP, ${fmt(C.gcFor(id, !st))} GC${!st ? " (first clear)" : ""}</div>
+<div style="display:flex;gap:8px;margin-top:12px;"><button class="btn btn-gold" style="flex:2;padding:11px;" onclick="Dungeon.start(${id})">⚔ FIGHT (⚡${m.energy})</button>
+<button class="btn" style="flex:1;" onclick="this.closest('.tt-overlay').remove()">BACK</button></div></div>`;
+document.body.appendChild(el);
+}
+function start(id) {
+const intro = $("hs-intro"); if (intro) intro.remove();
+const d = HS(), m = C.mission(id);
+regenEnergy();
+if (d.energy < m.energy && !freeEnergy()) { log(`HIGH STAKES: not enough energy (${m.energy} needed). +1 every 12 min.`, "warning"); render(); return; }
+spendEnergy(m.energy);
+beginFight(m, { mode: "camp" });
+}
+function freeEnergy() { return !!(window.Meta && Meta.mult("energy") === 0); }   // firemní event OVERTIME
+function spendEnergy(n) {
+const d = HS(); regenEnergy();
+if (freeEnergy()) return true;
+if (d.energy < n) return false;
+d.energy -= n;
+if (d.energy < EMAX() && d.energy + n >= EMAX()) d.energyAt = Date.now();
+return true;
+}
+/** ctx: { mode, prepHero(hero), onEnd(f) -> {title, color, lines, buttons:[{label, cls, fn}]}, hud(f) } */
+function beginFight(m, ctx) {
+const d = HS();
+const hh = hero();
+if (ctx && ctx.prepHero) ctx.prepHero(hh);
+fight = H.newFight(hh, m, Math.floor(TT.rnd() * 2147483647) + 1);
+fightMission = m; fightCtx = ctx || { mode: "camp" }; result = null; flog = [];
+if (fightCtx.mode === "camp") view = "camp";
+TT.saveSoon();
+render();
+if (window.HSRig) { HSRig.act("dg-ps", "a-enter"); HSRig.act("dg-bs", "a-enter"); }
+dlog(`⚔ ${escapeHtml(m.enemy.name)} appears!`, "y");
+}
+function intentHtml() {
+const f = fight, it = f.intent;
+if (f.over) return "";
+if (it.fake) return `<span class="hs-intent special">❓ ???</span>`;
+const map = { atk: ["⚔", "ATTACK " + fmt(it.val), ""], heavy: ["💥", "HEAVY " + fmt(it.val), "heavy"], defend: ["🛡", "DEFEND", "defend"], flex: ["💪", "FLEX (heavy next!)", "defend"], special: ["✨", "SPECIAL", "special"],
+siesta: ["😴", "SIESTA (+50% damage!)", "stun"], pasta: ["🍝", "PASTA BREAK (break it!)", "charge"], restart: ["🔄", "FORCE RESTART (break it!)", "charge"], withdraw: ["💸", "WITHDRAWAL " + fmt(it.val) + " (parry/dodge!)", "unleash"],
+charge: ["⏳", "CHARGING...", "charge"], unleash: ["☄", "UNLEASH " + fmt(it.val), "unleash"], stun: ["😵", "STUNNED", "stun"] };
+const x = map[it.k] || map.atk;
+return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}</span>`;
+}
+function fightHtml() {
+const f = fight, m = fightMission, h = f.h;
+const acts = ["quick", "strike", "power", "gamble", "block", "dodge", "skill"].map(a => {
+const A = H.ACTIONS[a];
+return `<button class="btn ${a === "power" || a === "gamble" ? "btn-gold" : a === "block" || a === "dodge" ? "btn-cyan" : a === "skill" ? "btn-crimson" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${a === "skill" ? H.CLASSES[h.cls].skill.split(" ")[0] : A.name}<small id="hs-as-${a}">${a === "skill" ? "100 focus" : (A.gain ? "+" + A.gain + " STA" : A.sta + " STA")}</small></button>`;
+}).join("") + `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">FLEE<small>lose</small></button>`;
+return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span style="display:flex;gap:6px;align-items:center;"><span id="hs-turn">TURN 0</span><button type="button" class="btn hs-help-btn" onclick="Dungeon.help()" title="How to fight">?</button></span></div>
+<div class="dg-dim" id="hs-hud">${fightCtx && fightCtx.hud ? fightCtx.hud(f) : "★ win · ★ 50%+ HP · ★ " + escapeHtml(starGoals(m)[2]) + (m.survive ? " · 🎯 survive " + m.survive + " turns" : "")}</div></div>
+<div class="hs-form" id="hs-form" style="display:none;"></div>
+<div class="hs-fight">
+<div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(fightCtx && fightCtx.mode === "pool" ? 4 : fightCtx && fightCtx.mode === "boss" ? 4 : (m.ch != null ? m.ch : 0)) : ""}
+<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${H.CLASSES[h.cls].name} LV ${h.level}</div>
+<div id="dg-ps">${playerSprite()}</div>
+<div class="hs-bars">
+<div class="hs-lbl"><span>HP</span><span id="hs-hpt"></span></div><div class="hs-bar"><div class="hp" id="hs-hp"></div><div class="sh" id="hs-sh"></div></div>
+<div class="hs-lbl"><span>STAMINA</span><span id="hs-stat"></span></div><div class="hs-bar"><div class="sta" id="hs-sta"></div></div>
+<div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div></div></div>
+<div class="dg-vs">VS</div>
+<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div id="hs-intent">${intentHtml()}</div>
+<div id="dg-bs">${enemySprite(m)}</div>
+<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div>
+<div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div></div></div>
+</div>
+<div class="dg-mech" id="dg-mech"></div>
+<div class="hs-coach" id="hs-coach" style="display:none;"></div>
+<div class="hs-acts">${acts}</div>
+<div id="hs-ov-slot"></div>
+</div>
+<div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>`;
+}
+function fightRefresh() {
+const f = fight; if (!f) return;
+if (tut && fightCtx && fightCtx.tutorial) { const c = $("hs-coach"); if (c && !c.innerHTML) tutCoach(); }
+const h = f.h;
+const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+const txt = (id, t) => { const el = $(id); if (el) el.textContent = t; };
+set("hs-hp", f.hp / h.maxHp * 100); set("hs-sh", f.shield / h.maxHp * 100); set("hs-sta", f.sta / h.staMax * 100); set("hs-foc", f.focus);
+set("hs-ehp", f.ehp / f.emax * 100); set("hs-brk", f.brk);
+const bb = $("hs-brkb"); if (bb) bb.classList.toggle("full", !!f.vuln); if (f.vuln) set("hs-brk", 100);
+txt("hs-brkt", f.vuln ? "VULNERABLE 1.5×" : Math.floor(f.brk) + " / 100");
+txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
+txt("hs-stat", Math.floor(f.sta) + " / " + h.staMax); txt("hs-foct", Math.floor(f.focus) + " / 100");
+txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
+txt("hs-turn", "TURN " + f.turn + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
+if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
+const it = $("hs-intent"); if (it) it.innerHTML = intentHtml();
+["quick", "strike", "power", "gamble", "block", "dodge", "skill"].forEach(a => {
+const b = $("hs-a-" + a); if (!b) return;
+const ok = H.allowed(f, a) && !f.over && !busyAnim;
+b.disabled = !ok; b.classList.toggle("off", !ok); b.classList.toggle("lock", !!f.disabled[a]);
+b.classList.toggle("want", !!f.demand && f.demand === a && !f.over);
+const sm = $("hs-as-" + a), A = H.ACTIONS[a];
+if (sm && a !== "skill") { const t = f.cd[a] > 0 ? "COOLDOWN " + f.cd[a] : (A.gain ? "+" + A.gain + " STA" : A.sta + " STA"); if (sm.textContent !== t) sm.textContent = t; }
+});
+const fb = $("hs-form");
+if (fb) {
+fb.style.display = f.demand && !f.over ? "" : (f.redTape ? "" : "none");
+fb.innerHTML = (f.demand && !f.over ? (f.e.mech === "cobol" ? `🥟 "Do you want a bryndza?" - answer with <b>BLOCK</b> ("yes, thanks") or he gets offended`
+: f.e.mech === "louis" ? `🫅 SUPREME DECREE: this turn use <b>${H.ACTIONS[f.demand].name}</b> - anything else adds red tape`
+: `📋 FORM ${H.FORM_NO[f.demand]}: this turn use <b>${H.ACTIONS[f.demand].name}</b> (bonus damage) - anything else adds red tape`) : "") +
+(f.redTape ? `<span class="rt">RED TAPE ×${f.redTape}: -${8 * f.redTape}% ATK, -${4 * f.redTape}% dodge</span>` : "");
+}
+const fl = $("hs-a-flee"); if (fl) { fl.disabled = f.over || busyAnim; fl.style.visibility = fightCtx && fightCtx.tutorial ? "hidden" : ""; }
+}
+function dlog(t, cls) {
+flog.unshift({ t: t, c: cls || "" }); flog = flog.slice(0, 80);
+const el = $("dg-log"); if (!el) return;
+const div = document.createElement("div"); if (cls) div.className = cls; div.innerHTML = t;
+el.prepend(div); while (el.childNodes.length > 80) el.removeChild(el.lastChild);
+}
+function restoreLog() { const el = $("dg-log"); if (el) el.innerHTML = flog.slice().reverse().map(x => `<div class="${x.c}">${x.t}</div>`).join(""); }
+function act(a) {
+const f = fight; if (!f || f.over || busyAnim || !H.allowed(f, a)) return;
+if (a === "power") { timingGame(q => resolve("power", q)); return; }
+if (a === "gamble") { gambleGame(); return; }
+if (a === "skill") { ultGame(o => resolve("skill", o)); return; }
+if (a === "block" && !f.intent.fake && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) { parryGame(o => resolve("block", o)); return; }
+resolve(a, "none");
+}
+function resolve(a, timing) {
+const f = fight;
+const evs = H.step(f, a, timing);
+if (fightCtx && fightCtx.onStep && !f.over) fightCtx.onStep(f, a, evs);
+else if (fightCtx && fightCtx.onStep && f.over && tut) { f.over = false; f.win = false; fightCtx.onStep(f, a, evs); }
+play(evs); after();
+}
+function after() {
+fightRefresh();
+if (fight.over) {
+const f = fight;
+if (window.HSRig && !f.fled) setTimeout(() => {          // v9.2: poražený padne, vítěz se raduje
+const lose = document.querySelector(f.win ? "#dg-bs .rig" : "#dg-ps .rig"), win = document.querySelector(f.win ? "#dg-ps .rig" : "#dg-bs .rig");
+if (lose) lose.classList.add("dead"); if (win) win.classList.add("a-win"); if (f.win) sfx("cheer");
+}, 520);
+setTimeout(endFight, window.HSRig && !f.fled ? 1300 : 700);
+}
+}
+function flee() {
+if (!fight || fight.over || busyAnim) return;
+fight.over = true; fight.win = false; fight.fled = true;
+dlog("🏳 You fled the fight.", "r");
+endFight();
+}
+/** v8.5: během POWER / PARRY stačí ťuknout kamkoli na obrazovku (ne jen na lištu / kolečko) */
+function tapAnywhere(fn) {
+const down = (e) => { if (e.button > 0) return; e.preventDefault(); e.stopPropagation(); fn(); };
+const eat = (e) => { e.preventDefault(); e.stopPropagation(); };
+document.addEventListener("pointerdown", down, true);
+document.addEventListener("click", eat, true);
+return () => { document.removeEventListener("pointerdown", down, true); setTimeout(() => document.removeEventListener("click", eat, true), 350); };
+}
+function timingGame(cb) {
+const f = fight, zone = f.h.zone;
+busyAnim = true; fightRefresh();
+const gStart = 0.15 + Math.random() * (0.85 - zone - 0.15);
+const pW = zone * 0.3, pStart = gStart + (zone - pW) / 2;
+const box = $("hs-ov-slot");
+box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 10px;">💥 STOP THE NEEDLE! (tap anywhere / space)</div>
+<div class="hs-timing" id="hs-tm"><div class="g" style="left:${gStart * 100}%;width:${zone * 100}%"></div><div class="p" style="left:${pStart * 100}%;width:${pW * 100}%"></div><div class="n" id="hs-needle"></div></div></div>`;
+const t0 = performance.now(), period = 820;
+let done = false, raf = 0, pos = 0, untap = null;
+const stop = () => {
+if (done) return; done = true; cancelAnimationFrame(raf);
+document.removeEventListener("keydown", key, true); if (untap) untap();
+const q = pos >= pStart && pos <= pStart + pW ? "perfect" : pos >= gStart && pos <= gStart + zone ? "good" : "none";
+const ov = box.querySelector(".hs-ov");
+if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"};">${q === "perfect" ? "PERFECT! 2.5×" : q === "good" ? "GOOD! 1.9×" : "MISSED THE ZONE - normal hit"}</div>`);
+setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(q); }, 450);
 };
-function applyPerks(h, P) {
-const k = (id) => P[id] || 0;
-h.atk *= 1 + 0.12 * k("cpu"); h.maxHp = Math.round(h.maxHp * (1 + 0.15 * k("ram")));
-h.luckReel += 12 * k("l7"); h.zone = Math.min(0.6, h.zone + 0.05 * k("mon")); h.crit = Math.min(0.6, h.crit + 0.06 * k("eyes")); h.dodge = Math.min(0.5, h.dodge + 0.05 * k("ninja"));
-h.perks = { blockFocus: 6 * k("caff"), duck: !!k("duck"), noBackfire: !!k("glove"), vamp: 0.08 * k("vamp"), thorns: 0.15 * k("thorn"), regen: 0.03 * k("hot"),
-firstStrike: !!k("early"), breakBonus: 0.3 * k("root"), shieldStart: 0.15 * k("chair"), parryEasy: !!k("mm") };
+const key = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); stop(); } };
+document.addEventListener("keydown", key, true);
+untap = tapAnywhere(() => stop());
+const frame = (now) => {
+const t = ((now - t0) % (period * 2)) / period;
+pos = t < 1 ? t : 2 - t;
+const n = $("hs-needle"); if (n) n.style.left = "calc(" + (pos * 100) + "% - 2px)";
+if (now - t0 > period * 4) { stop(); return; }                   // po 2 průjezdech se zastaví sama
+raf = requestAnimationFrame(frame);
+};
+raf = requestAnimationFrame(frame);
 }
-function perkOffer(P, n) {
-const pool = Object.keys(PERKS).filter(id => PERKS[id].st || !P[id]);
-const out = [];
-while (out.length < n && pool.length) out.push(pool.splice(Math.floor(R() * pool.length), 1)[0]);
-return out;
+const PARRY_WIN = { perfect: 8, good: 18 };
+const PARRY_STYLE = { louis: "wobble", cobol: "lag", admin: "glitch", polishen: "steps", italian: "spiral" };
+function parryGame(cb) {
+const f = fight, k = f.intent.k, mech = f.e.mech;
+busyAnim = true; fightRefresh();
+const style = k === "withdraw" ? "steps" : PARRY_STYLE[mech] || "";
+const n = k === "unleash" ? 3 : 1, dur = k === "unleash" ? 750 : k === "withdraw" ? 1000 : 1100;
+const easy = (((f.h.perks || {}).parryEasy) ? 1.7 : 1) * (f.h.parryWin || 1), wP = PARRY_WIN.perfect * easy, wG = PARRY_WIN.good * easy;
+const from = 150, to = 14, target = 46;
+const box = $("hs-ov-slot");
+const title = k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one";
+box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">${title}</div>
+<div class="hs-parry ${style}" id="hs-pr"><div class="tgt"></div><div class="ring fake" id="hs-fake" style="display:none"></div><div class="ring" id="hs-ring" style="display:none"></div></div>
+<div class="hs-pdots" id="hs-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="hs-ovt" id="hs-pq">&nbsp;</div></div>`;
+const res = [];
+let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, untap = null, finished = false;
+const ringEl = () => $("hs-ring"), fakeEl = () => $("hs-fake");
+function place(el, sz, dx, dy) { if (!el) return; el.style.width = el.style.height = sz + "px"; el.style.margin = (-sz / 2 + (dy || 0)) + "px 0 0 " + (-sz / 2 + (dx || 0)) + "px"; }
+function mark(q) {
+res.push(q);
+const d = $("hs-pd"); if (d && d.children[idx]) d.children[idx].className = q;
+const pq = $("hs-pq");
+if (pq) { pq.textContent = q === "perfect" ? "PERFECT!" : q === "good" ? "GOOD" : "MISS"; pq.style.color = q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"; }
+cancelAnimationFrame(raf); clearTimeout(timer);
+const r = ringEl(); if (r) r.style.display = "none";
+const fk = fakeEl(); if (fk) fk.style.display = "none"; fakeOn = false;
+idx++;
+if (idx >= n) return done();
+phase = "wait"; timer = setTimeout(startRing, 150 + Math.random() * 400);   // nepravidelný rytmus mezi kroužky
 }
-function shiftX() { return C.levelToX(A.HS().level); }
-function stepGc() { return Math.round(C.gcFor(Math.min(50, Math.round(shiftX())), false) * 0.45); }
-function run() { return A.HS().shift.run || null; }
-const NODE = { fight: ["⚔", "INCIDENT", "A normal fight. Win = coins + a perk."], elite: ["💀", "ESCALATION", "Elite enemy. Harder, more coins, better perks."],
-event: ["❓", "SOMETHING WEIRD", "A random office event. Could be great. Could be HR."], shop: ["🛒", "VENDING MACHINE", "Spend shift coins on heals and perks."],
-rest: ["🛋", "BREAK ROOM", "Heal up or grab some coins."], boss: ["☠", "SHIFT BOSS", "The end of the shift. Beat it to clear the run."] };
-function rollChoices(r) {
-if (r.step === SHIFT_STEPS - 1) return ["boss"];
-const w = [["fight", 45], ["elite", 16], ["event", 17], ["shop", r.step >= 2 ? 11 : 0], ["rest", r.step >= 3 && r.last !== "rest" ? 11 : 0]];
-const one = () => { const s = w.reduce((a, x) => a + x[1], 0); let x = R() * s; for (const it of w) { if (x < it[1]) return it[0]; x -= it[1]; } return "fight"; };
-const a = one(); let b = one(), g = 0; while (b === a && g++ < 8) b = one();
-return [a, b];
+function done() {
+if (finished) return; finished = true;
+document.removeEventListener("keydown", key, true); if (untap) untap();
+const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
+const txt = n > 1 ? `${res.filter(r => r !== "none").length}/3 blocked` + (best === "perfect" ? " - FULL PARRY! counter + stun" : "")
+: best === "perfect" ? "PARRY! 0 damage + counter + stun" : best === "good" ? (k === "withdraw" ? "GOOD - she only gets half" : "GOOD BLOCK! -90% damage") : "Normal block";
+const pq = $("hs-pq"); if (pq) { pq.textContent = txt; pq.style.color = best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)"; }
+setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(n > 1 ? { rings: res } : { parry: best }); }, 520);
 }
-function shiftStart(asc) {
-const d = A.HS();
-if (run()) return;
-asc = Math.max(0, Math.min(d.shift.asc || 0, asc | 0));
-if (!A.spendEnergy(SHIFT_COST)) { log(`ON-CALL SHIFT costs ⚡${SHIFT_COST}.`, "warning"); A.render(); return; }
-const r = { asc: asc, step: 0, hp: 1, coins: 0, perks: {}, choices: null, phase: "map", offer: null, ev: null, last: "", seed: Math.floor(R() * 1e6), log: [] };
-r.choices = rollChoices(r);
-d.shift.run = r; d.shift.runs = (d.shift.runs || 0) + 1;
-TT.saveSoon(); A.render();
+function startRing() {
+if (finished) return;
+if (style === "glitch" && Math.random() < 0.55) {             // Administrator: falešný šedý kroužek - neťukej!
+fakeOn = true; const fk = fakeEl(); if (fk) fk.style.display = "";
+const ft0 = performance.now(), fdur = 420 + Math.random() * 200, stopAt = 0.45 + Math.random() * 0.35;
+const ff = (now) => {
+const t = (now - ft0) / fdur;
+place(fakeEl(), from - (from - to) * Math.min(stopAt, Math.pow(t, 1.5)));
+if (t >= stopAt) { fakeOn = false; const e = fakeEl(); if (e) e.style.display = "none"; timer = setTimeout(realRing, 120 + Math.random() * 250); return; }
+raf = requestAnimationFrame(ff);
+};
+raf = requestAnimationFrame(ff); return;
 }
-function shiftHtml(box) {
-const d = A.HS(), r = run(), sh = d.shift;
-if (!r) {
-const ascBtns = []; for (let a = 0; a <= Math.min(ASC_MAX, sh.asc || 0); a++) ascBtns.push(`<button class="btn ${a === (sh.asc || 0) ? "btn-gold" : ""}" style="padding:8px 10px;" onclick="HSModes.shiftStart(${a})">${a === 0 ? "NORMAL" : "ASC " + a}</button>`);
-box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📟 ON-CALL SHIFT</span><span>⚡${SHIFT_COST}</span></div>
-<div class="dg-dim">A roguelite run: ${SHIFT_STEPS} stops, you pick the path. <b>Your HP does NOT reset between fights.</b> After each fight pick 1 of 3 perks -
-build a broken combo (Lucky 7s + Rubber Gloves = gambling machine). Events, a vending machine, a break room and a boss at the end.
-Enemies scale with your level. Clear a shift to unlock the next <b>Ascension</b> (harder, better rewards).</div>
-<div class="dg-dim" style="margin-top:6px;">Runs ${sh.runs || 0} · Clears ${sh.clears || 0} · Best ${sh.best || 0}/${SHIFT_STEPS} · Ascension unlocked ${sh.asc || 0}/${ASC_MAX}</div>
-<div class="dg-row" style="margin-top:10px;">${ascBtns.join("")}</div></div>`;
-return;
+realRing();
 }
-const pathCells = []; for (let i = 0; i < SHIFT_STEPS; i++) pathCells.push(`<div class="${i < r.step ? "done" : i === r.step ? "cur" : ""}"></div>`);
-const perks = Object.keys(r.perks).map(id => `<span title="${esc(PERKS[id].t)}">${PERKS[id].i} ${esc(PERKS[id].n)}${r.perks[id] > 1 ? " ×" + r.perks[id] : ""}</span>`).join("") || `<span style="opacity:.5;">no perks yet</span>`;
-const hh = shiftHero();
-const head = `<div class="dg-card"><div class="dg-h"><span>📟 SHIFT${r.asc ? " · ASC " + r.asc : ""} · STOP ${r.step + 1}/${SHIFT_STEPS}</span><span>🪙 ${r.coins}</span></div>
-<div class="sh-path">${pathCells.join("")}</div>
-<div class="dg-dim">❤ <b>${fmt(Math.ceil(r.hp * hh.maxHp))}</b> / ${fmt(hh.maxHp)} · ⚔ <b>${fmt(hh.atk)}</b></div>
-<div class="sh-perks">${perks}</div></div>`;
-let body = "";
-if (r.phase === "map") {
-body = `<div class="dg-card"><div class="dg-h">CHOOSE YOUR NEXT STOP</div><div class="sh-choices">${r.choices.map((c, i) => `<div class="sh-choice" onclick="HSModes.shiftGo(${i})"><div class="ic">${NODE[c][0]}</div><b>${NODE[c][1]}</b><div class="dg-dim">${NODE[c][2]}</div></div>`).join("")}</div>
-<div style="text-align:right;margin-top:8px;"><button class="btn" style="padding:5px 10px;font-size:10px;" onclick="HSModes.shiftQuit()">END SHIFT EARLY</button></div></div>`;
-} else if (r.phase === "perk") {
-body = `<div class="dg-card"><div class="dg-h">PICK A PERK</div><div class="sh-choices">${r.offer.map(id => `<div class="sh-choice" onclick="HSModes.shiftPerk('${id}')"><div class="ic">${PERKS[id].i}</div><b>${esc(PERKS[id].n)}${r.perks[id] ? " (" + (r.perks[id] + 1) + ")" : ""}</b><div class="dg-dim">${esc(PERKS[id].t)}</div></div>`).join("")}</div></div>`;
-} else if (r.phase === "event") {
-const e = EVENTS[r.ev];
-body = `<div class="dg-card"><div class="dg-h">${e.i} ${esc(e.n)}</div><div class="dg-dim">${esc(e.t)}</div>
-<div class="sh-choices">${e.o.map((o, i) => `<div class="sh-choice" onclick="HSModes.shiftEvent(${i})"><b>${esc(o[0])}</b><div class="dg-dim">${esc(o[1])}</div></div>`).join("")}</div></div>`;
-} else if (r.phase === "shop") {
-body = `<div class="dg-card"><div class="dg-h">🛒 VENDING MACHINE <span>🪙 ${r.coins}</span></div><div class="sh-choices">
-${SHOP.map((s, i) => `<div class="sh-choice" onclick="HSModes.shiftBuy(${i})" style="${r.coins < s.c || (r.bought || {})[i] ? "opacity:.4;" : ""}"><div class="ic">${s.i}</div><b>${esc(s.n)} - 🪙${s.c}</b><div class="dg-dim">${esc(s.t)}</div></div>`).join("")}</div>
-<button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="HSModes.shiftShopDone()">CONTINUE ▶</button></div>`;
-} else if (r.phase === "rest") {
-body = `<div class="dg-card"><div class="dg-h">🛋 BREAK ROOM</div><div class="sh-choices">
-<div class="sh-choice" onclick="HSModes.shiftRest(0)"><div class="ic">😴</div><b>POWER NAP</b><div class="dg-dim">Heal 40% max HP</div></div>
-<div class="sh-choice" onclick="HSModes.shiftRest(1)"><div class="ic">🎲</div><b>OFFICE POKER</b><div class="dg-dim">+1 random perk, but -10% HP</div></div></div></div>`;
+function realRing() {
+if (finished) return;
+phase = "ring"; t0 = performance.now(); size = from;
+const r = ringEl(); if (r) r.style.display = "";
+const fr = (now) => {
+let t = Math.min(1, (now - t0) / dur);
+if (style === "lag") t = t < 0.35 ? t : t < 0.55 ? 0.35 : 0.35 + (t - 0.55) * (0.65 / 0.45);
+let e = Math.pow(t, 1.6);                                  // zrychluje k cíli
+if (style === "steps") e = Math.min(1, Math.floor(e * 8 + 0.5) / 8);
+size = from - (from - to) * e;
+let dx = 0, dy = 0;
+if (style === "wobble") dx = Math.sin(t * 22) * 16 * (1 - t * 0.5);
+if (style === "spiral") { const rr = 22 * (1 - t); dx = Math.cos(t * 16) * rr; dy = Math.sin(t * 16) * rr; }
+place(ringEl(), size, dx, dy);
+if (t >= 1) { mark("none"); return; }
+raf = requestAnimationFrame(fr);
+};
+raf = requestAnimationFrame(fr);
 }
-const logH = r.log.length ? `<div class="dg-card"><div class="dg-h">SHIFT LOG</div>${r.log.slice(-6).reverse().map(l => `<div class="dg-dim">${l}</div>`).join("")}</div>` : "";
-box.innerHTML = head + body + logH;
+function tap() {
+if (finished) return;
+if (fakeOn || phase !== "ring") { mark("none"); return; }      // moc brzo / na falešný kroužek = pokažený block
+const d = Math.abs(size - target);
+mark(d <= wP ? "perfect" : d <= wG ? "good" : "none");
 }
-function shiftHero() { const r = run(), h = A.hero(); applyPerks(h, r ? r.perks : {}); return h; }
-function rlog(t) { const r = run(); if (r) { r.log.push(t); if (r.log.length > 20) r.log.shift(); } }
-function heal(p) { const r = run(); r.hp = Math.min(1, r.hp + p); }
-function shiftGo(i) {
-const r = run(); if (!r || r.phase !== "map") return;
-const node = r.choices[i]; if (!node) return;
-r.last = node;
-if (node === "fight" || node === "elite" || node === "boss") return shiftFight(node);
-if (node === "event") { r.ev = Math.floor(R() * EVENTS.length); r.phase = "event"; }
-if (node === "shop") { r.phase = "shop"; r.bought = {}; }
-if (node === "rest") r.phase = "rest";
-TT.saveSoon(); A.render();
+const key = (e) => { if (e.repeat) return; if (e.key === " " || e.key === "Enter" || e.key === "5") { e.preventDefault(); tap(); } };
+document.addEventListener("keydown", key, true);
+untap = tapAnywhere(tap);
+timer = setTimeout(startRing, 200 + Math.random() * 600);       // nádech: kroužek přijde náhodně za 0.2 - 0.8 s
 }
-function shiftFight(node) {
-const r = run();
-const m = C.shiftEnemy(A.HS().level, node, r.step, r.asc, r.seed + r.step * 31, A.hero());
-A.beginFight(m, { mode: "shift",
-prepHero: function (h) { applyPerks(h, r.perks); h.startHp = Math.max(1, r.hp * h.maxHp); },
-hud: () => `📟 Shift stop ${r.step + 1}/${SHIFT_STEPS}${r.asc ? " · ASC " + r.asc : ""} · ${node.toUpperCase()} · HP carries over!`,
-onEnd: function (f) {
-const lines = [], d = A.HS();
-if (f.win) {
-d.wins++;
-r.hp = Math.max(0.01, f.hp / f.h.maxHp);
-const coins = node === "boss" ? 0 : node === "elite" ? 45 : 25;
-r.coins += coins;
-const gc = Math.round(stepGc() * (node === "elite" ? 1.5 : 1) * (1 + 0.25 * r.asc));
-gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
-const xp = Math.round(C.xpFor(Math.min(50, Math.round(shiftX())), false) * 0.6 * (1 + 0.15 * r.asc));
-A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`);
-if (coins) lines.push(`+${coins} 🪙`);
-rlog(`${NODE[node][0]} Beat ${esc(f.e.name)} (${Math.round(r.hp * 100)}% HP left)`);
-if (node === "boss") return shiftEnd(true, lines);
-r.step++; r.phase = "perk"; r.offer = perkOffer(r.perks, 3);
-d.shift.best = Math.max(d.shift.best || 0, r.step);
-return { title: node === "elite" ? "ESCALATION HANDLED" : "INCIDENT RESOLVED", lines: lines, buttons: [{ label: "PICK A PERK ▶", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+const ULT_MS = 2000, ULT_MIN_GAP = 35;
+function tapsToQ(n) { return n <= 5 ? 0.7 : n <= 16 ? 0.7 + 0.3 * (n - 5) / 11 : Math.min(1.25, 1 + 0.25 * (n - 16) / 8); }
+function ultGame(cb) {
+const f = fight, cls = f.h.cls, sk = H.CLASSES[cls].skill;
+busyAnim = true; fightRefresh();
+const box = $("hs-ov-slot");
+let body = "", hint = "";
+if (cls === "sysadmin") { hint = "TAP AS FAST AS YOU CAN - build the wall!"; body = `<div class="hs-wall" id="hs-ug">${Array(24).fill("<i></i>").join("")}</div>`; }
+else if (cls === "engineer") { hint = "MASH to push the deploy through!"; body = `<div class="hs-deploy"><div id="hs-ug"></div><span id="hs-ugt">deploying... 0%</span></div>`; }
+else { hint = "HIT THE OPEN PORTS!"; body = `<div class="hs-ports" id="hs-ug"></div>`; }
+box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;color:#ff4dff;">✨ ${sk}: ${hint}</div>${body}
+<div class="hs-ulttime"><div id="hs-utb"></div></div><div class="hs-ovt" id="hs-uq">&nbsp;</div>
+<div class="hs-ultgo" id="hs-ugo"><b>TAP TO START</b><small>${cls === "cyber" ? "then tap the ports as they pop up" : "then tap anywhere as fast as you can"} · 2 seconds</small></div></div>`;
+let taps = 0, last = 0, hits = 0, finished = false, raf = 0, phase = "ready", t0 = 0;
+const ports = [];
+function count() {
+const now = performance.now(); if (now - last < ULT_MIN_GAP) return; last = now;
+taps++;
+if (cls === "sysadmin") { const b = $("hs-ug"); if (b && b.children[taps - 1]) b.children[taps - 1].className = "on"; }
+if (cls === "engineer") { const b = $("hs-ug"), t = $("hs-ugt"), p = Math.round(tapsToQ(taps) / 1.25 * 100); if (b) b.style.width = p + "%"; if (t) t.textContent = "deploying... " + Math.round(tapsToQ(taps) * 100) + "%"; }
+const uq = $("hs-uq"); if (uq && cls !== "cyber") uq.textContent = Math.round(tapsToQ(taps) * 100) + "%";
 }
-d.losses++;
-return shiftEnd(false, lines);
-} });
+const PORTS = [22, 80, 443, 3389, 8080, 445];
+function spawnPorts() {
+for (let i = 0; i < 4; i++) setTimeout(() => {
+if (finished) return;
+const g = $("hs-ug"); if (!g) return;
+const el = document.createElement("button");
+el.className = "hs-port"; el.type = "button"; el.textContent = ":" + PORTS[Math.floor(Math.random() * PORTS.length)];
+el.style.left = (8 + Math.random() * 72) + "%"; el.style.top = (8 + Math.random() * 62) + "%";
+g.appendChild(el); ports.push(el);
+setTimeout(() => { if (!el.classList.contains("hit")) el.classList.add("gone"); }, 620);
+}, 120 + i * 430 + Math.random() * 120);
 }
-function shiftEnd(win, lines) {
-const d = A.HS(), r = run();
-const steps = win ? SHIFT_STEPS : r.step;
-d.shift.best = Math.max(d.shift.best || 0, steps);
-if (win) {
-d.shift.clears = (d.shift.clears || 0) + 1;
-const bonus = Math.round(stepGc() * 3 * (1 + 0.25 * r.asc));
-gameState.coins += bonus; lines.push(`🏆 shift bonus +${fmt(bonus)} GC`);
-A.dropItem(lines); A.dropItem(lines);
-if (r.asc >= (d.shift.asc || 0) && (d.shift.asc || 0) < ASC_MAX) { d.shift.asc = (d.shift.asc || 0) + 1; lines.push(`🔓 Ascension ${d.shift.asc} unlocked`); }
-log(`📟 ON-CALL SHIFT CLEARED${r.asc ? " (ASC " + r.asc + ")" : ""}! ${lines.join(", ")}`, "special");
-if (r.asc >= 5) TT.announce("CLEARED ASCENSION " + r.asc + " SHIFT", "HIGH STAKES", 0, bonus);
-} else log(`📟 Shift over at stop ${r.step + 1}/${SHIFT_STEPS}.`, "warning");
-d.shift.run = null;
-if (window.Meta && Meta.onShift) try { Meta.onShift(r.asc, steps); } catch (e) {}
-TT.saveSoon();
-return { title: win ? "SHIFT CLEARED" : "BURNED OUT", sub: `${steps}/${SHIFT_STEPS} stops`, lines: lines.length ? lines : ["Better luck next shift."],
-buttons: [{ label: "◀ SHIFT", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+/** v8.7.5: TAP TO START -> odpočet 3-2-1 -> 2 s mini-hra (ťuknutí během odpočtu se nepočítají) */
+function begin() {
+if (phase !== "ready") return;
+phase = "count";
+const go = $("hs-ugo"); let n = 3;
+const tickC = () => {
+if (finished) return;
+if (n > 0) { if (go) go.innerHTML = `<b class="cd">${n}</b>`; n--; setTimeout(tickC, 380); return; }
+if (go) go.remove();
+phase = "run"; t0 = performance.now();
+if (cls === "cyber") spawnPorts();
+raf = requestAnimationFrame(fr);
+};
+tickC();
 }
-function shiftPerk(id) {
-const r = run(); if (!r || r.phase !== "perk" || r.offer.indexOf(id) < 0) return;
-r.perks[id] = (r.perks[id] || 0) + 1; rlog(`${PERKS[id].i} Took ${esc(PERKS[id].n)}`);
-shiftNext();
+function onDown(e) {
+if (e.button > 0) return;
+e.preventDefault(); e.stopPropagation();
+if (phase === "ready") { begin(); return; }
+if (phase !== "run") return;
+if (cls !== "cyber") { count(); return; }
+const p = e.target && e.target.closest ? e.target.closest(".hs-port") : null;
+if (p && !p.classList.contains("hit") && !p.classList.contains("gone")) { p.classList.add("hit"); hits++; const uq = $("hs-uq"); if (uq) uq.textContent = hits + "/4 ports"; }
 }
-function shiftNext() { const r = run(); if (!r) return; r.phase = "map"; r.choices = rollChoices(r); TT.saveSoon(); A.render(); }
-function advance() { const r = run(); r.step++; A.HS().shift.best = Math.max(A.HS().shift.best || 0, r.step); }
-function shiftQuit() { const r = run(); if (!r) return; if (!confirm("End this shift? You keep what you earned so far.")) return; A.HS().shift.run = null; TT.saveSoon(); A.render(); }
-const EVENTS = [
-{ i: "☕", n: "Free Coffee", t: "Someone left a full coffee on their desk. Nobody is looking.", o: [["Drink it", "Heal 30% (or is it decaf?)"], ["Leave it", "+15 coins for honesty"]],
-f: [() => { if (R() < 0.75) { heal(0.3); return "☕ Delicious. +30% HP"; } return "☕ It was decaf. Nothing happens."; }, () => { run().coins += 15; return "😇 +15 coins"; }] },
-{ i: "🚪", n: "Open Server Room", t: "The server room door is propped open with a chair.", o: [["Sneak in", "Random perk, -15% HP"], ["Report it", "+25 coins"]],
-f: [() => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; run().hp = Math.max(0.05, run().hp - 0.15); return "🚪 Found " + PERKS[id].n + "! -15% HP"; }, () => { run().coins += 25; return "📋 +25 coins"; }] },
-{ i: "🎰", n: "Break Room Slot Machine", t: "There's a slot machine in the break room. Since when?", o: [["Spin (20 coins)", "50% +60 coins, 15% perk"], ["Walk away", "Nothing happens"]],
-f: [() => { const r = run(); if (r.coins < 20) return "🎰 Not enough coins."; r.coins -= 20; const x = R(); if (x < 0.5) { r.coins += 60; return "🎰 WIN! +60 coins"; } if (x < 0.65) { const id = perkOffer(r.perks, 1)[0]; r.perks[id] = (r.perks[id] || 0) + 1; return "🎰 JACKPOT: " + PERKS[id].n; } return "🎰 Nothing. Classic."; }, () => "🚶 You walk away."] },
-{ i: "📅", n: "Quick Sync?", t: "Your manager wants a 'quick sync'. It will not be quick.", o: [["Accept", "-10% HP, +40 coins"], ["Fake a call", "Nothing happens"]],
-f: [() => { run().hp = Math.max(0.05, run().hp - 0.1); run().coins += 40; return "📅 1 hour later... +40 coins, -10% HP"; }, () => "📞 'Sorry, I'm on a call!'"] },
-{ i: "💾", n: "Mysterious USB Stick", t: "A USB stick labelled 'SALARIES 2026' lies on the floor.", o: [["Plug it in", "50% perk / 50% -25% HP"], ["Throw it away", "+10 coins"]],
-f: [() => { if (R() < 0.5) { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; return "💾 Free perk: " + PERKS[id].n; } run().hp = Math.max(0.05, run().hp - 0.25); return "💾 It was malware. -25% HP"; }, () => { run().coins += 10; return "🗑 +10 coins"; }] },
-{ i: "🍕", n: "Pizza Friday", t: "There's leftover pizza in the kitchen.", o: [["Eat 3 slices", "Heal 50%"], ["Take it to the team", "+35 coins"]],
-f: [() => { heal(0.5); return "🍕 +50% HP"; }, () => { run().coins += 35; return "🍕 The team loves you. +35 coins"; }] }
-];
-const SHOP = [
-{ i: "🩹", n: "First Aid Kit", c: 30, t: "Heal 35% HP", f: () => heal(0.35) },
-{ i: "🎁", n: "Mystery Perk", c: 60, t: "A random perk", f: () => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; rlog("🛒 Bought " + PERKS[id].n); } }
-];
-function shiftEvent(i) {
-const r = run(); if (!r || r.phase !== "event") return;
-const e = EVENTS[r.ev]; const msg = e.f[i] ? e.f[i]() : "";
-rlog(msg); advance(); shiftNext();
-}
-function shiftBuy(i) {
-const r = run(); if (!r || r.phase !== "shop") return;
-r.bought = r.bought || {};
-const s = SHOP[i]; if (!s || r.coins < s.c || r.bought[i]) return;
-r.coins -= s.c; r.bought[i] = true; s.f(); TT.saveSoon(); A.render();
-}
-function shiftRest(i) {
-const r = run(); if (!r || r.phase !== "rest") return;
-if (i === 0) { heal(0.4); rlog("😴 Power nap: +40% HP"); }
-else { const id = perkOffer(r.perks, 1)[0]; r.perks[id] = (r.perks[id] || 0) + 1; r.hp = Math.max(0.05, r.hp - 0.1); rlog("🎲 Won " + PERKS[id].n + " at poker, -10% HP"); }
-advance(); shiftNext();
-}
-function shiftShopDone() { const r = run(); if (!r || r.phase !== "shop") return; advance(); shiftNext(); }
-const wb = { st: null, loading: false, err: "", busy: false, at: 0 };
-function week() { return String(Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000))); }
-function wbLoad(force) {
-if (wb.loading || (!force && wb.st && Date.now() - wb.at < 20000)) return;
-wb.loading = true;
-google.script.run.withSuccessHandler(r => {
-wb.loading = false; wb.at = Date.now();
-if (r && r.ok) { wb.st = r; wb.err = ""; wbClaim(); } else wb.err = "Could not load the boss.";
-if (A.isOpen() && A.view() === "boss") A.render();
-}).withFailureHandler(e => { wb.loading = false; wb.err = String(e && e.message || e); if (A.isOpen() && A.view() === "boss") A.render(); }).wbState();
-}
-/** odměna za minulý týden: když padl a hráč se zúčastnil -> +10 % do kanceláře (+3 % za každý další MK, max +25 %; nejlepší +5 %), GC ×(1 + 0.25 za každý další MK) */
-function wbReward(kills, top) { const k = Math.max(1, kills || 1); return { buff: Math.min(0.25, 0.10 + 0.03 * (k - 1)) + (top ? 0.05 : 0), gcMul: 1 + 0.25 * (k - 1) }; }
-function wbClaim() {
-const l = wb.st && wb.st.last, d = A.HS();
-if (!l || d.wb.claimed === String(l.week)) return;
-d.wb.claimed = String(l.week);
-if (l.killed && l.myDmg > 0) {
-const rw = wbReward(l.kills, l.top === gameState.ldap);
-d.wb.buff = rw.buff; d.wb.buffWeek = week();
-const gc = Math.round(l.myDmg * 4 * rw.gcMul);
-gameState.coins += gc;
-log(`📊 QUARTERLY REVIEW: last week's boss went down${l.kills > 1 ? " " + l.kills + "× (up to " + C.mkName(l.kills) + ")" : ""}! You get ×${(1 + d.wb.buff).toFixed(2)} office income this week and +${fmt(gc)} GC${l.top === gameState.ldap ? " (Employee of the Week!)" : ""}.`, "special");
-updateUI();
-}
-TT.saveSoon();
-}
-function wbHtml(box) {
-wbLoad(false);
-const s = wb.st;
-if (!s) { box.innerHTML = `<div class="dg-card"><div class="dg-dim">${wb.err ? "⚠ " + esc(wb.err) : "Loading the Quarterly Review..."}</div></div>`; return; }
-const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk, A.hero()), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
-const wait = Math.max(0, c.me.wait - (Date.now() - wb.at)), dead = false, rw = wbReward(kills, false), rwN = wbReward(kills + 1, false);
-const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
-const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
-const l = s.last;
-box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
-<div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
-<div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
-<div class="dg-dim">Everyone in the company hits the same boss. 1 attack per hour, 15 turns, no energy needed. HP grows with every new attendee.
-When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.6 HP, +15% ATK).<br>
-${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
-Next kill → <b>×${(1 + rwN.buff).toFixed(2)}</b>.</div></div></div>
-${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING (15 turns)"}</button>`}
-<div class="dg-dim" style="margin-top:6px;">Your damage this week: <b>${fmt(c.me.dmg)}</b> in ${c.me.n} attack${c.me.n === 1 ? "" : "s"}${A.HS().wb.buffWeek === week() ? ` · 🎉 Active bonus: <b>×${(1 + A.HS().wb.buff).toFixed(2)}</b> office income` : ""}</div></div>
-<div class="dg-grid2"><div class="dg-card"><div class="dg-h">DAMAGE LEADERBOARD</div><div class="wb-lb">${lb}</div></div>
-<div class="dg-card"><div class="dg-h">LAST WEEK</div><div class="dg-dim">${l ? `${esc(C.WB[l.idx % C.WB.length].e)} - ${l.killed ? "<b style='color:var(--emerald);'>DEFEATED" + (l.kills > 1 ? " " + l.kills + "× (" + C.mkName(l.kills) + ")" : "") + "</b>" : "<b style='color:var(--crimson);'>SURVIVED</b>"} · ${l.participants} attendees<br>
-${l.top ? `🏅 Employee of the Week: <b>${esc(l.top)}</b><br>` : ""}Your damage: ${fmt(l.myDmg)}` : "No meeting last week."}</div></div></div>`;
-}
-function wbGo() {
-const s = wb.st; if (!s || wb.busy) return;
-const c = s.cur;
-if (c.me.wait - (Date.now() - wb.at) > 0) return;
-const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1, A.hero());
-let atkUsed = 0;
-A.beginFight(m, { mode: "boss", prepHero: (h) => { atkUsed = h.atk; },
-hud: (f) => `📊 Quarterly Review · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,
-onEnd: function (f) {
-const dmg = Math.round(f.emax - Math.max(0, f.ehp));
-wb.busy = true;
-const gc = Math.round(dmg * 3);
-gameState.coins += gc;
-const lines = [`💥 ${fmt(dmg)} damage`, `+${fmt(gc)} GC`];
-const xp = Math.round(C.xpFor(Math.min(50, Math.round(C.levelToX(L))), false) * 0.5);
-A.gainXp(xp, lines); lines.splice(1, 0, `+${fmt(xp)} XP`);
-saveGame(() => google.script.run.withSuccessHandler(r => {
-wb.busy = false;
-if (r && r.ok) { wb.st.cur = r.state; wb.at = Date.now(); if (window.Meta && Meta.onWb) try { Meta.onWb(r.dmg, !!r.kill, r.mk || 1); } catch (e) {}
-if (r.kill) { log(`📊 YOU TOOK DOWN ${C.mkName(r.mk || 1)} of the Quarterly Review boss! ${C.mkName((r.mk || 1) + 1)} just walked in.`, "special"); TT.announce("KILLED THE WEEKLY BOSS " + C.mkName(r.mk || 1), "HIGH STAKES", 0, gc); } }
-else log("QUARTERLY REVIEW: damage not counted (" + (r && r.reason || "error") + ").", "warning");
-if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-res")) A.render();
-}).withFailureHandler(() => { wb.busy = false; log("QUARTERLY REVIEW: could not reach the server.", "warning"); }).wbSubmit(dmg, Math.round(atkUsed)));
-return { title: "MEETING OVER", sub: `💥 ${fmt(dmg)}`, lines: lines, note: "Damage is being submitted to the company-wide total...",
-buttons: [{ label: "◀ QUARTERLY REVIEW", cls: "btn-gold", fn: () => { wbLoad(true); Dungeon.tab("boss"); } }] };
-} });
-}
-const POOL_COST = 1, POOL_SEED = 90210;                 // stejná patra pro všechny (fér žebříček)
-function poolGc(n) { return Math.round(3 * (2000 + 400 * Math.pow(n, 1.4))); }
-function poolXp(n) { return Math.round(2 * (40 + 12 * n)); }
-const pb = { list: null, at: 0, loading: false };
-function poolBoardLoad(force) {
-if (pb.loading || (!force && pb.list && Date.now() - pb.at < 30000)) return;
-if (typeof google === "undefined" || !google.script || !google.script.run) return;
-pb.loading = true;
-google.script.run.withSuccessHandler(r => { pb.loading = false; pb.at = Date.now(); pb.list = r && r.ok ? r.list : []; if (A.isOpen() && A.view() === "pool" && !document.querySelector(".hs-ov")) A.render(); })
-.withFailureHandler(() => { pb.loading = false; pb.at = Date.now(); pb.list = pb.list || []; }).poolBoard();
-}
-function poolHtml(box) {
-const d = A.HS(), P = d.pool;
-if (!P.unlocked) {
-box.innerHTML = `<div class="dg-card dg-lock"><div class="big">♾</div><div style="font:800 14px Orbitron,monospace;color:var(--crimson);margin:8px 0;">Clear the Pool is locked</div>
-<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to unlock it (forever - prestige won't lock it again).<br>Tower: ${d.tower.best}/100</div></div>`;
-return;
-}
-poolBoardLoad(false);
-const lb = pb.list ? (pb.list.length ? pb.list.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>floor ${fmt(p.best)}</span></div>`).join("") : `<div class="dg-dim">Nobody yet. Be the first!</div>`) : `<div class="dg-dim">Loading...</div>`;
-const n = P.best + 1, m = C.poolFloor(n, POOL_SEED), q = window.Gear ? Gear.POOL_QUANTUM : 50;
-const from = Math.floor(P.best / 10) * 10 + 1, cells = [];
-for (let f = from; f < from + 20; f++) cells.push(`<div class="${f <= P.best ? "ok" : f === n ? "nx" : ""} ${f % 25 === 0 ? "bs" : ""}">${f % 25 === 0 ? "☠" : f}</div>`);
-box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>♾ Clear the Pool</span><span>best: floor ${fmt(P.best)}</span></div>
-<div class="dg-dim">An endless tower of tickets. Every floor is its own fight with <b>full HP</b> and your progress is saved - lose and just try the same floor again.
-Floors get <b>+6%</b> harder, every 5th is an elite, every 25th one of the company's bosses. ⚡${POOL_COST} per fight, rewards for every new floor.
-${P.best < q ? `<br>🎯 Clear <b>floor ${q}</b> to unlock <b>⚛ Quantum</b> gear.` : ""}</div></div>
-<div class="dg-card"><div class="dg-h"><span>Next: ${esc(m.name)}</span><span>⚡${POOL_COST}</span></div>
-<div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}${m.enemy.mech ? " · ⚙ " + esc(m.enemy.mech) : ""}<br>
-Reward: ${fmt(poolXp(n))} XP, ${fmt(poolGc(n))} GC${m.kind === "boss" ? " + GC bonus" : ""}${n === q ? " + <b>⚛ Quantum gear</b>" : ""}<br>Your stats: ${A.statLine()}</div></div>
-<button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.poolGo()">⚔ Fight floor ${n} (⚡${POOL_COST})</button></div>
-<div class="dg-card"><div class="dg-h">Floors</div><div class="tw-grid">${cells.join("")}</div></div>
-<div class="dg-card"><div class="dg-h">Deepest pool</div><div class="wb-lb">${lb}</div></div>`;
-}
-function poolGo() {
-const d = A.HS(); if (!d.pool.unlocked) return;
-const n = d.pool.best + 1, m = C.poolFloor(n, POOL_SEED);
-if (!A.spendEnergy(POOL_COST)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
-A.beginFight(m, { mode: "pool",
-hud: () => `♾ Pool floor ${n}${m.kind === "boss" ? " · BOSS" : m.kind === "elite" ? " · ELITE" : ""} · best ${A.HS().pool.best}`,
-onEnd: function (fi) {
-const dd = A.HS(), lines = [];
-if (fi.win) {
-dd.wins++;
-if (n > dd.pool.best) {
-dd.pool.best = n;
-const gc = poolGc(n), xp = poolXp(n);
-gameState.coins += gc;
-A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
-if (m.kind === "boss") A.dropItem(lines);
-lines.push(`🏆 New best: floor ${n}`);
-if (n % 25 === 0) TT.announce("REACHED POOL FLOOR " + n, "HIGH STAKES", 0, gc);
-if (window.Gear && n === Gear.POOL_QUANTUM) { lines.push("⚛ QUANTUM gear unlocked!"); Gear.st(); }
-log(`♾ POOL floor ${n} cleared - ${lines.join(", ")}`, "special");
-}
-TT.saveSoon(); poolBoardLoad(true);
-return { title: `FLOOR ${n} CLEARED`, lines: lines,
-buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: `FLOOR ${n + 1} ▶`, cls: "btn-gold", fn: poolGo }] };
-}
-dd.losses++;
-const xp = fi.fled ? 0 : Math.round(poolXp(n) * 0.3); if (xp) A.gainXp(xp, lines);
-lines.push(xp ? `+${xp} XP` : "no reward", "Your progress is saved - try again.");
-return { title: "THE POOL WINS", sub: `floor ${n}`, lines: lines,
-buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: "↻ RETRY", cls: "btn-cyan", fn: poolGo }] };
-} });
-}
-A.registerMode("tower", { label: "🗼 TOWER", order: 20, render: towerHtml });
-A.registerMode("pool", { label: "♾ POOL", order: 25, render: poolHtml });
-A.registerMode("shift", { label: "📟 SHIFT", order: 30, render: shiftHtml });
-A.registerMode("boss", { label: "📊 BOSS", order: 40, render: wbHtml, busy: () => wb.busy });
-window.HSModes = { week: week, towerGo: towerGo, shiftStart: shiftStart, shiftGo: shiftGo, shiftPerk: shiftPerk, shiftEvent: shiftEvent, shiftBuy: shiftBuy,
-shiftRest: shiftRest, shiftShopDone: shiftShopDone, shiftQuit: shiftQuit, wbGo: wbGo, poolGo: poolGo, PERKS: PERKS, applyPerks: applyPerks };
-(function wait() { if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(wait, 200); return; } TT.onLoaded(() => setTimeout(() => wbLoad(true), 4000)); })();
-setInterval(() => { if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-ov")) { const b = document.querySelector('[onclick="HSModes.wbGo()"]'); if (b && b.disabled && wb.st) A.render(); } }, 1000);
-})();
-</script>
-<style>
-/* ===== v8.8 THE COLLEAGUE: pomocník, který farmí poražené bosse a kliká za tebe ===== */
-.cl-row { display: flex; gap: 10px; align-items: center; }
-.cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
-.cl-name { font: 900 14px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
-.cl-quip { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
-.cl-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
-.cl-slot { padding: 5px; border-radius: 6px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); font-size: 10px; text-align: center; min-width: 0; }
-.cl-slot b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-boss { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 5px; cursor: pointer; }
-.cl-boss.sel { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald) inset; }
-.cl-boss .ic { font-size: 20px; width: 26px; text-align: center; }
-.cl-boss .t { flex: 1; min-width: 0; font-size: 11px; }
-.cl-boss .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-boss .wr { font: 800 11px 'Orbitron', monospace; }
-.cl-give { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px; }
-.cl-give span { flex: 1; min-width: 0; }
-.cl-give .btn { padding: 4px 10px; font-size: 10px; }
-.cl-log div { font-size: 11px; color: var(--text-dim); padding: 2px 0; }
-.cl-sleep { text-align: center; padding: 18px 10px; }
-.cl-sleep .big { font-size: 44px; }
-</style>
-<script>
-;(window.__TT_FILES = window.__TT_FILES || {})["part14"] = 1;
-// END-OF-FILE: part14 (the script continues in the next file)
+const eat = (e) => { e.preventDefault(); e.stopPropagation(); };</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["part14"] = 1;</script>
+<!-- END-OF-FILE: part14 -->

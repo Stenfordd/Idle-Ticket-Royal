@@ -1,526 +1,213 @@
-<style>
-/* ======================= v9.0 NEW LOOK (styl C) =======================
-Klidnější tmavý vzhled: Space Grotesk, žádné CAPS LOCK nadpisy, ploché panely, jedno velké "hmatatelné" tlačítko.
-Vše je pod html.v9 -> přepínač 🎨 vrátí klasický vzhled. */
-html.v9 {
---bg-core: #10131c;
---bg-panel: #161b27;
---bg-panel-elevated: #1e2433;
---border-subtle: #262d3d;
---border-glow: rgba(255, 71, 102, .35);
---crimson: #ff4766;
---crimson-glow: none;
---cyan: #63c5ff;
---cyan-glow: none;
---amber: #f5b942;
---emerald: #4fd39a;
---text-main: #e8ecf3;
---text-dim: #8a94a8;
---text-muted: #5b657a;
---rarity-t2: #4a8cff;
---rarity-t6: #2fe6c8;
---v9-line: #262d3d;
---v9-hi: #262e40;
---v9-r: 14px;
-color-scheme: dark;
-}
-html.v9 body, html.v9 body * {
-font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
-letter-spacing: normal !important;
-text-transform: none !important;
-text-shadow: none !important;
-}
-html.v9 body { font-size: 13px; line-height: 1.45; background: var(--bg-core); background-image: none; font-variant-numeric: tabular-nums; }
-html.v9 b, html.v9 strong { font-weight: 700; }
-html.v9 ::selection { background: rgba(255, 71, 102, .35); }
-html.v9 * { scrollbar-color: #2b3345 transparent; }
-/* ---------- horní lišta ---------- */
-html.v9 .top-bar { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 10px 18px; }
-html.v9 .brand-title { font-size: 17px; font-weight: 700; color: var(--text-main); }
-html.v9 .brand-title .v9-acc { color: var(--crimson); font-weight: 600; }
-html.v9 .brand-title { display: flex; align-items: center; white-space: nowrap; }
-html.v9 .brand-title .v9-mark { display: inline-flex; width: 28px; height: 19px; margin-right: 9px; flex: none; }
-html.v9 .brand-title .v9-mark svg { width: 100%; height: 100%; }
-html.v9 .brand-title .v9-acc { margin-left: 5px; }
-html.v9 .user-badge { font-size: 12px; color: var(--text-dim); }
-html.v9 .user-badge strong { font-weight: 600; }
-html.v9 .status-pill { background: rgba(79, 211, 154, .1); border: 0; font-weight: 500; }
-html.v9 .status-dot { box-shadow: none; }
-html.v9 #dg-open-btn, html.v9 .btn-help { padding: 5px 10px; font-size: 12px; }
-/* ---------- panely ---------- */
-html.v9 .main-wrapper { gap: 14px; }
-html.v9 .grid-columns, html.v9 .column { gap: 14px; }
-html.v9 .panel { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 18px; padding: 16px; box-shadow: none; }
-html.v9 .panel-header { font-size: 15px; font-weight: 700; color: var(--text-main); border-bottom: 0; padding-bottom: 0; margin-bottom: 12px; gap: 8px; }
-html.v9 .panel-header > span:not(:first-child), html.v9 .panel-header small { font-size: 12px !important; font-weight: 500; color: var(--text-dim); }
-html.v9 .panel-header #multiplier-badge { color: var(--amber) !important; font-weight: 600; }
-/* ---------- tlačítka ---------- */
-html.v9 .btn { font-size: 12px; font-weight: 600; border-radius: 10px; padding: 8px 12px; background: var(--v9-hi); border: 1px solid transparent; color: var(--text-main); transition: background .15s, transform .08s; }
-html.v9 .btn:hover:not(:disabled) { background: #2d3649; border-color: transparent; box-shadow: none; }
-html.v9 .btn:active:not(:disabled) { transform: translateY(1px); }
-html.v9 .btn:disabled { opacity: .38; }
-html.v9 .btn-cyan { background: rgba(99, 197, 255, .13); color: var(--cyan); border-color: transparent; }
-html.v9 .btn-cyan:hover:not(:disabled) { background: rgba(99, 197, 255, .22); box-shadow: none; }
-html.v9 .btn-crimson { background: rgba(255, 71, 102, .14); color: #ff7088; border-color: transparent; }
-html.v9 .btn-crimson:hover:not(:disabled) { background: rgba(255, 71, 102, .24); box-shadow: none; }
-html.v9 .btn-gold { background: rgba(245, 185, 66, .15); color: var(--amber); border-color: transparent; }
-html.v9 .btn-gold:hover:not(:disabled) { background: rgba(245, 185, 66, .25); }
-html.v9 .btn:focus-visible, html.v9 .casino-tab-btn:focus-visible, html.v9 #m-tabs button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
-/* ---------- hlavní tlačítko RESOLVE ---------- */
-html.v9 .btn-primary-action {
-border: 0; border-radius: 22px; padding: 22px 14px; font-size: 20px; font-weight: 700; color: #fff;
-background: radial-gradient(circle at 50% 30%, #ff6580 0%, #e3304f 55%, #c9213f 100%);
-box-shadow: 0 7px 0 #8c1530, 0 14px 26px rgba(0, 0, 0, .45);
-transition: transform .06s, box-shadow .06s;
-}
-html.v9 .btn-primary-action:hover { transform: translateY(-1px); box-shadow: 0 8px 0 #8c1530, 0 16px 28px rgba(0, 0, 0, .45); }
-html.v9 .btn-primary-action:active, html.v9 .btn-primary-action.pressed { transform: translateY(5px) !important; box-shadow: 0 2px 0 #8c1530, 0 6px 14px rgba(0, 0, 0, .45); }
-html.v9 #btn-click .v9-sub { display: block; font-size: 14px; font-weight: 500; opacity: .85; margin-top: 4px; }
-html.v9 #btn-click .v9-main { display: block; }
-html.v9 .click-btn-wrap { margin: 6px 0 16px; }
-html.v9 #click-ring { left: -6px; top: -6px; width: calc(100% + 12px); height: calc(100% + 12px); }
-html.v9 #click-ring .prg { filter: none; }
-html.v9 #click-ring-pop { font-weight: 700; }
-html.v9 #btn-click.overheated { filter: grayscale(.85) brightness(.6); }
-/* ---------- HUD a statistiky ---------- */
-html.v9 .stat-box { background: transparent; border: 0; padding: 4px 2px; }
-html.v9 .stat-label { font-size: 12px; color: var(--text-dim); }
-html.v9 .stat-val { font-size: 18px; font-weight: 700; }
-html.v9 .heat-row { font-size: 12px; }
-html.v9 .heat-bar, html.v9 .ac-bar, html.v9 .ac-bar-next { background: rgba(0, 0, 0, .35); border: 0; border-radius: 99px; height: 6px; }
-html.v9 .ac-bar-fill { background: var(--amber); }
-html.v9 .buff-row { gap: 6px; }
-html.v9 .buff-chip { font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 99px; background: var(--v9-hi); border: 0; color: var(--text-dim); }
-html.v9 .buff-chip.on { background: rgba(79, 211, 154, .12); color: var(--emerald); }
-html.v9 .buff-chip.lp { background: rgba(245, 185, 66, .12); color: var(--amber); }
-html.v9 .buff-chip.bad { background: rgba(255, 71, 102, .14); color: #ff7088; }
-html.v9 .ac-box { background: var(--bg-panel-elevated); border: 0; border-radius: var(--v9-r); padding: 12px; margin-top: 10px; }
-html.v9 .ac-row { font-size: 13px; font-weight: 600; }
-/* ---------- záložky (segmenty) ---------- */
-html.v9 .tab-row { border-bottom: 0; gap: 4px; padding: 3px; background: rgba(0, 0, 0, .25); border-radius: 12px; }
-html.v9 .casino-tab-btn { font-size: 12px; font-weight: 600; background: transparent; border: 0; border-radius: 9px; color: var(--text-dim); padding: 8px 6px; box-shadow: none; }
-html.v9 .casino-tab-btn:hover { color: var(--text-main); }
-html.v9 .casino-tab-btn.active { background: var(--v9-hi); color: var(--text-main); box-shadow: none; border: 0; }
-html.v9 .casino-tab-btn.glow { color: var(--amber) !important; background: rgba(245, 185, 66, .14); animation: none; }
-/* ---------- formuláře ---------- */
-html.v9 input:not([type=checkbox]):not([type=radio]):not([type=range]), html.v9 select, html.v9 textarea, html.v9 .adv-select {
-background: #0d1018 !important; border: 1px solid var(--v9-line) !important; border-radius: 10px !important; color: var(--text-main) !important; padding: 8px 10px; font-size: 13px;
-}
-html.v9 input:focus, html.v9 select:focus, html.v9 textarea:focus { outline: 2px solid rgba(99, 197, 255, .45); outline-offset: 0; }
-html.v9 input[type=checkbox] { accent-color: var(--crimson); }
-/* ---------- bedna, merge, inventář ---------- */
-html.v9 .chest-box { background: var(--bg-panel-elevated); border: 0; border-radius: var(--v9-r); }
-html.v9 .chest-lvl-tag { font-size: 16px; font-weight: 700; }
-html.v9 .odds-table { gap: 6px; }
-html.v9 .odds-cell { background: var(--bg-panel-elevated); border: 0; border-radius: 12px; padding: 8px 10px; }
-html.v9 .odds-name { font-size: 12px; font-weight: 500; }
-html.v9 .odds-val { font-size: 15px; font-weight: 700; }
-html.v9 .odds-table .odds-t6 { background: rgba(47, 230, 200, .07); }
-html.v9 .merge-card { background: var(--bg-panel-elevated); border-radius: 12px; border-left-width: 3px; padding: 10px 12px; }
-html.v9 .merge-card-title { font-size: 13px; }
-html.v9 .loadout-slot { background: var(--bg-panel-elevated); border: 1px dashed #303a4f; border-radius: 12px; }
-html.v9 .loadout-slot.filled { background: var(--bg-panel-elevated); border: 1px solid transparent; }
-html.v9 .loadout-slot-label { font-size: 11px; }
-html.v9 .backpack-container { background: transparent; border: 0; padding: 0; gap: 8px; }
-html.v9 .item-card { background: var(--bg-panel-elevated); border-radius: 12px; padding: 10px 12px; box-shadow: none; }
-html.v9 .item-name { font-size: 13px; }
-html.v9 .item-stats { font-size: 12px; }
-html.v9 .item-count-badge { background: var(--v9-hi); color: var(--amber); font-weight: 600; }
-html.v9 .item-actions button { padding: 6px 0; font-size: 11px; }
-html.v9 .bp-controls { font-size: 12px; }
-/* ---------- log, chat, žebříček ---------- */
-html.v9 .log-container, html.v9 .chat-container { background: rgba(0, 0, 0, .22) !important; border: 0 !important; border-radius: 12px; font-size: 12px; }
-html.v9 table.lb-table th { font-size: 11px; font-weight: 500; color: var(--text-dim); }
-html.v9 table.lb-table td { border-color: var(--v9-line); }
-html.v9.m table.lb-table { font-size: 12px; table-layout: auto; }
-html.v9.m table.lb-table th, html.v9.m table.lb-table td { padding: 7px 3px; white-space: nowrap; }
-html.v9.m table.lb-table td:nth-child(2) { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
-html.v9.m table.lb-table th:first-child, html.v9.m table.lb-table td:first-child { padding-left: 0; }
-html.v9.m .panel:has(> .lb-table), html.v9.m .panel:has(table.lb-table) { overflow-x: auto; }
-/* ---------- modaly ---------- */
-html.v9 .tt-overlay { background: rgba(6, 8, 13, .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
-html.v9 .tt-modal { background: var(--bg-panel); border: 1px solid var(--v9-line) !important; border-radius: 20px; padding: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
-html.v9 .tt-modal h2 { font-size: 18px; font-weight: 700; color: var(--text-main) !important; }
-html.v9 .tt-modal .tt-body b { color: var(--text-main); }
-html.v9 .cl-box { border: 1px solid var(--v9-line); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
-html.v9 .cl-head h2 { font-size: 17px; font-weight: 700; color: var(--text-main); }
-html.v9 .update-banner { background: var(--bg-panel-elevated); border: 0; border-radius: 12px; color: var(--amber); font-weight: 600; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
-html.v9 #fx-toggle, html.v9 #ir-logout { border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--bg-panel-elevated); border: 0; }
-/* ---------- mobil ---------- */
-html.v9.m .top-bar { padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 4px calc(14px + env(safe-area-inset-left)); background: var(--bg-core); border-bottom: 0; }
-html.v9.m .brand-title { font-size: 17px; }
-html.v9.m #m-hud { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 6px 14px 12px; gap: 10px; grid-template-columns: auto auto auto auto; justify-content: space-between; }
-html.v9.m #m-hud div { text-align: left; }
-html.v9.m #m-hud div:last-child { text-align: right; }
-html.v9.m #m-hud small { font-size: 11px; font-weight: 500; color: var(--text-dim); }
-html.v9.m #m-hud b { font-size: 17px; font-weight: 700; overflow: visible; text-overflow: clip; }
-/* firemní event: na mobilu tenký pruh pod HUDem (nic nepřekrývá) */
-html.v9.m #mt-event { position: static; transform: none; left: auto; bottom: auto; top: auto; flex: none; max-width: none; width: 100%; border-radius: 0; justify-content: center;
-padding: 6px 14px; font-size: 12px; font-weight: 600; animation: none; box-shadow: none; background: linear-gradient(90deg, rgba(255, 71, 102, .9), rgba(245, 185, 66, .9)); }
-html.v9.m #mt-event small { font-size: 11px; font-weight: 500; }
-html.v9.m .main-wrapper { padding: 14px; gap: 14px; }
-html.v9.m .panel { padding: 14px; border-radius: 18px; }
-html.v9.m [data-tab="play"].panel { background: transparent; border: 0; padding: 0; }
-html.v9.m [data-tab="play"] .panel-header { margin-bottom: 8px; }
-html.v9.m [data-tab="play"] #btn-click { border-radius: 26px; font-size: 26px; }
-html.v9.m [data-tab="play"] #btn-click .v9-sub { font-size: 15px; }
-html.v9.m [data-tab="play"] .click-btn-wrap { margin: 4px 0 18px; }
-html.v9.m #m-tabs { background: var(--bg-panel); border-top: 1px solid var(--v9-line); }
-html.v9.m #m-tabs button { font-size: 11px; font-weight: 500; color: var(--text-dim); border-top: 0; padding: 9px 2px 9px; }
-html.v9.m #m-tabs button span { font-size: 19px; margin-bottom: 3px; filter: grayscale(.55); opacity: .75; transition: filter .15s, opacity .15s; }
-html.v9.m #m-tabs button.active { color: var(--text-main); background: transparent; }
-html.v9.m #m-tabs button.active span { filter: none; opacity: 1; }
-html.v9.m #m-tabs button.active::before { content: ""; position: absolute; top: 1px; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: var(--crimson); }
-html.v9.m #m-tabs button[data-go="fight"] { color: var(--text-dim); }
-html.v9.m #m-tabs button[data-go="fight"].active { color: var(--text-main); }
-html.v9 #m-tabs button::after { box-shadow: none !important; }
-/* ---------- HIGH STAKES ---------- */
-html.v9 #dg-screen { background: var(--bg-core); }
-html.v9 .dg-top { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: calc(10px + env(safe-area-inset-top)) 14px 10px; }
-html.v9 .dg-top h1 { font-size: 18px; font-weight: 700; color: var(--text-main); }
-html.v9 .dg-keys { font-size: 13px; font-weight: 600; }
-html.v9 .dg-tabs { padding: 10px 14px 4px; gap: 4px; }
-html.v9 .dg-tabs .casino-tab-btn { background: var(--bg-panel); }
-html.v9 .dg-tabs .casino-tab-btn.active { background: var(--v9-hi); }
-html.v9 .dg-body { padding: 10px 14px calc(16px + env(safe-area-inset-bottom)); }
-html.v9 .dg-card { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
-html.v9 .dg-h { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
-html.v9 .dg-dim { font-size: 12.5px; line-height: 1.55; }
-html.v9 .dg-dim b { color: var(--text-main); }
-html.v9 .dg-xp, html.v9 .hs-bar, html.v9 .dg-bar { border: 0; background: rgba(0, 0, 0, .4); border-radius: 99px; }
-html.v9 .dg-xp div { background: var(--emerald); }
-html.v9 .hs-ch .btn { border-radius: 12px; padding: 8px 2px; font-size: 12px; }
-html.v9 .hs-ch .btn.sel { box-shadow: none; background: var(--v9-hi); color: var(--text-main); outline: 2px solid var(--amber); outline-offset: -2px; }
-html.v9 .hs-m { background: var(--bg-panel-elevated); border: 1px solid transparent; border-radius: 14px; padding: 10px 12px; }
-html.v9 .hs-m:hover { border-color: #33405a; }
-html.v9 .hs-m.boss { border-color: rgba(255, 71, 102, .35); background: linear-gradient(90deg, rgba(255, 71, 102, .10), var(--bg-panel-elevated) 70%); }
-html.v9 .hs-m.compliance { border-color: rgba(245, 185, 66, .3); }
-html.v9 .hs-m .t b { font-size: 13px; font-weight: 600; }
-html.v9 .hs-stars { color: var(--amber); }
-html.v9 .dg-arena { background: linear-gradient(180deg, #151a26, #121620); border: 1px solid var(--v9-line); border-radius: 18px; }
-html.v9 .dg-name { font-size: 13px; font-weight: 700; }
-html.v9 .dg-vs { font-size: 15px; font-weight: 700; color: var(--text-muted); }
-html.v9 .hs-acts .btn { border-radius: 12px; font-size: 12px; padding: 10px 2px; }
-html.v9 .hs-acts .btn small { font-size: 10px; }
-html.v9 .hs-intent { font-size: 12px; font-weight: 700; border-radius: 99px; }
-html.v9 .hs-lbl { font-size: 10px; font-weight: 600; }
-html.v9 .dg-float { text-shadow: 0 2px 0 rgba(0, 0, 0, .8) !important; font-weight: 700; }
-html.v9 .fx-float { text-shadow: 0 2px 0 rgba(0, 0, 0, .7) !important; font-weight: 700; }
-html.v9 .dg-log { background: rgba(0, 0, 0, .25); border: 0; border-radius: 12px; font-size: 12px; }
-html.v9 .hs-ov { border-radius: 18px; }
-html.v9 .hs-res .big { font-size: 26px; font-weight: 700; }
-html.v9 .hs-stat { font-size: 13px; }
-html.v9 .hs-stat b { font-size: 12px; font-weight: 700; }
-html.v9 .hs-coach { border-radius: 14px; }
-html.v9 .tw-grid div { border-radius: 6px; font-size: 10px; font-weight: 600; }
-html.v9 .sh-choice { border-radius: 14px; background: var(--bg-panel-elevated); }
-html.v9 .cl-name { font-size: 17px; font-weight: 700; }
-html.v9 .cl-slot, html.v9 .cl-boss { border-radius: 12px; }
-html.v9 .dg-class { border-radius: 16px; }
-html.v9 .dg-stances button.sel { box-shadow: 0 0 0 2px var(--amber) inset; }
-html.v9 .hs-reel.held::after { content: "Hold"; font-size: 10px; font-weight: 700; }
-html.v9 .bet-grid.cool::after { font-size: 14px; font-weight: 700; }
-html.v9 #ir-login { background: var(--bg-core); }
-html.v9 .ir-card { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .45); }
-html.v9 .ir-title { color: var(--text-main); font-size: 24px; font-weight: 700; }
-html.v9 .ir-card label { font-size: 12px; font-weight: 600; }
-html.v9 .mt-toast { background: var(--bg-panel-elevated); border: 1px solid rgba(245, 185, 66, .45); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); border-radius: 16px; }
-html.v9 .mt-toast b { color: var(--amber); font-size: 12px; font-weight: 700; }
-/* mobil: horní lišta jen s ikonami */
-html.v9.m .user-badge > span { display: none !important; }
-html.v9.m .user-badge { gap: 6px; }
-html.v9.m .user-badge .btn-help { padding: 6px 9px; font-size: 13px; border-radius: 10px; }
-html.v9.m .user-badge .btn-help:not(#cl-btn):not(#th-btn):not(#m-compact) { font-size: 0; }
-html.v9.m .user-badge .btn-help:not(#cl-btn):not(#th-btn):not(#m-compact)::before { content: "?"; font-size: 14px; font-weight: 700; }
-/* HIGH STAKES: lišta a záložky na mobilu */
-html.v9 .dg-top .btn { white-space: nowrap; }
-html.v9 .dg-top h1 { min-width: 0; }
-html.v9 #dg-tokbtn { white-space: nowrap; font-size: 11px !important; }
-html.v9.m .dg-top h1 { font-size: 16px; }
-html.v9.m .dg-keys { font-size: 12px; }
-html.v9.m .dg-kstar, html.v9.m .dg-back-t, html.v9.m .dg-hic { display: none; }
-html.v9.m .dg-top > .btn:first-child { padding: 7px 12px; font-size: 14px; }
-html.v9.m #m-settings .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-html.v9.m #m-settings .btn { padding: 12px 8px; font-size: 13px; }
-html.v9.m .dg-top { gap: 8px; }
-html.v9.m .dg-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 6px; }
-html.v9.m .dg-tabs::-webkit-scrollbar { display: none; }
-html.v9.m .dg-tabs button { flex: none !important; padding: 8px 12px; font-size: 12px !important; }
-@media (max-width: 1000px) { html.v9:not(.m) .top-bar { align-items: flex-start; } }
-</style>
 <script>
+/* HIGH STAKES - ARÉNA (PvP proti uloženým postavám, počítá server) + karta hráče z leaderboardu */
 (function () {
 "use strict";
-var KEY = "ir_theme";
-var root = document.documentElement;
-function classic() { try { return localStorage.getItem(KEY) === "classic"; } catch (e) { return false; } }
-var KEEP = {};
-("GC LP XP HP ATK STA CPS LV OS HUD CPU ID AI LLM IT SME EMEA APAC PVP QA FX OK UI PC CEO CTO HR MK II III IV VI VII VIII IX ASC RNG NPC USB VIP KPI AFK DPS GG LOL OMG ASAP SQL PDF API URL FAQ EU CZ USD EUR BJ TT T1 T2 T3 T4 T5 T6 RIP DM HQ AM PM GO").split(" ").forEach(function (k) { KEEP[k] = 1; });
-var PHRASES = [
-["high stakes", "High Stakes"], ["office royale", "Office Royale"], ["idle royale", "Idle Royale"], ["casino royale", "Casino Royale"], ["hall of fame", "Hall of Fame"],
-["the office plant", "the Office Plant"], ["office plant", "Office Plant"], ["clear the pool", "Clear the Pool"], ["server tower", "Server Tower"],
-["quarterly review", "Quarterly Review"], ["on-call shift", "On-Call Shift"], ["the administrator", "the Administrator"], ["google coins", "Google Coins"],
-["slot token", "Slot Token"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
-["big massi", "Big Massi"], ["da polishen", "Da Polishen"], ["italian guy", "Italian Guy"], ["supreme louis", "Supreme Louis"], ["the cobol", "The Cobol"],
-["company chest", "Company Chest"], ["upgrade station", "Upgrade Station"], ["merge station", "Merge Station"], ["corporate climb", "Corporate Climb"]
-];
-var UP = /\p{Lu}{3}/u, LOW = /\p{Ll}/u, UNIT = /\d\p{Ll}{1,2}\b/gu, WORD = /[\p{L}\d][\p{L}\d.'’]*/gu, FIRST = /^[^\p{L}\d]*\p{L}/u;
-function hasLow(s) { return LOW.test(s.replace(UNIT, "")); }       // "+1s", "45m" nejsou malá písmena věty
-function conv(s, mid) {
-if (!s || s.length < 3 || !UP.test(s) || hasLow(s)) return s;
-var out = s.replace(WORD, function (w) {
-var core = w.replace(/[.'’]+$/, "");
-if (/\d/.test(core) || core.length === 1 || KEEP[core] || KEEP[core.replace(/\./g, "")]) return w;
-if (/^MK\./.test(core)) return w;
-return w.toLowerCase();
-});
-for (var i = 0; i < PHRASES.length; i++) {
-var p = PHRASES[i][0], k = out.indexOf(p);
-while (k >= 0) {
-var a = k === 0 ? "" : out.charAt(k - 1), z = out.charAt(k + p.length);
-if (!/[\p{L}]/u.test(a) && !/[\p{L}]/u.test(z)) out = out.slice(0, k) + PHRASES[i][1] + out.slice(k + p.length);
-k = out.indexOf(p, k + 1);
+const A = window.HS_API, H = window.HSEngine, E = window.DungeonEngine;
+const $ = (id) => document.getElementById(id);
+const fmt = A.fmt, fmtT = A.fmtT, anim = A.anim, float = A.float, sprite = A.sprite, playerSprite = A.playerSprite;
+const STANCE_TXT = { safe: ["SAFE", "careful AI"], normal: ["NORMAL", "balanced AI"], allin: ["ALL-IN", "gambler AI"] };
+const arena = { data: null, loading: false, err: "", atkStance: "normal", replay: null, timer: 0, busy: false };
+const CLS_IDX = { sysadmin: 0, engineer: 1, cyber: 2 };
+function arenaLoad() {
+if (arena.loading) return;
+arena.loading = true; arena.err = "";
+google.script.run.withSuccessHandler(r => {
+arena.loading = false;
+if (r && r.ok) arena.data = r; else arena.err = "Could not load the arena.";
+if (A.isOpen() && A.view() === "arena" && !arena.replay) $("dg-inner").innerHTML = arenaHtml();
+}).withFailureHandler(e => { arena.loading = false; arena.err = String(e && e.message || e); if (A.isOpen() && A.view() === "arena") $("dg-inner").innerHTML = arenaHtml(); }).arenaList();
 }
+function stanceBtns(cur, fn) {
+return ["safe", "normal", "allin"].map(s => `<button class="btn ${s === "allin" ? "btn-crimson" : (s === "safe" ? "btn-cyan" : "")} ${cur === s ? "sel" : ""}" onclick="Dungeon.${fn}('${s}')">${STANCE_TXT[s][0]}<small>${STANCE_TXT[s][1]}</small></button>`).join("");
 }
-if (!mid) out = out.replace(FIRST, function (c) { return c.slice(0, -1) + c.slice(-1).toUpperCase(); });
-return out;
+function ago(ts) { const m = Math.max(0, Math.floor((Date.now() - ts) / 60000)); return m < 60 ? m + "m" : (m < 1440 ? Math.floor(m / 60) + "h" : Math.floor(m / 1440) + "d"); }
+function arenaHtml() {
+const d = A.HS(), a = arena.data;
+if (arena.replay) return arenaReplayHtml();
+const me = a ? a.me : null;
+const myPow = E.power(A.player());
+let opp = "";
+if (!a) opp = `<div class="dg-dim">${arena.err ? "⚠ " + escapeHtml(arena.err) : "Loading opponents..."}</div>`;
+else if (!a.opponents.length) opp = `<div class="dg-dim">No opponents yet. Your friends need a HIGH STAKES class first.</div>`;
+else opp = a.opponents.map(o => {
+const ratio = o.power / Math.max(1, myPow);
+const tag = ratio > 1.25 ? `<span style="color:var(--crimson);">STRONGER</span>` : ratio < 0.8 ? `<span style="color:var(--emerald);">WEAKER</span>` : `<span style="color:var(--amber);">EVEN</span>`;
+const cd = o.cooldown > 0;
+const can = me && me.left > 0 && !cd && !arena.busy;
+return `<div class="dg-art"><div style="width:44px;flex:none;">${sprite(CLS_IDX[o.cls] || 0, "p").replace('class="dg-sprite"', 'class="dg-sprite" style="width:40px;height:40px;margin:0;"')}</div>
+<div class="t">${typeof presenceDot === "function" ? presenceDot(o) : ""}<b>${escapeHtml(o.nick)}</b> · ${E.CLASSES[o.cls] ? E.CLASSES[o.cls].icon : ""} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
+<div class="dg-dim">${escapeHtml(o.title || "")} · power ${fmt(o.power)} ${tag} · missions ${o.best}/51 · ${o.wins}W/${o.losses}L</div></div>
+<button class="btn ${can ? "btn-crimson" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.arenaAttack('${escapeHtml(o.nick).replace(/'/g, "")}')">${cd ? "⏳ " + fmtT(o.cooldown) : "⚔ ATTACK"}</button></div>`;
+}).join("");
+const log = a && a.log.length ? a.log.map(l => {
+const iAtt = l.attacker === gameState.ldap, won = l.winner === gameState.ldap;
+return `<div class="dg-dim"><span style="color:${won ? "var(--emerald)" : "var(--crimson)"};">${won ? "WIN" : "LOSS"}</span> · ${iAtt ? "you attacked <b>" + escapeHtml(l.defender) + "</b>" : "<b>" + escapeHtml(l.attacker) + "</b> attacked you"} · ${l.delta >= 0 ? "+" : ""}${l.delta} honor · ${ago(l.time)} ago</div>`;
+}).join("") : `<div class="dg-dim">No arena fights yet.</div>`;
+return `<div class="dg-grid2">
+<div class="dg-card"><div class="dg-h"><span>🏟 YOUR ARENA CARD</span><button class="btn" style="padding:3px 8px;font-size:10px;" onclick="Dungeon.arenaRefresh()">↻</button></div>
+<div class="dg-dim">Honor <b style="font-size:14px;">${me ? me.honor : "-"}</b> · ${me ? me.wins + "W / " + me.losses + "L" : ""} · attacks left today <b>${me ? me.left + " / " + me.perDay : "-"}</b> · your power <b>${fmt(myPow)}</b></div>
+<div class="dg-h" style="margin-top:10px;">ATTACK STANCE</div>
+<div class="dg-stances" style="margin:0;">${stanceBtns(arena.atkStance, "arenaAtkStance")}</div>
+<div class="dg-h" style="margin-top:10px;">DEFENSE STANCE <span class="dg-dim" style="font-family:inherit;">(used when others attack you)</span></div>
+<div class="dg-stances" style="margin:0;">${stanceBtns(d.arenaStance, "arenaDefStance")}</div>
+<div class="dg-dim" style="margin-top:8px;">Fights are simulated by the server with your <b>saved</b> gear, HIGH STAKES level and class - your friends fight your build even when you are offline.
+Win = honor + GC. Same opponent once per 20 min. Honor works like chess Elo: beating stronger players gives more.</div></div>
+<div class="dg-card"><div class="dg-h">RECENT FIGHTS</div>${log}</div>
+</div>
+<div class="dg-card"><div class="dg-h"><span>OPPONENTS</span><span class="dg-dim">sorted by honor</span></div>${opp}</div>`;
 }
-var SKIP = "script,style,textarea,input,select,option,#chat-messages,.lb-table tbody,.no-case,[data-nocase],.cl-name,.dg-name";
-function fixNode(t) {
-var v = t.nodeValue;
-if (!v || v.length < 3 || !UP.test(v) || hasLow(v)) return;
-var p = t.parentNode; if (!p || p.nodeType !== 1) return;
-if (p.closest && p.closest(SKIP)) return;
-var prev = t.previousSibling, mid = /^\s/.test(v) && !!prev && !(prev.nodeType === 1 && /^(BR|DIV|SPAN)$/.test(prev.nodeName) && !prev.textContent.trim());
-if (prev && prev.nodeType === 1 && prev.nodeName === "BR") mid = false;
-var n = conv(v, mid);
-if (n !== v) t.nodeValue = n;
+function arenaAtkStance(s) { arena.atkStance = s; $("dg-inner").innerHTML = arenaHtml(); }
+function arenaDefStance(s) { A.HS().arenaStance = s; TT.saveSoon(); $("dg-inner").innerHTML = arenaHtml(); }
+function arenaAttack(nick) {
+if (arena.busy) return;
+arena.busy = true;
+$("dg-inner").innerHTML = arenaHtml();
+const go = () => google.script.run.withSuccessHandler(r => {
+arena.busy = false;
+if (!r || !r.ok) {
+const why = { limit: "No attacks left today.", cooldown: "You fought this player recently.", target: "Opponent not available.", missing: "Save not found - try again in a few seconds.", noclass: "Pick a HIGH STAKES class first.", busy: "Server busy, try again." }[r && r.reason] || "Fight failed.";
+arena.err = why; log("ARENA: " + why, "warning"); arenaLoad(); return;
 }
-function walk(el) {
-if (!el) return;
-if (el.nodeType === 3) { fixNode(el); return; }
-if (el.nodeType !== 1) return;
-var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n;
-while ((n = w.nextNode())) fixNode(n);
+gameState.coins += r.reward;              // odměna hned (i kdyby se replay nedokoukal)
+TT.saveSoon(); updateUI();
+log(`🏟 ARENA ${r.win ? "WIN" : "LOSS"} vs ${escapeHtml(r.opp.nick)}: ${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}), +${fmt(r.reward)} GC.`, r.win ? "special" : "error");
+arena.replay = { r: r, idx: 0, hp: [r.max[0], r.max[1]], sh: [0, 0], lines: [] };
+$("dg-inner").innerHTML = arenaReplayHtml();
+arenaStep();
+}).withFailureHandler(e => { arena.busy = false; arena.err = String(e && e.message || e); arenaLoad(); }).arenaFight(nick, arena.atkStance);
+saveGame(() => go());                      // nejdřív uložit aktuální build, server bojuje s uloženým
 }
-var obs = null;
-function startCase() {
-if (obs || !window.MutationObserver) return;
-walk(document.body);
-obs = new MutationObserver(function (ms) {
-for (var i = 0; i < ms.length; i++) {
-var m = ms[i];
-if (m.type === "characterData") fixNode(m.target);
-else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
+function arenaReplayHtml() {
+const rp = arena.replay, r = rp.r, d = A.HS();
+return `<div class="dg-arena" id="dg-arena">
+<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${E.CLASSES[d.cls].name} · ${STANCE_TXT[arena.atkStance][0]}</div>
+<div id="ar-a">${playerSprite()}</div>
+<div class="dg-bar"><div class="hp-p" id="ar-ahp" style="width:100%"></div><div class="sh" id="ar-ash" style="width:0%"></div></div><div class="dg-hpt" id="ar-ahpt"></div></div>
+<div class="dg-vs">VS</div>
+<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(r.opp.nick)}</div><div class="dg-sub">${E.CLASSES[r.opp.cls] ? E.CLASSES[r.opp.cls].name : ""} LV ${r.opp.level} · ${STANCE_TXT[r.defStance][0]}</div>
+<div id="ar-b">${sprite(CLS_IDX[r.opp.cls] || 0, "p")}</div>
+<div class="dg-bar"><div class="hp-b" id="ar-bhp" style="width:100%"></div><div class="sh" id="ar-bsh" style="width:0%"></div></div><div class="dg-hpt" id="ar-bhpt"></div></div>
+</div>
+<div class="dg-mech" id="ar-res">${r.first === 0 ? "You strike first!" : escapeHtml(r.opp.nick) + " strikes first!"}</div>
+<div class="dg-row"><button class="btn" style="flex:1;" id="ar-skip" onclick="Dungeon.arenaSkip()">SKIP ⏭</button>
+<button class="btn btn-gold" style="flex:1;" id="ar-back" disabled onclick="Dungeon.arenaBack()">BACK TO ARENA</button></div>
+<div class="dg-card" style="margin-top:10px;"><div class="dg-h">FIGHT LOG</div><div class="dg-log" id="ar-log"></div></div>`;
 }
-});
-obs.observe(document.body, { childList: true, characterData: true, subtree: true });
+function arenaBars() {
+const rp = arena.replay; if (!rp) return;
+const m = rp.r.max;
+const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+set("ar-ahp", rp.hp[0] / m[0] * 100); set("ar-bhp", rp.hp[1] / m[1] * 100);
+set("ar-ash", rp.sh[0] / m[0] * 100); set("ar-bsh", rp.sh[1] / m[1] * 100);
+const a = $("ar-ahpt"); if (a) a.textContent = fmt(rp.hp[0]) + " / " + fmt(m[0]);
+const b = $("ar-bhpt"); if (b) b.textContent = fmt(rp.hp[1]) + " / " + fmt(m[1]);
 }
-function stopCase() { if (obs) { obs.disconnect(); obs = null; } }
-window.UICase = conv;
-function splitResolve() {
-var b = document.getElementById("btn-click"), cv = document.getElementById("click-val");
-if (!b || !cv || b.querySelector(".v9-main")) return;
-var main = document.createElement("span"); main.className = "v9-main"; main.textContent = "RESOLVE TICKET";
-var sub = document.createElement("span"); sub.className = "v9-sub";
-sub.appendChild(document.createTextNode("+")); sub.appendChild(cv); sub.appendChild(document.createTextNode(" per click"));
-while (b.firstChild) b.removeChild(b.firstChild);
-b.appendChild(main); b.appendChild(sub);
+function arenaLine(e) {
+const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">T${e.t}</span> `;
+if (e.type === "hit") return [T + `${nm(e.i)} ${e.kind === "jp" ? "🎰 <b>JACKPOT</b>" : "hit"} <b>${fmt(e.val)}</b> (${e.mult}×)${e.rev ? " - 🔌 POWER CYCLE!" : ""}`, e.i === 0 ? (e.kind === "jp" ? "y" : "g") : "r"];
+if (e.type === "bf") return [T + `💥 ${nm(e.i)} BACKFIRED for ${fmt(e.val)}`, e.i === 0 ? "r" : "g"];
+if (e.type === "dodge") return [T + `🌀 ${nm(1 - e.i)} dodged`, e.i === 0 ? "r" : "c"];
+if (e.type === "reflect") return [T + `${nm(e.i)} reflected ${fmt(e.val)}`, "c"];
+if (e.type === "heal") return [T + `${nm(e.i)} healed ${fmt(e.val)}`, "g"];
+if (e.type === "dot") return [T + `Zero-day payload ticks ${fmt(e.val)}`, "c"];
+return [T + e.type, ""];
 }
-function brand() {
-var t = document.querySelector(".brand-title"); if (!t || t.querySelector(".v9-acc")) return;
-var m = /^(.*?)\s*\/\/\s*(.*)$/.exec(t.textContent || "");
-if (!m) return;
-t.textContent = "";
-var ic = document.createElement("span"); ic.className = "v9-mark"; ic.setAttribute("aria-hidden", "true");
-ic.innerHTML = '<svg viewBox="0 0 112 76"><rect width="112" height="76" rx="10" fill="#efe9dc"/><path d="M24 50 L28 26 L38 38 L44 20 L50 38 L60 26 L64 50 Z" fill="#ff4766"/><rect x="24" y="53" width="40" height="6" rx="2" fill="#ff4766"/></svg>';
-t.appendChild(ic);
-t.appendChild(document.createTextNode(m[1].trim() + " "));
-var a = document.createElement("span"); a.className = "v9-acc"; a.textContent = "/" + m[2].trim().toLowerCase(); t.appendChild(a);
+function arenaApply(e, animate) {
+const rp = arena.replay;
+rp.hp = e.hp.slice(); rp.sh = e.sh.slice();
+const ln = arenaLine(e); rp.lines.unshift(ln);
+const el = $("ar-log"); if (el) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
+if (animate && !document.hidden) {
+const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a";
+if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit") anim(def, "hit"); }
+if (e.type === "bf") anim(atk, "hit");
+const side = (e.type === "hit" || e.type === "dot") ? (e.i === 0 ? "b" : "p") : (e.type === "bf" || e.type === "heal") ? (e.i === 0 ? "p" : "b") : (e.type === "dodge" ? (e.i === 0 ? "b" : "p") : (e.i === 0 ? "b" : "p"));
+const txt = e.type === "hit" ? (e.kind === "jp" ? "JACKPOT " + fmt(e.val) : fmt(e.val)) : e.type === "bf" ? "BACKFIRE" : e.type === "dodge" ? "DODGE" : e.type === "heal" ? "+" + fmt(e.val) : fmt(e.val || 0);
+float(txt, side, e.type === "hit" ? (e.kind === "jp" ? "#ffb800" : "#ffffff") : e.type === "bf" ? "#ff1744" : e.type === "dodge" ? "#00f0ff" : "#00ff88", e.kind === "jp");
 }
-/** firemní event na mobilu do toku stránky (pod HUD), jinak plovoucí */
-function placeEvent() {
-var ev = document.getElementById("mt-event"), hud = document.getElementById("m-hud"); if (!ev) return;
-var inFlow = root.classList.contains("v9") && root.classList.contains("m") && hud;
-if (inFlow && ev.previousElementSibling !== hud) hud.parentNode.insertBefore(ev, hud.nextSibling);
-else if (!inFlow && ev.parentNode !== document.body) document.body.appendChild(ev);
+arenaBars();
 }
-function apply(on) {
-root.classList.toggle("v9", on);
-if (on) { splitResolve(); brand(); startCase(); } else stopCase();
-placeEvent();
-var b = document.getElementById("th-btn"); if (b) b.title = on ? "Switch to the classic look" : "Switch to the new look";
-var m = document.getElementById("th-more"); if (m) m.textContent = on ? "🎨 Classic look" : "🎨 New look";
+function arenaStep() {
+const rp = arena.replay; if (!rp) return;
+clearTimeout(arena.timer);
+if (rp.idx >= rp.r.events.length) { arenaEnd(); return; }
+arenaApply(rp.r.events[rp.idx++], true);
+arena.timer = setTimeout(arenaStep, document.hidden ? 30 : 520);
 }
-function toggle() {
-var on = !root.classList.contains("v9");
-try { localStorage.setItem(KEY, on ? "new" : "classic"); } catch (e) {}
-if (!on) { location.reload(); return; }                 // návrat ke klasice = čisté texty z kódu
-apply(true);
+function arenaSkip() { const rp = arena.replay; if (!rp) return; clearTimeout(arena.timer); while (rp.idx < rp.r.events.length) arenaApply(rp.r.events[rp.idx++], false); arenaEnd(); }
+function arenaEnd() {
+const rp = arena.replay, r = rp.r;
+rp.done = true;
+const res = $("ar-res");
+if (res) res.innerHTML = `<span style="font:900 18px Orbitron,monospace;color:${r.win ? "var(--emerald)" : "var(--crimson)"};">${r.win ? "🏆 VICTORY" : "☠ DEFEAT"}</span><br>${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}) · +${fmt(r.reward)} GC · ${r.left} attacks left today`;
+const loser = document.querySelector(r.win ? "#ar-b .dg-sprite" : "#ar-a .dg-sprite"); if (loser) loser.classList.add("dead");
+const b = $("ar-back"); if (b) b.disabled = false;
+const s = $("ar-skip"); if (s) s.disabled = true;
 }
-window.Theme = { toggle: toggle, conv: conv, isNew: function () { return root.classList.contains("v9"); } };
-if (!classic()) root.classList.add("v9");              // hned, ať se neukáže starý vzhled
-function boot() {
-if (!document.body) { setTimeout(boot, 30); return; }
-apply(!classic());
-var badge = document.querySelector(".user-badge");
-if (badge && !document.getElementById("th-btn")) {
-var b = document.createElement("button"); b.id = "th-btn"; b.className = "btn btn-help"; b.type = "button"; b.textContent = "🎨";
-b.onclick = toggle; b.title = root.classList.contains("v9") ? "Switch to the classic look" : "Switch to the new look";
-var help = badge.querySelector(".btn-help:not(#m-compact)"); badge.insertBefore(b, help || null);
+function arenaRestore() {
+$("dg-inner").innerHTML = arenaReplayHtml();
+const rp = arena.replay;
+const el = $("ar-log"); if (el) el.innerHTML = rp.lines.slice().reverse().map(l => `<div class="${l[1]}">${l[0]}</div>`).join("");
+arenaBars();
+if (rp.done) arenaEnd();
 }
-function addMore() {
-var st = document.getElementById("m-settings");
-if (st && !document.getElementById("th-more")) { var r = st.querySelector(".row"); if (r) { var x = document.createElement("button"); x.id = "th-more"; x.className = "btn"; x.type = "button"; x.onclick = toggle; x.textContent = root.classList.contains("v9") ? "🎨 Classic look" : "🎨 New look"; r.appendChild(x); } }
+function arenaBack() { clearTimeout(arena.timer); arena.replay = null; arena.data = null; A.render(); }
+function showProfile(u) {
+if (!u) return;
+const dg = u.dungeon || {};
+const cls = dg.cls && H.CLASSES[dg.cls];
+const old = $("dg-profile"); if (old) old.remove();
+const el = document.createElement("div");
+el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
+el.onclick = (e) => { if (e.target === el) el.remove(); };
+el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
+<h2 style="color:var(--cyan);">${escapeHtml(u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
+<div style="display:flex;gap:12px;align-items:center;">
+${cls ? sprite(["sysadmin", "engineer", "cyber"].indexOf(dg.cls), "p") : '<div style="font-size:48px;">👤</div>'}
+<div class="tt-body" style="min-height:0;font-size:13px;">
+${cls ? `🎰 <b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "Not in HIGH STAKES yet<br>"}
+Missions cleared: <b>${dg.best || 0}/51</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
+Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
+Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
+${u.gear ? `<br>Gear: ${u.gear}` : ""}
+${window.Meta ? Meta.badgesHtml(u.ach) : ""}
+</div></div>
+<div style="text-align:right;margin-top:10px;"><button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
+document.body.appendChild(el);
 }
-addMore(); setTimeout(addMore, 800);
-setInterval(placeEvent, 1500);
-}
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+A.registerMode("arena", { label: "🏟 ARENA", order: 90,
+render: function (box) { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); },
+busy: function () { return arena.busy || !!(arena.replay && !arena.replay.done); } });
+Object.assign(window.Dungeon, { arenaAttack: arenaAttack, arenaAtkStance: arenaAtkStance, arenaDefStance: arenaDefStance, arenaSkip: arenaSkip, arenaBack: arenaBack,
+arenaRefresh: function () { arena.data = null; A.render(); }, showProfile: showProfile });
 })();
 </script>
 <style>
-/* ===== v9.3 THE ROOM: tvoje kancelář jako místnost (pohled zepředu, trochu shora), postava chodí k předmětům.
-Vzhled se mění s prestiží: Garáž (P0) -> ... -> Vesmírná stanice (P15). ===== */
-.rm { position: relative; width: 100%; aspect-ratio: 400 / 280; border-radius: 16px; overflow: hidden; margin: 0 0 12px; background: #0d1018; user-select: none; -webkit-user-select: none; touch-action: manipulation; isolation: isolate; }
-.rm .rm-bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.rm .rm-o { position: absolute; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.rm .rm-o > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
-.rm .rm-o.deco { pointer-events: none; }
-.rm .rm-o:not(.deco):hover > svg { filter: brightness(1.15) drop-shadow(0 0 4px rgba(255,255,255,.35)); }
-.rm .rm-o.lock > svg { filter: saturate(.35) brightness(.7); }
-.rm .rm-o .rm-lk { position: absolute; right: 0; top: 0; font-size: 11px; line-height: 1; filter: none; }
-.rm .rm-lb { position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); white-space: nowrap; font: 600 9.5px 'Space Grotesk', system-ui, sans-serif; color: #e8ecf3; background: rgba(10,12,18,.72); padding: 1px 6px; border-radius: 99px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 2; }
-.rm.labels .rm-lb, .rm .rm-o:hover .rm-lb { opacity: 1; }
-.rm .rm-o.lbl-l .rm-lb { left: 2px; transform: none; }
-.rm .rm-o.lbl-r .rm-lb { left: auto; right: 2px; transform: none; }
-.rm .rm-o.lbl-t .rm-lb { bottom: auto; top: 100%; }
-.rm .rm-me { position: absolute; pointer-events: none; will-change: left, top; }
-.rm .rm-me .rm-fl { position: absolute; inset: 0; }
-.rm .rm-me.left .rm-fl { transform: scaleX(-1); }
-.rm .rm-me .dg-sprite.rig { position: absolute; inset: 0; width: 100% !important; height: 100% !important; margin: 0 !important; }
-.rm .rm-col .dg-sprite.rig { position: absolute; width: 100% !important; height: 100% !important; margin: 0 !important; }
-.rig.a-walk .rg-legF { animation: rgStepF .32s ease-in-out infinite !important; }
-.rig.a-walk .rg-legB { animation: rgStepB .32s ease-in-out infinite !important; }
-.rig.a-walk .rg-bob { animation: rmWalkBob .32s ease-in-out infinite !important; }
-@keyframes rmWalkBob { 50% { transform: translateY(-2px); } }
-.rig.a-type .rg-armF { animation: rmType .22s ease-in-out infinite !important; }
-.rig.a-type .rg-armB { animation: rmType .22s ease-in-out .11s infinite !important; }
-@keyframes rmType { 50% { transform: rotate(-38deg); } }
-.rig.a-sit .rg-legF { transform: rotate(-70deg); animation: none !important; }
-.rig.a-sit .rg-legB { transform: rotate(-62deg); animation: none !important; }
-.rig.a-sit .rg-all { transform: translateY(12px); }
-.rig.a-wave .rg-armF { animation: rmWave .5s ease-in-out 3 !important; }
-@keyframes rmWave { 50% { transform: rotate(-150deg); } }
-.rm .rm-bub { position: absolute; z-index: 400; transform: translate(-50%, -100%); max-width: 70%; background: #f8fafc; color: #10131c; font: 600 11px/1.3 'Space Grotesk', system-ui, sans-serif; padding: 6px 9px; border-radius: 12px; box-shadow: 0 6px 16px rgba(0,0,0,.4); pointer-events: none; animation: rmPop .25s ease-out; }
-.rm .rm-bub::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: #f8fafc; }
-@keyframes rmPop { from { transform: translate(-50%, -80%) scale(.7); opacity: 0; } }
-.rm .rm-name { position: absolute; left: 8px; top: 7px; z-index: 300; font: 600 10.5px 'Space Grotesk', system-ui, sans-serif; color: #e8ecf3; background: rgba(10,12,18,.6); padding: 2px 8px; border-radius: 99px; pointer-events: none; }
-.rm .rm-hint { position: absolute; right: 8px; top: 7px; z-index: 300; font: 500 10px 'Space Grotesk', system-ui, sans-serif; color: #c9d1dc; background: rgba(10,12,18,.6); padding: 2px 8px; border-radius: 99px; pointer-events: none; transition: opacity .5s; }
-.rm .rm-rev { position: absolute; left: 50%; top: 14%; z-index: 500; transform: translateX(-50%); width: max-content; max-width: 88%; text-align: center; background: rgba(10,12,18,.88); border: 1px solid rgba(245,185,66,.55); border-radius: 14px; padding: 10px 14px; color: #e8ecf3; font-family: 'Space Grotesk', system-ui, sans-serif; box-shadow: 0 14px 30px rgba(0,0,0,.5); animation: rmRev .5s cubic-bezier(.2,.8,.2,1); cursor: pointer; }
-.rm .rm-rev b { display: block; font-size: 15px; color: #f5b942; }
-.rm .rm-rev span { font-size: 12px; color: #c9d1dc; }
-@keyframes rmRev { from { transform: translate(-50%, -20px) scale(.9); opacity: 0; } }
-.rm .rm-flash { position: absolute; inset: 0; z-index: 450; background: #fff; pointer-events: none; animation: rmFlash .7s ease-out forwards; }
-@keyframes rmFlash { from { opacity: .85; } to { opacity: 0; } }
-.rm .rm-o.new > svg { animation: rmNew 1.2s ease-in-out 3; }
-@keyframes rmNew { 50% { filter: brightness(1.6) drop-shadow(0 0 8px #f5b942); } }
-.panel.rm-hl { animation: rmHl 1.2s ease-out; }
-@keyframes rmHl { 0%, 40% { box-shadow: 0 0 0 2px var(--amber, #f5b942); } 100% { box-shadow: none; } }
-.rm .rm-tv-logo { animation: rmTv 4s ease-in-out infinite; }
-@keyframes rmTv { 50% { opacity: .8; } }
-.rm .rm-led { animation: rmLed 1.4s steps(2) infinite; }
-@keyframes rmLed { 50% { opacity: .25; } }
-.rm .rm-float { animation: rmFloat 3s ease-in-out infinite; }
-@keyframes rmFloat { 50% { transform: translateY(-3px); } }
-html.m [data-tab="play"] .rm { margin-bottom: 10px; border-radius: 18px; flex: none; }
-/* v9.3.1: Play na mobilu se normálně posouvá (místnost + tlačítko pevné výšky), nic se nemačká přes sebe */
-html.m body[data-mtab="play"] .main-wrapper { overflow-y: auto; }
-html.m body[data-mtab="play"] .grid-columns { flex: none; min-height: auto; }
-html.m body[data-mtab="play"] [data-tab="play"] { display: block; flex: none; min-height: 0; }
-html.m [data-tab="play"] .click-btn-wrap { display: flex; flex: none; height: clamp(130px, 22vh, 190px); min-height: 0; }
-html.m [data-tab="play"] .rm-o, html.m [data-tab="play"] .rm { touch-action: pan-y; }
-@media (prefers-reduced-motion: reduce) { .rm .rm-tv-logo, .rm .rm-led, .rm .rm-float { animation: none; } }
+/* ===== HIGH STAKES - TOWER, ON-CALL SHIFT (roguelite), QUARTERLY REVIEW (world boss) ===== */
+.tw-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-top: 8px; max-width: 460px; }
+.tw-grid div { aspect-ratio: 1; border-radius: 3px; background: #10151f; border: 1px solid #1e2636; font: 700 9px 'Orbitron', monospace; display: flex; align-items: center; justify-content: center; color: #3b4252; }
+.tw-grid .ok { background: rgba(0,255,136,.15); border-color: rgba(0,255,136,.4); color: var(--emerald); }
+.tw-grid .nx { background: rgba(255,184,0,.2); border-color: var(--amber); color: var(--amber); animation: tabGlow .7s ease-in-out infinite alternate; }
+.tw-grid .bs { border-color: rgba(255,23,68,.5); }
+.hm-row { display: flex; gap: 10px; align-items: center; }
+.hm-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
+.sh-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.sh-choice { padding: 12px 8px; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); cursor: pointer; text-align: center; }
+.sh-choice:hover { border-color: var(--cyan); }
+.sh-choice .ic { font-size: 26px; }
+.sh-choice b { display: block; font: 800 11px 'Orbitron', monospace; margin: 4px 0; }
+.sh-perks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.sh-perks span { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: rgba(168,85,247,.15); border: 1px solid rgba(168,85,247,.4); color: #d8b4fe; }
+.sh-path { display: flex; gap: 3px; margin: 6px 0; }
+.sh-path div { flex: 1; height: 6px; border-radius: 3px; background: #1e2636; }
+.sh-path .done { background: var(--emerald); } .sh-path .cur { background: var(--amber); }
+.wb-bar { height: 16px; background: #000; border: 1px solid rgba(255,23,68,.5); border-radius: 8px; overflow: hidden; position: relative; margin: 6px 0; }
+.wb-bar div { height: 100%; background: linear-gradient(90deg, #7f1d1d, #ff1744); transition: width .4s; }
+.wb-bar span { position: absolute; inset: 0; text-align: center; font: 800 10px/16px 'Orbitron', monospace; color: #fff; text-shadow: 0 1px 2px #000; }
+.wb-lb div { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.dg-tabs { flex-wrap: wrap; }
+.dg-tabs button { flex: 1 1 0; min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }   /* v8.7.5: na PC všech 7 záložek v jedné řadě */
+@media (max-width: 700px) { .dg-tabs button { flex: 1 0 30%; font-size: 10px; } .sh-choices { grid-template-columns: 1fr; } }
 </style>
-<script>
-(function () {
-"use strict";
-const W = 400, H = 280;
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const ENVS = [
-{ n: "Garage", i: "🏚", wall: "#3b4049", side: "#2d3139", floor: "#4a4f57", floor2: "#41454c", ceil: "#23262c", trim: "#2a2d33" },
-{ n: "Basement", i: "🧱", wall: "#4a3a33", side: "#3a2d28", floor: "#4b3a2c", floor2: "#433427", ceil: "#2a201c", trim: "#2e231e" },
-{ n: "Coworking space", i: "☕", wall: "#45556a", side: "#37455a", floor: "#6b5641", floor2: "#5f4c39", ceil: "#2b3442", trim: "#2c3644" },
-{ n: "Open space", i: "🏢", wall: "#3d4b60", side: "#313d4f", floor: "#39465a", floor2: "#334052", ceil: "#232c39", trim: "#27303d" },
-{ n: "Skyscraper floor", i: "🌆", wall: "#25324a", side: "#1f2a3e", floor: "#2f3747", floor2: "#2a3140", ceil: "#171e2b", trim: "#1b2230" },
-{ n: "Penthouse", i: "🥂", wall: "#3d3029", side: "#30251f", floor: "#a39c93", floor2: "#958e85", ceil: "#241c18", trim: "#c9a227" },
-{ n: "Data center", i: "🗄", wall: "#18212e", side: "#141b26", floor: "#263040", floor2: "#212a38", ceil: "#0f141c", trim: "#1d4ed8" },
-{ n: "Spaceport", i: "🚀", wall: "#2d3140", side: "#242734", floor: "#3a3f4f", floor2: "#343947", ceil: "#1b1e27", trim: "#f97316" },
-{ n: "Space station", i: "🛰", wall: "#1d2436", side: "#171d2c", floor: "#2b3346", floor2: "#262d3f", ceil: "#11151f", trim: "#2fe6c8" }
-];
-const ENV_OF = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8];
-const REVEAL = [
-null,
-["You moved to the Basement!", "Your first real desk and an office chair."],
-["Basement upgrade!", "A second monitor, a desk lamp and a rug."],
-["You moved to a Coworking space!", "A rented desk and a coffee machine."],
-["Coworking upgrade!", "A comfier couch and a bigger TV."],
-["You moved to an Open space office!", "A real roulette table and a locker."],
-["Open space upgrade!", "A standing desk, plants and a window."],
-["You moved to a Skyscraper floor!", "Glass walls and a view of the city."],
-["Skyscraper upgrade!", "Leather armchairs and a giant TV."],
-["You moved to the Penthouse!", "A golden roulette and marble floors."],
-["Penthouse upgrade!", "A hot tub and a neon sign."],
-["You moved to a Data center!", "Server racks and blue lights."],
-["Data center upgrade!", "An RGB gaming setup with water cooling."],
-["You moved to the Spaceport!", "There's a rocket outside the window."],
-["Spaceport upgrade!", "Your own spacesuit. The countdown has started..."],
-["You moved to a Space station!", "A holo desk and zero-g roulette."]
-];
-const NEW_ITEM = { 1: "desk", 2: "desk", 3: "desk", 4: "tv", 5: "roul", 6: "desk", 7: "desk", 8: "tv", 9: "roul", 10: "deco", 11: "deco", 12: "desk", 13: "deco", 14: "closet", 15: "desk" };
-function tierOf(p) { return Math.max(0, Math.min(15, p | 0)); }
-function bg(T, P) {
-const E = ENVS[ENV_OF[T]], e = ENV_OF[T];
-let s = `<svg class="rm-bg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`;
-s += `<defs><linearGradient id="rmFl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${E.floor2}"/><stop offset="1" stop-color="${E.floor}"/></linearGradient>
-<linearGradient id="rmSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${e === 7 ? "#f59e0b" : "#0b1630"}"/><stop offset="1" stop-color="${e === 7 ? "#7c2d12" : "#1d2b4f"}"/></linearGradient>
-<radialGradient id="rmVig" cx=".5" cy=".55" r=".8"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient></defs>`;
-s += `<rect width="${W}" height="${H}" fill="${E.ceil}"/>`;
-s += `<polygon points="0,0 400,0 360,18 40,18" fill="${E.ceil}"/>`;
-s += `<rect x="40" y="18" width="320" height="102" fill="${E.wall}"/>`;
-s += `<polygon points="0,0 40,18 40,120 0,280" fill="${E.side}"/><polygon points="400,0 360,18 360,120 400,280" fill="${E.side}"/>`;
-s += `<polygon points="40,120 360,120 400,280 0,280" fill="url(#rmFl)"/>`;
-if (e === 0) s += `<ellipse cx="170" cy="230" rx="28" ry="7" fill="#2b2e33" opacity=".5"/><ellipse cx="300" cy="170" rx="14" ry="4" fill="#2b2e33" opacity=".4"/><path d="M40 180 L360 180" stroke="#3a3e45" stroke-width="1" opacity=".5"/>`;
-else if (e === 1 || e === 2) for (let i = 1; i < 10; i++) { const xb = 40 + i * 32, xf = i * 40; s += `<path d="M${xb} 120 L${xf} 280" stroke="#000" stroke-width="1" opacity=".18"/>`; }
-else if (e === 5) { for (let i = 1; i < 8; i++) { const xb = 40 + i * 40, xf = i * 50; s += `<path d="M${xb} 120 L${xf} 280" stroke="#fff" stroke-width=".8" opacity=".25"/>`; } [150, 185, 225].forEach(y => { s += `<path d="M0 ${y} L400 ${y}" stroke="#fff" stroke-width=".8" opacity=".2"/>`; }); }
-else if (e === 6 || e === 8) { for (let i = 1; i < 8; i++) { const xb = 40 + i * 40, xf = i * 50; s += `<path d="M${xb} 120 L${xf} 280" stroke="#000" stroke-width="1" opacity=".3"/>`; } [145, 175, 215, 260].forEach(y => { s += `<path d="M0 ${y} L400 ${y}" stroke="#000" stroke-width="1" opacity=".3"/>`; }); }
-else s += `<rect x="0" y="120" width="400" height="160" fill="#000" opacity=".06"/>`;
-if (T >= 2 && e < 6) s += `<ellipse cx="292" cy="222" rx="70" ry="22" fill="${e === 5 ? "#7f1d1d" : e >= 3 ? "#2f5d8a" : "#8a3d2f"}" opacity=".55"/>`;
-if (e === 0) { s += `<rect x="150" y="28" width="110" height="88" rx="2" fill="#4a5059"/>`; for (let i = 0; i < 8; i++) s += `<rect x="150" y="${30 + i * 11}" width="110" height="2" fill="#2f343b"/>`; s += `<rect x="198" y="105" width="14" height="4" rx="1" fill="#2f343b"/>`; }
-if (e === 1) { for (let r = 0; r < 9; r++) for (let c = 0; c < 11; c++) s += `<rect x="${42 + c * 29 + (r % 2) * 14}" y="${20 + r * 11}" width="26" height="9" rx="1" fill="#000" opacity=".12"/>`; s += `<rect x="172" y="24" width="56" height="16" rx="2" fill="#7fa6c9" opacity=".6"/><path d="M200 24 v16" stroke="${E.wall}" stroke-width="2"/>`; }
-if (e === 2) { s += `<rect x="232" y="28" width="38" height="46" rx="2" fill="#f5b942" opacity=".85"/><text x="251" y="57" text-anchor="middle" font-size="9" font-weight="700" fill="#45556a" font-family="Space Grotesk,sans-serif">HUSTLE</text>`; }
-if (e === 3 && T >= 6 || e === 2) s += `<rect x="58" y="28" width="${e === 2 ? 0 : 60}" height="44" rx="2" fill="#9cc6e8" opacity=".55"/>`;
-if (e === 3 && T >= 6) s += `<path d="M88 28 v44 M58 50 h60" stroke="${E.wall}" stroke-width="2"/>`;
-if (e === 4) { s += `<rect x="44" y="22" width="312" height="94" fill="#0e1830"/>`; for (let i = 0; i < 16; i++) { const x = 46 + i * 20, h = 26 + ((i * 37) % 50); s += `<rect x="${x}" y="${116 - h}" width="16" height="${h}" fill="#1b2944"/>`; for (let k = 0; k < h / 9 - 1; k++) s += (i + k) % 3 ? `<rect x="${x + 3 + (k % 2) * 6}" y="${118 - h + k * 9}" width="3" height="3" fill="#f5b942" opacity=".55"/>` : ""; } for (let i = 1; i < 4; i++) s += `<path d="M${40 + i * 80} 18 v102" stroke="#3a4a66" stroke-width="2"/>`; }
-if (e === 5) { s += `<rect x="44" y="24" width="312" height="92" fill="#1a1530" opacity=".5"/>`; s += `<path d="M200 18 v10" stroke="#c9a227" stroke-width="1.5"/><path d="M186 34 Q200 26 214 34 L210 38 Q200 33 190 38Z" fill="#f5c542"/><circle cx="200" cy="40" r="3" fill="#fff6c2"/>`; if (T >= 10) s += `<text x="300" y="44" text-anchor="middle" font-size="13" font-weight="700" fill="#ff4dff" style="font-family:Space Grotesk,sans-serif;filter:drop-shadow(0 0 3px #ff4dff)">OFFICE</text><text x="300" y="58" text-anchor="middle" font-size="13" font-weight="700" fill="#63c5ff" style="font-family:Space Grotesk,sans-serif;filter:drop-shadow(0 0 3px #63c5ff)">ROYALE</text>`; }
-if (e === 6) { [52, 330].forEach(x => { s += `<rect x="${x}" y="26" width="22" height="92" rx="1" fill="#0f141c" stroke="#26324a"/>`; for (let k = 0; k < 9; k++) s += `<rect x="${x + 3}" y="${30 + k * 10}" width="16" height="6" fill="#1a2232"/><circle class="rm-led" style="animation-delay:${(k * .17).toFixed(2)}s" cx="${x + 16}" cy="${33 + k * 10}" r="1" fill="${k % 3 ? "#22c55e" : "#3b82f6"}"/>`; }); s += `<rect x="40" y="18" width="320" height="4" fill="#1d4ed8" opacity=".6"/>`; if (T >= 12) s += `<path d="M40 120 L360 120" stroke="#ff4dff" stroke-width="2" opacity=".8"/><path d="M0 280 L40 120 M400 280 L360 120" stroke="#63c5ff" stroke-width="2" opacity=".7"/>`; }
-if (e === 7) { s += `<rect x="150" y="24" width="160" height="90" rx="4" fill="url(#rmSky)"/><path d="M150 100 h160 v14 h-160z" fill="#3f2a1d"/><g transform="translate(232 40)"><path d="M0 0 Q8 12 8 36 L-8 36 Q-8 12 0 0Z" fill="#e5e7eb"/><path d="M-8 36 l-6 10 h6z M8 36 l6 10 h-6z" fill="#dc2626"/><circle cx="0" cy="18" r="3" fill="#63c5ff"/>${T >= 14 ? `<path d="M-5 46 q5 12 10 0" fill="#f97316" opacity=".8"/>` : ""}</g><rect x="252" y="64" width="6" height="40" fill="#6b7280"/>`; if (T >= 14) s += `<rect x="72" y="34" width="54" height="24" rx="3" fill="#0b0f16" stroke="#f97316"/><text x="99" y="51" text-anchor="middle" font-size="12" font-weight="700" fill="#f97316" style="font-family:Space Grotesk,sans-serif">T-10</text>`; }
-if (e === 8) { s += `<rect x="120" y="24" width="190" height="88" rx="40" fill="#050812" stroke="#3a4a66" stroke-width="3"/>`; for (let i = 0; i < 26; i++) s += `<circle cx="${132 + (i * 53) % 170}" cy="${32 + (i * 29) % 74}" r="${i % 4 ? .8 : 1.4}" fill="#fff" opacity=".8"/>`; s += `<circle cx="168" cy="80" r="18" fill="#3b82f6"/><path d="M152 76 q10 -6 22 2 q6 6 10 2" stroke="#22c55e" stroke-width="5" fill="none" opacity=".8"/>`; const extra = Math.max(0, Math.min(8, (P | 0) - 15)); for (let i = 0; i < extra; i++) { const cx = 220 + (i * 31) % 80, cy = 40 + (i * 23) % 56, c = ["#f59e0b", "#a855f7", "#ef4444", "#22c55e", "#e5e7eb", "#f472b6", "#2fe6c8", "#facc15"][i]; s += `<circle cx="${cx}" cy="${cy}" r="${5 + (i % 3) * 2}" fill="${c}"/>`; } s += `<path d="M40 40 h70 M310 40 h50 M40 100 h70 M310 100 h50" stroke="#2c3650" stroke-width="2"/>`; }
-if (e <= 1) s += `<path d="M200 0 v14" stroke="#111" stroke-width="1"/><circle cx="200" cy="17" r="4" fill="#fff6c2"/><circle cx="200" cy="17" r="20" fill="#fff6c2" opacity=".08"/>`;
-else if (e !== 5) s += `<rect x="150" y="4" width="100" height="5" rx="2" fill="#e8ecf3" opacity=".35"/>`;
-s += `<rect x="40" y="117" width="320" height="3" fill="${E.trim}" opacity=".8"/>`;
-s += `<rect width="${W}" height="${H}" fill="url(#rmVig)"/></svg>`;
-return s;
-}
-const LOGO = (x, y, k) => `<g transform="translate(${x} ${y}) scale(${k})"><rect x="-14" y="-9.5" width="28" height="19" rx="2.5" fill="#efe9dc"/><path d="M-8 3 L-7 -3 L-4.5 0 L-3 -5 L-1.5 0 L1 -3 L2 3Z" fill="#ff4766"/><rect x="-8" y="4" width="10" height="1.6" fill="#ff4766"/><path d="M7.5 -7 v14" stroke="#b9b1a0" stroke-width=".8" stroke-dasharray="1 1.2"/></g>`;
-function monitor(x, y, kind, w) {
-w = w || 26;
-if (kind === "crt") return `<rect x="${x - 15}" y="${y - 24}" width="30" height="24" rx="3" fill="#d6cfb8"/><rect x="${x - 11}" y="${y - 21}" width="22" height="16" rx="2" fill="#1e3a5f"/><path d="M${x - 8} ${y - 17} h12 M${x - 8} ${y - 13} h9 M${x - 8} ${y - 9} h14" stroke="#63c5ff" stroke-width="1.2" opacity=".8"/>`;
-if (kind === "laptop") return `<path d="M${x - 13} ${y - 1} L${x - 11} ${y - 18} h22 L${x + 13} ${y - 1}Z" fill="#9ca3af"/><rect x="${x - 10}" y="${y - 17}" width="20" height="13" fill="#1e3a5f"/><path d="M${x - 7} ${y - 13} h10 M${x - 7} ${y - 9} h13" stroke="#63c5ff" stroke-width="1.1" opacity=".8"/><rect x="${x - 16}" y="${y - 1}" width="32" height="2.5" rx="1" fill="#6b7280"/>`;
-if (kind === "holo") return `<g class="rm-float"><path d="M${x - w / 2} ${y - 30} h${w} l4 22 h${-w - 8}z" fill="#2fe6c8" opacity=".25" stroke="#2fe6c8"/><path d="M${x - 8} ${y - 24} h14 M${x - 8} ${y - 19} h10 M${x - 8} ${y - 14} h16" stroke="#2fe6c8" stroke-width="1.2"/></g>`;
-const curved = kind === "curved";
-return `<rect x="${x - 2}" y="${y - 8}" width="4" height="8" fill="#374151"/><rect x="${x - 8}" y="${y - 1}" width="16" height="2" rx="1" fill="#374151"/><rect x="${x - w / 2}" y="${y - 26}" width="${w}" height="${curved ? 20 : 18}" rx="${curved ? 6 : 1.5}" fill="#111827"/><rect x="${x - w / 2 + 2}" y="${y - 24}" width="${w - 4}" height="${curved ? 16 : 14}" rx="${curved ? 5 : 1}" fill="#1e3a5f"/><path d="M${x - w / 2 + 5} ${y - 20} h${w * .45} M${x - w / 2 + 5} ${y - 16} h${w * .3} M${x - w / 2 + 5} ${y - 12} h${w * .5}" stroke="#63c5ff" stroke-width="1.1" opacity=".8"/>`;
-}
-;(window.__TT_FILES = window.__TT_FILES || {})["part16"] = 1;
-// END-OF-FILE: part16 (the script continues in the next file)
+<script>(window.__TT_FILES = window.__TT_FILES || {})["part16"] = 1;</script>
+<!-- END-OF-FILE: part16 -->

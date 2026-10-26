@@ -1,3 +1,113 @@
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const W = 360, H = 504, PXM = 20;                      // 1 metr = 20 px
+const ZONE_M = 40, TOP_M = 280;                        // v9.5: 7 zón (dřív 5 a 200 m)
+const ZONES = [["Helpdesk", "#0b1220", "#3b82f6"], ["Server Room", "#0a1a14", "#22c55e"], ["Security Floor", "#1a0b14", "#ef4444"], ["Cloud Level", "#0d1426", "#a5b4fc"], ["Executive Floor", "#1a120a", "#d4a373"], ["Boardroom", "#0b1418", "#2dd4bf"], ["The Roof", "#1a1405", "#ffd700"]];
+const TIERS = [{ id: "A", s: 60, cost: 1e6, chests: 12 }, { id: "B", s: 120, cost: 15e6, chests: 40 }, { id: "C", s: 300, cost: 200e6, chests: 120 }];   // v9.5: víc beden, plynulejší křivka
+const G = 1500, CHARGE_MS = 600, DT = 1 / 120;
+const jk = { built: false, plat: null, run: null, raf: 0, keys: {}, charge: 0, charging: false, dir: 0, last: 0, acc: 0, fx: [], t: 0 };
+const MAPS = [[[0,24,360,24,0],[55,124,99,12,1],[137,244,101,12,1],[242,320,84,12,1],[124,404,89,12,1],[273,452,32,12,2],[218,494,91,12,1],[216,564,30,12,2],[101,610,95,12,1],[191,692,44,12,2],[209,724,89,12,1],[111,797,84,12,1],[229,901,82,12,1],[104,1016,92,12,1],[229,1159,86,12,1],[139,1263,67,12,1],[66,1316,38,12,2],[240,1372,71,12,1],[111,1501,80,12,1],[242,1556,57,12,2],[6,1604,75,12,1],[76,1670,30,12,2],[103,1734,84,12,1],[235,1779,69,12,2],[249,1811,69,12,1],[193,1916,64,12,1],[233,1982,63,12,2],[54,2034,69,12,1],[148,2125,57,12,2],[168,2162,78,12,1],[72,2253,56,12,2],[46,2307,64,12,1],[127,2472,72,12,1],[194,2518,69,12,2],[53,2559,47,12,1],[109,2686,54,12,2],[175,2721,45,12,1],[39,2804,65,12,1],[180,2888,51,12,1],[44,2984,60,12,1],[182,3079,38,12,2],[138,3142,55,12,1],[254,3223,57,12,1],[182,3324,54,12,1],[54,3396,34,12,1],[148,3544,35,12,2],[202,3580,52,12,1],[295,3726,46,12,1],[243,3801,48,12,1],[109,4017,35,12,1],[252,4095,45,12,1],[166,4264,30,12,1],[287,4347,33,12,1],[138,4514,33,12,2],[122,4551,33,12,1],[246,4664,40,12,1],[165,4808,32,12,1],[57,4920,69,12,2],[313,4951,32,12,1],[13,5063,53,12,2],[153,5106,30,12,1],[36,5184,32,12,1],[287,5281,52,12,2],[103,5345,30,12,1],[254,5459,33,12,2],[260,5509,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[76,145,89,12,1],[146,275,94,12,1],[254,403,91,12,1],[176,474,95,12,1],[319,521,38,12,2],[90,586,81,12,1],[192,661,95,12,1],[32,705,49,12,2],[115,748,80,12,1],[220,867,86,12,1],[106,988,67,12,1],[281,1047,61,12,2],[221,1078,83,12,1],[27,1160,57,12,2],[98,1207,76,12,1],[205,1326,85,12,1],[118,1416,79,12,1],[220,1493,84,12,1],[153,1618,90,12,1],[271,1784,69,12,1],[130,1957,74,12,1],[259,2128,83,12,1],[142,2233,79,12,1],[63,2312,63,12,1],[132,2433,32,12,2],[126,2485,82,12,1],[264,2589,52,12,1],[53,2638,45,12,2],[168,2672,45,12,1],[261,2761,59,12,1],[146,2894,42,12,1],[73,2999,33,12,2],[256,3034,44,12,1],[187,3132,60,12,1],[229,3268,40,12,2],[45,3327,50,12,1],[200,3403,51,12,2],[104,3458,48,12,1],[222,3537,31,12,1],[66,3610,57,12,2],[286,3646,35,12,1],[151,3726,39,12,1],[248,3843,67,12,2],[12,3885,30,12,1],[89,4021,52,12,1],[32,4152,35,12,2],[231,4183,46,12,1],[159,4285,34,12,1],[6,4367,31,12,1],[139,4518,55,12,2],[74,4581,30,12,1],[147,4632,70,12,2],[205,4694,30,12,1],[39,4805,31,12,1],[278,4863,53,12,2],[189,4907,30,12,1],[51,4974,36,12,2],[50,5032,30,12,1],[132,5190,66,12,2],[221,5253,30,12,1],[83,5413,30,12,1],[165,5504,34,12,2],[21,5537,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[61,123,86,12,1],[183,220,80,12,1],[57,331,105,12,1],[149,421,82,12,1],[259,493,92,12,1],[188,610,81,12,1],[59,730,100,12,1],[181,807,80,12,1],[107,871,53,12,2],[277,912,70,12,1],[187,1019,89,12,1],[98,1108,69,12,1],[241,1160,34,12,2],[203,1206,69,12,1],[74,1341,84,12,1],[168,1477,72,12,1],[257,1572,93,12,1],[149,1694,73,12,1],[255,1761,50,12,2],[20,1792,56,12,1],[113,1935,74,12,1],[245,2008,66,12,1],[158,2123,70,12,1],[58,2226,67,12,1],[141,2355,69,12,1],[267,2494,65,12,1],[133,2603,61,12,1],[275,2735,59,12,1],[192,2911,64,12,1],[297,2984,51,12,2],[61,3016,59,12,1],[220,3170,47,12,2],[153,3205,55,12,1],[6,3337,55,12,1],[93,3432,30,12,1],[219,3503,46,12,1],[112,3625,45,12,1],[71,3686,31,12,2],[225,3748,42,12,1],[76,3954,39,12,1],[225,4077,61,12,2],[192,4113,57,12,1],[72,4216,30,12,1],[145,4355,42,12,2],[195,4417,31,12,1],[272,4504,69,12,2],[47,4570,35,12,1],[158,4656,30,12,1],[307,4747,34,12,1],[190,4913,41,12,1],[272,4965,59,12,2],[27,5033,31,12,1],[182,5144,31,12,1],[214,5226,33,12,2],[20,5290,30,12,1],[231,5342,39,12,2],[151,5385,30,12,1],[277,5518,31,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[42,152,108,12,1],[130,245,89,12,1],[21,332,94,12,1],[92,449,89,12,1],[208,569,89,12,1],[91,693,91,12,1],[209,809,90,12,1],[158,933,86,12,1],[28,1005,96,12,1],[113,1140,91,12,1],[215,1247,73,12,1],[124,1386,97,12,1],[48,1457,78,12,1],[172,1563,68,12,1],[64,1668,76,12,1],[191,1738,80,12,1],[63,1867,79,12,1],[121,2000,80,12,1],[244,2126,31,12,2],[246,2169,82,12,1],[125,2300,81,12,1],[31,2397,57,12,1],[143,2554,78,12,1],[8,2639,69,12,1],[173,2721,34,12,2],[69,2755,48,12,1],[186,2847,63,12,1],[258,2901,51,12,2],[72,2943,42,12,1],[176,3104,61,12,1],[94,3183,48,12,1],[201,3255,42,12,1],[56,3338,68,12,2],[81,3379,32,12,1],[247,3518,42,12,2],[190,3572,45,12,1],[82,3671,42,12,1],[16,3763,30,12,2],[193,3798,52,12,1],[80,3888,53,12,1],[228,3931,58,12,2],[182,3999,40,12,1],[129,4079,53,12,2],[283,4120,49,12,1],[163,4294,42,12,1],[285,4390,30,12,1],[125,4456,55,12,2],[225,4490,45,12,1],[89,4654,31,12,1],[29,4730,51,12,2],[237,4776,32,12,1],[14,4877,37,12,2],[92,4943,35,12,1],[259,5086,32,12,1],[59,5177,52,12,2],[147,5237,30,12,1],[316,5333,32,12,1],[240,5414,32,12,1],[323,5554,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[276,104,49,12,2],[209,146,97,12,1],[153,261,92,12,1],[40,352,106,12,1],[134,464,103,12,1],[237,565,87,12,1],[162,668,90,12,1],[51,756,85,12,1],[117,832,103,12,1],[216,908,75,12,1],[75,954,70,12,2],[114,1004,86,12,1],[38,1088,71,12,1],[142,1218,72,12,1],[231,1314,82,12,1],[150,1444,85,12,1],[50,1542,89,12,1],[177,1638,62,12,2],[127,1686,80,12,1],[27,1745,70,12,2],[249,1776,76,12,1],[115,1946,74,12,1],[52,2013,56,12,2],[249,2060,81,12,1],[131,2143,54,12,1],[20,2227,73,12,1],[74,2358,73,12,1],[248,2429,48,12,2],[131,2464,69,12,1],[265,2606,60,12,1],[141,2767,58,12,1],[3,2918,49,12,2],[295,2952,42,12,1],[220,3095,43,12,1],[28,3142,54,12,2],[77,3179,62,12,1],[14,3300,65,12,2],[204,3338,62,12,1],[285,3421,55,12,1],[238,3614,38,12,1],[21,3715,54,12,2],[141,3751,42,12,1],[51,3820,40,12,2],[257,3873,39,12,1],[119,4019,56,12,1],[166,4093,45,12,2],[31,4147,30,12,1],[188,4245,44,12,1],[290,4376,44,12,1],[176,4515,30,12,1],[320,4593,33,12,1],[153,4686,40,12,2],[197,4755,33,12,1],[65,4812,66,12,2],[27,4845,36,12,1],[190,4932,30,12,1],[246,5061,43,12,2],[44,5126,30,12,1],[192,5345,30,12,1],[13,5454,30,12,1],[216,5500,67,12,2],[79,5531,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[230,138,82,12,1],[121,232,81,12,1],[219,315,108,12,1],[161,406,103,12,1],[79,477,85,12,1],[165,555,102,12,1],[47,643,107,12,1],[176,736,85,12,1],[77,810,93,12,1],[203,923,81,12,1],[83,997,74,12,1],[191,1109,84,12,1],[31,1161,40,12,2],[87,1194,87,12,1],[196,1284,84,12,1],[140,1358,45,12,2],[79,1414,94,12,1],[199,1484,72,12,1],[70,1635,72,12,1],[154,1732,78,12,1],[247,1810,83,12,1],[64,1878,36,12,2],[157,1935,69,12,1],[62,1982,64,12,2],[70,2012,58,12,1],[209,2111,42,12,2],[124,2159,76,12,1],[254,2233,79,12,1],[101,2306,55,12,2],[149,2362,66,12,1],[16,2474,62,12,1],[143,2598,62,12,1],[296,2741,56,12,1],[244,2865,44,12,1],[75,2930,63,12,2],[100,2969,47,12,1],[223,3087,55,12,1],[258,3151,68,12,2],[104,3190,70,12,1],[39,3285,57,12,2],[247,3338,63,12,1],[129,3481,63,12,2],[166,3536,49,12,1],[36,3626,32,12,1],[83,3772,48,12,1],[223,3847,58,12,1],[27,3902,54,12,2],[90,3962,46,12,1],[217,4122,48,12,1],[109,4214,30,12,1],[218,4326,44,12,1],[76,4373,55,12,2],[101,4419,38,12,1],[187,4576,47,12,2],[261,4625,31,12,1],[99,4724,36,12,2],[126,4772,30,12,1],[62,4896,58,12,2],[281,4953,43,12,1],[139,5122,31,12,1],[309,5192,46,12,2],[270,5232,30,12,1],[137,5316,49,12,2],[153,5361,31,12,1],[6,5525,32,12,1],[105,5624,150,12,3]]];
+function buildMap(v) {
+v = v || jk.variant || { k: 0, flip: false }; jk.variant = v;
+return MAPS[v.k % MAPS.length].map((a, i) => ({ x: v.flip && a[4] !== 0 ? W - a[0] - a[2] : a[0], y: a[1], w: a[2], h: a[3], ground: a[4] === 0, main: a[4] === 1, decoy: a[4] === 2, top: a[4] === 3, z: Math.min(ZONES.length - 1, Math.floor(a[1] / (ZONE_M * PXM))), i: i }));
+}
+function rollVariant() { return { k: Math.floor(Math.random() * MAPS.length), flip: Math.random() < 0.5 }; }
+function physStep(r, P) {
+r.vy -= G * DT;
+const oy = r.y;
+r.x += r.vx * DT; r.y += r.vy * DT;
+if (r.x < 8) { r.x = 8; r.vx = -r.vx * 0.6; } else if (r.x > W - 8) { r.x = W - 8; r.vx = -r.vx * 0.6; }
+for (let k = 0; k < P.length; k++) {
+const p = P[k];
+if (r.x + 7 < p.x || r.x - 7 > p.x + p.w) continue;
+if (r.vy <= 0 && oy >= p.y && r.y <= p.y) { const fall = -r.vy; r.y = p.y; r.vy = 0; r.vx = 0; r.ground = true; return { k: k, fall: fall }; }   // přistání
+if (r.vy > 0 && oy + 22 <= p.y - p.h && r.y + 22 > p.y - p.h) { r.y = p.y - p.h - 22; r.vy = 0; r.bonk = 1; }      // hlavou o stůl
+}
+if (r.y < 24) { const fall = -r.vy; r.y = 24; r.vy = 0; r.vx = 0; r.ground = true; return { k: 0, fall: fall }; }
+return null;
+}
+function launch(r, dir, c) { r.vy = 380 + 520 * c; r.vx = dir * (140 + 70 * c); r.ground = false; }
+/** simulace skoku bez vykreslení (pro bota / testy): kam dopadne skok z (x, y) */
+function simJump(x, y, dir, c) {
+const P = jk.plat || (jk.plat = buildMap()), r = { x: x, y: y, vx: 0, vy: 0, ground: false };
+launch(r, dir, c);
+for (let i = 0; i < 900; i++) { const L = physStep(r, P); if (L) return { x: r.x, y: r.y, k: L.k }; }
+return null;
+}
+function scrapBase() { return Math.max(1, getChestScrapCost() / 20); }
+function heightValue(m) {                                // každá zóna má 3× cennější metry
+let v = 0;
+for (let z = 0; z < ZONES.length; z++) { const a = z * ZONE_M, b = Math.min(m, a + ZONE_M); if (b > a) v += (b - a) * Math.pow(3, z); }
+return v;
+}
+/** v9.5: podíl odměny = (výška / střecha)^1.4 - plynulejší než dřív (60 % výšky ≈ 49 % odměny) */
+function reward(m, tier) { return Math.floor(Math.pow(Math.max(0, Math.min(TOP_M, m)) / TOP_M, 1.4) * Math.max(1, getChestScrapCost()) * tier.chests); }
+function show() {
+const mount = $("jk-mount"); if (!mount) return;
+if (!jk.built) {
+jk.built = true; jk.plat = buildMap();
+mount.innerHTML = `<div class="jk-wrap">
+<div class="jk-canvas-box"><canvas id="jk-canvas" width="${W}" height="${H}"></canvas><div class="jk-hud"><span id="jk-h">0 m</span><span id="jk-t"></span></div>
+<div class="jk-ctrl"><button class="btn btn-cyan" data-d="-1">◀</button><button class="btn btn-gold" data-d="0">▲</button><button class="btn btn-cyan" data-d="1">▶</button></div></div>
+<div class="jk-side"><div class="adv-info"><b>CORPORATE CLIMB</b> - climb the office tower Jump King style. <b>Hold</b> a button (or Space + ←/→) to charge the jump, release to jump.
+You can fall all the way down. Buy climbing time with GC, the reward is <b>Scrap</b> based on your <b>highest point</b>. The higher you get, the more it pays, and longer runs pay more chests.
+Every run gets a <b>random floor plan</b> (12 variants), so no memorising. Every desk can be reached - if you are standing right under the next one, hop sideways first.</div>
+<div class="jk-tiers">${TIERS.map((t, i) => `<button class="btn ${i === 2 ? "btn-crimson" : i === 1 ? "btn-gold" : "btn-cyan"}" id="jk-buy-${t.id}" onclick="JumpKing.start(${i})">${t.s / 60} MIN<small>${fmtShort(t.cost)} GC · up to ${t.chests} chests</small></button>`).join("")}</div>
+<div id="jk-info" class="adv-info"></div>
+<div id="jk-zones" style="margin-top:6px;"></div></div></div>`;
+const cv = $("jk-canvas");
+mount.querySelectorAll(".jk-ctrl .btn").forEach(b => {
+const d = Number(b.dataset.d);
+b.addEventListener("pointerdown", (e) => { e.preventDefault(); startCharge(d); });
+b.addEventListener("pointerup", (e) => { e.preventDefault(); release(d); });
+b.addEventListener("pointerleave", () => { if (jk.charging && jk.dir === d) release(d); });
+b.addEventListener("contextmenu", (e) => e.preventDefault());
+});
+cv.addEventListener("pointerdown", (e) => { e.preventDefault(); const r = cv.getBoundingClientRect(); const x = (e.clientX - r.left) / r.width; startCharge(x < 0.33 ? -1 : x > 0.67 ? 1 : 0); });
+cv.addEventListener("pointerup", (e) => { e.preventDefault(); release(jk.dir); });
+}
+info(); draw(performance.now());
+if (!jk.run && !jk.idleRaf) idleLoop();
+}
+function idleLoop() {                                     // animované pozadí i bez běhu (jen když je vidět)
+const cv = $("jk-canvas");
+if (jk.run || !cv || !cv.offsetParent || document.hidden) { jk.idleRaf = 0; return; }
+draw(performance.now());
+jk.idleRaf = setTimeout(idleLoop, 80);
+}
+function fmtShort(n) { return n >= 1e9 ? (n / 1e9) + "B" : n >= 1e6 ? (n / 1e6) + "M" : n >= 1e3 ? (n / 1e3) + "K" : String(n); }
+function stats() { const d = window.Dungeon ? Dungeon.state() : (gameState.hs = gameState.hs || {}); if (!d.jk || typeof d.jk !== "object") d.jk = { best: 0, runs: 0, scrap: 0 }; return d.jk; }
+function info() {
+const s = stats(), el = $("jk-info"); if (!el) return;
+TIERS.forEach(t => { const b = $("jk-buy-" + t.id); if (b) b.disabled = !!jk.run || gameState.coins < t.cost; });
+el.innerHTML = jk.run ? `Climbing... reward so far: <b style="color:var(--amber);">${fmtShort(reward(jk.run.best, jk.run.tier))} scrap</b>` :
+`Your record: <b>${s.best.toFixed(1)} m</b> / ${TOP_M} m · runs ${s.runs} · scrap earned ${fmtShort(s.scrap)}<br>The roof pays the scrap of ${TIERS.map(t => t.chests).join(" / ")} chest openings (1 / 2 / 5 min). Halfway up pays about 38 % of that.`;
+const z = $("jk-zones");
+if (z) z.innerHTML = ZONES.map((zz, i) => `<div class="jk-zone"><span style="color:${zz[2]};">${i * ZONE_M}-${(i + 1) * ZONE_M} m · ${zz[0]}</span><span>${Math.round(Math.pow((i + 1) * ZONE_M / TOP_M, 1.4) * 100)} %</span></div>`).join("");
+}
+function start(i) {
+const t = TIERS[i]; if (!t || jk.run) return;
+if (gameState.coins < t.cost) { log(`CORPORATE CLIMB: ${t.s / 60} min costs ${fmtShort(t.cost)} GC.`, "warning"); return; }
+gameState.coins -= t.cost;
+jk.plat = buildMap(rollVariant());
+jk.run = { tier: t, end: performance.now() + t.s * 1000, x: W / 2, y: 24, vx: 0, vy: 0, ground: true, best: 0, face: 1, land: 0, bonk: 0 };
+jk.charge = 0; jk.charging = false; jk.last = performance.now(); jk.acc = 0; jk.fx = [];
+log(`🧗 CORPORATE CLIMB: ${t.s / 60} min bought for ${fmtShort(t.cost)} GC. Floor plan #${jk.variant.k + 1}${jk.variant.flip ? " (mirrored)" : ""}. Go!`, "special");
+updateUI(); TT.saveSoon(); info();
+cancelAnimationFrame(jk.raf); jk.raf = requestAnimationFrame(loop);
+}
+function startCharge(d) { const r = jk.run; if (!r || !r.ground) return; jk.charging = true; jk.charge = 0; jk.dir = d; jk.cs = performance.now(); }
+function release(d) {
+const r = jk.run; if (!r || !jk.charging) return;
+jk.charging = false;
+if (!r.ground) return;
+const c = Math.min(1, (performance.now() - jk.cs) / CHARGE_MS);
+const dir = jk.keys.left ? -1 : jk.keys.right ? 1 : d;
+launch(r, dir, c); if (dir) r.face = dir;
+puff(r.x, r.y, 4, 0.6);
+}
 function finish() {
 const r = jk.run; jk.run = null; jk.charging = false;
 const sc = reward(r.best, r.tier), s = stats();
@@ -255,243 +365,5 @@ sim: { jump: simJump, map: () => jk.plat || (jk.plat = buildMap()), W: W, PXM: P
 .pr-center { gap: 14px; min-height: 84px; }
 }
 </style>
-<script>
-(function () {
-"use strict";
-const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
-const trim = (x) => x.toFixed(2).replace(/\.?0+$/, "");
-const short = (n) => n >= 1e9 ? trim(n / 1e9) + "B" : n >= 1e6 ? trim(n / 1e6) + "M" : n >= 1e4 ? trim(n / 1e3) + "K" : Math.floor(n).toLocaleString();
-const SUITS = ["Hearts", "Bells", "Leaves", "Acorns"], RANKS = ["7", "8", "9", "10", "J", "Q", "K", "A"], RANK_N = ["7", "8", "9", "10", "Jack (spodek)", "Queen (svršek)", "King", "Ace"];
-const ICON = [
-'<svg viewBox="0 0 32 32"><path d="M16 29 C10 23 3 18 3 11 C3 6.5 6.5 3.5 10.5 3.5 C13 3.5 15 5 16 7 C17 5 19 3.5 21.5 3.5 C25.5 3.5 29 6.5 29 11 C29 18 22 23 16 29Z" fill="#d61f3c" stroke="#7a0c1e" stroke-width="1.2"/><path d="M9 8 C7 9 6 11 6.5 13" stroke="#ff9aa9" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
-'<svg viewBox="0 0 32 32"><circle cx="16" cy="17" r="11" fill="#f2b705" stroke="#8a6200" stroke-width="1.3"/><path d="M6 14 H26 M5.5 19 H26.5" stroke="#b5161d" stroke-width="2.4"/><circle cx="16" cy="17" r="3" fill="#8a6200"/><circle cx="12" cy="11" r="2" fill="#fff6c7" opacity=".8"/></svg>',
-'<svg viewBox="0 0 32 32"><path d="M16 3 C24 8 27 15 24 22 C22 26 19 27.5 16 28 C13 27.5 10 26 8 22 C5 15 8 8 16 3Z" fill="#22a447" stroke="#0e5a25" stroke-width="1.3"/><path d="M16 6 V30 M16 13 L11 10 M16 13 L21 10 M16 19 L10 16 M16 19 L22 16" stroke="#0e5a25" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>',
-'<svg viewBox="0 0 32 32"><ellipse cx="16" cy="20" rx="8" ry="9.5" fill="#c98a3c" stroke="#6b3d12" stroke-width="1.3"/><path d="M6.5 13 C7 7 12 5 16 5 C20 5 25 7 25.5 13 Z" fill="#7a4b20" stroke="#4a2a0c" stroke-width="1.3"/><path d="M9 10 H23 M8 12 H24" stroke="#5b3510" stroke-width="1"/><path d="M16 5 V2" stroke="#4a2a0c" stroke-width="2" stroke-linecap="round"/><ellipse cx="13" cy="19" rx="2" ry="4" fill="#e7b46d" opacity=".6"/></svg>'
-];
-const suit = (c) => Math.floor(c / 8), rank = (c) => c % 8;
-const P = { list: null, view: null, id: "", rev: -1, busy: false, msg: "", msgC: "", pick: -1, pollT: 0, listT: 0, recvAt: 0, myTurnSeen: "", built: false, lastList: 0 };
-function cardHtml(c, cls, extra) {
-const s = suit(c), r = rank(c), face = r >= 4 && r <= 6;
-return `<div class="pr-card s${s} ${cls || ""}" ${extra || ""} title="${RANK_N[r]} of ${SUITS[s]}"><span class="rk">${RANKS[r]}</span><span class="si">${ICON[s]}</span>${face ? `<span class="fc">${RANKS[r]}</span>` : ""}<span class="big">${ICON[s]}</span><span class="rk2">${RANKS[r]}</span></div>`;
-}
-function playable(v, c) {
-const r = rank(c), top = v.top;
-if (v.pen > 0) return r === 0;
-if (v.skip) return r === 7;
-if (r === 5) return true;
-return suit(c) === v.suit || r === rank(top);
-}
-function me() { return gameState.ldap; }
-function visible() { const el = $("adv-view-prsi"); return !!(el && el.style.display !== "none" && el.offsetParent); }
-function say(t, c) { P.msg = t; P.msgC = c || ""; render(); }
-function run(fn, args) {
-return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); });
-}
-function takePay(pay) {
-(pay || []).forEach(p => {
-if (p.why === "WIN") { TT.win(p.amt); log(`♣ PRŠÍ: you won the table! +${fmt(p.amt)} GC`, "special"); if (window.Meta && Meta.count) { Meta.count("prsiWins", 1); } TT.announce("WON A PRŠÍ TABLE", "PRŠÍ", 0, p.amt); }
-else { gameState.coins += p.amt; gameState.gambleNet = (gameState.gambleNet || 0) + p.amt; log(`♣ PRŠÍ: stake refunded +${fmt(p.amt)} GC`, "success"); }
-});
-if (pay && pay.length) { updateUI(); TT.saveSoon(); }
-}
-async function loadList() {
-if (P.listBusy) return; P.listBusy = true;
-try {
-const r = await run("prsList", []);
-P.lastList = Date.now();
-if (r && r.ok) {
-P.list = r; takePay(r.pay);
-if (r.mine && !P.id) { P.id = r.mine; P.rev = -1; poll(); }
-const waiting = r.tables.filter(t => t.status === "wait" && t.players.indexOf(me()) < 0).length;
-glow(waiting > 0 && !visible());
-}
-} catch (e) { P.list = P.list || { tables: [], stakes: [], max: 2 }; }
-finally { P.listBusy = false; }
-render();
-}
-async function poll() {
-clearTimeout(P.pollT);
-if (!P.id) return;
-try {
-const r = await run("prsPoll", [P.id, P.rev]);
-if (r && r.ok) {
-takePay(r.pay);
-if (r.gone) { P.id = ""; P.view = null; P.rev = -1; loadList(); return; }
-if (r.view) apply(r.view);
-else if (r.same && P.view) { P.view.left = r.left; P.recvAt = Date.now(); }
-}
-} catch (e) {}
-if (P.id) P.pollT = setTimeout(poll, visible() ? 1200 : (P.view && P.view.status === "play" ? 2500 : 5000));
-}
-function apply(v) {
-const prev = P.view;
-P.view = v; P.rev = v.rev; P.recvAt = Date.now();
-if (v.status === "play" && v.turn === me() && P.myTurnSeen !== v.rev + "") {
-P.myTurnSeen = v.rev + "";
-if (!visible()) { glow(true); if (!prev || prev.turn !== me()) log("♣ PRŠÍ: it's your turn!", "special"); }
-}
-if (prev && prev.status === "wait" && v.status === "play") log("♣ PRŠÍ: the game started - good luck!", "special");
-render();
-}
-function glow(on) { const t = $("adv-tab-prsi"); if (t) t.classList.toggle("glow", !!on); }
-async function create() {
-if (P.busy) return;
-const L = P.list || {}, stake = TT.cleanBet($("pr-stake").value, L.minStake || 10, Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9)), seats = Number($("pr-seats").value);
-$("pr-stake").value = stake; P.lastStake = stake;
-if (!(stake > 0)) { say("Enter a stake.", "var(--crimson)"); return; }
-if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
-P.busy = true; TT.spend(stake);
-try {
-const r = await run("prsCreate", [stake, seats]);
-if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
-else { refund(stake); say({ already: "You are already at a table.", full: "Both tables are busy - wait a moment.", stake: "Invalid stake." }[r && r.reason] || "Could not open the table.", "var(--crimson)"); }
-} catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
-finally { P.busy = false; loadList(); }
-}
-async function join(id, stake) {
-if (P.busy) return;
-if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
-P.busy = true; TT.spend(stake);
-try {
-const r = await run("prsJoin", [id]);
-if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
-else { refund(stake); say({ already: "You are already at a table.", seats: "The table is full.", gone: "That table is gone." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); }
-} catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
-finally { P.busy = false; }
-}
-function refund(stake) { gameState.coins += stake; gameState.gambleNet = (gameState.gambleNet || 0) + stake; updateUI(); TT.saveSoon(); }
-async function start() { if (P.busy || !P.id) return; P.busy = true; try { await run("prsStart", [P.id]); } catch (e) {} P.busy = false; poll(); }
-async function leave() {
-if (P.busy || !P.id) return;
-const v = P.view;
-if (v && v.status === "play" && v.out.indexOf(me()) < 0 && (v.fin || []).indexOf(me()) < 0 && !window.confirm("Leave the game? Your stake stays in the pot.")) return;
-P.busy = true;
-try { await run("prsLeave", [P.id]); } catch (e) {}
-P.busy = false; P.id = ""; P.view = null; P.rev = -1; clearTimeout(P.pollT); loadList();
-}
-async function move(mv) {
-const v = P.view; if (!v || P.busy || v.status !== "play" || v.turn !== me()) return;
-P.busy = true;
-if (mv.t === "play") {                                         // hned to ukázat (optimisticky)
-v.mine = v.mine.filter(c => c !== mv.c); v.under = v.top; v.top = mv.c; v.suit = rank(mv.c) === 5 ? mv.suit : suit(mv.c); v.turn = "";
-if (rank(mv.c) === 0) { v.pen += 2; if (v.pen >= 6 && window.Meta && Meta.count) Meta.count("prsiStack", 1); }
-render();
-}
-try {
-const r = await run("prsMove", [P.id, mv]);
-if (r && r.view) apply(r.view);
-if (r && !r.ok && r.reason === "card") say("That card can't be played.", "var(--crimson)");
-} catch (e) { say("Connection problem - retrying...", "var(--crimson)"); P.rev = -1; }
-P.busy = false; poll();
-}
-function play(c) {
-const v = P.view; if (!v || v.turn !== me() || !playable(v, c)) return;
-if (rank(c) === 5) { P.pick = c; render(); return; }
-move({ t: "play", c: c });
-}
-function pickSuit(s) { const c = P.pick; P.pick = -1; if (c < 0) return; move({ t: "play", c: c, suit: s }); }
-function draw() { move({ t: "draw" }); }
-function render() {
-const box = $("prs-mount"); if (!box) return;
-const ae = document.activeElement;
-if (!P.id && ae && box.contains(ae) && /INPUT|SELECT/.test(ae.tagName)) return;   // nepřepisovat, když hráč zrovna píše vklad
-box.innerHTML = P.id && P.view ? tableHtml(P.view) : P.id ? `<div class="pr-info">Loading the table...</div>` : lobbyHtml();
-const h = box.querySelector(".pr-hand"); if (h && P.handScroll) h.scrollLeft = P.handScroll;
-}
-function rulesHtml() {
-return `<div class="pr-info">2-6 players, everyone puts in the same stake, <b>the winner takes the pot</b> (-5%) - the rest play on for 2nd place (for glory, it goes to the chat). 4 cards each, play the same <b>suit</b> or <b>rank</b>, or draw 1.
-<b>7</b> = next player takes 2 (stack 7s: 4, 6, 8...). <b>Ace</b> = next player stands (only an ace beats it). <b>Queen</b> (Q = svršek) goes on anything and changes the suit. J = spodek.
-First one out of cards wins. 30 s per turn - 3 timeouts in a row and you are out.</div>`;
-}
-function lobbyHtml() {
-const L = P.list;
-if (!L) return rulesHtml() + `<div class="pr-info">Loading tables...</div>`;
-const active = L.tables.length;
-const rows = L.tables.map(t => `<div class="pr-trow"><div class="t">♣ <b>${short(t.stake)} GC</b> · ${esc(t.host)}'s table · ${t.players.length}/${t.seats} players<br><span style="color:var(--text-dim);font-size:10px;">${t.players.map(esc).join(", ")}</span></div>
-${t.status === "wait" && t.players.length < t.seats ? `<button class="btn btn-gold" ${gameState.coins >= t.stake && !P.busy ? "" : "disabled"} onclick="Prsi.join('${t.id}',${t.stake})">JOIN (${short(t.stake)})</button>` : `<span style="color:var(--text-dim);font-size:10px;">${t.status === "play" ? "PLAYING" : "FULL"}</span>`}</div>`).join("");
-return rulesHtml() + `<div class="pr-create">
-<span style="font-size:11px;">STAKE:</span><input type="number" class="adv-input" id="pr-stake" min="${L.minStake || 10}" step="10" value="${P.lastStake || 1000}" style="width:120px;" oninput="Prsi._st(this.value)">
-<span style="font-size:10px;color:var(--text-dim);">max ${short(Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9))}</span>
-<select id="pr-seats" onchange="Prsi._se(this.value)">${[2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === (P.lastSeats || 4) ? "selected" : ""}>${n} players</option>`).join("")}</select>
-<button class="btn btn-crimson" ${active >= (L.max || 2) || P.busy ? "disabled" : ""} onclick="Prsi.create()">♣ OPEN A TABLE</button>
-<button class="btn" onclick="Prsi.refresh()">↻</button></div>
-${P.msg ? `<div class="pr-info" style="color:${P.msgC || "var(--amber)"};">${esc(P.msg)}</div>` : ""}
-<div class="pr-tables">${rows || `<div class="pr-info">No open tables. Open one and your friends get a message in the chat.</div>`}</div>
-<div class="pr-info" style="margin-top:6px;">Max ${L.max || 2} tables at once. An unfilled table closes after 2 minutes and everyone gets their stake back.</div>`;
-}
-function timeLeft(v) { return Math.max(0, (v.left || 0) - (Date.now() - P.recvAt)); }
-function tableHtml(v) {
-const myTurn = v.status === "play" && v.turn === me();
-let html = `<div class="pr-felt">`;
-html += `<div class="pr-top"><span>♣ PRŠÍ · stake ${short(v.stake)}</span><span class="pot">POT ${fmt(v.pot || v.stake * v.players.length)} GC</span><button class="btn" style="padding:3px 10px;font-size:10px;" ${P.busy ? "disabled" : ""} onclick="Prsi.leave()">${v.status === "done" ? "◀ LOBBY" : "LEAVE"}</button></div>`;
-if (v.status === "wait") {
-const seats = []; for (let i = 0; i < v.seats; i++) seats.push(v.players[i] ? `<span class="pr-seat on">${esc(v.players[i])}${v.players[i] === v.host ? " 👑" : ""}</span>` : `<span class="pr-seat">empty seat</span>`);
-html += `<div class="pr-done"><div class="big" style="font-size:16px;">WAITING FOR PLAYERS</div><div style="margin:10px 0;">${seats.join("")}</div>
-<div class="pr-info" style="color:#cfe9d4;">Starts automatically when all ${v.seats} seats are taken${v.host === me() ? " - or start now with at least 2 players" : ""}. Closes in ${Math.ceil(Math.max(0, v.waitLeft - (Date.now() - P.recvAt)) / 1000)} s if nobody comes (stakes refunded).</div>
-${v.host === me() ? `<button class="btn btn-gold" ${v.players.length >= 2 && !P.busy ? "" : "disabled"} onclick="Prsi.start()">▶ START NOW (${v.players.length} players)</button>` : ""}</div>`;
-return html + `</div>`;
-}
-if (v.status === "done") {
-html += `<div class="pr-done"><div class="big">${v.winner === me() ? "🏆 YOU WIN!" : "🏆 " + esc(v.winner) + " WINS"}</div>
-<div style="margin-top:8px;">${v.winner === me() ? `+${fmt(v.win || Math.floor(v.pot * 0.95))} GC` : "Better luck next time."}</div>
-${v.second ? `<div style="margin-top:6px;">🥈 ${v.second === me() ? "You finished" : esc(v.second) + " finished"} second</div>` : ""}
-<div style="margin-top:12px;"><button class="btn btn-gold" onclick="Prsi.leave()">◀ BACK TO LOBBY</button></div></div>`;
-return html + logHtml(v) + `</div>`;
-}
-const others = v.order.filter(n => n !== me()), fin = v.fin || [];
-const tl = timeLeft(v), pctT = Math.min(100, tl / 300);
-html += `<div class="pr-opps">${others.map(n => { const out = v.out.indexOf(n) >= 0, k = v.hands[n] || 0, turn = v.turn === n;
-const backs = []; for (let i = 0; i < Math.min(k, 8); i++) backs.push("<i></i>");
-const place = fin.indexOf(n);
-return `<div class="pr-opp ${turn ? "turn" : ""} ${out ? "out" : ""}"><div class="nm">${place === 0 ? "🏆 " : place === 1 ? "🥈 " : ""}${esc(n)}</div><div class="pr-backs">${backs.join("")}</div><div style="font-size:10px;">${out ? "OUT" : place >= 0 ? (place === 0 ? "WINNER" : "2ND") : k + " card" + (k === 1 ? "" : "s")}${(v.miss[n] || 0) ? " · ⏱" + v.miss[n] : ""}</div>
-${turn ? `<div class="pr-tbar"><div style="width:${pctT}%"></div></div>` : ""}</div>`; }).join("")}</div>`;
-const topIsOver = v.top >= 0 && rank(v.top) === 5;
-const badges = [];
-if (v.top >= 0 && (topIsOver || v.suit !== suit(v.top))) badges.push(`<span class="pr-badge">${ICON[v.suit]} ${SUITS[v.suit].toUpperCase()}</span>`);
-if (v.pen > 0) badges.push(`<span class="pr-badge pen">+${v.pen} CARDS</span>`);
-if (v.skip) badges.push(`<span class="pr-badge skip">ACE: STAND</span>`);
-const canDraw = myTurn && !P.busy;
-html += `<div class="pr-center">
-<div class="pr-deck ${canDraw ? "can" : ""}" ${canDraw ? `onclick="Prsi.draw()"` : ""} title="Draw"><div class="pr-card"></div><div class="cnt">${v.deck}</div></div>
-<div class="pr-pile">${v.under >= 0 ? cardHtml(v.under, "under") : ""}${v.top >= 0 ? cardHtml(v.top) : ""}</div>
-<div class="pr-badges">${badges.join("")}</div></div>`;
-const hand = v.mine.slice().sort((a, b) => suit(a) - suit(b) || rank(a) - rank(b));
-const amOut = v.out.indexOf(me()) >= 0, myPlace = fin.indexOf(me());
-if (v.winner && v.status === "play") html += `<div class="pr-info" style="text-align:center;color:#ffd700;">🏆 ${v.winner === me() ? "You won " + fmt(v.win) + " GC!" : esc(v.winner) + " won the pot."} The rest play on for 2nd place.</div>`;
-html += `<div class="pr-me ${myTurn ? "turn" : ""}">${myPlace === 0 ? "You won - watch or leave whenever you want." : amOut ? "You are out of this game." : myTurn ? `YOUR TURN · ${Math.ceil(tl / 1000)} s` : `Waiting for ${esc(v.turn)}...`}</div>`;
-html += `<div class="pr-hand" onscroll="Prsi._sc(this)">${hand.map(c => { const ok = myTurn && !P.busy && playable(v, c); return cardHtml(c, myTurn ? (ok ? "ok" : "no") : "", ok ? `onclick="Prsi.play(${c})"` : ""); }).join("")}</div>`;
-if (myTurn) {
-const has = hand.some(c => playable(v, c));
-const lbl = v.pen > 0 ? `TAKE ${v.pen} CARDS` : v.skip ? "STAND (ACE)" : "DRAW 1";
-html += `<div class="pr-acts"><button class="btn ${has ? "" : "btn-gold"}" ${P.busy ? "disabled" : ""} onclick="Prsi.draw()">${lbl}</button></div>`;
-if (!has) html += `<div class="pr-info" style="text-align:center;color:#ffd700;margin:4px 0 0;">No card fits - ${v.pen > 0 ? "take the cards" : v.skip ? "you stand this turn" : "draw one"}.</div>`;
-}
-if (P.msg) html += `<div class="pr-info" style="text-align:center;color:${P.msgC || "var(--amber)"};margin-top:4px;">${esc(P.msg)}</div>`;
-if (P.pick >= 0) html += `<div class="pr-pick"><div style="font:800 13px Orbitron,monospace;color:#ffd700;">QUEEN: PICK THE NEW SUIT</div><div class="row">${[0, 1, 2, 3].map(s => `<button onclick="Prsi.suit(${s})">${ICON[s]}${SUITS[s].toUpperCase()}</button>`).join("")}</div><button class="btn" onclick="Prsi.suit(-2)">CANCEL</button></div>`;
-return html + logHtml(v) + `</div>`;
-}
-function logHtml(v) { return `<div class="pr-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div>`; }
-function show() { glow(false); if (P.id) poll(); else loadList(); render(); }
-function tick() {
-if (!visible()) return;
-if (P.view && P.view.status === "play") { const el = document.querySelector(".pr-me.turn"); if (el && P.view.turn === me()) el.textContent = `YOUR TURN · ${Math.ceil(timeLeft(P.view) / 1000)} s`; const tb = document.querySelector(".pr-opp.turn .pr-tbar div"); if (tb) tb.style.width = Math.min(100, timeLeft(P.view) / 300) + "%"; }
-else if (P.view && P.view.status === "wait") render();
-else if (!P.id && Date.now() - P.lastList > 5000) loadList();
-}
-window.Prsi = { show: show, create: create, join: join, start: start, leave: leave, play: play, draw: draw,
-suit: function (s) { if (s === -2) { P.pick = -1; render(); return; } pickSuit(s); }, refresh: loadList, _st: function (v) { P.lastStake = Math.floor(Number(v)) || 0; }, _se: function (v) { P.lastSeats = Number(v) || 4; }, _sc: function (el) { P.handScroll = el.scrollLeft; },
-state: () => P, playable: playable };
-function boot() {
-if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 200); return; }
-TT.onLoaded(() => setTimeout(loadList, 5000));                       // návrat ke stolu po obnovení stránky + vyplacení
-setInterval(tick, 1000);
-setInterval(() => { if (!P.id && !visible()) loadList(); }, 60000);   // svítící záložka, když někdo čeká u stolu
-const prev = TT.isBusy; TT.isBusy = function () { return prev() || !!(P.view && P.view.status === "play" && P.view.out.indexOf(me()) < 0 && (P.view.fin || []).indexOf(me()) < 0); };
-}
-boot();
-})();
-</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["special"] = 1;</script>
 <!-- END-OF-FILE: special -->

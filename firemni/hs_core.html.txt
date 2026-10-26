@@ -1,3 +1,249 @@
+<style>
+/* ===== UPGRADE STATION (forge.html): vylepšení nasazeného itemu +1..+15 za GC, tokeny za GC ===== */
+.enh-tag { color: #ffb800; font: 800 10px 'Orbitron', monospace; margin-left: 3px; }
+.odds-table .odds-t6 { grid-column: 1 / -1; border-color: rgba(0,255,204,.35); }
+.fg-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 8px; }
+.fg-slots .btn { padding: 6px 2px; font-size: 10px; }
+.fg-slots .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.fg-card { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px; margin-bottom: 8px; font-size: 11px; }
+.fg-card .nm { font: 800 12px 'Orbitron', monospace; }
+.fg-pips { display: flex; gap: 2px; margin: 6px 0; }
+.fg-pips i { flex: 1; height: 6px; border-radius: 2px; background: #1e2636; }
+.fg-pips i.c { background: var(--emerald); } .fg-pips i.a { background: var(--cyan); } .fg-pips i.m { background: #ff4dff; }
+.fg-pips i.r { outline: 1px solid rgba(255,23,68,.5); }
+.fg-st { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 2px 6px; margin-top: 4px; }
+.fg-st b { color: var(--emerald); }
+.fg-choice { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; }
+.fg-choice .btn { padding: 6px 2px; font-size: 10px; }
+.fg-choice .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.fg-info { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; line-height: 1.5; }
+.fg-info b { color: var(--amber); }
+.fg-opt { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; cursor: pointer; }
+.fg-msg { font: 700 11px 'Orbitron', monospace; text-align: center; min-height: 16px; margin: 6px 0; }
+.fg-tok { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--border-subtle); padding-top: 8px; margin-top: 4px; font-size: 11px; }
+.fg-tok .btn { padding: 5px 10px; font-size: 10px; }
+</style>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const CHANCE_HI = [45, 38, 31, 25, 20];             // ⚒11..⚒15
+const TOKEN_BASE = 25000, TOKEN_GROWTH = 1.3;
+const CH = { c: ["🖱", "CLICK", "+12% Click"], a: ["⚙", "AUTO", "+12% Auto"], m: ["✨", "MULT", "+0.5% Mult"] };
+let sel = "TOOL", choice = "c", guarantee = false, protect = true, msg = { t: "", c: "" }, lastSig = "";
+try { sel = localStorage.getItem("ir_fg_slot") || "TOOL"; choice = localStorage.getItem("ir_fg_ch") || "c"; } catch (e) {}
+if (!CH[choice]) choice = "c";
+function short(n) { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? (n / 1e3).toFixed(1) + "K" : n.toLocaleString(); }
+function chance(t) { return t <= 5 ? 100 : t <= 10 ? 100 - 10 * (t - 5) : CHANCE_HI[t - 11] || 20; }
+function cost(it) { return Math.round(it.tier * it.tier * 2000 * (1 + 0.15 * (it.lvl || 0)) * Math.pow(1.5, enhOf(it).length)); }
+function tokenPrice() { return Math.round(TOKEN_BASE * Math.pow(TOKEN_GROWTH, gameState.tokBuy || 0)); }
+function item() { return gameState.loadout ? gameState.loadout[sel] : null; }
+function build() {
+const m = $("forge-mount"); if (!m || $("forge-panel")) return;
+m.innerHTML = `<div class="panel" id="forge-panel" data-tab="bag">
+<div class="panel-header"><span>⚒ UPGRADE STATION</span><span style="font-size:10px;color:var(--amber);" id="fg-tokens"></span></div>
+<div id="fg-body"></div></div>`;
+}
+function statsTxt(s) { return [s.c ? s.c.toLocaleString() + " Click" : "", s.a ? s.a.toLocaleString() + " Auto" : "", s.m ? (s.m * 100).toFixed(1) + "% Mult" : ""].filter(Boolean).join(" · ") || "-"; }
+function render(force) {
+const body = $("fg-body"); if (!body || typeof gameState === "undefined") return;
+const g = gameState, it = item(), e = it ? enhOf(it) : "", E = e.length, t = E + 1;
+const c = it ? cost(it) : 0, ch = chance(t), tp = tokenPrice();
+const sig = [sel, it ? it.tier + "_" + (it.lvl || 0) + "_" + e : "-", choice, guarantee, protect, g.slotTokens, g.tokBuy, g.coins >= c, g.coins >= tp, g.coins >= tp * 5, msg.t,
+SLOTS.map(s => g.loadout[s] ? g.loadout[s].tier + enhOf(g.loadout[s]) : "-").join(",")].join("|");
+if (!force && sig === lastSig) return;
+lastSig = sig;
+const tk = $("fg-tokens"); if (tk) tk.textContent = "🎟 " + g.slotTokens + " TOKEN" + (g.slotTokens === 1 ? "" : "S");
+const slots = SLOTS.map(s => { const x = g.loadout[s];
+return `<button class="btn ${s === sel ? "sel" : ""}" onclick="Forge.slot('${s}')" ${x ? "" : "disabled"}>${SLOT_ICONS[s]} ${s}${x && enhOf(x) ? " ⚒" + enhOf(x).length : ""}</button>`; }).join("");
+let html = `<div class="fg-slots">${slots}</div>`;
+if (!it) {
+html += `<div class="fg-info">Equip an item in <b>${sel}</b> to upgrade it. Upgrades stay on the item (+1 to +15).</div>`;
+} else {
+const pips = []; for (let i = 0; i < 15; i++) pips.push(`<i class="${e[i] || ""} ${i >= 10 ? "r" : ""}"></i>`);
+const now = itemStats(it);
+html += `<div class="fg-card"><div class="nm" style="color:var(--rarity-t${it.tier});">${itemName(it)} +${it.lvl || 0} <span class="enh-tag">⚒${E}/15</span></div>
+<div class="fg-pips">${pips.join("")}</div>
+<div>Now: ${statsTxt(now)}</div>
+${E < 15 ? `<div>⚒${t}: <b style="color:var(--emerald);">${statsTxt(itemStats({ slot: it.slot, tier: it.tier, lvl: it.lvl, e: e + choice }))}</b></div>` : ""}</div>`;
+if (E >= 15) html += `<div class="fg-msg" style="color:var(--amber);">MAXED OUT ⚒15</div>`;
+else {
+html += `<div class="fg-choice">${Object.keys(CH).map(k => `<button class="btn ${k === choice ? "sel" : ""}" onclick="Forge.pick('${k}')">${CH[k][0]} ${CH[k][1]}<br><small>${CH[k][2]}</small></button>`).join("")}</div>`;
+const risk = ch >= 100 ? "always succeeds" : t >= 11 ? `fail = GC lost <b style="color:var(--crimson);">and the item drops to ⚒${E - 1 < 0 ? 0 : E - 1}</b>` : "fail = only the GC is lost";
+html += `<div class="fg-info">Every stage: +8% all stats + your bonus. Cost <b>${short(c)} GC</b> · chance <b>${guarantee ? 100 : ch}%</b> · ${guarantee ? "guaranteed" : risk}</div>`;
+if (ch < 100) html += `<label class="fg-opt"><input type="checkbox" ${guarantee ? "checked" : ""} onchange="Forge.opt('g',this.checked)"> ✅ Guarantee success (2 🎟)</label>`;
+if (t >= 11 && !guarantee) html += `<label class="fg-opt"><input type="checkbox" ${protect ? "checked" : ""} onchange="Forge.opt('p',this.checked)"> 🛡 Protect from the drop (1 🎟, only spent if it fails)</label>`;
+const can = g.coins >= c && (!guarantee || g.slotTokens >= 2);
+html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} data-hold="forge-go" onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 🎟" : ""})</button>`;
+}
+}
+html += `<div class="fg-msg" style="color:${msg.c || "var(--text-dim)"};">${msg.t}</div>`;
+html += `<div class="fg-tok"><span>🎟 Slot Token: <b style="color:var(--amber);">${short(tp)} GC</b></span>
+<button class="btn btn-cyan" ${g.coins >= tp ? "" : "disabled"} data-hold="forge-buy1" onclick="Forge.buy(1)">BUY 1</button>
+<button class="btn btn-cyan" ${g.coins >= tp * 5 ? "" : "disabled"} onclick="Forge.buy(5)">BUY 5</button>
+<span style="color:var(--text-dim);font-size:10px;width:100%;">Price +30% per token, resets on prestige. Tokens also give +1 merge level (USE SLOT TOKEN) or HIGH STAKES energy.</span></div>`;
+body.innerHTML = html;
+}
+function say(t, c) { msg = { t: t, c: c }; render(true); }
+function go() {
+const g = gameState, it = item();
+if (!it) return;
+const e = enhOf(it), E = e.length, t = E + 1;
+if (E >= 15) return;
+const c = cost(it);
+if (g.coins < c) { say("Not enough GC.", "var(--crimson)"); return; }
+if (guarantee && g.slotTokens < 2) { say("Need 2 tokens for a guarantee.", "var(--crimson)"); return; }
+g.coins -= c;
+let ok;
+if (guarantee) { g.slotTokens -= 2; ok = true; }
+else ok = Math.random() * 100 < chance(t);
+const name = itemName(it);
+if (!ok) TT.holdStop = true;                          // v8.7: držení tlačítka se po neúspěchu zastaví
+if (ok) {
+it.e = e + choice;
+say(`✔ SUCCESS! ${name} is now ⚒${t} (${CH[choice][2]})`, "var(--emerald)");
+log(`⚒ UPGRADE: ${name} → ⚒${t} (${CH[choice][2]}) for ${short(c)} GC.`, t >= 10 ? "special" : "success");
+if (t >= 13) TT.announce("UPGRADED TO +" + t, name, c, 0);
+} else if (t >= 11 && protect && g.slotTokens >= 1) {
+g.slotTokens -= 1;
+say(`✖ FAILED - 🛡 token saved ${name} at ⚒${E}`, "var(--amber)");
+log(`⚒ UPGRADE FAILED on ${name} ⚒${t}, protected by a token.`, "warning");
+} else if (t >= 11) {
+it.e = e.slice(0, -1);
+if (!it.e) delete it.e;
+say(`✖ FAILED - ${name} dropped to ⚒${E - 1}`, "var(--crimson)");
+log(`⚒ UPGRADE FAILED: ${name} dropped to ⚒${E - 1}.`, "error");
+} else {
+say(`✖ FAILED (${chance(t)}%) - ${short(c)} GC lost`, "var(--crimson)");
+log(`⚒ UPGRADE FAILED on ${name} ⚒${t}: -${short(c)} GC.`, "warning");
+}
+updateUI(); TT.saveSoon(); render(true);
+}
+function buy(n) {
+const g = gameState; let got = 0, paid = 0;
+for (let i = 0; i < n; i++) {
+const p = tokenPrice();
+if (g.coins < p) break;
+g.coins -= p; paid += p; g.slotTokens += 1; g.tokBuy = (g.tokBuy || 0) + 1; got++;
+}
+if (!got) { say("Not enough GC.", "var(--crimson)"); return; }
+say(`🎟 +${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC`, "var(--amber)");
+log(`🎟 Bought ${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC (you have ${g.slotTokens}).`, "success");
+updateUI(); TT.saveSoon();
+}
+window.Forge = {
+slot: function (s) { if (SLOTS.indexOf(s) < 0) return; sel = s; msg = { t: "", c: "" }; try { localStorage.setItem("ir_fg_slot", s); } catch (e) {} render(true); },
+pick: function (k) { if (!CH[k]) return; choice = k; try { localStorage.setItem("ir_fg_ch", k); } catch (e) {} render(true); },
+opt: function (k, v) { if (k === "g") guarantee = !!v; else protect = !!v; render(true); },
+go: go, buy: buy, render: render, cost: cost, chance: chance, tokenPrice: tokenPrice
+};
+build();
+function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
+TT.onLoaded(function () {
+if (!item()) { const f = SLOTS.find(s => gameState.loadout[s]); if (f) sel = f; }
+render(true);
+setInterval(function () { if (!document.hidden) render(false); }, 500);
+});
+setInterval(function () {
+const el = $("consult-scrap"); if (!el || typeof gameState === "undefined") return;
+const v = Math.floor(gameState.scrap || 0).toLocaleString();
+if (el.textContent !== v) el.textContent = v;
+}, 500);
+}
+boot();
+})();
+</script>
+<style>
+/* ===== v8.7 THE OFFICE PLANT (místo Legacy shopu) + držení tlačítek ===== */
+.pl-top { display: flex; gap: 10px; align-items: center; }
+.pl-art { flex: none; width: 92px; height: 92px; border-radius: 8px; background: radial-gradient(circle at 50% 30%, #13261b, #070b0a 75%); border: 1px solid rgba(0,255,136,.18); display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
+.pl-art svg { width: 88px; height: 88px; image-rendering: pixelated; }
+.pl-info { flex: 1; min-width: 0; font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+.pl-info b { color: var(--amber); }
+.pl-stage { font: 800 11px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
+.pl-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.pl-row .btn { flex: 1; padding: 7px 4px; font-size: 10px; min-width: 90px; }
+.pl-fx { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
+.pl-fx span { font-size: 9px; padding: 2px 6px; border-radius: 9px; background: rgba(0,255,136,.08); border: 1px solid rgba(0,255,136,.25); color: #a7f3d0; }
+#pl-screen { position: fixed; inset: 0; z-index: 206; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #0d1f14 0%, var(--bg-core, #07090e) 60%); color: var(--text-main); }
+#pl-screen.open { display: flex; }
+html.m #pl-screen { height: var(--app-h, 100%); }
+.pl-head { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
+.pl-head h1 { flex: 1; margin: 0; font: 900 15px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
+.pl-inner { max-width: 1000px; margin: 0 auto; }
+.pl-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.pl-br { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 760px) { .pl-br { grid-template-columns: 1fr; } }
+.pl-bh { font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; margin-bottom: 6px; display: flex; justify-content: space-between; }
+.pl-n { display: flex; gap: 8px; align-items: center; padding: 7px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 6px; }
+.pl-n.lock { opacity: .4; }
+.pl-n.max { border-color: rgba(0,255,136,.45); }
+.pl-n.key { border-color: rgba(255,215,0,.35); background: linear-gradient(90deg, rgba(255,215,0,.07), transparent); }
+.pl-n .ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; background: #0b1610; border: 1px solid rgba(0,255,136,.3); }
+.pl-n .t { flex: 1; min-width: 0; font-size: 11px; }
+.pl-n .t b { display: block; font: 800 10.5px 'Orbitron', monospace; }
+.pl-n .t span { font-size: 10px; color: var(--text-dim); }
+.pl-n .lv { font: 700 9px 'Orbitron', monospace; color: var(--emerald); }
+.pl-n .btn { flex: none; padding: 6px 8px; font-size: 10px; min-width: 58px; }
+.pl-pips { display: flex; gap: 2px; margin-top: 3px; }
+.pl-pips i { width: 9px; height: 4px; border-radius: 2px; background: #1e2636; }
+.pl-pips i.on { background: var(--emerald); }
+</style>
+<div id="pl-screen">
+<div class="pl-head"><button class="btn btn-cyan" onclick="Plant.close()">◀ OFFICE</button><h1>🌳 THE OFFICE PLANT</h1><span id="pl-lp" style="font:800 12px Orbitron,monospace;color:var(--amber);"></span></div>
+<div class="pl-body"><div class="pl-inner" id="pl-inner"></div></div>
+</div>
+<script>
+/**
+* THE OFFICE PLANT (v8.7) - nahrazuje Legacy shop. Měna = Legacy Points.
+* Semínko -> strom roste ve fázích podle investovaných LP, 3 větve uzlů, keystone plody, sklizeň plodů každé 4 h, zalévání 1× denně.
+* Kvůli kompatibilitě strom dál plní gameState.lpUp (click/auto/scrap/start/heirloom), takže starý kód funguje beze změny.
+*/
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
+const SEED_COST = 1, FRUIT_MS = 4 * 3600000, FRUIT_MAX = 3, WATER_MS = 2 * 3600000;
+const STAGES = [
+{ at: 0, name: "SEED", icon: "🌰" },
+{ at: 0, name: "SPROUT", icon: "🌱" },
+{ at: 6, name: "SAPLING", icon: "🌿" },
+{ at: 18, name: "TREE", icon: "🌳" },
+{ at: 40, name: "ANCIENT TREE", icon: "🌲" }
+];
+const BR = {
+office: { name: "💼 OFFICE", color: "var(--cyan)" },
+casino: { name: "🎰 CASINO", color: "var(--amber)" },
+hs: { name: "⚔ HIGH STAKES", color: "var(--crimson)" }
+};
+/** row = potřebná fáze stromu (1 sprout ... 4 ancient), req = uzel, který musí mít aspoň 1 level */
+const NODES = [
+{ id: "o_click", br: "office", row: 1, icon: "👆", name: "Sunlight", desc: l => `+${10 * l}% click power`, next: "+10% click", costs: [1, 1, 2, 2] },
+{ id: "o_auto", br: "office", row: 1, icon: "⚙", name: "Photosynthesis", desc: l => `+${10 * l}% Auto GC`, next: "+10% auto", costs: [1, 1, 2, 2] },
+{ id: "o_start", br: "office", row: 2, icon: "💰", name: "Fertilizer", req: "o_auto", desc: l => `start every run with +${short(2000 * l)} GC`, next: "+2,000 start GC", costs: [1, 1, 1] },
+{ id: "o_scrap", br: "office", row: 2, icon: "📦", name: "Compost", req: "o_click", desc: l => `chests cost ${4 * l}% less scrap`, next: "-4% chest cost", costs: [1, 1, 2, 2] },
+{ id: "o_heir", br: "office", row: 3, icon: "🏺", name: "Heirloom Roots", req: "o_scrap", desc: l => `Heirloom ${1 + l}: keep your best ${1 + l} items on prestige`, next: "+1 Heirloom item", costs: [1, 2, 2, 3, 3] },
+{ id: "k_ever", br: "office", row: 3, icon: "🌲", name: "Evergreen", key: true, req: "o_start", desc: () => "Autogen runs 60 min instead of 45", costs: [3] },
+{ id: "k_roots", br: "office", row: 4, icon: "🌰", name: "Deep Roots", key: true, req: "o_heir", desc: () => "Keep 10% of your GC on prestige", costs: [5] },
+{ id: "c_bet", br: "casino", row: 1, icon: "🎲", name: "High Roller Leaves", desc: l => `max bets ×${Math.pow(1.5, l).toFixed(2)}`, next: "max bet ×1.5", costs: [1, 2, 2] },
+{ id: "c_cons", br: "casino", row: 2, icon: "🧑‍💼", name: "Consultant Bark", req: "c_bet", desc: l => `consult costs ${10 * l}% less`, next: "-10% consult", costs: [1, 1, 2] },
+{ id: "c_tok", br: "casino", row: 2, icon: "🎟", name: "Token Blossom", req: "c_bet", desc: l => `Slot Token chance from chests +${50 * l}%`, next: "+50% token chance", costs: [2, 2, 3] },
+{ id: "k_cherry", br: "casino", row: 4, icon: "🍒", name: "Lucky Cherry", key: true, req: "c_tok", desc: () => "HIGH STAKES gamble: 🍒 counts as a wild symbol", costs: [5] },
+{ id: "h_xp", br: "hs", row: 1, icon: "📈", name: "Growth Rings", desc: l => `+${8 * l}% HIGH STAKES XP`, next: "+8% XP", costs: [1, 1, 1, 2] },
+{ id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
+{ id: "h_foc", br: "hs", row: 2, icon: "✨", name: "Morning Dew", req: "h_xp", desc: l => `start fights with +${10 * l} focus`, next: "+10 start focus", costs: [1, 2, 2] },
+{ id: "h_parry", br: "hs", row: 3, icon: "🛡", name: "Thick Bark", req: "h_foc", desc: l => `parry windows +${15 * l}%`, next: "+15% parry window", costs: [2, 3] },
+{ id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] }
+];
+const BY = {}; NODES.forEach(n => { BY[n.id] = n; });
+const TOTAL = SEED_COST + NODES.reduce((a, n) => a + n.costs.reduce((x, y) => x + y, 0), 0);
+/** nový přísun LP za prestiž (dřív 1 + floor(p/3)) */
+function lpGainFor(p) { return 2 + Math.floor(p / 2); }
+function oldLpGainFor(p) { return 1 + Math.floor(p / 3); }
+const OLD_COST = { click: l => 2 + l, auto: l => 2 + l, scrap: l => 2 + l, start: l => 1 + l, heirloom: l => 5 * (l + 1) };
+function blank() { return { seed: false, n: {}, fruitAt: 0, waterDay: "", respecP: -1, mig: 1, harvested: 0 }; }
 function st() {
 const g = gameState;
 if (!g.plant || typeof g.plant !== "object") g.plant = blank();
@@ -281,321 +527,5 @@ document.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") 
 <div class="cl-body" id="cl-body"></div>
 <div class="cl-foot"><button class="btn" id="cl-all" onclick="Changelog.open(true)">📜 FULL UPDATE LOG</button><button class="btn btn-gold" onclick="Changelog.close()">OK, LET'S PLAY</button></div>
 </div></div>
-<script>
-(function () {
-"use strict";
-const LOG = [
-{ v: "9.5", d: "2026-10-26", i: [
-"🧗 Corporate Climb is taller: 280 m and two new zones (Executive Floor and the Boardroom) before the roof",
-"🧗 Every run gets a random floor plan (12 variants), so you can't just memorise the jumps",
-"🧗 Fairer rewards: the payout grows smoothly with height (halfway ≈ 38 %) and the roof now pays 12 / 40 / 120 chest openings of scrap (it was 6 / 20 / 60 and a 200M run could give only a few chests)",
-"🏆 New achievement: Top Of The Tower (280 m)"
-] },
-{ v: "9.4", d: "2026-10-25", i: [
-"📟 On-Call Shift rebalanced: enemies are now based on YOUR stats instead of exploding with your level (a level 176 Post-it Note had 329k HP and hit for 77k). Better gear still makes fights noticeably easier",
-"📟 Shift enemies have types: 🛡 tanks (lots of HP, weak hits), 🗡 glass cannons (fragile, hit hard), balanced ones and ✨ specialists with mechanics. Every enemy rolls ±15% stats, the shift starts easier and builds up to the boss",
-"📊 Quarterly Review boss: its attack now follows your HP instead of your level (it hit for 146k at level 176)",
-"🧗 Corporate Climb: rewards are now measured in chest openings (the roof pays 6 / 20 / 60 chests of scrap). It used to pay over 600 billion scrap",
-"🧑‍💼 Consult: wins are capped at 4 hours of Auto GC per day (no more endless scrap → GC)",
-"↺ RESTART RUN under the prestige button: start your current prestige over if you got stuck (prestige, Legacy Points, plant and HIGH STAKES stay)"
-] },
-{ v: "9.3.6", d: "2026-10-21", i: [ "📱 iPhone app: the bottom tab bar is really back now (the page was taller than what iOS draws)", "📱 Play tab scrolls on phones again (only swiping on the big button is blocked)", "🎒 Bag on phones: no more stretched item cards, the list scrolls with the page" ] },
-{ v: "9.3.5", d: "2026-10-21", i: [ "📱 iPhone app: the bottom tab bar is back (9.3.4 pushed it off the screen)" ] },
-{ v: "9.3.4", d: "2026-10-21", i: [ "📱 iPhone app on the home screen: the bottom tab bar sits fully on screen again (no more cut-off edge)" ] },
-{ v: "9.3.3", d: "2026-10-20", i: [ "📱 Android app on the home screen: the bottom tab bar was pushed off the screen (you got stuck on one tab) - fixed" ] },
-{ v: "9.3.2", d: "2026-10-20", i: [ "📱 The Top 10 table fits on phones again (short numbers like 10.5M)" ] },
-{ v: "9.3.1", d: "2026-10-20", i: [
-"📱 The Play tab scrolls again on phones (the room pushed things on top of each other)",
-"iPhone home-screen app: another fix for the cut-off tab bar. If it's still cut off, send a screenshot of the small grey line in More → Settings" ] },
-{ v: "9.3", d: "2026-10-20", i: [
-"🏠 <b>Your office is now a room</b>: tap the desk, the closet, the chest, the roulette or the TV and your character walks over and opens it. Tapping Resolve sits you down at your desk to type. The tabs still work as shortcuts",
-"🎮 High Stakes lives on the TV: sit on the couch, grab the controller. The TV shows the Office Royale logo while you're away",
-"🚀 <b>Prestige upgrades the room</b>: Garage → Basement → Coworking space → Open space → Skyscraper floor → Penthouse → Data center → Spaceport → Space station. Every single prestige adds something new (a better desk, a bigger TV, a hot tub...), and after Prestige 15 a new planet appears outside your window for every prestige",
-"Your colleague works at the second desk, the Office Plant grows in its pot, the trophy shelf fills up with achievements and the whiteboard shows the Top 10" ] },
-{ v: "9.2", d: "2026-10-20", i: [
-"🥊 <b>New fighters</b>: every character in HIGH STAKES is now a chibi fighter with real animations - you run to the enemy and swing, raise your guard to block, roll away on a dodge, flinch when hit and fall when beaten",
-"⚒ Your combat gear is visible on you: the weapon in your hand, the armor on your chest and the trinket in your other hand change with every material (Paper memo → … → Quantum mouse)",
-"👾 All 50+ enemies got a new look: office people with their own props and living office objects (printers, laptops, invoices...) with angry eyes. Bosses are bigger and have their own outfits",
-"🏢 Office arenas for every chapter with a crowd of coworkers that cheers on big hits, plus sparks, screen shake on heavy hits and a slow-mo flash on a perfect parry",
-"Your colleague wears the gear you gave them" ] },
-{ v: "9.1", d: "2026-10-20", i: [
-"👑 <b>Idle Royale is now Office Royale</b> - new name, new logo (a ticket with a crown) and a new app icon",
-"🎬 New intro: while the game connects and loads your save, the ticket gets stamped and the logo builds itself (full show once a day, it never makes loading longer)",
-"Added the game to your home screen? Remove it and add it again to get the new icon and name" ] },
-{ v: "9.0.1", d: "2026-10-20", i: [
-"📱 iPhone (app on the home screen): the bottom tab bar is no longer cut off - the labels are back",
-"Tickets are blue again and the numbers at the top always fit",
-"Company events show as a thin strip under the numbers on phones instead of covering buttons" ] },
-{ v: "9.0", d: "2026-10-20", i: [
-"🎨 <b>New look</b>: calmer dark design, new font, no more CAPS LOCK everywhere and a big, squishy Resolve button. Prefer the old one? Tap 🎨 (on phones in More → Settings)",
-"⚒ <b>Combat gear</b>: HIGH STAKES power now comes from a <b>weapon</b> (ATK), <b>armor</b> (HP) and a <b>trinket</b> (both + crit) in HERO. Upgrade them +1 to +5 with GC, then evolve: Paper → Cardboard → Wood → Plastic → Steel → Titanium → Carbon → Quantum",
-"Chapter bosses, the Administrator and Pool floor 50 unlock the materials. Prestige resets the +levels, materials stay. Your old items were converted to gear with the same power",
-"Office items now only boost the office (click, auto, mult)",
-"♾ <b>Clear the Pool</b> is now an endless tower: every floor is its own fight with full HP, progress is saved, ⚡1 per fight, rewards for every new floor",
-"🧑‍💼 Colleague: gets your old gear when you evolve, training is bought with GC",
-"⚡ Max energy 16 (was 10)",
-"Prismatic T6 is green in the chest odds too" ] },
-{ v: "8.8", d: "2026-10-20", i: [
-"🧑‍💼 <b>THE COLLEAGUE</b>: beat the Administrator (Tower 100) to get a colleague with a random (sometimes very meme) name",
-"Give them your old items - better ones get equipped, the rest become XP. They can reach up to 60% of your power",
-"They farm a boss you have already beaten every 20 minutes and resolve a ticket every 30 s - also while you're away (up to 8 h), with a report when you come back",
-"After every prestige they fall asleep - beat the chapter 3 boss to wake them up",
-"Fix: the HIGH STAKES training no longer starts again after a reload" ] },
-{ v: "8.7.5", d: "2026-10-19", i: [
-"🎓 <b>HIGH STAKES TRAINING</b>: a short guided fight that teaches every move (+1 🎟 and XP the first time). Replay it from the HERO tab",
-"✨ Ultimates now start with <b>TAP TO START</b> and a 3-2-1 countdown",
-"🎰 Roulette bets are greyed out while spinning and show <b>NEXT SPIN IN …s</b>",
-"❓ Fight help: tap <b>?</b> in a HIGH STAKES fight for a cheat sheet of all moves and enemy intents",
-"🔴 Red dots on ⚔ FIGHT (full energy) and on the plant (ripe fruit / water)",
-"📜 This update log",
-"📱 Fixed the bottom tab bar disappearing on Android" ] },
-{ v: "8.7.4", d: "2026-10-18", i: [
-"📴 <b>Offline backup</b>: progress is also saved on your device and uploaded automatically when you are back online",
-"Hold-to-repeat fixed on iPhone (other taps no longer get stuck)",
-"Consult ×5 shows and charges the real price" ] },
-{ v: "8.7.3", d: "2026-10-18", i: [
-"⚒ <b>Merge upgraded items</b> by hand in the Merge Station (your equipped item counts): you keep the best ⚒ minus 1 stage. MERGE ALL skips them",
-"Backpack shows 1 column on phones, 2 on PC" ] },
-{ v: "8.7.1 - 8.7.2", d: "2026-10-18", i: [ "Small fixes: bonus chips, update banner on phones" ] },
-{ v: "8.7", d: "2026-10-18", i: [
-"🛡 <b>New parry</b>: random wind-up, the ring speeds up, PERFECT / GOOD, ☄ UNLEASH sends 3 rings, every boss has its own ring trick",
-"✨ <b>Ultimate mini-games</b>: SysAdmin builds a wall, Engineer mashes the deploy, Cyber hits open ports (70-125% power)",
-"🎰 <b>Gamble</b>: HOLD reels and re-spin once (+10 stamina); 🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you",
-"👆 Hold buttons to repeat (chests, upgrades, plant, stats)",
-"🌳 <b>THE OFFICE PLANT</b> replaced the Legacy shop: a tree of permanent upgrades, fruit every 4 h, water it once a day. More LP per prestige, old LP refunded" ] },
-{ v: "8.6.1", d: "2026-10-17", i: [ "Connecting screen with auto-retry", "No more false SAVE UPDATED ELSEWHERE on the same tab", "Softer enemy scaling" ] },
-{ v: "8.6", d: "2026-10-17", i: [
-"New bosses: <b>The Italian Guy</b>, <b>Da Polishen</b>, <b>The Supreme Louis</b>, <b>The Cobol</b> and <b>The Administrator</b> (Tower floor 100)",
-"♾ <b>CLEAR THE POOL</b>: endless mode unlocked by the Administrator, with its own leaderboard",
-"Stamina only refills from QUICK and BLOCK, ultimates are one big hit, weekly boss has 15 turns",
-"Prestige resets the campaign and tower, enemies get stronger every prestige",
-"Boss titles, consult price scales with your scrap" ] },
-{ v: "8.5", d: "2026-10-16", i: [ "Tap anywhere during POWER / PARRY", "HIGH STAKES consumables removed", "iOS screen ghost fix" ] },
-{ v: "8.4", d: "2026-10-16", i: [ "🎲 GAMBLE panel (Basic / Advanced / Special)", "⛀ Checkers", "Prší for up to 6 players with 2nd place", "HUD summary, Pachinko on phones" ] },
-{ v: "8.3", d: "2026-10-16", i: [ "♣ <b>Prší</b> - the Czech card game for 2-4 players, any stake" ] },
-{ v: "8.2", d: "2026-10-16", i: [ "⚒ <b>Upgrade Station</b> (+1 to +15)", "Stars rework, compliance forms", "Weekly boss MK.II, MK.III...", "🏆 Hall of Fame: achievements, weekly boards, company events", "🌌 Prismatic (T6) from chest LV 50 after beating chapter bosses" ] },
-{ v: "8.0", d: "2026-10-15", i: [ "🎰 <b>HIGH STAKES</b>: action fights with a campaign, tower, on-call shift, weekly boss and arena", "Parry, break meter and charged attacks", "Battery ring around RESOLVE TICKET" ] },
-{ v: "7.0", d: "2026-10-15", i: [ "Incident Dungeon (now HIGH STAKES)", "Mega 5×5 slots, Crash, Pachinko physics", "Arena PvP, online presence dots", "New season economy, progressive unlocks" ] },
-{ v: "6.x", d: "2026-10-14", i: [ "Idle Royale goes online for friends: login, phones, instant tapping", "Heirloom, safe cloud saves" ] }
-];
-/** v9.0.1: souhrn posledních dní (8.7 - 9.0.1) - updaty přišly rychle po sobě, ukáže se každému jednou */
-const RECAP_ID = "recap-9.0", RECAP_KEY = "ir_seen_recap";
-const RECAP = [
-{ h: "🎨 New look", i: [
-"Calmer dark design, a new font, no more CAPS LOCK and a big squishy Resolve button",
-"Prefer the old style? Tap 🎨 at the top (on phones: More → Settings → Classic look)" ] },
-{ h: "⚒ Combat gear (HIGH STAKES → Hero)", i: [
-"Your fighting power now comes from 3 pieces: a <b>weapon</b> (ATK), <b>armor</b> (HP) and a <b>trinket</b> (ATK + HP + crit)",
-"Upgrade each piece +1 to +5 with GC, then <b>evolve</b> it: Paper → Cardboard → Wood → Plastic → Steel → Titanium → Carbon → Quantum",
-"New materials unlock by beating the chapter bosses (Great \"I\", Italian Guy, Da Polishen, Louis, Big Massi), the Administrator (Tower 100) and Pool floor 50",
-"Prestige resets only the +levels, the material stays. Your old items were converted to gear with the same power",
-"Office items from the chest now only boost the office (click, auto, mult)" ] },
-{ h: "🧑‍💼 The Colleague", i: [
-"Beat the Administrator on Tower floor 100 and you get a colleague with a random (sometimes very meme) name",
-"Pick a boss you already beat: they fight it every 20 minutes and resolve a ticket every 30 s - also while you're away (up to 8 h), with a report when you're back",
-"They get your old gear piece when you evolve, and you can send them to training for GC",
-"After a prestige they fall asleep - beat Da Polishen (chapter 3 boss) to wake them up" ] },
-{ h: "♾ Clear the Pool", i: [
-"Now an endless tower: every floor is its own fight with full HP and your progress is saved",
-"⚡1 per fight, rewards for every new floor, floor 50 unlocks ⚛ Quantum gear" ] },
-{ h: "🌳 The Office Plant", i: [
-"Replaced the Legacy shop: spend Legacy Points on a tree of permanent upgrades (office, casino, HIGH STAKES)",
-"It grows fruit every 4 hours (harvest it in More) and you can water it once a day. Your old LP were refunded" ] },
-{ h: "⚔ Better fights", i: [
-"New parry: the ring comes after a random wind-up and speeds up - <b>PERFECT</b> or <b>GOOD</b>. UNLEASH sends 3 rings and every boss has its own trick",
-"Ultimates are a 2-second mini-game (tap to start, 70-125% power). Gamble: HOLD reels and re-spin once",
-"🎓 Training fight in Hero (+1 🎟 the first time) and a ❓ cheat sheet in every fight" ] },
-{ h: "📱 Smaller things", i: [
-"Max energy 16 · hold buttons to repeat (chests, upgrades, plant) · merge upgraded ⚒ items by hand",
-"Offline backup on your phone · red dots when energy is full or the plant needs you · 📜 full update log at the top" ] }
-];
-const CUR = LOG[0].v, KEY = "ir_seen_ver";
-const $ = (id) => document.getElementById(id);
-let mode = "new";
-function render(m) {
-mode = m;
-$("cl-all").style.display = m === "all" ? "none" : "";
-if (m === "recap") {
-$("cl-title").textContent = "📜 What you might have missed";
-$("cl-body").innerHTML = `<div class="dg-dim" style="margin-bottom:10px;font-size:13px;line-height:1.5;color:var(--text-dim);">A lot of updates landed in the last few days. Here's everything in one place:</div>` +
-RECAP.map(x => `<div class="cl-v new"><h3><span>${x.h}</span></h3><ul>${x.i.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("");
-} else {
-const list = m === "all" ? LOG : LOG.slice(0, 1);
-$("cl-title").textContent = m === "all" ? "📜 Update log" : "📜 What's new in v" + CUR;
-$("cl-body").innerHTML = list.map((x, i) => `<div class="cl-v ${i === 0 ? "new" : ""}"><h3><span>v${x.v}${i === 0 ? " · latest" : ""}</span><small>${x.d}</small></h3><ul>${x.i.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("");
-}
-$("cl-body").scrollTop = 0;
-}
-function open(all) { render(all === "recap" ? "recap" : all ? "all" : "new"); $("cl-ov").classList.add("open"); }
-function close() { $("cl-ov").classList.remove("open"); try { localStorage.setItem(KEY, CUR); localStorage.setItem(RECAP_KEY, RECAP_ID); } catch (e) {} }
-$("cl-ov").addEventListener("click", (e) => { if (e.target.id === "cl-ov") close(); });
-window.Changelog = { open: open, close: close, LOG: LOG, CUR: CUR, RECAP: RECAP };
-(function boot() {
-if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 150); return; }
-const badge = document.querySelector(".user-badge");
-if (badge && !$("cl-btn")) {
-const b = document.createElement("button"); b.id = "cl-btn"; b.className = "btn btn-help"; b.type = "button"; b.textContent = "📜"; b.title = "Update log";
-b.onclick = () => open(true);
-const help = badge.querySelector(".btn-help:not(#m-compact)"); badge.insertBefore(b, help || null);
-}
-const addMore = () => {
-const st = $("m-settings");
-if (st && !$("cl-more")) { const r = st.querySelector(".row"); if (r) { const b = document.createElement("button"); b.id = "cl-more"; b.className = "btn"; b.type = "button"; b.textContent = "📜 UPDATE LOG"; b.onclick = () => open(true); r.insertBefore(b, r.firstChild); } }
-};
-addMore(); setTimeout(addMore, 500);
-TT.onLoaded(() => {
-addMore();
-let seen = null, rec = null; try { seen = localStorage.getItem(KEY); rec = localStorage.getItem(RECAP_KEY); } catch (e) {}
-if (seen === CUR && rec === RECAP_ID) return;
-if (!gameState.tutorialDone) { try { localStorage.setItem(KEY, CUR); localStorage.setItem(RECAP_KEY, RECAP_ID); } catch (e) {} return; }    // úplně nový hráč dostane tutorial, ne novinky
-setTimeout(() => { if (!document.querySelector(".tt-overlay.open")) open(rec !== RECAP_ID ? "recap" : false); else if (rec === RECAP_ID) { try { localStorage.setItem(KEY, CUR); } catch (e) {} } }, 1800);
-});
-})();
-})();
-</script>
-<style>
-/* ===== META (v8.2): firemní eventy, achievementy, týdenní žebříčky ===== */
-#mt-event { position: fixed; top: 8px; left: 270px; z-index: 150; display: none; align-items: center; gap: 8px; max-width: calc(100% - 24px);
-padding: 5px 12px; border-radius: 16px; cursor: pointer; font: 700 11px 'Orbitron', monospace; color: #fff; white-space: nowrap; overflow: hidden;
-background: linear-gradient(90deg, rgba(255,23,68,.92), rgba(255,184,0,.92)); box-shadow: 0 0 18px rgba(255,184,0,.45); animation: mtPulse 1.6s ease-in-out infinite alternate; }
-#mt-event.on { display: flex; }
-#mt-event small { font: 600 10px sans-serif; opacity: .9; overflow: hidden; text-overflow: ellipsis; }
-#mt-event b { font-variant-numeric: tabular-nums; }
-@keyframes mtPulse { from { box-shadow: 0 0 8px rgba(255,184,0,.35); } to { box-shadow: 0 0 22px rgba(255,184,0,.7); } }
-html.m #mt-event { top: auto; left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom)); }
-#mt-open-btn { padding: 3px 9px; font-size: 11px; }
-html.m #mt-open-btn { display: none; }
-#mt-screen { position: fixed; inset: 0; z-index: 205; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #1a1405 0%, var(--bg-core, #07090e) 55%); color: var(--text-main); }
-#mt-screen.open { display: flex; }
-html.m #mt-screen { height: var(--app-h, 100%); }
-.mt-top { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
-.mt-top h1 { font: 900 15px 'Orbitron', monospace; letter-spacing: 2px; color: var(--amber); margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mt-tabs { flex: none; display: flex; gap: 4px; padding: 6px 12px; }
-.mt-tabs button { flex: 1; }
-.mt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
-.mt-inner { max-width: 980px; margin: 0 auto; }
-.mt-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
-.mt-h { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--cyan); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
-.mt-dim { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
-.mt-dim b { color: var(--amber); }
-.mt-cat { font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin: 10px 0 4px; letter-spacing: 1px; }
-.mt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
-.mt-a { display: flex; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); min-width: 0; }
-.mt-a .ic { flex: none; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 19px; background: #111827; filter: grayscale(1); opacity: .5; }
-.mt-a.done { border-color: rgba(255,215,0,.45); background: linear-gradient(90deg, rgba(255,215,0,.08), transparent); }
-.mt-a.done .ic { filter: none; opacity: 1; background: radial-gradient(circle, rgba(255,215,0,.35), #1a1405); box-shadow: 0 0 10px rgba(255,215,0,.35); }
-.mt-a .t { flex: 1; min-width: 0; font-size: 11px; }
-.mt-a .t b { display: block; font: 800 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mt-a .t span { color: var(--text-dim); font-size: 10px; }
-.mt-pb { height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 4px; }
-.mt-pb div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--emerald)); }
-.mt-a.done .mt-pb div { background: #ffd700; }
-.mt-lb { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
-.mt-row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
-.mt-row.me { color: var(--cyan); }
-.mt-ev { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px; background: var(--bg-panel-elevated); margin-bottom: 4px; font-size: 11px; }
-.mt-ev.now { box-shadow: 0 0 0 1px var(--amber) inset; }
-.mt-ev .ic { font-size: 20px; width: 26px; text-align: center; }
-.mt-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
-.mt-badges span { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; background: radial-gradient(circle, rgba(255,215,0,.3), #1a1405); }
-.mt-toast { position: fixed; right: 12px; bottom: 70px; z-index: 400; display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px;
-background: linear-gradient(90deg, #1a1405, #2a1f05); border: 1px solid #ffd700; box-shadow: 0 0 24px rgba(255,215,0,.4); color: #fff; font-size: 12px; animation: mtIn .35s ease-out; }
-.mt-toast .ic { font-size: 26px; } .mt-toast b { display: block; font: 800 11px 'Orbitron', monospace; color: #ffd700; letter-spacing: 1px; }
-@keyframes mtIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
-</style>
-<div id="mt-event" onclick="Meta.open('events')"></div>
-<div id="mt-screen">
-<div class="mt-top">
-<button class="btn btn-cyan" onclick="Meta.close()">◀ OFFICE</button>
-<h1>🏆 HALL OF FAME</h1>
-<span class="mt-dim" id="mt-count"></span>
-</div>
-<div class="mt-tabs" id="mt-tabs"></div>
-<div class="mt-body"><div class="mt-inner" id="mt-inner"></div></div>
-</div>
-<script>
-(function () {
-"use strict";
-const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
-const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
-let view = "ach", isOpen = false;
-const EVENTS = [
-{ id: "payday", icon: "💸", name: "PAYDAY", txt: "Auto GC ×2" },
-{ id: "coffee", icon: "☕", name: "COFFEE MACHINE BROKE", txt: "Nobody can relax: clicks ×3, auto GC ×0.5" },
-{ id: "audit", icon: "📋", name: "AUDIT WEEK", txt: "HIGH STAKES: XP ×2, campaign GC ×2" },
-{ id: "supply", icon: "📦", name: "SUPPLY DROP", txt: "Opening chests costs 50% less scrap" },
-{ id: "overtime", icon: "🌙", name: "OVERTIME", txt: "HIGH STAKES fights cost no energy" }
-];
-const HOUR = 3600000, EV_LEN = 10 * 60000;
-function h32(n) { n = Math.imul(n ^ 0x5bd1e995, 0x27d4eb2d); n ^= n >>> 15; n = Math.imul(n, 0x165667b1); n ^= n >>> 13; return n >>> 0; }
-function slotEvent(slot) { const h = h32(slot * 7 + 12345); return { ev: EVENTS[h % EVENTS.length], start: slot * HOUR + (h32(slot + 999) % 50) * 60000 }; }
-function current(now) {
-now = now || Date.now();
-const s = slotEvent(Math.floor(now / HOUR));
-return now >= s.start && now < s.start + EV_LEN ? { ev: s.ev, end: s.start + EV_LEN } : null;
-}
-function upcoming(n, now) {
-now = now || Date.now(); const out = []; let slot = Math.floor(now / HOUR);
-while (out.length < n) { const s = slotEvent(slot); if (s.start + EV_LEN > now) out.push({ ev: s.ev, start: s.start, end: s.start + EV_LEN }); slot++; }
-return out;
-}
-function active(id) { const c = current(); return !!(c && c.ev.id === id); }
-/** násobiče pro ekonomiku: click, auto, chest, hsxp, hsgc, energy (0 = zdarma) */
-function mult(k) {
-const c = current(); if (!c) return 1;
-const id = c.ev.id;
-if (k === "auto") return id === "payday" ? 2 : id === "coffee" ? 0.5 : 1;
-if (k === "click") return id === "coffee" ? 3 : 1;
-if (k === "chest") return id === "supply" ? 0.5 : 1;
-if (k === "hsxp" || k === "hsgc") return id === "audit" ? 2 : 1;
-if (k === "energy") return id === "overtime" ? 0 : 1;
-return 1;
-}
-const fmtT = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
-const fmtWhen = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " min"; };
-let lastEv = "";
-function tickEvent() {
-const c = current(), el = $("mt-event"); if (!el) return;
-if (!c) { el.classList.remove("on"); lastEv = ""; return; }
-const html = `<span>${c.ev.icon}</span><span>${c.ev.name}</span><small>${c.ev.txt}</small><b>${fmtT(c.end - Date.now())}</b>`;
-if (el.innerHTML !== html) el.innerHTML = html;
-el.classList.add("on");
-const key = c.ev.id + c.end;
-if (lastEv !== key && typeof gameState !== "undefined" && gameState.ldap) {
-lastEv = key;
-log(`${c.ev.icon} COMPANY EVENT: ${c.ev.name} for 10 minutes - ${c.ev.txt}!`, "special");
-const S = st(); if (S && S.lastEv !== key) { S.lastEv = key; S.c.events = (S.c.events || 0) + 1; TT.saveSoon(); }
-if (typeof updateUI === "function") updateUI();
-}
-}
-function chip() { const c = current(); return c ? `<span class="buff-chip on" title="${esc(c.ev.txt)}">${c.ev.icon} ${c.ev.name} ${fmtT(c.end - Date.now())}</span>` : ""; }
-function st() {
-if (typeof gameState === "undefined") return null;
-const d = window.Dungeon && Dungeon.state ? Dungeon.state() : (gameState.hs = gameState.hs || {});
-if (!d.ach || typeof d.ach !== "object") d.ach = {};
-const a = d.ach;
-if (!a.u || typeof a.u !== "object") a.u = {};
-if (!a.c || typeof a.c !== "object") a.c = {};
-return a;
-}
-function wk() {
-const d = window.Dungeon && Dungeon.state ? Dungeon.state() : (gameState.hs = gameState.hs || {});
-if (!d.wk || typeof d.wk !== "object") d.wk = {};
-const w = d.wk, now = week();
-if (w.week !== now) { w.week = now; w.best = {}; }
-if (!w.best || typeof w.best !== "object") w.best = {};
-if (!w.claimed || typeof w.claimed !== "object") w.claimed = {};
-return w;
-}
-function week() { return Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000)); }
-const lo = () => gameState.loadout || {};
-const eq = () => Object.values(lo()).filter(Boolean);
-const hs = () => (window.Dungeon && Dungeon.state ? Dungeon.state() : {});
-const cnt = (k) => Number((st() || { c: {} }).c[k]) || 0;
-const starsTotal = () => Object.values(hs().stars || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-const cleared = (id) => ((hs().stars || {})[id] || 0) > 0 ? 1 : 0;
-const maxChest = () => Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1);
-;(window.__TT_FILES = window.__TT_FILES || {})["hs_core"] = 1;
-// END-OF-FILE: hs_core (the script continues in the next file)
+<script>(window.__TT_FILES = window.__TT_FILES || {})["hs_core"] = 1;</script>
+<!-- END-OF-FILE: hs_core -->

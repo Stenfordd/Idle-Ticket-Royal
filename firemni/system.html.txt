@@ -1,3 +1,153 @@
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+if (typeof CASINO_TABS !== "undefined") { CASINO_TABS.push("mega", "crash"); }
+let rHist = [], rSeen = "";
+function renderRHist(newest) {
+const box = $("r-hist"); if (!box) return;
+box.innerHTML = '<span class="r-hist-lbl">LAST 6</span>' + rHist.slice(0, 6).map((h, i) =>
+`<span class="r-dot ${h.color} ${i === 0 && newest ? "new" : ""}" title="${escapeHtml(h.user || "")}: ${escapeHtml(h.num)}">${escapeHtml(h.num)}</span>`).join("");
+}
+window.pushRouletteHistory = function (h) { rHist.unshift(h); rHist = rHist.slice(0, 12); renderRHist(true); };
+window.setRouletteHistory = function (list) {
+if (!Array.isArray(list)) return;
+const sig = JSON.stringify(list.slice(0, 6));
+if (sig === rSeen) return;
+rSeen = sig;
+rHist = list.filter(h => h && /^(RED|BLACK|GREEN)$/.test(h.color)).slice(0, 12);
+renderRHist(false);
+};
+const SYM = { C: "🍒", L: "🍋", B: "🔔", K: "🍀", S: "7️⃣", D: "💎", W: "⭐", $: "💰" };
+const WEIGHTS = [["C", 30], ["L", 26], ["B", 18], ["K", 12], ["S", 7], ["D", 4], ["W", 3], ["$", 2.2]];
+const PAY = { C: [1, 3, 8], L: [1.5, 4, 10], B: [2, 6, 15], K: [3, 10, 25], S: [5, 20, 60], D: [10, 50, 200] };
+const LINE_K = 4.4 / 10;                                   // výplata linie = PAY × sázka × 0.44
+const SCATTER = { 3: 4, 4: 20, 5: 250 };
+const LINES = [[0,0,0,0,0],[1,1,1,1,1],[2,2,2,2,2],[3,3,3,3,3],[4,4,4,4,4],[0,1,2,3,4],[4,3,2,1,0],[0,1,2,1,0],[4,3,2,3,4],[2,1,2,3,2]];
+const LINE_COLORS = ["#ffb800", "#00f0ff", "#00ff88", "#ff4dff", "#f43f5e", "#a855f7", "#fbbf24", "#22d3ee", "#84cc16", "#fb7185"];
+const WSUM = WEIGHTS.reduce((a, w) => a + w[1], 0);
+function rollSym() { let r = TT.rnd() * WSUM; for (const w of WEIGHTS) { if (r < w[1]) return w[0]; r -= w[1]; } return "C"; }
+const mega = { busy: false, grid: null, autoLeft: 0 };
+let megaBusyFlag = false;
+function buildGrid() {
+const g = $("mega-grid"); if (!g || g.children.length) return;
+let h = "";
+for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) h += `<div class="mega-cell" id="mc-${c}-${r}">${SYM[rollSym()]}</div>`;
+g.innerHTML = h;
+}
+function cell(c, r) { return $("mc-" + c + "-" + r); }
+function evaluate(g, bet) {
+const wins = [];
+let total = 0;
+LINES.forEach((ln, li) => {
+const syms = ln.map((r, c) => g[c][r]);
+const first = syms.find(x => x !== "W") || "D";
+if (first === "$") return;
+let n = 0;
+for (const x of syms) { if (x === first || x === "W") n++; else break; }
+if (n >= 3) {
+const w = PAY[first][n - 3] * bet * LINE_K;
+total += w;
+wins.push({ line: li, n: n, sym: first, win: w });
+}
+});
+const sc = [];
+for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) if (g[c][r] === "$") sc.push([c, r]);
+let scWin = 0;
+if (sc.length >= 3) { scWin = SCATTER[Math.min(5, sc.length)] * bet; total += scWin; }
+return { total: total, wins: wins, sc: sc, scWin: scWin };
+}
+function getBet() {
+const max = Math.max(10, Math.min(TT.maxBet(), Math.floor(gameState.coins)));
+return TT.cleanBet($("mega-bet").value, 10, max);
+}
+function setBusy(b) {
+mega.busy = b;
+$("mega-spin").disabled = b && !mega.autoLeft;
+$("mega-spin").innerText = mega.autoLeft ? `STOP (${mega.autoLeft} left)` : (b ? "SPINNING..." : "SPIN");
+$("mega-auto").disabled = b || mega.autoLeft > 0;
+$("mega-auto25").disabled = b || mega.autoLeft > 0;
+}
+function spin() {
+if (mega.autoLeft && !mega.busy) { mega.autoLeft = 0; setBusy(false); return; }
+if (mega.autoLeft && mega.busy) { mega.autoLeft = 0; return; }       // STOP během autospinu
+if (mega.busy) return;
+doSpin();
+}
+function doSpin() {
+buildGrid();
+const bet = getBet();
+$("mega-bet").value = bet;
+if (!TT.spend(bet)) { msg("Not enough GC.", "var(--crimson)"); mega.autoLeft = 0; setBusy(false); return; }
+setBusy(true);
+clearLines();
+const g = [];
+for (let c = 0; c < 5; c++) { g.push([]); for (let r = 0; r < 5; r++) g[c].push(rollSym()); }
+mega.grid = g;
+const fast = mega.autoLeft > 0;
+for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) { const el = cell(c, r); el.className = "mega-cell spin"; }
+const iv = setInterval(() => {
+for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) { const el = cell(c, r); if (el.classList.contains("spin")) el.textContent = SYM[rollSym()]; }
+}, 70);
+for (let c = 0; c < 5; c++) {
+setTimeout(() => {
+for (let r = 0; r < 5; r++) { const el = cell(c, r); el.className = "mega-cell land"; el.textContent = SYM[g[c][r]]; }
+if (c === 4) { clearInterval(iv); finish(bet); }
+}, (fast ? 260 : 520) + c * (fast ? 110 : 190));
+}
+}
+function clearLines() { const svg = $("mega-lines"); if (svg) svg.innerHTML = ""; }
+function drawLine(li) {
+const svg = $("mega-lines"); if (!svg) return;
+const pts = LINES[li].map((r, c) => `${50 + c * 100},${50 + r * 100}`).join(" ");
+svg.insertAdjacentHTML("beforeend", `<polyline points="${pts}" stroke="${LINE_COLORS[li]}" color="${LINE_COLORS[li]}"/>`);
+}
+function msg(t, color) { const m = $("mega-msg"); if (m) { m.style.color = color || ""; m.innerHTML = t; } }
+function banner(text, sub, color) {
+const b = $("mega-banner"); if (!b) return;
+b.style.color = color;
+b.innerHTML = text + (sub ? `<small>${sub}</small>` : "");
+b.classList.remove("go"); void b.offsetWidth; b.classList.add("go");
+}
+function finish(bet) {
+const res = evaluate(mega.grid, bet);
+res.wins.forEach(w => {
+drawLine(w.line);
+for (let c = 0; c < w.n; c++) cell(c, LINES[w.line][c]).classList.add("hit");
+});
+res.sc.forEach(([c, r]) => cell(c, r).classList.add("sc"));
+const payout = Math.floor(res.total);
+const x = payout / bet;
+if (payout > 0) {
+TT.win(payout);
+const parts = res.wins.map(w => `${SYM[w.sym]}×${w.n}`).concat(res.sc.length >= 3 ? [`💰×${res.sc.length}`] : []);
+msg(`WIN ${fmt(payout)} GC (${x.toFixed(2)}×) · ${parts.join(" ")}`, x >= 1 ? "var(--emerald)" : "var(--amber)");
+if (res.sc.length >= 5) { banner("JACKPOT!!!", fmt(payout) + " GC", "#ff4dff"); shake(); TT.announce("MEGA 💰×5", "SLOTS", bet, payout); }
+else if (x >= 50) { banner("MEGA WIN", fmt(payout) + " GC", "#f43f5e"); shake(); TT.announce("MEGA x" + x.toFixed(0), "SLOTS", bet, payout); }
+else if (x >= 10) { banner("BIG WIN", fmt(payout) + " GC", "#ffb800"); }
+else if (res.wins.length >= 3 || res.sc.length >= 3) banner("NICE!", "+" + fmt(payout), "#00ff88");
+else if (x < 1) banner("WIN!", "+" + fmt(payout), "#00f0ff");
+if (x >= 10) TT.log(`MEGA SLOTS: ${x.toFixed(1)}× → +${fmt(payout)} GC!`, "special");
+} else {
+msg(`No win this time. -${fmt(bet)} GC`, "var(--text-dim)");
+}
+setTimeout(() => {
+if (mega.autoLeft > 0) {
+mega.autoLeft--;
+if (mega.autoLeft > 0 && gameState.coins >= bet) { setBusy(true); doSpin(); return; }
+mega.autoLeft = 0;
+}
+setBusy(false);
+}, payout > 0 ? (mega.autoLeft ? 700 : 300) : (mega.autoLeft ? 350 : 100));
+}
+function shake() { const w = document.querySelector(".mega-wrap"); if (!w) return; w.classList.remove("mega-shake"); void w.offsetWidth; w.classList.add("mega-shake"); }
+function auto(n) {
+if (mega.busy || mega.autoLeft) return;
+mega.autoLeft = n;
+doSpin();
+}
+function betMul(f) { $("mega-bet").value = TT.cleanBet(Math.floor((Number($("mega-bet").value) || 10) * f), 10, Math.max(10, Math.min(TT.maxBet(), Math.floor(gameState.coins)))); }
 function payTable() {
 const rows = Object.keys(PAY).map(k => `${SYM[k]} 3/4/5 in a row: <b>${PAY[k].map(v => (v * LINE_K).toFixed(2) + "×").join(" / ")}</b>`).join("<br>");
 msg(`${rows}<br>⭐ wild replaces anything except 💰 · 💰 anywhere 3/4/5: <b>4× / 20× / 250×</b> · paid per line, × your bet`, "var(--text-main)");
@@ -592,75 +742,5 @@ setInterval(refreshLeaderboard, 5000);
 }
 window.addEventListener("DOMContentLoaded", initGame);
 </script>
-<style>
-/* ===== ADVANCED MINIGAMES: Chicken Road, Pachinko, Showdown (PvP) ===== */
-.adv-wrap .tab-row { margin-bottom: 8px; }
-.adv-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
-.adv-input { background: #000; border: 1px solid var(--border-subtle); color: #fff; padding: 6px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; width: 90px; }
-.adv-select { background: #000; border: 1px solid var(--border-subtle); color: var(--amber); padding: 6px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; }
-.adv-info { font-size: 11px; color: var(--text-dim); }
-.adv-info b { color: var(--amber); }
-.adv-bal { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--amber); text-align: right; margin-bottom: 4px; }
-.cr-road { display: flex; gap: 3px; overflow-x: auto; padding: 8px 2px; background: #11151e; border: 1px solid var(--border-subtle); border-radius: 4px; margin-bottom: 8px; }
-.cr-cell { flex: 0 0 46px; height: 74px; background: #1b2130; border-radius: 4px; border-bottom: 3px dashed #3a4560; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; position: relative; }
-.cr-cell .cr-lbl { font-family: 'Orbitron', monospace; font-size: 8px; color: var(--text-dim); position: absolute; bottom: 3px; }
-.cr-cell.done { background: rgba(0, 255, 136, 0.12); }
-.cr-cell.done .cr-lbl { color: var(--emerald); }
-.cr-cell.next { border-bottom-color: var(--amber); box-shadow: 0 0 8px rgba(255, 184, 0, 0.35); }
-.cr-cell.dead { background: rgba(255, 23, 68, 0.25); }
-.cr-cell.curb { background: #1d3b2a; }
-.cr-car { position: absolute; top: 4px; font-size: 14px; opacity: 0.55; }
-.cr-chicken.hop { display: inline-block; animation: crHop 0.28s ease-out; }
-@keyframes crHop { 0% { transform: translateY(0); } 40% { transform: translateY(-14px) scale(1.15); } 100% { transform: translateY(0); } }
-.cr-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
-.cr-stats .stat-box { text-align: center; }
-.cr-msg { text-align: center; font-family: 'Orbitron', monospace; font-size: 12px; min-height: 18px; margin-bottom: 6px; }
-.pc-canvas-wrap { position: relative; background: radial-gradient(ellipse at 50% 0%, #121a2c 0%, #05070b 70%); border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
-#pc-canvas { width: 100%; height: auto; display: block; aspect-ratio: 360 / 400; }
-.pc-risk { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; }
-.pc-risk .btn { padding: 5px 0; font-size: 10px; }
-.pc-risk .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
-.pc-pops { position: absolute; inset: 0; pointer-events: none; }
-.pc-pop { position: absolute; transform: translateX(-50%); font: 900 13px 'Orbitron', monospace; white-space: nowrap; text-shadow: 0 0 8px currentColor, 0 1px 0 #000; animation: pcPop 1.2s ease-out forwards; }
-.pc-pop.big { font-size: 20px; }
-@keyframes pcPop { 0% { opacity: 0; transform: translate(-50%, 8px) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -4px) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -48px) scale(1); } }
-.pc-live { display: flex; justify-content: space-between; font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin-bottom: 6px; min-height: 14px; }
-.pc-live b { color: var(--amber); }
-.sd-picker { background: var(--bg-panel-elevated); border-radius: 4px; padding: 8px; margin-bottom: 8px; }
-.sd-pick-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-.sd-pick-row span.lbl { font-family: 'Orbitron', monospace; font-size: 10px; color: var(--text-dim); width: 62px; }
-.sd-mv { flex: 1; font-size: 18px; padding: 4px 0; }
-.sd-mv.sel { background: rgba(255, 184, 0, 0.3); border-color: var(--amber); box-shadow: 0 0 8px rgba(255, 184, 0, 0.35); }
-.sd-list { max-height: 170px; overflow-y: auto; margin-bottom: 8px; }
-.sd-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; background: var(--bg-panel-elevated); border-left: 3px solid var(--cyan); border-radius: 4px; margin-bottom: 4px; font-size: 12px; }
-.sd-item.mine { border-left-color: var(--amber); }
-.sd-hist { font-size: 11px; margin-bottom: 3px; }
-.sd-hist.WIN { color: var(--emerald); } .sd-hist.LOSE { color: var(--crimson); } .sd-hist.DRAW { color: var(--amber); }
-</style>
-<script>
-/**
-* TICKET TYCOON v6.1 - ADVANCED MINIGAMES (soubor "advanced_minigames")
-* Chicken Road, Pachinko (opravené zasekávání + uložení míčků v letu), Showdown (PvP kámen-nůžky-papír).
-*/
-(function () {
-'use strict';
-const CR_MAX_JUMPS = 15, CR_GROWTH = 1.92, CR_MAX_BET = 100000, CR_JACKPOT_MULT = 50;
-const PC_ROWS = 12;
-const PC_VALUES = ["10", "50", "100", "500"];
-const PC_RISKS = {
-low:    [10, 3, 1.6, 1.4, 1.1, 1, 0.4, 1, 1.1, 1.4, 1.6, 3, 10],
-medium: [33, 11, 4, 2, 1.2, 0.5, 0.2, 0.5, 1.2, 2, 4, 11, 33],
-high:   [500, 25, 4, 1.2, 0.5, 0.3, 0.3, 0.3, 0.5, 1.2, 4, 25, 500]
-};
-let PC_MULTS = PC_RISKS.high;
-const PC_MAX_ACTIVE = 25;
-const W = 360, H = 400, HS = 13.5, TOP = 46, DY = 24, SEG_MS = 165, PEG_R = 3.2, BALL_R = 5.2, BIN_Y = 344, BIN_H = 40;
-const SD_ICON = { R: "✊", P: "✋", S: "✌️" };
-const SD_MIN = 10, SD_MAX = 100000;
-const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-function crMult(n) { return Math.round(Math.pow(CR_GROWTH, n) * 100) / 100; }
-function binom(n, k) { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
-function pcRtp(t) { t = t || PC_MULTS; let s = 0; for (let k = 0; k <= PC_ROWS; k++) s += (binom(PC_ROWS, k) / Math.pow(2, PC_ROWS)) * t[k]; return s; }
-;(window.__TT_FILES = window.__TT_FILES || {})["system"] = 1;
-// END-OF-FILE: system (the script continues in the next file)
+<script>(window.__TT_FILES = window.__TT_FILES || {})["system"] = 1;</script>
+<!-- END-OF-FILE: system -->

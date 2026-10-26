@@ -1,0 +1,30 @@
+<script type="text/plain" data-tt="ttbig3" data-i="2">root.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { const o = e.target.closest(".rm-o"); if (o) { e.preventDefault(); tap(o.getAttribute("data-o")); } } });
+try { hintT = localStorage.getItem("ir_room_hint") ? 1 : 0; } catch (e) {}
+render();
+setTimeout(() => root && root.classList.remove("labels"), 5000);
+const btn = $("btn-click");
+if (btn) { btn.addEventListener("click", onResolve); btn.addEventListener("touchstart", onResolve, { passive: true }); }
+return true;
+}
+window.Room = { render: render, tap: tap, reveal: reveal, ENVS: ENVS, REVEAL: REVEAL, tierOf: tierOf, walkTo: walkTo, say: say, bg: bg, art: (id, t) => { const k = T; T = t; const a = art(id); T = k; return a; } };
+(function boot() {
+if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded || !window.HSRig) { setTimeout(boot, 120); return; }
+TT.onLoaded(() => {
+if (!root && !mount()) return;
+sig = sigAll(); render(); checkReveal();
+setInterval(() => {
+if (!root || document.hidden) return;
+const s = sigAll();
+if (s !== sig) {
+const prevP = Number(sig.split("|")[1]);
+sig = s; render();
+if (P() !== prevP) checkReveal();
+}
+}, 1500);
+});
+})();
+})();
+</script>
+<script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig3"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["part21"] = 1;</script>
+<!-- END-OF-FILE: part21 -->

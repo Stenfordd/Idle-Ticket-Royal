@@ -1,442 +1,528 @@
-const CH = [
-{ name: "Helpdesk Hell", icon: "☎", desc: "Your first day on the helpdesk. The phones never stop ringing.", missions: [
-{ n: "Password Reset Rampage", e: "Locked-Out User", i: "🔐", p: "normal", b: { type: "turns", n: 8 }, t: "\"I didn't change anything!\" - famous last words. Calm down the angry user." },
-{ n: "The Printer Is On Fire", e: "Jammed Printer", i: "🖨", p: "turtle", b: { type: "noGamble" }, t: "PC LOAD LETTER. What does that even mean? Fix it with violence." },
-{ n: "Have You Tried Turning It Off", e: "Frozen Laptop", i: "💻", p: "normal", b: { type: "perfectBlock" }, t: "It's been loading since 2019. Time to hold the power button." },
-{ n: "Reply-All Storm", e: "Email Chain Monster", i: "📧", p: "brute", k: "elite", b: { type: "hp", pct: 70 }, t: "347 people replied \"please remove me from this list\". The inbox has become self-aware." },
-{ n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "Management says Compliance Control arrives today. Their Vanguard brings forms: do what the form says (bonus damage) or drown in red tape." },
-{ n: "Mouse Has Gone Rogue", e: "Wireless Mouse", i: "🖱", p: "normal", b: { type: "crits", n: 2 }, t: "Battery at 1%. It's moving on its own. It's angry." },
-{ n: "Ticket Avalanche", e: "Ticket Golem", i: "🎫", p: "brute", b: { type: "turns", n: 9 }, t: "Monday, 9:01 AM. 214 new tickets. All marked URGENT." },
-{ n: "The Coffee Machine", e: "Possessed Espresso Maker", i: "☕", p: "caster", mech: "heal", k: "elite", b: { type: "skill" }, t: "It brews despair and heals itself with every sip." },
-{ n: "Shadow IT", e: "Shadow IT Spreadsheet", i: "📊", p: "caster", mech: "drain", k: "mini", b: { type: "jackpot" }, t: "A 40 MB Excel file that runs the entire company. Nobody knows who made it." },
-{ n: "BOSS: The Great \"I\"", e: "The Great \"I\"", i: "I", p: "boss", mech: "great_i", k: "boss", b: { type: "perfectPower" }, t: "Is it a capital i? Is it a lowercase L? Nobody knows. Everybody fears it. Hello fighters, how are you?" }
-] },
-{ name: "Server Room", icon: "🗄", desc: "Down in the basement it's 40°C and something is humming.", missions: [
-{ n: "Cable Spaghetti", e: "Tangled Patch Cables", i: "🍝", p: "turtle", b: { type: "noGamble" }, t: "Someone \"organized\" the rack. 600 cables, zero labels." },
-{ n: "Overheated Rack", e: "Thermal Rack", i: "🔥", p: "brute", b: { type: "perfectBlock" }, t: "The AC broke in 2017. The rack has been angry ever since." },
-{ n: "RAID Is Not A Backup", e: "Degraded RAID Array", i: "💽", p: "caster", mech: "heal", b: { type: "turns", n: 10 }, t: "Two disks failed. The third is making clicking noises." },
-{ n: "The Forbidden UPS", e: "Beeping UPS", i: "🔋", p: "normal", k: "elite", b: { type: "hp", pct: 70 }, t: "It beeps every 30 seconds. For six years. Nobody knows why." },
-{ n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "This time it's REAL. Compliance Control is coming to inspect the server room. Their Vanguard brings forms - comply or drown in red tape." },
-{ n: "Rogue Cron Job", e: "Cron Job at 3 AM", i: "⏰", p: "brute", b: { type: "crits", n: 2 }, t: "It runs every night at 3:00 and deletes something important." },
-{ n: "Memory Leak", e: "Java Heap Monster", i: "🧠", p: "caster", mech: "drain", b: { type: "skill" }, t: "It eats RAM. Then it eats your stamina. Then it eats your soul." },
-{ n: "Hey Dan, Listen", e: "The Cobol", i: "🥟", p: "caster", mech: "cobol", k: "elite", x: [0.8, 0.8], b: { type: "noBlock" }, t: "\"Hey Dan, listen...\" Older than the mainframe and it still runs. He will offer you bryndza (answer with BLOCK) and throw halušky at you." },
-{ n: "The Gym Rack", e: "The Pookie (The E)", i: "🤘", p: "boss", mech: "pookie", k: "mini", b: { type: "perfectBlock", n: 2 }, t: "Black T-shirt. Blast beats. Bulking season never ends. Every 3rd turn he flexes - block the HEAVY that follows!" },
-{ n: "BOSS: The Italian Guy", e: "The Italian Guy", i: "🤌", p: "boss", mech: "italian", k: "boss", x: [1.1, 1.15], b: { type: "perfectPower" }, t: "\"Relax, mamma mia... first we eat, then we fight.\" He ties your moves into SPAGHETTI CODE and at half HP takes a PASTA BREAK (BREAK him to stop it). Land a PERFECT Power Strike - he loves it al dente." }
-] },
-{ name: "Security Breach", icon: "🛡", desc: "Someone clicked the link. Of course someone clicked the link.", missions: [
-{ n: "Phishing Mail", e: "Nigerian Prince", i: "🎣", p: "normal", b: { type: "noGamble" }, t: "\"Dear Sir, kindly verify your password.\" Karen from accounting already did." },
-{ n: "Sticky Note Password", e: "Post-it Note", i: "📝", p: "turtle", b: { type: "turns", n: 9 }, t: "Password123! - written on the monitor. Security level: maximum." },
-{ n: "USB In The Parking Lot", e: "Mystery USB Stick", i: "🔌", p: "caster", mech: "drain", b: { type: "jackpot" }, t: "Labeled \"SALARIES 2026\". Someone plugged it in. Obviously." },
-{ n: "Botnet", e: "DDoS Botnet", i: "🕸", p: "brute", k: "elite", b: { type: "perfectBlock" }, t: "10 000 smart fridges are attacking the website." },
-{ n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "After the breach, Compliance Control is DEFINITELY coming. Fill out the incident report - every form you ignore adds red tape." },
-{ n: "Crypto Miner", e: "Crypto-Miner Trojan", i: "⛏", p: "caster", mech: "drain", b: { type: "crits", n: 3 }, t: "The CPU is at 100% and the electricity bill tripled." },
-{ n: "Zero-Day", e: "Zero-Day Broker", i: "🕵", p: "normal", b: { type: "skill" }, t: "He sells your vulnerabilities on the dark web. With a loyalty program." },
-{ n: "Lateral Movement", e: "Insider Threat", i: "🥷", p: "brute", k: "elite", b: { type: "hp", pct: 60 }, t: "It's coming from INSIDE the network." },
-{ n: "Encrypted Files", e: "Ransomware Executive", i: "🔒", p: "boss", mech: "ransom", k: "mini", b: { type: "perfectPower" }, t: "He encrypts your moves. A Power Strike decrypts everything." },
-{ n: "BOSS: Da Polishen", e: "Da Polishen", i: "🇵🇱", p: "boss", mech: "polishen", k: "boss", b: { type: "hp", pct: 50 }, t: "\"So guys... about the withdrawals...\" Every 4th turn: THE WITHDRAWAL FROM YOUR LIFE (takes 20% of your HP - only PARRY or DODGE stops it). She cuts your payroll and audits you for using the same move twice." }
-] },
-{ name: "Cloud Migration", icon: "☁", desc: "\"It's just someone else's computer.\" - the CTO, before the outage.", missions: [
-{ n: "Lift And Shift", e: "Monolith Fragment", i: "🧱", p: "turtle", b: { type: "noGamble" }, t: "We moved the old mess to the cloud. Now it's an expensive old mess." },
-{ n: "Surprise Bill", e: "AWS Invoice", i: "💸", p: "brute", b: { type: "turns", n: 9 }, t: "Someone left a GPU cluster running over the weekend. $48 000." },
-{ n: "Kubernetes", e: "YAML Hydra", i: "🐙", p: "caster", mech: "heal", b: { type: "skill" }, t: "Fix one indentation, two more break." },
-{ n: "Microservice Mesh", e: "Rogue Microservices", i: "🧬", p: "brute", k: "elite", b: { type: "perfectBlock", n: 2 }, t: "347 microservices. Each one needs the other 346." },
-{ n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "Cloud compliance review! Compliance Control is coming for sure. 100%. Probably. Until then: forms." },
-{ n: "Public S3 Bucket", e: "Leaky Bucket", i: "🪣", p: "normal", b: { type: "crits", n: 3 }, t: "Customer data, public, indexed by Google. Great." },
-{ n: "Deprecated API", e: "Breaking Change", i: "🧩", p: "brute", b: { type: "hp", pct: 60 }, t: "v1 is shut down tomorrow. Everything still uses v1." },
-{ n: "Unstable Staging", e: "Staging Environment", i: "🧪", p: "caster", mech: "drain", k: "elite", b: { type: "noBlock" }, t: "Works on staging! (It doesn't work on staging either.)" },
-{ n: "Prompt Injection", e: "Rogue LLM Agent", i: "🤖", p: "boss", mech: "llm", k: "mini", b: { type: "jackpot" }, t: "It hallucinates its own intentions. Some of what it shows you is a lie (marked ?)." },
-{ n: "BOSS: The Supreme Louis", e: "The Supreme Louis", i: "🫅", p: "boss", mech: "louis", k: "boss", x: [1.15, 1.35], b: { type: "perfectPower", n: 2 }, t: "\"¡Hola! The Supreme Leader has entered the chat.\" Every 5th turn he takes a SIESTA (+50% damage!) and wakes up with a HEAVY. FLAMENCO makes him hard to hit and he issues SUPREME DECREES." }
-] },
-{ name: "The Boardroom", icon: "🏦", desc: "The top floor. Glass walls. Expensive chairs. Final level.", missions: [
-{ n: "Mandatory Fun", e: "Team Building Coordinator", i: "🎉", p: "normal", b: { type: "noGamble" }, t: "Trust falls at 8 AM. Attendance is mandatory." },
-{ n: "Quick Sync", e: "Micromanager", i: "📣", p: "brute", b: { type: "turns", n: 9 }, t: "\"Just a quick 5-minute sync.\" It's been 3 hours." },
-{ n: "Synergy", e: "Buzzword Consultant", i: "📈", p: "caster", mech: "drain", b: { type: "skill" }, t: "Let's circle back and leverage our core synergies going forward." },
-{ n: "Performance Review", e: "HR Business Partner", i: "🧑‍💼", p: "turtle", mech: "heal", k: "elite", b: { type: "perfectBlock", n: 2 }, t: "\"Meets expectations.\" After you saved the company four times." },
-{ n: "Budget Cuts", e: "Finance Spreadsheet", i: "🧾", p: "caster", mech: "audit", b: { type: "noGamble" }, t: "Every action needs a cost center. Some of your moves get denied." },
-{ n: "Reorg", e: "Org Chart", i: "🗂", p: "brute", b: { type: "crits", n: 3 }, t: "Your team now reports to a team that reports to your team." },
-{ n: "Quarterly Goals", e: "OKR Spreadsheet", i: "🎯", p: "normal", k: "elite", b: { type: "turns", n: 10 }, t: "Objective: more. Key result: also more." },
-{ n: "The CTO", e: "The CTO", i: "🎩", p: "caster", mech: "llm", k: "elite", b: { type: "hp", pct: 60 }, t: "Every week a new paradigm. This week: blockchain AI in the metaverse." },
-{ n: "Board Of Directors", e: "Board of Directors", i: "🏛", p: "boss", mech: "heal", k: "mini", b: { type: "jackpot" }, t: "Twelve people in suits. They agree on nothing except your budget cut." },
-{ n: "FINAL BOSS: The Big Massi", e: "The Big Massi", i: "👑", p: "boss", mech: "massi", k: "boss", b: { type: "hp", pct: 40 }, t: "The best boss you could ever ask for. Also the strongest. At half HP he restructures the whole company." }
-] }
-];
-const SECRET = { n: "They Finally Came.", e: "The Compliance Control", i: "📋", p: "boss", mech: "audit_final", k: "secret", b: { type: "hp", pct: 30 },
-t: "Email from Compliance Control: \"We're finally coming tomorrow.\" ...They actually came. Every turn they audit one of your actions and forbid it." };
-let STATS = [[233,55.4],[240,57.2],[292,69.1],[387,94.8],[510,50.8],[415,94.3],[427,115.4],[629,132.6],[792,163.7],[1091,130.1],[602,131.6],[673,174.7],[747,196.8],[1059,196.2],[1285,130.6],[915,228.9],[992,267.5],[1377,270.7],[1645,323.9],[2168,189.1],[1250,270.6],[1333,292.1],[1373,376.8],[1875,410.8],[2107,204.5],[1562,433.4],[1649,361],[2234,470.1],[2609,596.4],[3424,462.6],[1934,444.9],[2025,537.5],[2117,559.1],[2840,634.8],[3180,314.5],[2270,518],[2363,627.3],[3159,834.6],[3534,495],[4770,495.9],[2663,601.7],[2759,753.6],[2855,889.3],[3691,754.7],[2967,926.2],[3064,842.1],[4065,781.9],[4122,661.2],[4601,889.6],[6162,772.8],[7320,577.8]];   // v8.2: přeladěno (nová stamina, gear s klesajícím přínosem, nižší win rate)
-function setStats(t) { STATS = t; }
-/** v8.6.1: obecně o něco těžší nepřátelé (+10 %) + kampaň a tower +25 % za každou prestiž (lineárně) */
-const BASE_HP = 1.06, BASE_ATK = 1.08;
-let PRESTIGE = 0;
-function setPrestige(p) { PRESTIGE = Math.max(0, Math.floor(Number(p) || 0)); }
-function prestigeMult() { return 1 + 0.25 * PRESTIGE; }
-function all() {
-const out = [];
-CH.forEach((c, ci) => c.missions.forEach((m, mi) => out.push(Object.assign({ ch: ci, idx: mi, id: ci * 10 + mi }, m))));
-out.push(Object.assign({ ch: 5, idx: 0, id: 50 }, SECRET));
-return out;
-}
-const LIST = all();
-const PAT = P;
-function mission(id) {
-const m = LIST[id]; if (!m) return null;
-const s = STATS && STATS[id] ? STATS[id] : [60 + 40 * id, 6 + 2 * id];
-return {
-id: id, ch: m.ch, idx: m.idx, name: m.n, intro: m.t, kind: m.k || "normal", bonus: m.b,
-survive: m.survive || 0, surviveMsg: "",
-energy: m.k === "boss" || m.k === "secret" ? 2 : 1,
-enemy: { name: m.e, icon: m.i, hp: Math.round(s[0] * BASE_HP * prestigeMult() * (m.x ? m.x[0] : 1)), atk: Math.round(s[1] * BASE_ATK * prestigeMult() * (m.x ? m.x[1] : 1) * 10) / 10, pattern: Object.assign({}, PAT[m.p] || PAT.normal), mech: m.mech || "", sprite: id }
+<script>
+/**
+* HIGH STAKES - akční bojový engine (čistý JS, běží ve hře i v simulaci pro ladění).
+* Hráč každý tah volí akci, nepřítel dopředu ukazuje svůj záměr (intent).
+*/
+(function (root) {
+"use strict";
+function rng(seed) {
+let a = (seed >>> 0) || 1;
+return function () {
+a |= 0; a = (a + 0x6D2B79F5) | 0;
+let t = Math.imul(a ^ (a >>> 15), 1 | a);
+t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 }
-function xpFor(id, first) { return Math.round((40 + 25 * id) * (first ? 1 : 0.4)); }
-function gcFor(id, first) { return Math.round((300 + 120 * Math.pow(id + 1, 1.7)) * (first ? 1 : 0.35)); }
-function xpToNext(L) { return 60 + 40 * L; }
-const BOSS_SLOT = { 9: "HEAD", 19: "RIG", 29: "OS", 39: "AUGMENT", 49: "TOOL", 50: "RELIC" };
-/** očekávaný level hráče u mise id (podle XP z prvních průchodů) */
-function refLevel(id) { let xp = 0; for (let k = 0; k < id; k++) xp += xpFor(k, true); let L = 1; while (xp >= xpToNext(L)) { xp -= xpToNext(L); L++; } return L; }
-const REF = []; for (let i = 0; i <= 50; i++) REF.push(refLevel(i));
-/** "index síly" (0-50, desetinný) odpovídající levelu hráče */
-function levelToX(L) { if (L <= REF[0]) return 0; for (let i = 1; i <= 50; i++) if (REF[i] > L) return i - 1 + (L - REF[i - 1]) / Math.max(1, REF[i] - REF[i - 1]); return 50 + (L - REF[50]) * 0.6; }
-const NORMALS = LIST.filter(m => (m.k || "normal") === "normal").map(m => m.id);
-/** HP/ATK běžného nepřítele síly x (interpolace mezi normal misemi, nad 50 dál roste) */
-function strength(x) {
-const st = (id) => (STATS && STATS[id]) || [60 + 40 * id, 6 + 2 * id];
-if (x <= NORMALS[0]) return st(NORMALS[0]);
-for (let i = 1; i < NORMALS.length; i++) {
-const a = NORMALS[i - 1], b = NORMALS[i];
-if (x <= b) { const t = (x - a) / (b - a), A = st(a), B = st(b); return [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]; }
+const CLASSES = {
+sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. +6% HP, blocks absorb more (70%).", skill: "FIREWALL", skillTxt: "Shield = 40% max HP, heal 10% and STUN the enemy for a turn." },
+engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. +12% ATK, bigger timing zone for Power Strike. +3% click crit in the office.", skill: "PRODUCTION PUSH", skillTxt: "One huge guaranteed 3.2× hit, double crit chance, big BREAK." },
+cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. +6% dodge, the slot machine favours you (+LUCK on Gamble Strike).", skill: "EXPLOIT", skillTxt: "2.8× hit that ignores defence, wipes the enemy's buffs and instantly BREAKS it." }
+};
+const ACTIONS = {
+quick:  { name: "QUICK", icon: "⚔", sta: 0,  gain: 15, hit: 0.95, mult: 0.6, txt: "95% hit · 0.6× · +15 STA · +20 focus" },
+strike: { name: "STRIKE", icon: "🗡", sta: 25, hit: 0.82, mult: 1.15, txt: "82% hit · 1.15×" },
+power:  { name: "POWER", icon: "💥", sta: 35, hit: 0.85, mult: 1.0,  cd: 2, txt: "timing! green = 1.9×, gold = 2.5× · 2-turn cooldown" },
+gamble: { name: "GAMBLE", icon: "🎰", sta: 20, hit: 1,    mult: 0,    txt: "slot machine: HOLD + re-spin, 🍒 heal 🔔 break ⭐ focus 7️⃣ dmg 💀 backfire" },
+block:  { name: "BLOCK", icon: "🛡", sta: 0,  gain: 25, hit: 0, mult: 0, txt: "-60% dmg, +25 stamina, PERFECT / GOOD parry vs HEAVY" },
+dodge:  { name: "DODGE", icon: "💨", sta: 10, hit: 0,    mult: 0,    txt: "big chance to avoid the hit" },
+skill:  { name: "SKILL", icon: "✨", sta: 0,  hit: 1,    mult: 0,    txt: "100 focus" }
+};
+const ITEMS = {};                      // v8.5: consumables (coffee, energy drink, hotfix, coin) odstraněny
+const MAX_ITEMS_PER_FIGHT = 0;
+const REELS = [["🍒", 30], ["🔔", 22], ["⭐", 12], ["7️⃣", 8], ["💀", 14]];
+function statPoints(level) { return 3 * (level - 1); }
+function buildHero(h, gear) {
+const L = Math.max(1, h.level || 1), st = h.stats || {};
+const S = (k) => 5 + (Number(st[k]) || 0);
+const cls = h.cls || "sysadmin";
+gear = gear || { atk: 1, hp: 1 };
+const bonus = h.bonus || 0;                                     // trvalé % z hvězd (kampaň)
+return {
+cls: cls, level: L,
+str: S("str"), vit: S("vit"), agi: S("agi"), luck: S("luck"), end: S("end"),
+maxHp: Math.round((80 + 12 * S("vit") + 8 * (L - 1)) * gear.hp * (cls === "sysadmin" ? 1.06 : cls === "cyber" ? 1.03 : 1) * (1 + bonus)),
+atk: (8 + 2.2 * S("str") + 1.2 * (L - 1)) * gear.atk * (cls === "engineer" ? 1.12 : cls === "cyber" ? 1.04 : 1) * (1 + bonus),
+hitBonus: S("agi") * 0.006,
+dodge: Math.min(0.4, 0.05 + S("agi") * 0.005 + (cls === "cyber" ? 0.06 : 0)),
+crit: Math.min(0.5, 0.05 + S("luck") * 0.004),
+staMax: Math.round(60 + 3 * S("end")),                       // v8.2: 75 na startu (dřív 100)
+staRegen: 0,                                                  // v8.6: žádná pasivní regenerace
+staGain: Math.max(0, (S("end") - 5) * 0.5),                   // v8.6: END přidává ke každému dobití (QUICK / BLOCK)
+zone: Math.min(0.45, 0.16 + S("luck") * 0.0035 + (cls === "engineer" ? 0.06 : 0)),   // šířka zeleného pole u timingu
+luckReel: S("luck") + (cls === "cyber" ? 10 : 0),
+items: {}
+};
 }
-const last = st(NORMALS[NORMALS.length - 1]), k = Math.pow(1.06, x - NORMALS[NORMALS.length - 1]);
-return [last[0] * k, last[1] * k];
+/** mission: { enemy: {name, hp, atk, pattern:{atk,heavy,defend,special}, mech}, survive: n|0, turnLimit } */
+function newFight(hero, mission, seed) {
+const R = rng(seed || 1);
+const e = mission.enemy;
+const f = {
+R: R, h: hero, m: mission, e: e, turn: 0, over: false, win: false, events: [],
+hp: hero.startHp != null ? Math.max(1, Math.min(hero.maxHp, Math.round(hero.startHp))) : hero.maxHp, sta: hero.staMax, focus: Math.min(99, 30 + (hero.startFocus || 0)),
+shield: Math.round(hero.maxHp * ((hero.perks || {}).shieldStart || 0)), firstHit: !!(hero.perks || {}).firstStrike, duckUsed: false,
+ehp: e.hp, emax: e.hp, eatk: e.atk, eshield: 0, estacks: 0, edefend: false,
+hotfix: false, coin: 0, coinTurns: 0, disabled: {}, cd: {}, itemsUsed: 0, revived: false, dodgeStreak: 0, demand: null, redTape: 0,
+lastAct: null, flamenco: 0, slow: 0, rage: 0, payroll: 0, pastaPending: false, restartPending: false,
+intent: null, lastIntent: null, phase2: false, form: "I", brk: 0, vuln: false, stunNext: false,
+st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, crits: 0, parries: 0, breaks: 0, forms: 0, maxHit: 0 }
+};
+pickIntent(f);
+return f;
 }
-function enemyFrom(src, x, hpM, atkM, extra) {
-const s0 = strength(x);
-return Object.assign({ name: src.e, icon: src.i, hp: Math.round(s0[0] * hpM * BASE_HP), atk: Math.round(s0[1] * atkM * BASE_ATK * 10) / 10,
-pattern: Object.assign({}, P[src.p] || P.normal), mech: src.mech || "", sprite: src.id }, extra || {});
+function ev(f, type, extra) { const e = Object.assign({ t: f.turn, type: type }, extra || {}); f.events.push(e); return e; }
+function pickIntent(f) {
+const e = f.e, R = f.R, p = e.pattern || { atk: 6, heavy: 2, defend: 1 };
+if (f.stunNext) { f.stunNext = false; f.intent = { k: "stun", val: 0, fake: false }; f.lastIntent = "stun"; return; }
+if (f.lastIntent === "charge") { f.intent = { k: "unleash", val: Math.round(f.eatk * 2.7), fake: false }; f.lastIntent = "unleash"; return; }
+const fx = forcedIntent(f);
+if (fx) { f.intent = Object.assign({ val: 0, fake: false }, fx); f.lastIntent = fx.k; pickDemand(f); return; }
+const chW = f.lastIntent === "unleash" || f.turn < 1 ? 0 : (p.charge != null ? p.charge : (f.m.kind === "normal" || f.m.kind === "compliance" ? 0 : 1));
+let w = [["charge", chW], ["atk", p.atk || 0], ["heavy", f.lastIntent === "heavy" ? 0 : (p.heavy || 0)], ["defend", f.lastIntent === "defend" ? 0 : (p.defend || 0)], ["special", f.lastIntent === "special" ? 0 : (p.special || 0)]];
+if (e.mech === "pookie" && (f.turn + 1) % 3 === 0) w = [["flex", 1]];
+if (e.mech === "pookie" && f.lastIntent === "flex") w = [["heavy", 1]];
+const sum = w.reduce((a, x) => a + x[1], 0);
+let r = R() * sum, k = "atk";
+for (const x of w) { if (r < x[1]) { k = x[0]; break; } r -= x[1]; }
+let val = 0;
+if (k === "atk") val = Math.round(f.eatk);
+if (k === "heavy") val = Math.round(f.eatk * 2.2);
+f.intent = { k: k, val: val, fake: false };
+if (e.mech === "llm" && R() < 0.3) f.intent.fake = true;
+f.lastIntent = k;
+pickDemand(f);
 }
-const BOSSES = LIST.filter(m => m.k === "boss" || m.k === "secret");
-/** v8.6: ADMINISTRATOR - finální boss toweru (patro 100), odemyká Clear The Pool */
-const ADMIN = { id: 51, n: "Floor 100: The Administrator", e: "The Administrator", i: "🕶", p: "boss", mech: "admin", k: "boss",
-t: "\"Access denied. I am the Administrator.\" ROOT ACCESS locks one of your moves every turn. At half HP he tries a FORCE RESTART (BREAK him to cancel it). Below 25% HP: sudo rm -rf every 3rd turn - PARRY it." };
-/** tematičtí bossové (všichni) - tower, Clear The Pool, týdenní rotace. Hodnota = id mise v kampani. */
-const THEMED = [9, 18, 19, 17, 29, 39, 28, 38, 49, 50];      // Great I, Pookie, Italian, Cobol, Polishen, Louis, Ransomware, LLM, Massi, Compliance
-const TOWER_BOSS = { 10: 9, 20: 18, 30: 19, 40: 17, 50: 29, 60: 39, 70: 28, 80: 38, 90: 49, 95: 50, 100: "admin" };
-function srcOf(id) { return id === "admin" ? ADMIN : LIST[id]; }
-/** SERVER TOWER: 100 pater, každé 5. elite, každých 10 (+ patro 95) boss, patro 100 Administrator. v8.6.1: +25 % za prestiž. */
-function towerFloor(f) {
-f = Math.max(1, Math.min(100, f | 0));
-const x = (f - 1) * 0.55, boss = !!TOWER_BOSS[f], elite = !boss && f % 5 === 0;
-const pool = LIST.filter(m => (m.k || "normal") === "normal" || m.k === "elite");
-const src = boss ? srcOf(TOWER_BOSS[f]) : pool[(f * 7) % pool.length];
-const kind = boss ? "boss" : elite ? "elite" : "normal";
-const pm = prestigeMult(), adm = f === 100;
-const e = enemyFrom(src, x, (adm ? 2.5 : boss ? 2.6 : elite ? 1.35 : 1) * pm, (adm ? 1.15 : boss ? 1.1 : elite ? 1.1 : 1) * pm);
-if (boss) { e.name = adm ? "The Administrator" : "Floor " + f + " Guardian: " + src.e; e.pattern = Object.assign({}, P.boss); }
-if (!boss && src.mech === "compliance") e.mech = "";
-return { id: 1000 + f, floor: f, ch: Math.min(4, Math.floor((f - 1) / 20)), idx: f - 1, name: adm ? "Floor 100 - THE ADMINISTRATOR" : "Floor " + f + (boss ? " - BOSS" : elite ? " - ELITE" : ""),
-intro: src.t, kind: kind, bonus: { type: "hp", pct: 50 }, survive: 0, energy: 1, enemy: e };
+/** v8.6: noví bossové - záměry, které si boss vynutí (siesta, pasta break, withdrawal, restart, sudo rm -rf) */
+function forcedIntent(f) {
+const m = f.e.mech;
+if (m === "louis") {
+if (f.lastIntent === "siesta") return { k: "heavy", val: Math.round(f.eatk * 2.2) };
+if ((f.turn + 1) % 5 === 0) return { k: "siesta" };
 }
-/** typická postava levelu L (staty rozdělené rovnoměrně, střední gear) - kotva, ke které se síla nepřítele táhne */
-function refHero(L) {
-L = Math.max(1, L | 0); const pts = 3 * (L - 1), g = 1.5;
-return { atk: (8 + 2.2 * (5 + pts * 0.4) + 1.2 * (L - 1)) * g, maxHp: (80 + 12 * (5 + pts * 0.35) + 8 * (L - 1)) * g };
+if (m === "italian" && f.pastaPending) { f.pastaPending = false; return { k: "pasta" }; }
+if (m === "polishen" && (f.turn + 1) % 4 === 0) return { k: "withdraw", val: Math.max(1, Math.round(Math.max(0, f.hp) * 0.2)) };
+if (m === "admin") {
+if (f.restartPending) { f.restartPending = false; return { k: "restart" }; }
+if (f.ehp < f.emax * 0.25 && (f.turn + 1) % 3 === 0 && f.lastIntent !== "unleash") return { k: "unleash", val: Math.round(f.eatk * 2.7), rm: true };
 }
-function pull(v, ref) { v = Math.max(1, v || 1); ref = Math.max(1, ref || v); return Math.pow(v, 0.75) * Math.pow(ref, 0.25); }
-/** typy nepřátel: [HP, ATK] - tank vydrží, glass cannon bolí, specialista má mechaniku */
-const ARCH = { tank: [1.55, 0.72, "🛡 Tank"], glass: [0.62, 1.42, "🗡 Glass cannon"], bal: [1, 1, ""], spec: [0.85, 0.9, "✨ Specialist"] };
-function archOf(src) { if (src.mech) return "spec"; return ["tank", "glass", "bal"][(src.id | 0) % 3]; }
-function jit(seed, k) { let a = ((seed | 0) * 2654435761 + k * 40503) >>> 0; a ^= a >>> 15; a = Math.imul(a, 2246822519) >>> 0; a ^= a >>> 13; return 0.85 + ((a >>> 0) % 1000) / 1000 * 0.3; }
-/** ON-CALL SHIFT (roguelite). me = { atk, maxHp } tvé postavy (bez perků); bez me = starý výpočet podle levelu. */
-function shiftEnemy(L, node, step, asc, seed, me) {
-if (me && me.atk && me.maxHp) return shiftEnemy2(L, node, step, asc, seed, me);
-return shiftEnemyOld(L, node, step, asc, seed);
+return null;
 }
-function shiftEnemy2(L, node, step, asc, seed, me) {
-const ref = refHero(L), atk = pull(me.atk, ref.atk), hp = pull(me.maxHp, ref.maxHp);
-const curve = 0.72 + 0.58 * Math.min(1, Math.max(0, step) / 9);          // začátek směny ~60-70 %, boss ~130 %
-const ha = 1 + 0.07 * asc, aa = 1 + 0.05 * asc;
-let src, kind, km;
-if (node === "boss") { src = srcOf(THEMED[seed % THEMED.length]); kind = "boss"; km = [2.0, 1.05]; }
-else { const pool = LIST.filter(m => (m.k || "normal") === (node === "elite" ? "elite" : "normal")); src = pool[seed % pool.length]; kind = node === "elite" ? "elite" : "normal"; km = node === "elite" ? [1.4, 1.15] : [1, 1]; }
-const ar = kind === "boss" ? "bal" : archOf(src), A = ARCH[ar];
-const e = { name: kind === "boss" ? "SHIFT BOSS: " + src.e : src.e, icon: src.i, sprite: src.id, pattern: Object.assign({}, kind === "boss" ? P.boss : (P[src.p] || P.normal)), mech: src.mech || "",
-hp: Math.max(10, Math.round(atk * 5.2 * curve * km[0] * A[0] * ha * jit(seed, 1))),
-atk: Math.max(1, Math.round(hp * 0.062 * curve * km[1] * A[1] * aa * jit(seed, 2) * 10) / 10), arch: A[2] };
-if (kind !== "boss" && e.mech === "compliance") e.mech = "";
-return { id: 2000 + step, name: e.name, intro: (A[2] ? A[2] + ". " : "") + (src.t || ""), kind: kind, bonus: {}, survive: 0, enemy: e };
+/** COMPLIANCE (v8.2): každý tah formulář "udělej X". Splníš = bonusové poškození, ignoruješ = RED TAPE (-ATK, -dodge, sčítá se). */
+const FORMS = ["quick", "strike", "block", "dodge", "power"];
+const FORM_NO = { quick: "QK-1", strike: "ST-12", block: "27-B", dodge: "DG-6", power: "PW-99" };
+const RED_TAPE_MAX = 6;
+function pickDemand(f) {
+const m = f.e.mech;
+if (m === "cobol") { f.demand = f.turn > 0 && f.R() < 0.3 && f.intent.k !== "heavy" ? "block" : null; return; }   // "Do you want a bryndza?" - odpověď BLOCK
+if (m === "louis") { if (!(f.turn > 0 && f.R() < 0.3)) { f.demand = null; return; } }                              // SUPREME DECREE
+else if (m !== "compliance") { f.demand = null; return; }
+const pool = FORMS.filter(a => a !== f.demand && (a === "block" || (ACTIONS[a].sta <= f.sta && !(f.cd[a] > 0))));
+f.demand = pool.length ? pool[Math.floor(f.R() * pool.length)] : "block";
 }
-function shiftEnemyOld(L, node, step, asc, seed) {
-const x = levelToX(L) + step * 0.2, ha = 1 + 0.07 * asc, aa = 1 + 0.05 * asc, F = [0.52, 0.46];
-const pool = LIST.filter(m => (m.k || "normal") === (node === "elite" ? "elite" : "normal"));
-if (node === "boss") {
-const src = srcOf(THEMED[seed % THEMED.length]);
-const e = enemyFrom(src, x, F[0] * 2.6 * ha, F[1] * 1.05 * aa);
-return { id: 2000 + step, name: "SHIFT BOSS: " + src.e, intro: src.t, kind: "boss", bonus: {}, survive: 0, enemy: e };
+function redTapeAtk(f) { return 1 - 0.08 * f.redTape; }
+function allowed(f, a) {
+const A = ACTIONS[a]; if (!A) return false;
+if (f.disabled[a] > 0) return false;
+if (a === "skill") return f.focus >= 100;
+if (f.cd[a] > 0) return false;
+return f.sta >= A.sta;
 }
-const src = pool[seed % pool.length];
-const m = node === "elite" ? [F[0] * 1.4, F[1] * 1.15] : F;
-const e = enemyFrom(src, x, m[0] * ha, m[1] * aa);
-if (e.mech === "compliance") e.mech = "";
-return { id: 2000 + step, name: src.e, intro: src.t, kind: node === "elite" ? "elite" : "normal", bonus: {}, survive: 0, enemy: e };
+/** Break meter: zásahy plní, na 100 je nepřítel STAGGERED (přijde o tah) a další rána dá 1,5×. */
+const BREAK = { quick: 7, strike: 15, power: 22, gamble: 9, skill: 30, parry: 40, perfect: 15 };
+function addBreak(f, n) {
+if (f.over || f.intent.k === "stun") return;
+n *= 1 + ((f.h.perks || {}).breakBonus || 0);
+const res = f.m.kind === "boss" || f.m.kind === "secret" || f.m.kind === "world" ? 0.65 : f.m.kind === "mini" || f.m.kind === "elite" ? 0.85 : 1;
+f.brk = Math.min(100, f.brk + n * res * (f.intent.k === "charge" || f.intent.k === "unleash" ? 1.6 : 1));
 }
-/** WORLD BOSS (Quarterly Review): týdenní boss, 10 kol, počítá se damage. */
-const WB = [
-{ e: "The Great \"I\" (Annual Edition)", i: "🔠", mech: "great_i", src: 9, t: "Hello fighters, how are you?" },
-{ e: "The Pookie (The E) - Bulk Season", i: "🤘", mech: "pookie", src: 18 },
-{ e: "Ransomware CEO", i: "💀", mech: "ransom", src: 28 },
-{ e: "Rogue LLM Cluster", i: "🤖", mech: "llm", src: 38 },
-{ e: "The Big Massi (Quarterly Review)", i: "👑", mech: "massi", src: 49 },
-{ e: "The Compliance Control (Full Audit)", i: "📋", mech: "audit", src: 50 },
-{ e: "The Italian Guy (Team Lunch)", i: "🤌", mech: "italian", src: 19, t: "Relax, mamma mia..." },
-{ e: "The Cobol (Legacy Migration)", i: "🥟", mech: "cobol", src: 17, t: "Hey Dan, listen..." },
-{ e: "Da Polishen (Payroll Day)", i: "🇵🇱", mech: "polishen", src: 29, t: "So guys... about the withdrawals..." },
-{ e: "The Supreme Louis (All-Hands)", i: "🫅", mech: "louis", src: 39, t: "¡Hola!" },
-{ e: "The Administrator (Root Review)", i: "🕶", mech: "admin", src: "admin", t: "Access denied." }
-];
-function mkName(mk) { return "MK." + (["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][mk] || mk); }
-function worldBoss(idx, L, hpLeft, mk, me) {
-const w = WB[((idx % WB.length) + WB.length) % WB.length], src = srcOf(w.src);
-mk = Math.max(1, mk | 0 || 1);
-const e = enemyFrom(src, levelToX(L), 1, 1 + 0.15 * (mk - 1), { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id });
-if (me && me.maxHp) e.atk = Math.max(1, Math.round(pull(me.maxHp, refHero(L).maxHp) * 0.085 * (1 + 0.15 * (mk - 1)) * 10) / 10);   // v9.4: útok podle tvého HP (dřív exponenciálně podle levelu)
-e.hp = Math.max(1, Math.round(hpLeft));
-e.pattern = Object.assign({}, P.boss);
-return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 turns, deal as much damage as you can.",
-kind: "world", bonus: {}, survive: 0, turnLimit: 15, enemy: e };
+function hurtEnemy(f, dmg, ignoreDef) {
+const P = f.h.perks || {};
+if (f.vuln) { dmg *= 1.5; f.vuln = false; }
+if (f.firstHit) { dmg *= 2; f.firstHit = false; }
+if (f.edefend && !ignoreDef) dmg *= 0.4;
+if (f.e.mech === "great_i" && f.form === "l" && !ignoreDef) dmg *= 0.6;
+if (f.intent && f.intent.k === "siesta") dmg *= 1.5;
+dmg = Math.max(0, Math.round(dmg));
+const s = Math.min(f.eshield, dmg); f.eshield -= s;
+f.ehp -= dmg - s;
+if (P.vamp && dmg > 0) f.hp = Math.min(f.h.maxHp, f.hp + Math.round(dmg * P.vamp));
+if (dmg > f.st.maxHit) f.st.maxHit = dmg;
+return dmg;
 }
-/** v8.6: CLEAR THE POOL - nekonečná náhodná patra (+6 % za patro), každé 5. elite, každé 25. tematický boss. */
-const POOL_MECHS = ["", "", "heal", "drain", "ransom", "llm", "audit"];
-function poolFloor(n, seed) {
-n = Math.max(1, n | 0);
-const R = (function (a) { return function () { a = (a * 1103515245 + 12345) & 0x7fffffff; return a / 0x7fffffff; }; })(((seed | 0) + n * 7919) & 0x7fffffff || 1);
-for (let i = 0; i < 3; i++) R();
-const boss = n % 25 === 0, elite = !boss && n % 5 === 0;
-const k = 1 + 0.06 * (n - 1);                     // +6 % základní síly za patro
-let src, e;
-if (boss) {
-src = srcOf(THEMED.concat(["admin"])[(n / 25 - 1) % (THEMED.length + 1)]);
-e = enemyFrom(src, 45, 2.0 * k, 1.05 * k);
-e.pattern = Object.assign({}, P.boss);
+function hurtHero(f, dmg, src) {
+dmg = Math.round(dmg);
+const s = Math.min(f.shield, dmg); f.shield -= s;
+f.hp -= dmg - s;
+f.focus = Math.min(100, f.focus + 10);
+const P = f.h.perks || {};
+if (P.thorns && src !== "backfire" && dmg - s > 0) f.ehp -= Math.round((dmg - s) * P.thorns);
+if (f.hp <= 0 && f.h.cls === "sysadmin" && !f.revived) { f.revived = true; f.hp = Math.round(f.h.maxHp * 0.1); ev(f, "revive", { val: f.hp }); }
+if (f.hp <= 0 && P.duck && !f.duckUsed) { f.duckUsed = true; f.hp = 1; ev(f, "revive", { val: 1, src: "duck" }); }
+ev(f, "hhit", { val: dmg, absorbed: s, src: src });
+return dmg;
+}
+function atkMult(f) { return f.h.atk * (1 + f.coin) * (f.hotfix ? 2 : 1) * redTapeAtk(f) * (f.payroll > 0 ? 0.75 : 1); }
+function gainSta(f, n) { f.sta = Math.min(f.h.staMax, f.sta + n + (f.h.staGain || 0)); }
+function critRoll(f) { const c = f.R() < f.h.crit; if (c) f.st.crits++; return c; }
+function spinReels(f) {
+const L = f.h.luckReel || 0;
+const w = REELS.map(([s, x]) => [s, s === "💀" ? Math.max(4, x - L * 0.3) : s === "7️⃣" ? x + L * 0.15 : s === "⭐" ? x + L * 0.1 : x]);
+const sum = w.reduce((a, x) => a + x[1], 0);
+const one = () => { let r = f.R() * sum; for (const x of w) { if (r < x[1]) return x[0]; r -= x[1]; } return "🍒"; };
+return [one(), one(), one()];
+}
+/** v8.7: každý symbol má vlastní efekt, efekty se sčítají. Tři stejné = velký bonus.
+*  🍒 heal · 🔔 BREAK · ⭐ focus · 7️⃣ damage · 💀 backfire (zraní tebe) */
+const SYM = {
+"🍒": { m: 0.2, heal: 0.04 },
+"🔔": { m: 0.3, brk: 12 },
+"⭐": { m: 0.3, foc: 14 },
+"7️⃣": { m: 0.75 },
+"💀": { m: 0, self: 0.25 }
+};
+const RESPIN_STA = 10;
+function reelResult(r, opt) {
+opt = opt || {};
+const c = {}; r.forEach(s => { c[s] = (c[s] || 0) + 1; });
+if (opt.wildCherry && c["🍒"]) {                                     // Office Plant: Lucky Cherry - 🍒 je wild (doplní nejčastější symbol)
+const best = Object.keys(c).filter(s => s !== "🍒" && s !== "💀").sort((a, b) => c[b] - c[a] || (SYM[b].m - SYM[a].m))[0];
+if (best) { c[best] += c["🍒"]; delete c["🍒"]; }
+}
+if (c["7️⃣"] === 3) return { mult: 6, txt: "JACKPOT", jp: true, heal: 0, brk: 30, foc: 20, self: 0 };
+if (c["💀"] === 3) return { mult: 0, txt: "BACKFIRE", bf: true, heal: 0, brk: 0, foc: 0, self: 0.9 };
+if (c["⭐"] === 3) return { mult: 3.5, txt: "STARS", heal: 0.15, brk: 15, foc: 60, self: 0 };
+if (c["🔔"] === 3) return { mult: 3, txt: "BELLS", heal: 0, brk: 70, foc: 10, self: 0 };
+if (c["🍒"] === 3) return { mult: 2.2, txt: "CHERRIES", heal: 0.25, brk: 10, foc: 10, self: 0 };
+let mult = 0, heal = 0, brk = 0, foc = 0, self = 0;
+Object.keys(c).forEach(s => { const x = SYM[s], n = c[s]; mult += x.m * n; heal += (x.heal || 0) * n; brk += (x.brk || 0) * n; foc += (x.foc || 0) * n; self += (x.self || 0) * n; });
+const pair = Object.keys(c).find(s => c[s] === 2 && s !== "💀");
+if (pair) mult += 0.4;
+const txt = c["💀"] === 2 ? "two skulls" : pair ? "pair " + pair + pair : "mixed";
+return { mult: Math.round(mult * 100) / 100, txt: txt, heal: heal, brk: brk, foc: foc, self: self };
+}
+/** GAMBLE krok 1: zatočí válce (tah ještě neproběhl). */
+function gambleRoll(f) { f.gReels = spinReels(f); f.gRespun = false; return f.gReels.slice(); }
+/** GAMBLE krok 2 (volitelný): podržené válce zůstanou, ostatní se přetočí. Stojí RESPIN_STA staminy, jen jednou. */
+function canRespin(f) { return !!f.gReels && !f.gRespun && f.sta >= ACTIONS.gamble.sta + RESPIN_STA; }
+function gambleRespin(f, hold) {
+if (!canRespin(f)) return null;
+const fresh = spinReels(f);
+f.gReels = f.gReels.map((s, i) => hold && hold[i] ? s : fresh[i]);
+f.gRespun = true; f.sta -= RESPIN_STA; f.st.respins = (f.st.respins || 0) + 1;
+return f.gReels.slice();
+}
+/** simulace / auto: které válce podržet */
+function autoHold(r) {
+const c = {}; r.forEach(s => { c[s] = (c[s] || 0) + 1; });
+const keep = Object.keys(c).find(s => c[s] >= 2 && s !== "💀") || (c["7️⃣"] ? "7️⃣" : null);
+return r.map(s => s === keep);
+}
+/** Použití lektvaru (nestojí tah). */
+function useItem() { return null; }                // v8.5: žádné consumables
+/** Jeden tah.
+*  timing (string, starý formát): POWER "perfect" | "good" | "none", BLOCK "parry" (= perfect).
+*  timing (objekt, v8.7): { t: power timing, parry: "perfect" | "good" | "none", rings: [..] (UNLEASH kombo), q: síla ulti 0.7-1.25, all: EXPLOIT všechny porty } */
+function step(f, action, timing) {
+if (f.over) return [];
+const opt = timing && typeof timing === "object" ? timing : { t: timing };
+if (opt.parry == null) opt.parry = opt.t === "parry" ? "perfect" : opt.t === "goodblock" ? "good" : "none";
+timing = opt.t;
+const q = Math.max(0.7, Math.min(1.25, opt.q == null ? 1 : Number(opt.q) || 0.7));
+if (!allowed(f, action)) action = !f.disabled.quick ? "quick" : "block";
+const start = f.events.length;
+const h = f.h, e = f.e, R = f.R, A = ACTIONS[action];
+f.turn++;
+f.sta -= A.sta;
+if (A.cd) f.cd[action] = A.cd + 1;                            // odečte se už na konci tohoto tahu -> 2 tahy pauza
+f.dodgeStreak = action === "dodge" ? f.dodgeStreak + 1 : 0;
+const intent = f.intent;
+if (e.mech === "polishen" && f.lastAct === action) { f.redTape = Math.min(RED_TAPE_MAX, f.redTape + 1); ev(f, "mech", { msg: "🇵🇱 AUDIT: " + ACTIONS[action].name + " twice in a row? That's a deduction. RED TAPE ×" + f.redTape }); }
+f.lastAct = action;
+if (f.demand) {
+if (action === f.demand) {
+f.st.forms++;
+const d = hurtEnemy(f, f.h.atk * 0.7, true);
+if (f.redTape > 0) f.redTape--;
+const txt = e.mech === "cobol" ? "🥟 \"Do you want a bryndza?\" - \"Yes, thanks!\" He is happy. Bonus hit for <b>" + d + "</b>"
+: e.mech === "louis" ? "👑 SUPREME DECREE obeyed (" + ACTIONS[action].name + ") - bonus hit for <b>" + d + "</b>" : "";
+ev(f, "form", { ok: true, a: action, val: d, no: FORM_NO[action], tape: f.redTape, txt: txt });
 } else {
-const pool = LIST.filter(m => (m.k || "normal") === "normal" || m.k === "elite");
-src = pool[Math.floor(R() * pool.length)];
-e = enemyFrom(src, 45, (elite ? 1.4 : 1) * k, (elite ? 1.12 : 1) * k);
-const mech = POOL_MECHS[Math.floor(R() * POOL_MECHS.length)];
-e.mech = mech || (src.mech === "compliance" ? "" : src.mech || "");
-if (e.mech === "audit") e.pattern.special = Math.max(2, e.pattern.special || 0);
-if (e.mech && !e.pattern.special) e.pattern.special = 2;
+f.redTape = Math.min(RED_TAPE_MAX, f.redTape + 1);
+if (e.mech === "cobol") f.rage = 2;
+const txt = e.mech === "cobol" ? "🥟 You refused the bryndza! He is offended: <b>+30% ATK for 2 turns</b> · RED TAPE ×" + f.redTape
+: e.mech === "louis" ? "👑 You ignored the SUPREME DECREE (" + ACTIONS[f.demand].name + ") - <b>RED TAPE ×" + f.redTape + "</b>" : "";
+ev(f, "form", { ok: false, a: f.demand, no: FORM_NO[f.demand], tape: f.redTape, txt: txt });
 }
-const ticket = 1000 + Math.floor(R() * 9000);
-const name = boss ? "POOL BOSS: " + src.e : "Ticket #" + ticket + ": " + src.e;
-return { id: 4000 + n, floor: n, name: name, intro: src.t, kind: boss ? "boss" : elite ? "elite" : "normal", bonus: {}, survive: 0, enemy: e };
+if (f.ehp <= 0) return finish(f, true, start);
 }
-const api = { CHAPTERS: CH, LIST: LIST, mission: mission, setStats: setStats, xpFor: xpFor, gcFor: gcFor, xpToNext: xpToNext, COUNT: 51,
-BOSS_SLOT: BOSS_SLOT, setPrestige: setPrestige, prestigeMult: prestigeMult, ADMIN: ADMIN, THEMED: THEMED, TOWER_BOSS: TOWER_BOSS, poolFloor: poolFloor, srcOf: srcOf, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, shiftEnemy: shiftEnemy, refHero: refHero, WB: WB, worldBoss: worldBoss, mkName: mkName };
+f.edefend = intent.k === "defend" || intent.k === "flex";
+let blocking = false, dodging = false;
+if (action === "block") { blocking = true; f.st.usedBlock++; gainSta(f, A.gain); f.focus = Math.min(100, f.focus + 6 + ((h.perks || {}).blockFocus || 0)); ev(f, "pact", { a: action }); }
+else if (action === "dodge") { dodging = true; ev(f, "pact", { a: action }); }
+else if (action === "skill") {
+f.focus = 0; f.st.usedSkill++;
+const pct = Math.round(q * 100);
+if (h.cls === "sysadmin") {
+const sh = Math.round(h.maxHp * 0.4 * q), hh = Math.round(h.maxHp * 0.1 * q);
+f.shield += sh; f.hp = Math.min(h.maxHp, f.hp + hh); f.stunNext = true;
+ev(f, "skill", { a: "FIREWALL", q: q, msg: "Firewall up (" + pct + "%)! +" + sh + " shield, +" + hh + " HP - the enemy is stunned next turn" });
+} else if (h.cls === "engineer") {
+const c = f.R() < Math.min(0.9, h.crit * 2); if (c) f.st.crits++;
+const d = hurtEnemy(f, atkMult(f) * 3.2 * q * (c ? 1.8 : 1), false);
+f.hotfix = false; addBreak(f, 50 * q); ev(f, "skill", { a: "PRODUCTION PUSH", q: q, val: d, msg: "Deployed at " + pct + "% - pushed straight to production for " + d + (c ? " - CRIT!" : "") });
+} else {
+const all = opt.all == null ? true : !!opt.all;
+const d = hurtEnemy(f, atkMult(f) * 2.8 * q, true); f.hotfix = false; f.estacks = 0; f.eshield = 0; f.rage = 0; f.flamenco = 0; f.disabled = {};
+if (all) f.brk = 100; else addBreak(f, 50);
+ev(f, "skill", { a: "EXPLOIT", q: q, val: d, msg: "Exploit (" + pct + "%) for " + d + " - enemy buffs wiped" + (all ? " and its defences BROKEN" : "") });
+}
+} else if (action === "gamble") {
+f.st.usedGamble++;
+const P = h.perks || {};
+const reels = f.gReels || spinReels(f), respun = !!f.gRespun;
+f.gReels = null; f.gRespun = false;
+let res = reelResult(reels, { wildCherry: !!(P.wildCherry || h.wildCherry) });
+if (res.bf && P.noBackfire) res = reelResult(["7️⃣", "7️⃣", "🍒"]), res.txt = "pair (Rubber Gloves)";
+if (P.noBackfire) res.self = 0;
+if (res.bf) { const self = hurtHero(f, h.atk * res.self, "backfire"); ev(f, "gamble", { reels: reels, res: res.txt, val: 0, self: self, bf: true, respun: respun }); }
+else {
+const c = critRoll(f);
+const d = res.mult > 0 ? hurtEnemy(f, atkMult(f) * res.mult * (c ? 1.8 : 1)) : 0;
+if (res.jp) f.st.jackpots++;
+addBreak(f, BREAK.gamble * Math.min(res.mult, 3) + res.brk);
+let hh = 0;
+if (res.heal) { hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
+const self = res.self > 0 ? hurtHero(f, h.atk * res.self, "backfire") : 0;
+f.hotfix = false;
+f.focus = Math.min(100, f.focus + 6 + res.foc);
+ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult, heal: hh, brk: Math.round(res.brk), foc: res.foc, self: self, respun: respun });
+}
+} else {
+let hit = Math.min(0.99, A.hit + h.hitBonus);
+if (e.mech === "great_i" && f.form === "l" && action !== "power") hit *= 0.6;
+if (f.flamenco > 0 && !(action === "power" && timing === "perfect")) hit *= 0.5;          // Louis FLAMENCO
+if (A.gain) gainSta(f, A.gain);
+if (R() < hit) {
+let m = A.mult, tm = "";
+if (action === "power") { if (timing === "perfect") { m = 2.5; tm = "PERFECT"; f.st.perfectPower++; } else if (timing === "good") { m = 1.9; tm = "GOOD"; } }
+if (tm === "PERFECT" && e.mech === "italian") { m *= 1.2; ev(f, "mech", { msg: "🤌 \"Perfetto! Al dente!\" (+20% damage)" }); }
+const c = critRoll(f);
+const d = hurtEnemy(f, atkMult(f) * m * (c ? 1.8 : 1));
+f.hotfix = false;
+f.focus = Math.min(100, f.focus + (action === "quick" ? 20 : 12));
+addBreak(f, BREAK[action] * (tm === "PERFECT" ? 1.4 : tm === "GOOD" ? 1.2 : 1));
+ev(f, "pact", { a: action, val: d, crit: c, timing: tm });
+if (e.mech === "ransom" && action === "power" && Object.keys(f.disabled).length) { f.disabled = {}; ev(f, "mech", { msg: "Decrypted! All actions available again." }); }
+} else { if (action === "quick") f.focus = Math.min(100, f.focus + 8); ev(f, "pact", { a: action, miss: true }); }
+}
+if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
+if (f.ehp <= 0) return finish(f, true, start);
+if (f.brk >= 100) {
+f.brk = 0; f.st.breaks++; f.vuln = true;
+ev(f, "break", { was: intent.k });
+intent.k = "stun"; f.lastIntent = "stun";
+}
+const k = intent.k;
+if (k === "atk" || k === "heavy" || k === "unleash" || k === "withdraw") {
+const big = k === "heavy" || k === "unleash" || k === "withdraw";
+let dmg = f.eatk * (k === "heavy" ? 2.2 : k === "unleash" ? 2.7 : 1) * (0.9 + R() * 0.2);
+if (e.mech === "pookie") dmg *= 1 + 0.05 * f.estacks;
+if (f.rage > 0) dmg *= 1.3;
+if (k === "withdraw") dmg = Math.max(1, Math.round(Math.max(0, f.hp) * 0.2));          // Da Polishen: 20 % aktuálního HP
+if (k === "unleash" && intent.rm) ev(f, "mech", { msg: "🕶 sudo rm -rf / --no-preserve-root" });
+const dch = Math.max(0, (dodging ? Math.min(0.9, 0.55 + h.agi * 0.008 + (h.cls === "cyber" ? 0.08 : 0)) * Math.pow(0.7, f.dodgeStreak - 1) : h.dodge) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0));
+const blk = h.cls === "sysadmin" ? 0.3 : 0.4;
+let tier = blocking && big ? opt.parry : "none", frac = null;
+if (blocking && k === "unleash" && Array.isArray(opt.rings) && opt.rings.length) {
+const rs = opt.rings.slice(0, 3); while (rs.length < 3) rs.push("none");
+frac = rs.reduce((a, r) => a + (r === "perfect" ? 0 : r === "good" ? 0.1 : blk), 0) / 3;
+const ok = rs.filter(r => r !== "none").length;
+tier = rs.every(r => r === "perfect") ? "perfect" : ok >= 2 ? "good" : ok >= 1 ? "partial" : "none";
+}
+if (tier === "perfect") {
+f.st.perfectBlocks++; f.st.parries++;
+const ctr = hurtEnemy(f, h.atk * 1.2, true);
+f.focus = Math.min(100, f.focus + 20); gainSta(f, 10);
+addBreak(f, BREAK.parry); f.stunNext = true;
+ev(f, "parry", { val: ctr, heavy: true, rings: frac != null });
+} else if (R() < dch) ev(f, "dodge", { heavy: big });
+else if (k === "withdraw") {
+const d = hurtHero(f, dmg * (tier === "good" ? 0.5 : 1), "withdraw"); f.ehp = Math.min(f.emax, f.ehp + d);
+ev(f, "mech", { msg: "💸 \"The withdrawal from your life.\" She takes " + d + " HP and keeps it." + (tier === "good" ? " (GOOD block - only half!)" : blocking ? " (only a PERFECT parry or a dodge stops it!)" : "") });
+} else if (tier === "good" || tier === "partial") {
+f.st.perfectBlocks++;
+hurtHero(f, dmg * (frac != null ? frac : 0.1), "heavy");
+const ctr = tier === "good" ? hurtEnemy(f, h.atk * 0.6, true) : 0;
+f.focus = Math.min(100, f.focus + (tier === "good" ? 15 : 8));
+if (tier === "good") addBreak(f, BREAK.perfect);
+ev(f, "perfect", { val: ctr, partial: tier === "partial", rings: frac != null });
+} else hurtHero(f, dmg * (blocking ? (frac != null ? frac : blk) : 1), k === "unleash" ? "heavy" : k);
+if (f.brk >= 100 && !f.over) { f.brk = 0; f.st.breaks++; f.vuln = true; f.stunNext = true; ev(f, "break", { was: "counter" }); }
+} else if (k === "charge") ev(f, "mech", { msg: "⏳ " + f.e.name + " is CHARGING a 2.7× attack! Break it or get ready to block." });
+else if (k === "stun") ev(f, "mech", { msg: "😵 " + f.e.name + " is stunned!" });
+else if (k === "defend") ev(f, "edef", {});
+else if (k === "flex") { f.estacks += 2; ev(f, "mech", { msg: "PRE-WORKOUT! The E flexes... HEAVY hit incoming!" }); }
+else if (k === "special") special(f);
+else if (k === "siesta") ev(f, "mech", { msg: "😴 SIESTA... zzz. The Supreme Louis took +50% damage. He wakes up grumpy - HEAVY incoming!" });
+else if (k === "pasta") { const hh = Math.round(f.emax * 0.2); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🍝 PASTA BREAK! \"First we eat, then we fight.\" +" + hh + " HP" }); }
+else if (k === "restart") { const hh = Math.round(f.emax * 0.2); f.ehp = Math.min(f.emax, f.ehp + hh); f.shield = 0; f.vuln = false; ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🔄 FORCE RESTART! The Administrator reboots: +" + hh + " HP and your buffs are gone." }); }
+if (h.staRegen) f.sta = Math.min(h.staMax, f.sta + h.staRegen);
+if ((h.perks || {}).regen && f.hp > 0) f.hp = Math.min(h.maxHp, f.hp + Math.round(h.maxHp * h.perks.regen));
+Object.keys(f.disabled).forEach(a => { if (--f.disabled[a] <= 0) delete f.disabled[a]; });
+Object.keys(f.cd).forEach(a => { if (--f.cd[a] <= 0) delete f.cd[a]; });
+mechEndTurn(f);
+if (f.hp <= 0) return finish(f, false, start);
+if (f.ehp <= 0) return finish(f, true, start);
+if (f.m.survive && f.turn >= f.m.survive) { ev(f, "mech", { msg: f.m.surviveMsg || "You survived!" }); return finish(f, true, start); }
+if (f.m.turnLimit && f.turn >= f.m.turnLimit) { ev(f, "mech", { msg: "Out of time!" }); return finish(f, false, start); }
+if (f.turn >= 80) return finish(f, false, start);
+pickIntent(f);
+return f.events.slice(start);
+}
+function special(f) {
+const e = f.e, R = f.R;
+switch (e.mech) {
+case "heal": { const h = Math.round(f.emax * 0.12); f.ehp = Math.min(f.emax, f.ehp + h); ev(f, "eheal", { val: h }); break; }
+case "drain": { const d = Math.min(f.sta, 20); f.sta -= d; ev(f, "mech", { msg: "Drains " + d + " of your stamina!" }); break; }
+case "ransom": case "audit": {
+const pool = ["power", "gamble", "strike", "dodge", "block"].filter(a => !f.disabled[a]);
+const a = pool[Math.floor(R() * pool.length)];
+f.disabled[a] = 2;
+ev(f, "mech", { msg: (e.mech === "ransom" ? "ENCRYPTED: " : "AUDITED: ") + ACTIONS[a].name + " is disabled for 2 turns!" + (e.mech === "ransom" ? " (Power Strike decrypts)" : "") });
+break;
+}
+case "great_i": { f.form = f.form === "I" ? "l" : "I"; ev(f, "mech", { msg: f.form === "l" ? "Identity crisis! The Great \"I\" turns into a lowercase \"l\" - hard to hit!" : "It's a capital \"I\" again." }); break; }
+case "llm": { const d = hurtHero(f, f.eatk * (0.5 + R() * 1.4), "hallucination"); ev(f, "mech", { msg: "Hallucinated attack for " + d + "!" }); break; }
+case "massi": { const h = Math.round(f.h.maxHp * 0.12); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "mech", { msg: "The Big Massi approves your PTO. You heal " + h + ". Best boss ever." }); break; }
+case "italian": {
+const pool = ["power", "gamble", "strike", "dodge"].filter(a => !f.disabled[a]);
+if (pool.length) { const a = pool[Math.floor(R() * pool.length)]; f.disabled[a] = 2; ev(f, "mech", { msg: "🍝 SPAGHETTI CODE! " + ACTIONS[a].name + " is tangled up for a turn." }); }
+break;
+}
+case "louis": { f.flamenco = 2; ev(f, "mech", { msg: "💃 FLAMENCO! The Supreme Louis dances around: your hits miss half the time for 2 turns (a PERFECT Power Strike always lands)." }); break; }
+case "cobol": { const d = hurtHero(f, f.eatk * 1.5, "special"); f.slow = 2; ev(f, "mech", { msg: "🥟 \"Take a Halušky!\" " + d + " damage - you're stuffed: -20% dodge for 2 turns." }); break; }
+case "polishen": { f.payroll = 2; ev(f, "mech", { msg: "🧾 PAYROLL CUT! -25% ATK for 2 turns." }); break; }
+case "admin": { const d = hurtHero(f, f.eatk * 1.5, "special"); ev(f, "mech", { msg: "🕶 KERNEL PANIC for " + d + "!" }); break; }
+case "compliance": { const d = hurtHero(f, f.eatk * (1 + 0.15 * f.redTape), "special"); ev(f, "mech", { msg: "📋 PAPER CUT! " + d + " damage" + (f.redTape ? " (+" + 15 * f.redTape + "% for your red tape)" : "") + "." }); break; }
+default: { const d = hurtHero(f, f.eatk * 1.4, "special"); ev(f, "mech", { msg: (e.specialTxt || "Special attack") + " for " + d + "!" }); }
+}
+}
+function mechEndTurn(f) {
+const e = f.e;
+["flamenco", "slow", "rage", "payroll"].forEach(k => { if (f[k] > 0) f[k]--; });
+if (e.mech === "italian" && !f.phase2 && f.ehp > 0 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.pastaPending = true; ev(f, "mech", { msg: "🍝 The Italian Guy is getting hungry... PASTA BREAK next turn! BREAK him to stop it." }); }
+if (e.mech === "cobol" && f.turn % 5 === 0) {
+if (f.intent && f.intent.k === "stun") ev(f, "mech", { msg: "🖥 LEGACY CODE crashed - you broke it before it could recover." });
+else { const hh = Math.round(f.emax * 0.08); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🖥 LEGACY CODE: \"It still runs.\" +" + hh + " HP (BREAK him to stop it)" }); }
+}
+if (e.mech === "admin") {
+if (!f.phase2 && f.ehp > 0 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.restartPending = true; ev(f, "mech", { msg: "🔄 The Administrator is preparing a FORCE RESTART! BREAK him to cancel it." }); }
+const pool = ["power", "gamble", "strike", "dodge"].filter(a => !f.disabled[a]);
+if (pool.length) { const a = pool[Math.floor(f.R() * pool.length)]; f.disabled[a] = 1; ev(f, "mech", { msg: "🕶 ROOT ACCESS: " + ACTIONS[a].name + " - permission denied this turn." }); }
+}
+if (e.mech === "pookie") { f.estacks++; if (f.turn % 2 === 0) ev(f, "mech", { msg: ["\"Do you even lift, bro?\"", "\"It's not fat, it's BULK.\"", "🤘 BLAST BEAT! 🤘", "\"Skip leg day? NEVER.\"", "\"Protein shake break? No. MORE METAL.\""][(f.turn / 2) % 5] }); }
+if (e.mech === "massi" && !f.phase2 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.eatk *= 1.3; const h = Math.round(f.emax * 0.15); f.ehp += h; ev(f, "mech", { msg: "EXECUTIVE OVERRIDE! The Big Massi restructures: +" + h + " HP, +30% ATK." }); }
+if (e.mech === "audit_final" && f.turn % 1 === 0) {
+const pool = ["power", "gamble", "strike", "dodge", "quick"].filter(a => !f.disabled[a]);
+const a = pool[Math.floor(f.R() * pool.length)];
+f.disabled[a] = 1;
+ev(f, "mech", { msg: "AUDIT FINDING: " + ACTIONS[a].name + " is not compliant this turn." });
+}
+}
+function finish(f, win, start) {
+f.over = true; f.win = win; f.hp = Math.max(0, f.hp); f.ehp = Math.max(0, f.ehp);
+ev(f, win ? "win" : "lose", {});
+return f.events.slice(start);
+}
+/** v8.2 hvězdy jsou 3 samostatné úkoly (bitmaska): 1 = výhra, 2 = výhra s >=50 % HP, 4 = bonus NEBO výhra do 3 tahů */
+const QUICK_WIN = 3;
+function starMask(f) {
+if (!f.win) return 0;
+let m = 1;
+if (f.hp >= f.h.maxHp * 0.5) m |= 2;
+if (bonusDone(f) || f.turn <= QUICK_WIN) m |= 4;
+return m;
+}
+function starCount(m) { return (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1); }
+function stars(f) { return starCount(starMask(f)); }
+function bonusDone(f) {
+const b = f.m.bonus || {}, st = f.st;
+switch (b.type) {
+case "turns": return f.turn <= b.n;
+case "noGamble": return st.usedGamble === 0;
+case "noItem": return st.usedItem === 0;
+case "noBlock": return st.usedBlock === 0;
+case "perfectBlock": return st.perfectBlocks >= (b.n || 1);
+case "jackpot": return st.jackpots >= 1;
+case "hp": return f.hp >= f.h.maxHp * b.pct / 100;
+case "skill": return st.usedSkill >= 1;
+case "perfectPower": return st.perfectPower >= (b.n || 1);
+case "crits": return st.crits >= (b.n || 1);
+default: return true;
+}
+}
+function bonusText(b) {
+switch ((b || {}).type) {
+case "turns": return "Win within " + b.n + " turns";
+case "noGamble": return "Win without Gamble Strike";
+case "noItem": return "Win without items";
+case "noBlock": return "Win without blocking";
+case "perfectBlock": return "Land " + (b.n || 1) + " perfect block" + ((b.n || 1) > 1 ? "s" : "") + " (block a HEAVY)";
+case "jackpot": return "Hit a 7️⃣7️⃣7️⃣ jackpot";
+case "hp": return "Win with " + b.pct + "%+ HP";
+case "skill": return "Use your class skill";
+case "perfectPower": return "Land " + (b.n || 1) + " PERFECT Power Strike" + ((b.n || 1) > 1 ? "s" : "");
+case "crits": return "Land " + b.n + " crits";
+default: return "-";
+}
+}
+/** Heuristický hráč pro simulace. */
+function autoPolicy(f, R) {
+const h = f.h, k = f.intent.k;
+if (f.demand && allowed(f, f.demand) && (f.demand === "block" || !(k === "heavy" || k === "unleash"))) return f.demand;
+if (k === "heavy" || k === "unleash") return "block";
+if (k === "charge" && allowed(f, "strike")) return allowed(f, "power") ? "power" : "strike";
+if (k === "withdraw") return allowed(f, "dodge") ? "dodge" : "block";
+if (allowed(f, "skill")) return "skill";
+if (k === "defend" || k === "flex") return allowed(f, "quick") ? "quick" : "block";
+if (k === "siesta" && allowed(f, "power")) return "power";
+if (allowed(f, "power") && (f.sta >= 60 || R() < 0.5)) return "power";
+if (allowed(f, "strike") && f.sta >= 45) return "strike";
+if (allowed(f, "gamble") && f.sta >= 45 && R() < 0.2) return "gamble";
+if (allowed(f, "quick")) return "quick";
+return "block";
+}
+function timingRoll(R, zone) { const r = R(); return r < zone * 0.3 ? "perfect" : r < zone * 1.7 ? "good" : "none"; }
+const PARRY_SKILL = { perfect: 0.35, good: 0.45, p: 0.35 };        // simulace: jak často hráč trefí PERFECT / GOOD (v8.7)
+const ULT_SKILL = { q: 1.0, sd: 0.1, all: 0.6 };                  // simulace: průměrná síla ulti z mini-hry
+function parryRoll(R) { const r = R(); return r < PARRY_SKILL.perfect ? "perfect" : r < PARRY_SKILL.perfect + PARRY_SKILL.good ? "good" : "none"; }
+/** jak by tah zahrál hráč (simulace) - vrací timing objekt pro step() */
+function autoOpt(f, a, R, skill) {
+if (a === "power") return { t: timingRoll(R, skill == null ? f.h.zone : skill) };
+if (a === "block" && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) {
+if (f.intent.k === "unleash") return { rings: [parryRoll(R), parryRoll(R), parryRoll(R)] };
+return { parry: parryRoll(R) };
+}
+if (a === "skill") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all };
+if (a === "gamble") {
+const r = gambleRoll(f), hold = autoHold(r);
+if (!hold.every(Boolean) && canRespin(f) && R() < 0.85) gambleRespin(f, hold);
+return { t: "none" };
+}
+return { t: "none" };
+}
+function simulate(hero, mission, seed, skill) {
+const f = newFight(hero, mission, seed), R = rng((seed || 1) * 7 + 3);
+while (!f.over) { const a = autoPolicy(f, R); step(f, a, autoOpt(f, a, R, skill)); }
+return f;
+}
+const api = { rng: rng, CLASSES: CLASSES, ACTIONS: ACTIONS, ITEMS: ITEMS, MAX_ITEMS_PER_FIGHT: MAX_ITEMS_PER_FIGHT, statPoints: statPoints, buildHero: buildHero,
+newFight: newFight, step: step, useItem: useItem, allowed: allowed, stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, FORM_NO: FORM_NO, bonusText: bonusText, simulate: simulate, autoPolicy: autoPolicy, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, BREAK: BREAK, reelResult: reelResult,
+gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM, autoOpt: autoOpt };
 if (typeof module !== "undefined" && module.exports) module.exports = api;
-else root.HSCampaign = api;
+else root.HSEngine = api;
 })(typeof window !== "undefined" ? window : this);
 </script>
-<script>
-/* HIGH STAKES - pixel art (sprity nepřátel a hrdinů) */
-(function () {
-"use strict";
-const PALETTES = [
-["#00f0ff", "#0a5f7a", "#ffffff"], ["#9aa5b1", "#4b5563", "#ffb800"], ["#e5e7eb", "#6b7280", "#a855f7"], ["#fbbf24", "#92400e", "#ff1744"],
-["#f97316", "#7c2d12", "#fde68a"], ["#22c55e", "#14532d", "#bbf7d0"], ["#ef4444", "#450a0a", "#fca5a5"], ["#10b981", "#064e3b", "#f8fafc"],
-["#eab308", "#422006", "#00f0ff"], ["#a855f7", "#3b0764", "#00ff88"], ["#f59e0b", "#78350f", "#fb7185"], ["#64748b", "#0f172a", "#ff1744"],
-["#38bdf8", "#0c4a6e", "#fef08a"], ["#f472b6", "#500724", "#ffffff"], ["#dc2626", "#1c1917", "#fbbf24"], ["#94a3b8", "#1e293b", "#22d3ee"],
-["#c084fc", "#2e1065", "#4ade80"], ["#84cc16", "#1a2e05", "#f43f5e"], ["#d6d3d1", "#44403c", "#fb923c"], ["#ffd700", "#7c2d12", "#ffffff"],
-["#fbbf24", "#1f2937", "#ef4444"], ["#f472b6", "#3f3f46", "#fef3c7"], ["#60a5fa", "#172554", "#fde047"], ["#e5e7eb", "#111827", "#a855f7"], ["#ffd700", "#3b0764", "#ffffff"]
-];
-const spriteCache = {};
-function sprite(idx, kind) {
-const key = kind + idx;
-if (spriteCache[key]) return spriteCache[key];
-const R = window.DungeonEngine.rng(9001 + idx * 7919 + (kind === "p" ? 31337 : 0));
-const N = 12, half = 6, pal = kind === "p" ? [["#00f0ff", "#075985", "#ffffff"], ["#ffb800", "#7c2d12", "#ffffff"], ["#00ff88", "#064e3b", "#ff4dff"]][idx] : PALETTES[idx % PALETTES.length];
-const px = [];
-for (let y = 0; y < N; y++) for (let x = 0; x < half; x++) {
-const dx = (half - 1 - x) / half, dy = Math.abs(y - N / 2 + 0.5) / (N / 2);
-const p = 0.82 - dx * 0.55 - dy * 0.35;
-if (R() < p) { const c = R() < 0.18 ? 2 : (R() < 0.7 ? 0 : 1); px.push([x, y, c]); px.push([N - 1 - x, y, c]); }
-}
-const ey = 3 + Math.floor(R() * 3);
-[[3, ey], [8, ey]].forEach(([x, y]) => { px.push([x, y, 3]); });
-const cols = pal.concat(["#ffffff"]);
-let svg = `<svg class="dg-sprite" viewBox="0 0 ${N} ${N}" shape-rendering="crispEdges">`;
-px.forEach(([x, y, c]) => { svg += `<rect x="${x}" y="${y}" width="1" height="1" fill="${cols[c]}"/>`; });
-svg += `<rect x="3" y="${ey}" width="1" height="1" fill="#fff"/><rect x="8" y="${ey}" width="1" height="1" fill="#fff"/><rect x="3" y="${ey + 1}" width="1" height="1" fill="#000"/><rect x="8" y="${ey + 1}" width="1" height="1" fill="#000"/></svg>`;
-spriteCache[key] = svg;
-return svg;
-}
-const ART = {
-pookie: { map: ["......HHHH......", ".....HHHHHH.....", "....HHSSSSHH....", "....HHSESESH....", "....HHSSSSHH....", "....HHBBBBHH....", ".....HBBBBH.....", "..SS.KKKKKK.SS..", ".SSSKKKWWKKKSSS.", ".SS.KKWRRWKK.SS.", ".SS.KKKWWKKK.SS.", "....KKKKKKKK....", "...KKKKKKKKKK...", "...KKKKKKKKKK...", "....PPPP.PPPP...", "....PP....PP...."],
-pal: { H: "#0b0b0b", S: "#e0a878", E: "#111", B: "#3b2416", K: "#141414", W: "#e5e7eb", R: "#b91c1c", P: "#273249" } },
-compliance: { map: ["....CCCC....", "..CMMMMMMC..", ".BBBBBBBBBB.", ".BWWWWWWWWB.", ".BWLLLLLLWB.", ".BWWWWWWWWB.", ".BWLLLLWWWB.", ".BWWWWWWWWB.", ".BWLLLLLLWB.", ".BWWWWWWWWB.", ".BWWWWWWVWB.", ".BBBBBBBBBB."],
-pal: { C: "#9ca3af", M: "#d1d5db", B: "#8b5a2b", W: "#f8fafc", L: "#94a3b8", V: "#dc2626" } },
-admin: { map: ["...BBBBBB...", "..BBBBBBBB..", "BBBBBBBBBBBB", ".WWWWWWWWWW.", ".WKKWWWWKKW.", ".WWKWWWWKWW.", ".WRWWWWWWRW.", ".WWKKKKKKWW.", ".WKWWWWWWKW.", "..WWWKKWWW..", "...WWKKWW...", "....WWWW...."], pal: { B: "#0b0b0b", W: "#f1f5f9", K: "#111", R: "#f472b6" } },
-italian: { map: ["...WWWWWW...", "..WWWWWWWW..", "...WWWWWW...", "...SSSSSS...", "..SSESSESS..", "..SSSSSSSS..", "..SMMMMMMS..", "...SSSSSS...", "..GGWWWWRR..", ".GGGWWWWRRR.", ".GGGWWWWRRR.", "..GG....RR.."], pal: { W: "#f8fafc", S: "#e0a878", E: "#111", M: "#3b2416", G: "#16a34a", R: "#dc2626" } },
-louis: { map: ["..Y.Y..Y.Y..", "..YYYYYYYY..", "..YRYYYYRY..", "...SSSSSS...", "..SSESSESS..", "..SSSSSSSS..", "...SSMMSS...", "....SSSS....", "..RRRYYRRR..", ".RRRRYYRRRR.", ".RRRRYYRRRR.", "..RR....RR.."], pal: { Y: "#ffd700", R: "#c2410c", S: "#d6a77a", E: "#111", M: "#5b3a1a" } },
-cobol: { map: ["............", "...KKKKKK...", ".KKKKKKKKKK.", "...SSSSSS...", "..SSESSESS..", "..SSSSSSSS..", "...SMMMMS...", "....SSSS....", "..WWBBBBWW..", ".WWWBRRBWWW.", ".WWWBBBBWWW.", "..WW....WW.."], pal: { K: "#1f2937", S: "#e0a878", E: "#111", M: "#6b3f1d", W: "#f8fafc", B: "#1d4ed8", R: "#dc2626" } },
-polishen: { map: ["...HHHHHH...", "..HHHHHHHH..", ".HHSSSSSSHH.", ".HHSESSESHH.", ".HHSSSSSSHH.", ".HHSSRRSSHH.", ".HH.SSSS.HH.", ".H..WWWW..H.", "...WWWWWW...", "..RRRRRRRR..", "..RRRRRRRR..", "...RR..RR..."], pal: { H: "#facc15", S: "#f0c9a0", E: "#111", R: "#dc2626", W: "#f8fafc" } }
-};
-function artSvg(a) {
-const N = a.map.length, W = a.map[0].length;
-let s = `<svg class="dg-sprite" viewBox="0 0 ${W} ${N}" shape-rendering="crispEdges">`;
-a.map.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const c = a.pal[row[x]]; if (c) s += `<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`; } });
-return s + "</svg>";
-}
-function enemySprite(m) {
-const e = m.enemy;
-if (e.mech === "great_i") return `<svg class="dg-sprite" viewBox="0 0 12 12"><rect width="12" height="12" rx="1.5" fill="#101826"/><text x="6" y="10" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="11" fill="#00f0ff" stroke="#ffffff" stroke-width=".25">I</text></svg>`;
-if (e.mech === "pookie") return artSvg(ART.pookie);
-if (ART[e.mech] && e.mech !== "compliance") return artSvg(ART[e.mech]);
-if (e.mech === "compliance" || e.mech === "audit_final" || e.mech === "audit") return artSvg(ART.compliance);
-const sid = e.sprite != null ? e.sprite : m.id;
-return sprite(sid === 49 ? 24 : sid % 24, "b");
-}
-window.HSArt = { sprite: sprite, enemySprite: enemySprite, artSvg: artSvg, ART: ART };
-})();
-</script>
-<style>
-/* ===== v9.2 HIGH STAKES: chibi postavy z dílů (hlava, trup, ruce, nohy, zbraň) + animace ===== */
-.dg-sprite.rig { width: 124px; height: 149px; overflow: visible; image-rendering: auto; transition: none; }
-.dg-sprite.rig.dead { filter: grayscale(.85) brightness(.55); transform: none; }
-.rig .rg-all, .rig .rg-bob, .rig .rg-armF, .rig .rg-armB, .rig .rg-legF, .rig .rg-legB, .rig .rg-head { transform-box: view-box; }
-.rig .rg-all { transform-origin: 50px 112px; }
-.rig .rg-bob { transform-origin: 50px 112px; animation: rgBob 2.4s ease-in-out infinite; }
-.rig .rg-head { transform-origin: 50px 62px; animation: rgHead 3.2s ease-in-out infinite; }
-.rig .rg-armF { transform-origin: 64px 72px; animation: rgArmF 2.4s ease-in-out infinite; }
-.rig .rg-armB { transform-origin: 36px 72px; animation: rgArmB 2.4s ease-in-out infinite; }
-.rig .rg-legF { transform-origin: 55px 92px; }
-.rig .rg-legB { transform-origin: 45px 92px; }
-@keyframes rgBob { 50% { transform: translateY(1.6px) scale(1.012, .985); } }
-@keyframes rgHead { 50% { transform: rotate(2deg); } }
-@keyframes rgArmF { 50% { transform: rotate(-6deg); } }
-@keyframes rgArmB { 50% { transform: rotate(5deg); } }
-/* --- akce (třída na <svg>, hraje jednou) --- */
-.rig.a-enter .rg-all { animation: rgEnter .7s ease-out; }
-.rig.a-enter .rg-legF { animation: rgStepF .35s ease-in-out 2; }
-.rig.a-enter .rg-legB { animation: rgStepB .35s ease-in-out 2; }
-@keyframes rgEnter { from { transform: translateX(-70px); } to { transform: none; } }
-@keyframes rgStepF { 50% { transform: rotate(-24deg); } }
-@keyframes rgStepB { 50% { transform: rotate(22deg); } }
-.rig.a-quick .rg-all { animation: rgLunge .46s cubic-bezier(.3,.7,.3,1); }
-.rig.a-quick .rg-armF { animation: rgSlash .46s ease-out; }
-.rig.a-quick .rg-legF, .rig.a-strike .rg-legF, .rig.a-power .rg-legF { animation: rgStepF .46s ease-in-out; }
-.rig.a-quick .rg-legB, .rig.a-strike .rg-legB, .rig.a-power .rg-legB { animation: rgStepB .46s ease-in-out; }
-@keyframes rgLunge { 45% { transform: translateX(var(--reach, 84px)); } 100% { transform: none; } }
-@keyframes rgSlash { 0% { transform: rotate(0); } 30% { transform: rotate(-115deg); } 55% { transform: rotate(48deg); } 100% { transform: rotate(0); } }
-.rig.a-strike .rg-all { animation: rgLungeBig .62s cubic-bezier(.3,.7,.3,1); }
-.rig.a-strike .rg-armF { animation: rgChop .62s ease-out; }
-.rig.a-strike .rg-bob { animation: rgLean .62s ease-out; }
-@keyframes rgLungeBig { 20% { transform: translateX(-8px); } 55% { transform: translateX(var(--reach, 94px)); } 100% { transform: none; } }
-@keyframes rgChop { 0% { transform: rotate(0); } 35% { transform: rotate(-160deg); } 58% { transform: rotate(70deg); } 100% { transform: rotate(0); } }
-@keyframes rgLean { 35% { transform: rotate(-8deg); } 58% { transform: rotate(10deg); } }
-.rig.a-power .rg-all { animation: rgLeap .7s cubic-bezier(.3,.7,.3,1); }
-.rig.a-power .rg-armF { animation: rgSpin .7s ease-in-out; }
-@keyframes rgLeap { 40% { transform: translate(calc(var(--reach, 94px) * .62), -26px) rotate(8deg); } 62% { transform: translate(var(--reach, 94px), 0) rotate(-6deg); } 100% { transform: none; } }
-@keyframes rgSpin { 0% { transform: rotate(0); } 40% { transform: rotate(-200deg); } 62% { transform: rotate(150deg); } 100% { transform: rotate(0); } }
-.rig.a-skill .rg-all { animation: rgLeap .8s cubic-bezier(.3,.7,.3,1); }
-.rig.a-skill .rg-armF { animation: rgSpin .8s ease-in-out; }
-.rig.a-skill { filter: drop-shadow(0 0 10px #ff4dff); }
-.rig.a-block .rg-armF { animation: rgGuardF .6s ease-out; }
-.rig.a-block .rg-armB { animation: rgGuardB .6s ease-out; }
-.rig.a-block .rg-bob { animation: rgCrouch .6s ease-out; }
-@keyframes rgGuardF { 25%, 75% { transform: rotate(-75deg); } }
-@keyframes rgGuardB { 25%, 75% { transform: rotate(-95deg); } }
-@keyframes rgCrouch { 25%, 75% { transform: translateY(4px) scale(1.02, .96); } }
-.rig.a-parry .rg-armF { animation: rgParry .55s ease-out; }
-.rig.a-parry .rg-armB { animation: rgGuardB .55s ease-out; }
-.rig.a-parry { filter: drop-shadow(0 0 12px #ffd700); }
-@keyframes rgParry { 20% { transform: rotate(-80deg); } 55% { transform: rotate(40deg); } }
-.rig.a-dodge .rg-all { animation: rgDodge .55s ease-out; }
-@keyframes rgDodge { 40% { transform: translate(-30px, -14px) rotate(-14deg); } 100% { transform: none; } }
-.rig.a-hit .rg-all { animation: rgHit .42s ease-out; }
-.rig.a-hit .rg-head { animation: rgHitHead .42s ease-out; }
-.rig.a-hit { animation: rgFlash .42s; }
-@keyframes rgHit { 25% { transform: translateX(-12px) rotate(-7deg); } 60% { transform: translateX(3px); } }
-@keyframes rgHitHead { 25% { transform: rotate(-14deg); } }
-@keyframes rgFlash { 15% { filter: brightness(2.2) saturate(.3); } }
-.rig.dead .rg-all { animation: none; transform: translate(-8px, 6px) rotate(-82deg); transition: transform .5s ease-in; }
-.rig.dead .rg-bob, .rig.dead .rg-head, .rig.dead .rg-armF, .rig.dead .rg-armB { animation: none; }
-.rig.a-win .rg-all { animation: rgHop .5s ease-in-out 3; }
-.rig.a-win .rg-armF { animation: none; transform: rotate(-150deg); }
-@keyframes rgHop { 50% { transform: translateY(-9px); } }
-.rig .rg-shadow { transform-box: view-box; transform-origin: 50px 116px; }
-.rig.a-power .rg-shadow, .rig.a-skill .rg-shadow { animation: rgShadow .7s; }
-@keyframes rgShadow { 40% { transform: scale(.6); opacity: .5; } }
-/* --- aréna: kancelářská scéna + dav --- */
-.dg-arena .dg-scene { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .55; }
-.dg-arena .dg-scene svg { width: 100%; height: 100%; display: block; }
-.dg-arena > .dg-side, .dg-arena > .dg-vs { position: relative; z-index: 1; }
-.dg-arena .dg-crowd .hd { transform-box: fill-box; transform-origin: center bottom; }
-.dg-arena.cheer .dg-crowd .hd { animation: rgCheer .35s ease-in-out 4 alternate; }
-.dg-arena.cheer .dg-crowd .hd:nth-child(2n) { animation-delay: .12s; }
-.dg-arena.cheer .dg-crowd .hd:nth-child(3n) { animation-delay: .2s; }
-@keyframes rgCheer { to { transform: translateY(-5px); } }
-.dg-arena.shake { animation: rgShake .3s; }
-@keyframes rgShake { 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(2px, 0); } }
-.dg-arena .dg-spark { position: absolute; z-index: 4; width: 46px; height: 46px; margin: -23px; pointer-events: none; animation: rgSpark .4s ease-out forwards; }
-@keyframes rgSpark { 0% { transform: scale(.3) rotate(0); opacity: 1; } 100% { transform: scale(1.5) rotate(40deg); opacity: 0; } }
-.dg-arena.slowmo { animation: rgSlow .5s; }
-@keyframes rgSlow { 0%, 100% { filter: none; } 30% { filter: saturate(1.5) brightness(1.15); } }
-@media (max-width: 700px) { .dg-sprite.rig { width: 106px; height: 127px; } .dg-arena .dg-sprite.rig { margin: 2px auto; } }
-@media (prefers-reduced-motion: reduce) { .rig .rg-bob, .rig .rg-head, .rig .rg-armF, .rig .rg-armB { animation: none !important; } }
-</style>
-<script>
-(function () {
-"use strict";
-const SKIN = ["#f6d2b3", "#eab98f", "#d39a6a", "#a86b45", "#7a4a2e"];
-const HAIR = ["#2a1c14", "#5b3a22", "#9b5a2d", "#d9b456", "#151515", "#8a8f99", "#b6462f"];
-const SHIRT = ["#4f7cc9", "#e2e8f0", "#3f9f7f", "#b45f9c", "#d97a3a", "#6b7280", "#9b8ac4", "#c9a227", "#5aa0b5", "#a33b3b"];
-const PANTS = ["#2d3446", "#3b3f4a", "#40372e", "#24324f", "#1d2433"];
-const shade = (hex, f) => { const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255; r = Math.max(0, Math.min(255, Math.round(r * f))); g = Math.max(0, Math.min(255, Math.round(g * f))); b = Math.max(0, Math.min(255, Math.round(b * f))); return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1); };
-const rngOf = (seed) => { let a = (seed * 9301 + 49297) % 233280 || 1; return () => { a = (a * 9301 + 49297) % 233280; return a / 233280; }; };
-const pick = (R, a) => a[Math.floor(R() * a.length)];
-function hairSvg(style, c) {
-const d = shade(c, .8);
-switch (style) {
-case "bald": return `<path d="M30 38 Q34 30 40 31" stroke="${d}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
-case "spiky": return `<path d="M26 46 L27 30 L33 34 L35 20 L42 28 L47 15 L52 26 L59 16 L62 28 L70 22 L69 34 L75 36 L73 44 Q64 33 50 33 Q37 33 31 48 Z" fill="${c}"/>`;
-case "long": return `<path d="M26 44 Q24 18 50 17 Q77 17 75 42 Q66 31 50 32 Q37 33 32 46 Z" fill="${c}"/>`;
-case "bun": return `<circle cx="38" cy="20" r="8" fill="${c}"/><path d="M26 45 Q25 19 50 18 Q76 18 74 42 Q66 31 50 32 Q37 33 31 47 Z" fill="${c}"/>`;
-case "curly": return `<g fill="${c}"><circle cx="31" cy="36" r="7"/><circle cx="37" cy="26" r="8"/><circle cx="48" cy="21" r="8"/><circle cx="60" cy="22" r="8"/><circle cx="69" cy="30" r="7"/><circle cx="30" cy="46" r="6"/></g>`;
-case "slick": return `<path d="M26 44 Q26 18 52 18 Q76 19 75 36 Q70 28 56 28 Q42 27 34 34 Q30 38 30 47 Z" fill="${c}"/><path d="M36 25 Q52 21 70 28" stroke="${shade(c, 1.4)}" stroke-width="1.6" fill="none" opacity=".6"/>`;
-case "mohawk": return `<path d="M36 26 L44 12 L50 22 L56 11 L62 24 L66 20 L68 30 Q58 26 50 27 Q42 28 36 31 Z" fill="${c}"/>`;
-default: return `<path d="M27 46 Q25 19 50 18 Q76 18 75 41 Q66 30 50 31 Q37 32 31 48 Z" fill="${c}"/>`;   // short
-}
-}
-function longBack(c) { return `<path d="M27 42 Q22 64 30 78 L40 76 Q34 62 36 46 Z" fill="${shade(c, .85)}"/>`; }
-function faceSvg(o) {
-const sk = o.skin, angry = o.angry, e1 = 55, e2 = 66;
-let s = `<circle cx="37" cy="49" r="4.5" fill="${shade(sk, .92)}"/>`;
-s += `<circle cx="50" cy="44" r="24" fill="${sk}"/>`;
-s += `<ellipse cx="${e1 + 9}" cy="53" rx="3.6" ry="2.2" fill="#ff7b8a" opacity=".35"/>`;
-if (o.sleepy) s += `<path d="M${e1 - 3} 47 h6 M${e2 - 3} 46 h6" stroke="#2a1c14" stroke-width="2" stroke-linecap="round"/>`;
-else if (o.shades) s += `<path d="M48 43 h22 v3 q-1 5 -6 5 h-3 q-4 0 -5 -4 h-2 q-1 4 -5 4 q-4 0 -4 -5 z" fill="#0b0b0b"/><path d="M50 44 h5" stroke="#fff" stroke-width="1" opacity=".5"/>`;
-else s += `<ellipse cx="${e1}" cy="46.5" rx="2.6" ry="3.6" fill="#1b1410"/><ellipse cx="${e2}" cy="46" rx="2.6" ry="3.6" fill="#1b1410"/><circle cx="${e1 + .9}" cy="45" r="1" fill="#fff"/><circle cx="${e2 + .9}" cy="44.5" r="1" fill="#fff"/>`;
-if (angry) s += `<path d="M${e1 - 4} 40 L${e1 + 3} 42.5 M${e2 - 2} 41.5 L${e2 + 5} 39" stroke="#1b1410" stroke-width="2" stroke-linecap="round"/>`;
-if (o.glasses) s += `<g fill="none" stroke="#2b2b2b" stroke-width="1.6"><circle cx="${e1}" cy="46.5" r="5"/><circle cx="${e2}" cy="46" r="5"/><path d="M${e1 + 5} 46 h1 M${e1 - 5} 46 L37 45"/></g>`;
-if (o.mustache) s += `<path d="M56 54 q5 -3 9 0 q5 -3 9 1 q-4 3 -9 0 q-5 3 -9 -1z" fill="${o.mustache}"/>`;
-if (o.beard) s += `<path d="M38 52 Q40 70 56 69 Q70 68 72 54 Q66 62 56 62 Q44 62 38 52z" fill="${o.beard}"/>`;
-if (o.mask) s += `<path d="M30 50 Q50 47 74 49 L74 58 Q50 62 31 57 Z" fill="${o.mask}"/>`;
-if (!o.mask && !o.mustache) s += angry ? `<path d="M58 57 q4 -3 8 0" stroke="#5a2a20" stroke-width="1.8" fill="none" stroke-linecap="round"/>` : `<path d="M58 56 q4 3 8 0" stroke="#5a2a20" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
-return s;
-}
-function hatSvg(h) {
-switch (h) {
-case "headset": return `<path d="M29 44 Q28 18 50 18 Q72 18 72 42" stroke="#1f2937" stroke-width="3.2" fill="none"/><rect x="25" y="40" width="8" height="12" rx="3" fill="#1f2937"/><path d="M30 51 Q40 62 56 60" stroke="#1f2937" stroke-width="2" fill="none"/><circle cx="57" cy="60" r="2.4" fill="#ff4766"/>`;
-case "hood": return "";
-case "crown": return `<path d="M33 25 L36 8 L44 18 L50 5 L56 18 L64 8 L67 25 Z" fill="#f5c542" stroke="#b8860b" stroke-width="1.2"/><circle cx="50" cy="16" r="2.4" fill="#e23b4e"/>`;
-case "party": return `<path d="M42 23 L52 0 L60 22 Z" fill="#ff4766"/><path d="M45 16 L57 13 M47 10 L55 8" stroke="#ffd166" stroke-width="2"/><circle cx="52" cy="0" r="3" fill="#ffd166"/>`;
-case "tophat": return `<rect x="34" y="2" width="30" height="20" rx="2" fill="#1c1c22"/><rect x="28" y="20" width="42" height="5" rx="2" fill="#1c1c22"/><rect x="34" y="16" width="30" height="4" fill="#a33b3b"/>`;
-case "chef": return `<path d="M31 27 Q26 12 38 12 Q42 2 52 6 Q62 0 66 11 Q76 13 70 27 Z" fill="#f8fafc" stroke="#cbd5e1"/><rect x="33" y="23" width="36" height="7" rx="2" fill="#f1f5f9" stroke="#cbd5e1"/>`;
-case "beanie": return `<path d="M26 40 Q24 14 50 14 Q76 14 74 40 Z" fill="#2f4b7c"/><rect x="25" y="34" width="50" height="8" rx="3" fill="#24395f"/>`;
-case "miner": return `<path d="M26 36 Q26 14 50 14 Q74 14 74 36 Z" fill="#f2b705"/><rect x="23" y="33" width="54" height="6" rx="3" fill="#d49b00"/><circle cx="64" cy="24" r="5" fill="#fff6b0" stroke="#9a7b00"/>`;
-case "fedora": return `<path d="M30 28 Q34 10 50 11 Q66 10 70 28 Z" fill="#3b2f2a"/><path d="M20 30 Q50 22 80 30 Q50 34 20 30 Z" fill="#2b221e"/><rect x="31" y="23" width="38" height="4" fill="#111"/>`;
-case "hoodblack": return `<path d="M24 52 Q20 16 50 14 Q80 16 76 52 Q72 30 50 29 Q30 30 24 52 Z" fill="#141418"/>`;
-default: return "";
-}
-}
-;(window.__TT_FILES = window.__TT_FILES || {})["prsi"] = 1;
-// END-OF-FILE: prsi (the script continues in the next file)
+<script>(window.__TT_FILES = window.__TT_FILES || {})["prsi"] = 1;</script>
+<!-- END-OF-FILE: prsi -->
