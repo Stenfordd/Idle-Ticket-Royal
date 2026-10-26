@@ -1187,7 +1187,7 @@ function wbSubmit(dmg, atk) {
 // WEEKLY BOARDS (v8.2) - týdenní žebříčky: výška v Corporate Climb, nejlepší Shift, damage na world bosse, největší výhra v kasinu.
 // Klient posílá jen zlepšení; top 3 si odměnu (tokeny) vyzvedne sám po konci týdne.
 // ==========================================================================
-var WEEKLY_CATS = { climb: 200, shift: 999, casino: 1e18 };
+var WEEKLY_CATS = { climb: 280, shift: 999, casino: 1e18 };
 /** v8.6: CLEAR THE POOL - žebříček nejhlubšího patra (ze savů, cache 60 s) */
 function poolBoard() {
   try {

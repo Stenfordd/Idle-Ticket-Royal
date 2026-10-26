@@ -5268,19 +5268,22 @@ window.__startGame = initGame;
   "use strict";
   const $ = (id) => document.getElementById(id);
   const W = 360, H = 504, PXM = 20;                      // 1 metr = 20 px
-  const ZONE_M = 40, TOP_M = 200;
-  const ZONES = [["Helpdesk", "#0b1220", "#3b82f6"], ["Server Room", "#0a1a14", "#22c55e"], ["Security Floor", "#1a0b14", "#ef4444"], ["Cloud Level", "#0d1426", "#a5b4fc"], ["The Roof", "#1a1405", "#ffd700"]];
+  const ZONE_M = 40, TOP_M = 280;                        // v9.5: 7 zón (dřív 5 a 200 m)
+  const ZONES = [["Helpdesk", "#0b1220", "#3b82f6"], ["Server Room", "#0a1a14", "#22c55e"], ["Security Floor", "#1a0b14", "#ef4444"], ["Cloud Level", "#0d1426", "#a5b4fc"], ["Executive Floor", "#1a120a", "#d4a373"], ["Boardroom", "#0b1418", "#2dd4bf"], ["The Roof", "#1a1405", "#ffd700"]];
   // v9.4: odměna = počet "beden" (ceny scrapu za otevření chestu) při dosažení střechy. Dřív ×220 × 4840 m-bodů / 20 = 53 000 beden -> 642 mld scrapu.
-  const TIERS = [{ id: "A", s: 60, cost: 1e6, mult: 1, chests: 6 }, { id: "B", s: 120, cost: 15e6, mult: 3, chests: 20 }, { id: "C", s: 300, cost: 200e6, mult: 8, chests: 60 }];
+  const TIERS = [{ id: "A", s: 60, cost: 1e6, chests: 12 }, { id: "B", s: 120, cost: 15e6, chests: 40 }, { id: "C", s: 300, cost: 200e6, chests: 120 }];   // v9.5: víc beden, plynulejší křivka
   const G = 1500, CHARGE_MS = 600, DT = 1 / 120;
   const jk = { built: false, plat: null, run: null, raf: 0, keys: {}, charge: 0, charging: false, dir: 0, last: 0, acc: 0, fx: [], t: 0 };
 
   // ---------- pevná mapa (v8.2: vygenerovaná a ověřená botem - z každé plošiny jde spolehlivě doskočit na další, i na střechu)
   // [x, y, w, h, typ] typ: 0 zem, 1 stůl, 2 návnada, 3 střecha
-  const MAP = [[0,24,360,24,0],[50,147,88,12,1],[178,201,32,12,2],[113,248,88,12,1],[209,355,100,12,1],[148,457,88,12,1],[96,509,41,12,2],[64,539,81,12,1],[155,639,90,12,1],[249,719,91,12,1],[179,804,101,12,1],[76,908,75,12,1],[204,979,78,12,1],[81,1128,78,12,1],[200,1208,93,12,1],[139,1277,45,12,2],[83,1341,77,12,1],[188,1436,72,12,1],[83,1548,72,12,1],[193,1628,82,12,1],[82,1781,73,12,1],[10,1856,56,12,1],[119,1928,77,12,1],[22,2053,72,12,1],[126,2130,60,12,1],[13,2271,70,12,1],[69,2340,31,12,2],[76,2377,63,12,1],[185,2519,63,12,1],[288,2612,51,12,1],[189,2758,45,12,1],[287,2942,56,12,1],[23,2986,30,12,2],[177,3042,48,12,1],[275,3090,68,12,2],[67,3143,64,12,1],[239,3239,46,12,2],[190,3304,42,12,1],[73,3437,69,12,2],[47,3498,45,12,1],[127,3606,34,12,1],[239,3686,41,12,1],[104,3793,34,12,1],[24,3925,43,12,1],[105,4024,150,12,3]];
-  function buildMap() {
-    return MAP.map((a, i) => ({ x: a[0], y: a[1], w: a[2], h: a[3], ground: a[4] === 0, main: a[4] === 1, decoy: a[4] === 2, top: a[4] === 3, z: Math.min(4, Math.floor(a[1] / (ZONE_M * PXM))), i: i }));
+  // v9.5: 6 půdorysů (každý ověřený botem, i zrcadlově) × zrcadlení = 12 variant; každý běh si jednu náhodně vylosuje
+  const MAPS = [[[0,24,360,24,0],[55,124,99,12,1],[137,244,101,12,1],[242,320,84,12,1],[124,404,89,12,1],[273,452,32,12,2],[218,494,91,12,1],[216,564,30,12,2],[101,610,95,12,1],[191,692,44,12,2],[209,724,89,12,1],[111,797,84,12,1],[229,901,82,12,1],[104,1016,92,12,1],[229,1159,86,12,1],[139,1263,67,12,1],[66,1316,38,12,2],[240,1372,71,12,1],[111,1501,80,12,1],[242,1556,57,12,2],[6,1604,75,12,1],[76,1670,30,12,2],[103,1734,84,12,1],[235,1779,69,12,2],[249,1811,69,12,1],[193,1916,64,12,1],[233,1982,63,12,2],[54,2034,69,12,1],[148,2125,57,12,2],[168,2162,78,12,1],[72,2253,56,12,2],[46,2307,64,12,1],[127,2472,72,12,1],[194,2518,69,12,2],[53,2559,47,12,1],[109,2686,54,12,2],[175,2721,45,12,1],[39,2804,65,12,1],[180,2888,51,12,1],[44,2984,60,12,1],[182,3079,38,12,2],[138,3142,55,12,1],[254,3223,57,12,1],[182,3324,54,12,1],[54,3396,34,12,1],[148,3544,35,12,2],[202,3580,52,12,1],[295,3726,46,12,1],[243,3801,48,12,1],[109,4017,35,12,1],[252,4095,45,12,1],[166,4264,30,12,1],[287,4347,33,12,1],[138,4514,33,12,2],[122,4551,33,12,1],[246,4664,40,12,1],[165,4808,32,12,1],[57,4920,69,12,2],[313,4951,32,12,1],[13,5063,53,12,2],[153,5106,30,12,1],[36,5184,32,12,1],[287,5281,52,12,2],[103,5345,30,12,1],[254,5459,33,12,2],[260,5509,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[76,145,89,12,1],[146,275,94,12,1],[254,403,91,12,1],[176,474,95,12,1],[319,521,38,12,2],[90,586,81,12,1],[192,661,95,12,1],[32,705,49,12,2],[115,748,80,12,1],[220,867,86,12,1],[106,988,67,12,1],[281,1047,61,12,2],[221,1078,83,12,1],[27,1160,57,12,2],[98,1207,76,12,1],[205,1326,85,12,1],[118,1416,79,12,1],[220,1493,84,12,1],[153,1618,90,12,1],[271,1784,69,12,1],[130,1957,74,12,1],[259,2128,83,12,1],[142,2233,79,12,1],[63,2312,63,12,1],[132,2433,32,12,2],[126,2485,82,12,1],[264,2589,52,12,1],[53,2638,45,12,2],[168,2672,45,12,1],[261,2761,59,12,1],[146,2894,42,12,1],[73,2999,33,12,2],[256,3034,44,12,1],[187,3132,60,12,1],[229,3268,40,12,2],[45,3327,50,12,1],[200,3403,51,12,2],[104,3458,48,12,1],[222,3537,31,12,1],[66,3610,57,12,2],[286,3646,35,12,1],[151,3726,39,12,1],[248,3843,67,12,2],[12,3885,30,12,1],[89,4021,52,12,1],[32,4152,35,12,2],[231,4183,46,12,1],[159,4285,34,12,1],[6,4367,31,12,1],[139,4518,55,12,2],[74,4581,30,12,1],[147,4632,70,12,2],[205,4694,30,12,1],[39,4805,31,12,1],[278,4863,53,12,2],[189,4907,30,12,1],[51,4974,36,12,2],[50,5032,30,12,1],[132,5190,66,12,2],[221,5253,30,12,1],[83,5413,30,12,1],[165,5504,34,12,2],[21,5537,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[61,123,86,12,1],[183,220,80,12,1],[57,331,105,12,1],[149,421,82,12,1],[259,493,92,12,1],[188,610,81,12,1],[59,730,100,12,1],[181,807,80,12,1],[107,871,53,12,2],[277,912,70,12,1],[187,1019,89,12,1],[98,1108,69,12,1],[241,1160,34,12,2],[203,1206,69,12,1],[74,1341,84,12,1],[168,1477,72,12,1],[257,1572,93,12,1],[149,1694,73,12,1],[255,1761,50,12,2],[20,1792,56,12,1],[113,1935,74,12,1],[245,2008,66,12,1],[158,2123,70,12,1],[58,2226,67,12,1],[141,2355,69,12,1],[267,2494,65,12,1],[133,2603,61,12,1],[275,2735,59,12,1],[192,2911,64,12,1],[297,2984,51,12,2],[61,3016,59,12,1],[220,3170,47,12,2],[153,3205,55,12,1],[6,3337,55,12,1],[93,3432,30,12,1],[219,3503,46,12,1],[112,3625,45,12,1],[71,3686,31,12,2],[225,3748,42,12,1],[76,3954,39,12,1],[225,4077,61,12,2],[192,4113,57,12,1],[72,4216,30,12,1],[145,4355,42,12,2],[195,4417,31,12,1],[272,4504,69,12,2],[47,4570,35,12,1],[158,4656,30,12,1],[307,4747,34,12,1],[190,4913,41,12,1],[272,4965,59,12,2],[27,5033,31,12,1],[182,5144,31,12,1],[214,5226,33,12,2],[20,5290,30,12,1],[231,5342,39,12,2],[151,5385,30,12,1],[277,5518,31,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[42,152,108,12,1],[130,245,89,12,1],[21,332,94,12,1],[92,449,89,12,1],[208,569,89,12,1],[91,693,91,12,1],[209,809,90,12,1],[158,933,86,12,1],[28,1005,96,12,1],[113,1140,91,12,1],[215,1247,73,12,1],[124,1386,97,12,1],[48,1457,78,12,1],[172,1563,68,12,1],[64,1668,76,12,1],[191,1738,80,12,1],[63,1867,79,12,1],[121,2000,80,12,1],[244,2126,31,12,2],[246,2169,82,12,1],[125,2300,81,12,1],[31,2397,57,12,1],[143,2554,78,12,1],[8,2639,69,12,1],[173,2721,34,12,2],[69,2755,48,12,1],[186,2847,63,12,1],[258,2901,51,12,2],[72,2943,42,12,1],[176,3104,61,12,1],[94,3183,48,12,1],[201,3255,42,12,1],[56,3338,68,12,2],[81,3379,32,12,1],[247,3518,42,12,2],[190,3572,45,12,1],[82,3671,42,12,1],[16,3763,30,12,2],[193,3798,52,12,1],[80,3888,53,12,1],[228,3931,58,12,2],[182,3999,40,12,1],[129,4079,53,12,2],[283,4120,49,12,1],[163,4294,42,12,1],[285,4390,30,12,1],[125,4456,55,12,2],[225,4490,45,12,1],[89,4654,31,12,1],[29,4730,51,12,2],[237,4776,32,12,1],[14,4877,37,12,2],[92,4943,35,12,1],[259,5086,32,12,1],[59,5177,52,12,2],[147,5237,30,12,1],[316,5333,32,12,1],[240,5414,32,12,1],[323,5554,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[276,104,49,12,2],[209,146,97,12,1],[153,261,92,12,1],[40,352,106,12,1],[134,464,103,12,1],[237,565,87,12,1],[162,668,90,12,1],[51,756,85,12,1],[117,832,103,12,1],[216,908,75,12,1],[75,954,70,12,2],[114,1004,86,12,1],[38,1088,71,12,1],[142,1218,72,12,1],[231,1314,82,12,1],[150,1444,85,12,1],[50,1542,89,12,1],[177,1638,62,12,2],[127,1686,80,12,1],[27,1745,70,12,2],[249,1776,76,12,1],[115,1946,74,12,1],[52,2013,56,12,2],[249,2060,81,12,1],[131,2143,54,12,1],[20,2227,73,12,1],[74,2358,73,12,1],[248,2429,48,12,2],[131,2464,69,12,1],[265,2606,60,12,1],[141,2767,58,12,1],[3,2918,49,12,2],[295,2952,42,12,1],[220,3095,43,12,1],[28,3142,54,12,2],[77,3179,62,12,1],[14,3300,65,12,2],[204,3338,62,12,1],[285,3421,55,12,1],[238,3614,38,12,1],[21,3715,54,12,2],[141,3751,42,12,1],[51,3820,40,12,2],[257,3873,39,12,1],[119,4019,56,12,1],[166,4093,45,12,2],[31,4147,30,12,1],[188,4245,44,12,1],[290,4376,44,12,1],[176,4515,30,12,1],[320,4593,33,12,1],[153,4686,40,12,2],[197,4755,33,12,1],[65,4812,66,12,2],[27,4845,36,12,1],[190,4932,30,12,1],[246,5061,43,12,2],[44,5126,30,12,1],[192,5345,30,12,1],[13,5454,30,12,1],[216,5500,67,12,2],[79,5531,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[230,138,82,12,1],[121,232,81,12,1],[219,315,108,12,1],[161,406,103,12,1],[79,477,85,12,1],[165,555,102,12,1],[47,643,107,12,1],[176,736,85,12,1],[77,810,93,12,1],[203,923,81,12,1],[83,997,74,12,1],[191,1109,84,12,1],[31,1161,40,12,2],[87,1194,87,12,1],[196,1284,84,12,1],[140,1358,45,12,2],[79,1414,94,12,1],[199,1484,72,12,1],[70,1635,72,12,1],[154,1732,78,12,1],[247,1810,83,12,1],[64,1878,36,12,2],[157,1935,69,12,1],[62,1982,64,12,2],[70,2012,58,12,1],[209,2111,42,12,2],[124,2159,76,12,1],[254,2233,79,12,1],[101,2306,55,12,2],[149,2362,66,12,1],[16,2474,62,12,1],[143,2598,62,12,1],[296,2741,56,12,1],[244,2865,44,12,1],[75,2930,63,12,2],[100,2969,47,12,1],[223,3087,55,12,1],[258,3151,68,12,2],[104,3190,70,12,1],[39,3285,57,12,2],[247,3338,63,12,1],[129,3481,63,12,2],[166,3536,49,12,1],[36,3626,32,12,1],[83,3772,48,12,1],[223,3847,58,12,1],[27,3902,54,12,2],[90,3962,46,12,1],[217,4122,48,12,1],[109,4214,30,12,1],[218,4326,44,12,1],[76,4373,55,12,2],[101,4419,38,12,1],[187,4576,47,12,2],[261,4625,31,12,1],[99,4724,36,12,2],[126,4772,30,12,1],[62,4896,58,12,2],[281,4953,43,12,1],[139,5122,31,12,1],[309,5192,46,12,2],[270,5232,30,12,1],[137,5316,49,12,2],[153,5361,31,12,1],[6,5525,32,12,1],[105,5624,150,12,3]]];
+  function buildMap(v) {
+    v = v || jk.variant || { k: 0, flip: false }; jk.variant = v;
+    return MAPS[v.k % MAPS.length].map((a, i) => ({ x: v.flip && a[4] !== 0 ? W - a[0] - a[2] : a[0], y: a[1], w: a[2], h: a[3], ground: a[4] === 0, main: a[4] === 1, decoy: a[4] === 2, top: a[4] === 3, z: Math.min(ZONES.length - 1, Math.floor(a[1] / (ZONE_M * PXM))), i: i }));
   }
+  function rollVariant() { return { k: Math.floor(Math.random() * MAPS.length), flip: Math.random() < 0.5 }; }
 
   // ---------- fyzika (pevný krok 1/120 s, stejná ve hře i v ověřovacím botovi)
   function physStep(r, P) {
@@ -5313,7 +5316,8 @@ window.__startGame = initGame;
     for (let z = 0; z < ZONES.length; z++) { const a = z * ZONE_M, b = Math.min(m, a + ZONE_M); if (b > a) v += (b - a) * Math.pow(3, z); }
     return v;
   }
-  function reward(m, tier) { return Math.floor(heightValue(m) / heightValue(TOP_M) * Math.max(1, getChestScrapCost()) * tier.chests); }
+  /** v9.5: podíl odměny = (výška / střecha)^1.4 - plynulejší než dřív (60 % výšky ≈ 49 % odměny) */
+  function reward(m, tier) { return Math.floor(Math.pow(Math.max(0, Math.min(TOP_M, m)) / TOP_M, 1.4) * Math.max(1, getChestScrapCost()) * tier.chests); }
 
   // ---------- UI
   function show() {
@@ -5324,8 +5328,8 @@ window.__startGame = initGame;
         <div class="jk-canvas-box"><canvas id="jk-canvas" width="${W}" height="${H}"></canvas><div class="jk-hud"><span id="jk-h">0 m</span><span id="jk-t"></span></div>
           <div class="jk-ctrl"><button class="btn btn-cyan" data-d="-1">◀</button><button class="btn btn-gold" data-d="0">▲</button><button class="btn btn-cyan" data-d="1">▶</button></div></div>
         <div class="jk-side"><div class="adv-info"><b>CORPORATE CLIMB</b> - climb the office tower Jump King style. <b>Hold</b> a button (or Space + ←/→) to charge the jump, release to jump.
-          You can fall all the way down. Buy climbing time with GC, the reward is <b>Scrap</b> based on your <b>highest point</b>. Higher zones are worth <b>3× more per meter</b>, and longer runs multiply everything.
-          Every desk can be reached - if you are standing right under the next one, hop sideways first.</div>
+          You can fall all the way down. Buy climbing time with GC, the reward is <b>Scrap</b> based on your <b>highest point</b>. The higher you get, the more it pays, and longer runs pay more chests.
+          Every run gets a <b>random floor plan</b> (12 variants), so no memorising. Every desk can be reached - if you are standing right under the next one, hop sideways first.</div>
           <div class="jk-tiers">${TIERS.map((t, i) => `<button class="btn ${i === 2 ? "btn-crimson" : i === 1 ? "btn-gold" : "btn-cyan"}" id="jk-buy-${t.id}" onclick="JumpKing.start(${i})">${t.s / 60} MIN<small>${fmtShort(t.cost)} GC · up to ${t.chests} chests</small></button>`).join("")}</div>
           <div id="jk-info" class="adv-info"></div>
           <div id="jk-zones" style="margin-top:6px;"></div></div></div>`;
@@ -5355,18 +5359,18 @@ window.__startGame = initGame;
     const s = stats(), el = $("jk-info"); if (!el) return;
     TIERS.forEach(t => { const b = $("jk-buy-" + t.id); if (b) b.disabled = !!jk.run || gameState.coins < t.cost; });
     el.innerHTML = jk.run ? `Climbing... reward so far: <b style="color:var(--amber);">${fmtShort(reward(jk.run.best, jk.run.tier))} scrap</b>` :
-      `Your record: <b>${s.best.toFixed(1)} m</b> / ${TOP_M} m · runs ${s.runs} · scrap earned ${fmtShort(s.scrap)}<br>The roof pays the scrap of ${TIERS.map(t => t.chests).join(" / ")} chest openings (1 / 2 / 5 min). Higher zones are worth 3× more per metre.`;
+      `Your record: <b>${s.best.toFixed(1)} m</b> / ${TOP_M} m · runs ${s.runs} · scrap earned ${fmtShort(s.scrap)}<br>The roof pays the scrap of ${TIERS.map(t => t.chests).join(" / ")} chest openings (1 / 2 / 5 min). Halfway up pays about 38 % of that.`;
     const z = $("jk-zones");
-    if (z) z.innerHTML = ZONES.map((zz, i) => `<div class="jk-zone"><span style="color:${zz[2]};">${i * ZONE_M}-${(i + 1) * ZONE_M} m · ${zz[0]}</span><span>×${Math.pow(3, i)} / m</span></div>`).join("");
+    if (z) z.innerHTML = ZONES.map((zz, i) => `<div class="jk-zone"><span style="color:${zz[2]};">${i * ZONE_M}-${(i + 1) * ZONE_M} m · ${zz[0]}</span><span>${Math.round(Math.pow((i + 1) * ZONE_M / TOP_M, 1.4) * 100)} %</span></div>`).join("");
   }
   function start(i) {
     const t = TIERS[i]; if (!t || jk.run) return;
     if (gameState.coins < t.cost) { log(`CORPORATE CLIMB: ${t.s / 60} min costs ${fmtShort(t.cost)} GC.`, "warning"); return; }
     gameState.coins -= t.cost;
-    if (!jk.plat) jk.plat = buildMap();
+    jk.plat = buildMap(rollVariant());
     jk.run = { tier: t, end: performance.now() + t.s * 1000, x: W / 2, y: 24, vx: 0, vy: 0, ground: true, best: 0, face: 1, land: 0, bonk: 0 };
     jk.charge = 0; jk.charging = false; jk.last = performance.now(); jk.acc = 0; jk.fx = [];
-    log(`🧗 CORPORATE CLIMB: ${t.s / 60} min bought for ${fmtShort(t.cost)} GC. Go!`, "special");
+    log(`🧗 CORPORATE CLIMB: ${t.s / 60} min bought for ${fmtShort(t.cost)} GC. Floor plan #${jk.variant.k + 1}${jk.variant.flip ? " (mirrored)" : ""}. Go!`, "special");
     updateUI(); TT.saveSoon(); info();
     cancelAnimationFrame(jk.raf); jk.raf = requestAnimationFrame(loop);
   }
@@ -5422,7 +5426,7 @@ window.__startGame = initGame;
 
   // ---------- grafika: zóny s parallaxou, textury plošin, animovaná postavička
   function hash(n) { n = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b); n ^= n >>> 13; n = Math.imul(n, 0xc2b2ae35); n ^= n >>> 16; return (n >>> 0) / 4294967296; }
-  const ZBG = [["#16202f", "#0b1220"], ["#06140e", "#030a07"], ["#1c0910", "#0d0408"], ["#1f3b78", "#0d1a3a"], ["#7a3a10", "#1a0d1f"]];
+  const ZBG = [["#16202f", "#0b1220"], ["#06140e", "#030a07"], ["#1c0910", "#0d0408"], ["#1f3b78", "#0d1a3a"], ["#2a1a0e", "#140c06"], ["#0e2a2e", "#071416"], ["#7a3a10", "#1a0d1f"]];
   function zoneBg(c, z, top, bot, cam, now, last) {
     // top/bot = obrazovkové y zóny; parallax: vrstvy se posouvají pomaleji než kamera
     const y0 = last ? 0 : Math.max(0, top), y1 = Math.min(H, bot); if (y1 <= y0) return;
@@ -5446,9 +5450,16 @@ window.__startGame = initGame;
     } else if (z === 3) {          // nad mraky: hvězdy a mraky
       rows(far, 60, (yy, i) => { for (let k = 0; k < 4; k++) { const x = hash(i * 13 + k) * W, tw = 0.5 + 0.5 * Math.sin(t * 2 + i + k); c.fillStyle = `rgba(255,255,255,${0.25 + 0.5 * tw * hash(k + i)})`; c.fillRect(x, yy - hash(i + k * 5) * 60, 2, 2); } });
       rows(near, 170, (yy, i) => { const x = ((hash(i * 5) * W * 1.6 + t * (8 + hash(i) * 10)) % (W + 160)) - 80; cloud(c, x, yy - 40, 0.8 + hash(i * 2) * 0.6, 0.18); });
+    } else if (z === 4) {          // v9.5 vedení: dřevěné obložení, zlaté rámy obrazů
+      rows(far, 46, (yy) => { c.fillStyle = "rgba(0,0,0,.25)"; c.fillRect(0, yy, W, 2); });
+      for (let x = 0; x < W; x += 60) { c.fillStyle = "rgba(255,220,170,.05)"; c.fillRect(x, y0, 2, y1 - y0); }
+      rows(near, 190, (yy, i) => { const x = 30 + hash(i * 11) * 240, w = 50 + hash(i) * 30; c.fillStyle = "#c9a227"; c.fillRect(x - 3, yy - 63, w + 6, 46); c.fillStyle = "#3b2a1a"; c.fillRect(x, yy - 60, w, 40); c.fillStyle = `hsl(${Math.floor(hash(i * 3) * 360)},35%,35%)`; c.fillRect(x + 6, yy - 52, w - 12, 24); });
+    } else if (z === 5) {          // v9.5 zasedačka: skleněné stěny, noční město, lampy
+      rows(far, 70, (yy, i) => { for (let k = 0; k < 6; k++) { const x = k * 62 + 4; c.fillStyle = "rgba(45,212,191,.06)"; c.fillRect(x, yy - 64, 56, 60); c.fillStyle = `rgba(255,230,150,${0.15 + 0.4 * hash(i * 17 + k)})`; c.fillRect(x + 8 + hash(k + i) * 30, yy - 30, 3, 3); } });
+      rows(near, 240, (yy, i) => { const x = 60 + hash(i * 7) * 220; c.fillStyle = "#94a3b8"; c.fillRect(x + 22, yy - 70, 2, 40); const gl = c.createRadialGradient(x + 23, yy - 30, 2, x + 23, yy - 25, 50); gl.addColorStop(0, "rgba(45,212,191,.35)"); gl.addColorStop(1, "rgba(45,212,191,0)"); c.fillStyle = gl; c.fillRect(x - 30, yy - 80, 106, 100); });
     } else {                       // střecha: západ slunce, město, zlaté jiskry
-      const sunY = 110 + (cam - 3400) * 0.08, sg = c.createRadialGradient(W * 0.7, sunY, 10, W * 0.7, sunY, 90); sg.addColorStop(0, "rgba(255,210,120,.9)"); sg.addColorStop(0.4, "rgba(255,150,60,.35)"); sg.addColorStop(1, "rgba(255,120,40,0)"); c.fillStyle = sg; c.fillRect(0, y0, W, y1 - y0);
-      const base = Math.min(bot, H) + 30 + (cam - 3500) * 0.12;   // vzdálené město (pomalá parallaxa)
+      const sunY = 110 + (cam - (TOP_M * PXM - 600)) * 0.08, sg = c.createRadialGradient(W * 0.7, sunY, 10, W * 0.7, sunY, 90); sg.addColorStop(0, "rgba(255,210,120,.9)"); sg.addColorStop(0.4, "rgba(255,150,60,.35)"); sg.addColorStop(1, "rgba(255,120,40,0)"); c.fillStyle = sg; c.fillRect(0, y0, W, y1 - y0);
+      const base = Math.min(bot, H) + 30 + (cam - (TOP_M * PXM - 500)) * 0.12;   // vzdálené město (pomalá parallaxa)
       let x = 0, k = 0; while (x < W) { const bw = 18 + hash(k * 31) * 30, bh = 40 + hash(k * 17) * 110; c.fillStyle = "#140a18"; c.fillRect(x, base - bh, bw - 2, bh + 400); c.fillStyle = "rgba(255,200,90,.55)"; for (let wy = base - bh + 6; wy < base - 4; wy += 9) for (let wx = x + 3; wx < x + bw - 6; wx += 6) if (hash(wx * 7 + wy * 3 + k) > 0.62) c.fillRect(wx, wy, 2, 3); x += bw; k++; }
       rows(near, 90, (yy, i) => { const x = hash(i * 9) * W, s = Math.sin(t * 3 + i) * 0.5 + 0.5; c.fillStyle = `rgba(255,215,0,${0.2 + 0.5 * s})`; c.fillRect(x, yy - 30 - 10 * s, 2, 2); });
     }
@@ -5479,6 +5490,12 @@ window.__startGame = initGame;
       c.fillStyle = "rgba(226,232,255,.95)"; c.beginPath(); c.ellipse(x + w / 2, yy + 5, w / 2 + 3, 8, 0, 0, 7); c.fill();
       c.beginPath(); for (let i = 0; i < 3; i++) c.ellipse(x + w * (0.25 + i * 0.25), yy + 1, w * 0.18, 6, 0, 0, 7); c.fill();
       c.fillStyle = "rgba(165,180,252,.6)"; c.fillRect(x + 2, yy + 9, w - 4, 2);
+    } else if (p.z === 4) {        // v9.5 mahagonový stůl vedení
+      c.fillStyle = "#3b1f10"; c.fillRect(x + 4, yy + h, 4, 10); c.fillRect(x + w - 8, yy + h, 4, 10);
+      c.fillStyle = "#6b3415"; c.fillRect(x, yy, w, h); c.fillStyle = "#d4a373"; c.fillRect(x, yy, w, 2); c.fillStyle = "#4a240f"; c.fillRect(x, yy + h - 3, w, 3);
+      if (w > 50 && !p.decoy) { c.fillStyle = "#e5e7eb"; c.fillRect(x + w * 0.3, yy - 6, 14, 5); c.fillStyle = "#c9a227"; c.fillRect(x + w * 0.62, yy - 9, 3, 8); }
+    } else if (p.z === 5) {        // v9.5 skleněný zasedací stůl
+      c.fillStyle = "rgba(45,212,191,.35)"; c.fillRect(x, yy, w, h); c.fillStyle = "rgba(204,251,241,.9)"; c.fillRect(x, yy, w, 2); c.fillStyle = "#64748b"; c.fillRect(x + w / 2 - 2, yy + h, 4, 10);
     } else {                       // mramor se zlatou hranou
       c.fillStyle = "#e7e5e4"; c.fillRect(x, yy, w, h); c.strokeStyle = "rgba(120,113,108,.5)"; c.lineWidth = 1; c.beginPath(); c.moveTo(x + w * 0.2, yy + 2); c.lineTo(x + w * 0.45, yy + h - 2); c.lineTo(x + w * 0.7, yy + 4); c.stroke();
       c.fillStyle = "#ffd700"; c.fillRect(x, yy, w, 2); c.fillRect(x, yy + h - 2, w, 2);
@@ -5522,7 +5539,7 @@ window.__startGame = initGame;
     // pozadí po zónách
     for (let z = 0; z < ZONES.length; z++) { const bot = H - (z * ZONE_M * PXM - cam), top = H - ((z + 1) * ZONE_M * PXM - cam); zoneBg(c, z, top, bot, cam, now, z === ZONES.length - 1); }
     // hranice zón
-    for (let z = 1; z < ZONES.length; z++) { const yy = H - (z * ZONE_M * PXM - cam); if (yy > -20 && yy < H + 20) { c.fillStyle = ZONES[z][2]; c.globalAlpha = .55; c.fillRect(0, yy, W, 2); c.globalAlpha = 1; c.font = "700 10px monospace"; c.fillText("▲ " + (z * ZONE_M) + " m · " + ZONES[z][0].toUpperCase() + " · ×" + Math.pow(3, z) + " / m", 6, yy - 4); } }
+    for (let z = 1; z < ZONES.length; z++) { const yy = H - (z * ZONE_M * PXM - cam); if (yy > -20 && yy < H + 20) { c.fillStyle = ZONES[z][2]; c.globalAlpha = .55; c.fillRect(0, yy, W, 2); c.globalAlpha = 1; c.font = "700 10px monospace"; c.fillText("▲ " + (z * ZONE_M) + " m · " + ZONES[z][0].toUpperCase() + " · " + Math.round(Math.pow(z * ZONE_M / TOP_M, 1.4) * 100) + " % pay", 6, yy - 4); } }
     for (const p of P) { const yy = H - (p.y - cam); if (yy < -50 || yy > H + 30) continue; platform(c, p, yy, now); }
     // výškoměr vpravo + rekord
     c.fillStyle = "rgba(0,0,0,.35)"; c.fillRect(W - 26, 0, 26, H);
@@ -6810,6 +6827,12 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "9.5", d: "2026-10-26", i: [
+      "🧗 Corporate Climb is taller: 280 m and two new zones (Executive Floor and the Boardroom) before the roof",
+      "🧗 Every run gets a random floor plan (12 variants), so you can't just memorise the jumps",
+      "🧗 Fairer rewards: the payout grows smoothly with height (halfway ≈ 38 %) and the roof now pays 12 / 40 / 120 chest openings of scrap (it was 6 / 20 / 60 and a 200M run could give only a few chests)",
+      "🏆 New achievement: Top Of The Tower (280 m)"
+    ] },
     { v: "9.4", d: "2026-10-25", i: [
       "📟 On-Call Shift rebalanced: enemies are now based on YOUR stats instead of exploding with your level (a level 176 Post-it Note had 329k HP and hit for 77k). Better gear still makes fights noticeably easier",
       "📟 Shift enemies have types: 🛡 tanks (lots of HP, weak hits), 🗡 glass cannons (fragile, hit hard), balanced ones and ✨ specialists with mechanics. Every enemy rolls ±15% stats, the shift starts easier and builds up to the boss",
@@ -7174,7 +7197,8 @@ html.m #mt-screen { height: var(--app-h, 100%); }
       ["wb_kill", "📊", "Quarterly Killer", "Land the final blow on the weekly boss", () => cnt("wbKills"), 1],
       ["wb_mk3", "🤖", "Hostile Takeover", "Take down a weekly boss MK.III or higher", () => cnt("wbMaxMk"), 3],
       ["climb_100", "🧗", "Halfway To The Roof", "Climb 100 m in Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 100],
-      ["climb_200", "🏙", "Roof Access", "Reach the roof (200 m)", () => Math.floor((hs().jk || {}).best || 0), 200]
+      ["climb_200", "🏙", "Roof Access", "Reach 200 m in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 200],
+      ["climb_280", "👑", "Top Of The Tower", "Reach the new roof (280 m) in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 280]
     ]],
     ["SOCIAL", [
       ["events_10", "🎉", "Party Animal", "Be online for 10 company events", () => cnt("events"), 10],
