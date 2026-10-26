@@ -1,0 +1,497 @@
+function finish() {
+const r = jk.run; jk.run = null; jk.charging = false;
+const sc = reward(r.best, r.tier), s = stats();
+gameState.scrap += sc; s.runs++; s.scrap += sc; if (r.best > s.best) s.best = r.best;
+log(`🧗 CORPORATE CLIMB over: best height ${r.best.toFixed(1)} m → +${sc.toLocaleString()} scrap.`, sc > 0 ? "special" : "warning");
+if (r.best >= TOP_M) TT.announce("REACHED THE ROOF", "CLIMB", r.tier.cost, sc);
+if (window.Meta && Meta.onClimb) try { Meta.onClimb(r.best, sc); } catch (e) {}
+updateUI(); TT.saveSoon(); info(); draw(performance.now());
+idleLoop();
+}
+function puff(x, y, n, s) {
+for (let i = 0; i < n; i++) jk.fx.push({ x: x + (Math.random() - 0.5) * 10, y: y + 1, vx: (Math.random() - 0.5) * 90 * s, vy: 20 + Math.random() * 50 * s, life: 0.45 + Math.random() * 0.25, max: 0.7 });
+}
+function step() {
+const r = jk.run;
+if (r.ground) return;
+r.bonk = 0;
+const L = physStep(r, jk.plat);
+if (L) { r.land = 1; if (L.fall > 250) puff(r.x, r.y, Math.min(14, 4 + Math.round(L.fall / 90)), Math.min(2, L.fall / 600)); }
+const m = (r.y - 24) / PXM;
+if (m > r.best) r.best = Math.min(TOP_M, m);
+}
+function loop(now) {
+const r = jk.run; if (!r) return;
+const el = Math.min(0.1, (now - jk.last) / 1000); jk.last = now;
+jk.acc += el;
+while (jk.acc >= DT) { step(); jk.acc -= DT; }
+jk.fx.forEach(p => { p.x += p.vx * el; p.y += p.vy * el; p.vy -= 160 * el; p.life -= el; });
+jk.fx = jk.fx.filter(p => p.life > 0);
+if (r.land > 0) r.land = Math.max(0, r.land - el * 5);
+if (jk.charging) jk.charge = Math.min(1, (now - jk.cs) / CHARGE_MS);
+const left = r.end - now;
+const t = $("jk-t"); if (t) t.textContent = "⏱ " + Math.max(0, Math.ceil(left / 1000)) + "s";
+const h = $("jk-h"); if (h) h.textContent = ((r.y - 24) / PXM).toFixed(1) + " m (best " + r.best.toFixed(1) + ")";
+draw(now);
+if ((now | 0) % 6 === 0) info();
+if (left <= 0) { finish(); return; }
+jk.raf = requestAnimationFrame(loop);
+}
+function hash(n) { n = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b); n ^= n >>> 13; n = Math.imul(n, 0xc2b2ae35); n ^= n >>> 16; return (n >>> 0) / 4294967296; }
+const ZBG = [["#16202f", "#0b1220"], ["#06140e", "#030a07"], ["#1c0910", "#0d0408"], ["#1f3b78", "#0d1a3a"], ["#2a1a0e", "#140c06"], ["#0e2a2e", "#071416"], ["#7a3a10", "#1a0d1f"]];
+function zoneBg(c, z, top, bot, cam, now, last) {
+const y0 = last ? 0 : Math.max(0, top), y1 = Math.min(H, bot); if (y1 <= y0) return;
+c.save(); c.beginPath(); c.rect(0, y0, W, y1 - y0); c.clip();
+const g = c.createLinearGradient(0, top, 0, bot); g.addColorStop(0, ZBG[z][0]); g.addColorStop(1, ZBG[z][1]);
+c.fillStyle = g; c.fillRect(0, y0, W, y1 - y0);
+const far = cam * 0.35, near = cam * 0.7, t = now / 1000;
+const rows = (sp, gap, fn) => { const lo = Math.floor((H - y1 + sp) / gap) - 1, hi = Math.ceil((H - y0 + sp) / gap) + 1; for (let idx = lo; idx <= hi; idx++) fn(H - (idx * gap - sp), idx); };
+if (z === 0) {                 // kancelář: okna s výhledem, stropní světla
+rows(far, 150, (yy, i) => { for (let k = 0; k < 3; k++) { const x = 20 + k * 115 + (hash(i * 7 + k) - 0.5) * 20; c.fillStyle = "#24364f"; c.fillRect(x, yy - 70, 80, 60); c.fillStyle = "#3d5a80"; c.fillRect(x + 4, yy - 66, 34, 52); c.fillRect(x + 42, yy - 66, 34, 52); c.fillStyle = "rgba(255,255,255,.07)"; c.fillRect(x + 6, yy - 64, 8, 48); } });
+rows(near, 210, (yy, i) => { const x = 40 + hash(i * 3) * 280; c.fillStyle = "#9fb3c8"; c.fillRect(x, yy - 4, 46, 4); const gl = c.createRadialGradient(x + 23, yy, 2, x + 23, yy + 10, 60); gl.addColorStop(0, "rgba(255,248,220,.18)"); gl.addColorStop(1, "rgba(255,248,220,0)"); c.fillStyle = gl; c.fillRect(x - 40, yy - 4, 126, 70); });
+} else if (z === 1) {          // serverovna: racky s blikajícími LED
+rows(far, 120, (yy, i) => { for (let k = 0; k < 5; k++) { const x = 6 + k * 72; c.fillStyle = "#0d2219"; c.fillRect(x, yy - 110, 56, 110); c.fillStyle = "#14301f"; for (let s = 0; s < 9; s++) c.fillRect(x + 4, yy - 104 + s * 12, 48, 8); for (let s = 0; s < 9; s++) { const on = hash(i * 131 + k * 17 + s + Math.floor(t * (2 + hash(k + s) * 3))) > 0.45; c.fillStyle = on ? (hash(k * 9 + s) > 0.85 ? "#ffb800" : "#22c55e") : "#0a1a12"; c.fillRect(x + 44, yy - 102 + s * 12, 3, 3); } } });
+rows(near, 260, (yy) => { c.fillStyle = "rgba(34,197,94,.10)"; c.fillRect(0, yy, W, 6); c.fillStyle = "rgba(0,0,0,.4)"; for (let x = 0; x < W; x += 24) c.fillRect(x, yy + 6, 2, 10); });
+} else if (z === 2) {          // bezpečnostní patro: červená mřížka, kamery, lasery
+c.strokeStyle = "rgba(239,68,68,.10)"; c.lineWidth = 1;
+rows(far, 40, (yy) => { c.beginPath(); c.moveTo(0, yy); c.lineTo(W, yy); c.stroke(); });
+for (let x = (-far * 0.3) % 40; x < W; x += 40) { c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y1); c.stroke(); }
+rows(near, 230, (yy, i) => { const left = hash(i) > 0.5, x = left ? 0 : W; c.fillStyle = "#2a2f3a"; c.fillRect(left ? 0 : W - 22, yy - 8, 22, 12); c.fillStyle = Math.floor(t * 2 + i) % 2 ? "#ef4444" : "#550000"; c.fillRect(left ? 16 : W - 20, yy - 5, 4, 4);
+const ang = Math.sin(t * 0.9 + i) * 0.5 + (left ? 0.5 : Math.PI - 0.5); c.strokeStyle = "rgba(255,40,60,.35)"; c.lineWidth = 2; c.beginPath(); c.moveTo(left ? 20 : W - 20, yy - 3); c.lineTo(x + Math.cos(ang) * 420 * (left ? 1 : 1), yy - 3 + Math.sin(ang) * 420); c.stroke(); });
+} else if (z === 3) {          // nad mraky: hvězdy a mraky
+rows(far, 60, (yy, i) => { for (let k = 0; k < 4; k++) { const x = hash(i * 13 + k) * W, tw = 0.5 + 0.5 * Math.sin(t * 2 + i + k); c.fillStyle = `rgba(255,255,255,${0.25 + 0.5 * tw * hash(k + i)})`; c.fillRect(x, yy - hash(i + k * 5) * 60, 2, 2); } });
+rows(near, 170, (yy, i) => { const x = ((hash(i * 5) * W * 1.6 + t * (8 + hash(i) * 10)) % (W + 160)) - 80; cloud(c, x, yy - 40, 0.8 + hash(i * 2) * 0.6, 0.18); });
+} else if (z === 4) {          // v9.5 vedení: dřevěné obložení, zlaté rámy obrazů
+rows(far, 46, (yy) => { c.fillStyle = "rgba(0,0,0,.25)"; c.fillRect(0, yy, W, 2); });
+for (let x = 0; x < W; x += 60) { c.fillStyle = "rgba(255,220,170,.05)"; c.fillRect(x, y0, 2, y1 - y0); }
+rows(near, 190, (yy, i) => { const x = 30 + hash(i * 11) * 240, w = 50 + hash(i) * 30; c.fillStyle = "#c9a227"; c.fillRect(x - 3, yy - 63, w + 6, 46); c.fillStyle = "#3b2a1a"; c.fillRect(x, yy - 60, w, 40); c.fillStyle = `hsl(${Math.floor(hash(i * 3) * 360)},35%,35%)`; c.fillRect(x + 6, yy - 52, w - 12, 24); });
+} else if (z === 5) {          // v9.5 zasedačka: skleněné stěny, noční město, lampy
+rows(far, 70, (yy, i) => { for (let k = 0; k < 6; k++) { const x = k * 62 + 4; c.fillStyle = "rgba(45,212,191,.06)"; c.fillRect(x, yy - 64, 56, 60); c.fillStyle = `rgba(255,230,150,${0.15 + 0.4 * hash(i * 17 + k)})`; c.fillRect(x + 8 + hash(k + i) * 30, yy - 30, 3, 3); } });
+rows(near, 240, (yy, i) => { const x = 60 + hash(i * 7) * 220; c.fillStyle = "#94a3b8"; c.fillRect(x + 22, yy - 70, 2, 40); const gl = c.createRadialGradient(x + 23, yy - 30, 2, x + 23, yy - 25, 50); gl.addColorStop(0, "rgba(45,212,191,.35)"); gl.addColorStop(1, "rgba(45,212,191,0)"); c.fillStyle = gl; c.fillRect(x - 30, yy - 80, 106, 100); });
+} else {                       // střecha: západ slunce, město, zlaté jiskry
+const sunY = 110 + (cam - (TOP_M * PXM - 600)) * 0.08, sg = c.createRadialGradient(W * 0.7, sunY, 10, W * 0.7, sunY, 90); sg.addColorStop(0, "rgba(255,210,120,.9)"); sg.addColorStop(0.4, "rgba(255,150,60,.35)"); sg.addColorStop(1, "rgba(255,120,40,0)"); c.fillStyle = sg; c.fillRect(0, y0, W, y1 - y0);
+const base = Math.min(bot, H) + 30 + (cam - (TOP_M * PXM - 500)) * 0.12;   // vzdálené město (pomalá parallaxa)
+let x = 0, k = 0; while (x < W) { const bw = 18 + hash(k * 31) * 30, bh = 40 + hash(k * 17) * 110; c.fillStyle = "#140a18"; c.fillRect(x, base - bh, bw - 2, bh + 400); c.fillStyle = "rgba(255,200,90,.55)"; for (let wy = base - bh + 6; wy < base - 4; wy += 9) for (let wx = x + 3; wx < x + bw - 6; wx += 6) if (hash(wx * 7 + wy * 3 + k) > 0.62) c.fillRect(wx, wy, 2, 3); x += bw; k++; }
+rows(near, 90, (yy, i) => { const x = hash(i * 9) * W, s = Math.sin(t * 3 + i) * 0.5 + 0.5; c.fillStyle = `rgba(255,215,0,${0.2 + 0.5 * s})`; c.fillRect(x, yy - 30 - 10 * s, 2, 2); });
+}
+c.restore();
+}
+function cloud(c, x, y, s, a) { c.fillStyle = `rgba(255,255,255,${a})`; c.beginPath(); c.ellipse(x, y, 34 * s, 12 * s, 0, 0, 7); c.ellipse(x - 20 * s, y + 4 * s, 20 * s, 9 * s, 0, 0, 7); c.ellipse(x + 22 * s, y + 3 * s, 22 * s, 10 * s, 0, 0, 7); c.ellipse(x + 4 * s, y - 8 * s, 18 * s, 10 * s, 0, 0, 7); c.fill(); }
+function platform(c, p, yy, now) {
+const x = p.x, w = p.w, h = p.h;
+if (p.ground) { c.fillStyle = "#2a3343"; c.fillRect(0, yy, W, 24); c.fillStyle = "#3b475c"; c.fillRect(0, yy, W, 3); c.fillStyle = "#1f2633"; for (let i = 0; i < W; i += 30) c.fillRect(i, yy + 3, 1, 21); return; }
+if (p.top) {
+c.fillStyle = "#b8860b"; c.fillRect(x, yy, w, h); c.fillStyle = "#ffd700"; c.fillRect(x, yy, w, 3); c.fillStyle = "#7a5800"; c.fillRect(x, yy + h - 2, w, 2);
+const fx = x + w - 20, wave = Math.sin(now / 200) * 3; c.fillStyle = "#ddd"; c.fillRect(fx, yy - 40, 2, 40); c.fillStyle = "#ff1744"; c.beginPath(); c.moveTo(fx + 2, yy - 40); c.lineTo(fx + 24, yy - 34 + wave); c.lineTo(fx + 2, yy - 28); c.fill();
+c.fillStyle = "#ffd700"; c.font = "800 10px monospace"; c.textAlign = "center"; c.fillText("THE ROOF · " + TOP_M + " m", x + w / 2, yy + h + 12); c.textAlign = "left"; return;
+}
+c.globalAlpha = p.decoy ? 0.75 : 1;
+if (p.z === 0) {               // kancelářský stůl
+c.fillStyle = "#5b3a1e"; c.fillRect(x + 3, yy + h, 3, 10); c.fillRect(x + w - 6, yy + h, 3, 10);
+c.fillStyle = "#8b5a2b"; c.fillRect(x, yy, w, h); c.fillStyle = "#b07a45"; c.fillRect(x, yy, w, 3); c.fillStyle = "#6b4423"; c.fillRect(x, yy + h - 3, w, 3);
+if (w > 60 && !p.decoy) { c.fillStyle = "#111827"; c.fillRect(x + w * 0.55, yy - 14, 18, 12); c.fillStyle = "#3b82f6"; c.fillRect(x + w * 0.55 + 2, yy - 12, 14, 8); c.fillStyle = "#374151"; c.fillRect(x + w * 0.55 + 8, yy - 2, 2, 2); }
+} else if (p.z === 1) {        // rack server
+c.fillStyle = "#1f2b25"; c.fillRect(x, yy, w, h); c.fillStyle = "#4b5d53"; c.fillRect(x, yy, w, 2);
+for (let i = x + 4; i < x + w - 4; i += 7) { c.fillStyle = hash(p.i * 97 + i + Math.floor(now / 300)) > 0.5 ? "#22c55e" : "#0f3d22"; c.fillRect(i, yy + 5, 3, 2); }
+} else if (p.z === 2) {        // ocelový nosník s výstražnými pruhy
+c.fillStyle = "#3a3f4b"; c.fillRect(x, yy, w, h);
+c.save(); c.beginPath(); c.rect(x, yy + 3, w, h - 6); c.clip(); for (let i = x - 12; i < x + w; i += 12) { c.fillStyle = "#facc15"; c.beginPath(); c.moveTo(i, yy + h); c.lineTo(i + 6, yy + h); c.lineTo(i + 12, yy); c.lineTo(i + 6, yy); c.fill(); } c.restore();
+c.fillStyle = "#6b7280"; c.fillRect(x, yy, w, 2);
+} else if (p.z === 3) {        // mrak
+c.fillStyle = "rgba(226,232,255,.95)"; c.beginPath(); c.ellipse(x + w / 2, yy + 5, w / 2 + 3, 8, 0, 0, 7); c.fill();
+c.beginPath(); for (let i = 0; i < 3; i++) c.ellipse(x + w * (0.25 + i * 0.25), yy + 1, w * 0.18, 6, 0, 0, 7); c.fill();
+c.fillStyle = "rgba(165,180,252,.6)"; c.fillRect(x + 2, yy + 9, w - 4, 2);
+} else if (p.z === 4) {        // v9.5 mahagonový stůl vedení
+c.fillStyle = "#3b1f10"; c.fillRect(x + 4, yy + h, 4, 10); c.fillRect(x + w - 8, yy + h, 4, 10);
+c.fillStyle = "#6b3415"; c.fillRect(x, yy, w, h); c.fillStyle = "#d4a373"; c.fillRect(x, yy, w, 2); c.fillStyle = "#4a240f"; c.fillRect(x, yy + h - 3, w, 3);
+if (w > 50 && !p.decoy) { c.fillStyle = "#e5e7eb"; c.fillRect(x + w * 0.3, yy - 6, 14, 5); c.fillStyle = "#c9a227"; c.fillRect(x + w * 0.62, yy - 9, 3, 8); }
+} else if (p.z === 5) {        // v9.5 skleněný zasedací stůl
+c.fillStyle = "rgba(45,212,191,.35)"; c.fillRect(x, yy, w, h); c.fillStyle = "rgba(204,251,241,.9)"; c.fillRect(x, yy, w, 2); c.fillStyle = "#64748b"; c.fillRect(x + w / 2 - 2, yy + h, 4, 10);
+} else {                       // mramor se zlatou hranou
+c.fillStyle = "#e7e5e4"; c.fillRect(x, yy, w, h); c.strokeStyle = "rgba(120,113,108,.5)"; c.lineWidth = 1; c.beginPath(); c.moveTo(x + w * 0.2, yy + 2); c.lineTo(x + w * 0.45, yy + h - 2); c.lineTo(x + w * 0.7, yy + 4); c.stroke();
+c.fillStyle = "#ffd700"; c.fillRect(x, yy, w, 2); c.fillRect(x, yy + h - 2, w, 2);
+}
+c.globalAlpha = 1;
+}
+function hero(c, x, sy, r, now) {
+const air = r && !r.ground, rising = air && r.vy > 0, face = r ? r.face || 1 : 1;
+let sx = 1, syc = 1;
+if (jk.charging) { syc = 1 - jk.charge * 0.35; sx = 1 + jk.charge * 0.25; }
+else if (rising) { syc = 1.15; sx = 0.88; }
+else if (r && r.land > 0) { syc = 1 - r.land * 0.3; sx = 1 + r.land * 0.3; }
+else if (!air) syc = 1 + Math.sin(now / 300) * 0.03;
+c.save(); c.translate(x, sy); c.scale(sx, syc);
+c.fillStyle = "rgba(0,0,0,.35)"; if (!air) { c.beginPath(); c.ellipse(0, 1, 9, 2, 0, 0, 7); c.fill(); }
+c.fillStyle = "#273249";
+if (air && !rising) { c.fillRect(-6, -7, 4, 6); c.fillRect(2, -6, 4, 5); }
+else if (rising) { c.fillRect(-5, -6, 4, 7); c.fillRect(1, -8, 4, 5); }
+else { c.fillRect(-5, -6, 4, 6); c.fillRect(1, -6, 4, 6); }
+c.fillStyle = "#111"; c.fillRect(-6, -1, 5, 2); c.fillRect(1, -1, 5, 2);
+c.fillStyle = "#00c2d1"; c.fillRect(-6, -15, 12, 9); c.fillStyle = "#00f0ff"; c.fillRect(-6, -15, 12, 2);
+c.fillStyle = "#ff1744"; c.fillRect(-1, -14, 2, 6);
+c.fillStyle = "#e0a878";
+if (rising) { c.fillRect(-9, -22, 3, 8); c.fillRect(6, -22, 3, 8); }
+else if (air) { c.fillRect(-10, -15, 4, 3); c.fillRect(6, -15, 4, 3); }
+else { c.fillRect(-8, -14, 2, 7); c.fillRect(6, -14, 2, 7); }
+c.fillRect(-5, -23, 10, 8); c.fillStyle = "#141414"; c.fillRect(-6, -24, 12, 3); c.fillRect(face > 0 ? -6 : 4, -22, 2, 3);
+c.fillStyle = "#000"; c.fillRect(face > 0 ? 1 : -3, -20, 2, 2);
+c.restore();
+}
+function draw(now) {
+const cv = $("jk-canvas"); if (!cv) return;
+now = now || performance.now();
+const c = cv.getContext("2d"), r = jk.run, P = jk.plat || (jk.plat = buildMap());
+const py = r ? r.y : 24;
+const cam = Math.max(0, py - H * 0.35);                 // y kamery (spodní okraj obrazovky ve světě)
+for (let z = 0; z < ZONES.length; z++) { const bot = H - (z * ZONE_M * PXM - cam), top = H - ((z + 1) * ZONE_M * PXM - cam); zoneBg(c, z, top, bot, cam, now, z === ZONES.length - 1); }
+for (let z = 1; z < ZONES.length; z++) { const yy = H - (z * ZONE_M * PXM - cam); if (yy > -20 && yy < H + 20) { c.fillStyle = ZONES[z][2]; c.globalAlpha = .55; c.fillRect(0, yy, W, 2); c.globalAlpha = 1; c.font = "700 10px monospace"; c.fillText("▲ " + (z * ZONE_M) + " m · " + ZONES[z][0].toUpperCase() + " · " + Math.round(Math.pow(z * ZONE_M / TOP_M, 1.4) * 100) + " % pay", 6, yy - 4); } }
+for (const p of P) { const yy = H - (p.y - cam); if (yy < -50 || yy > H + 30) continue; platform(c, p, yy, now); }
+c.fillStyle = "rgba(0,0,0,.35)"; c.fillRect(W - 26, 0, 26, H);
+c.font = "700 8px monospace"; c.textAlign = "right";
+for (let m = Math.floor(cam / PXM / 5) * 5; m < (cam + H) / PXM + 5; m += 5) { const yy = H - (m * PXM + 24 - cam); if (yy < -5 || yy > H + 5 || m < 0) continue; c.fillStyle = m % 10 ? "rgba(255,255,255,.25)" : "rgba(255,255,255,.6)"; c.fillRect(W - (m % 10 ? 6 : 10), yy, m % 10 ? 6 : 10, 1); if (m % 10 === 0) c.fillText(m + "", W - 12, yy + 3); }
+const rec = stats().best;
+const mk = (m, col, txt) => { const yy = H - (m * PXM + 24 - cam); if (yy < 0 || yy > H) return; c.strokeStyle = col; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(0, yy); c.lineTo(W - 26, yy); c.stroke(); c.setLineDash([]); c.fillStyle = col; c.fillText(txt, W - 30, yy - 3); };
+c.lineWidth = 1;
+if (rec > 0) mk(rec, "rgba(255,215,0,.7)", "RECORD " + rec.toFixed(1) + " m");
+if (r && r.best > 0 && Math.abs(r.best - rec) > 1) mk(r.best, "rgba(0,240,255,.6)", "THIS RUN " + r.best.toFixed(1) + " m");
+c.textAlign = "left";
+jk.fx.forEach(p => { const yy = H - (p.y - cam), a = Math.max(0, p.life / p.max); c.fillStyle = `rgba(200,200,210,${a * 0.8})`; const s = 2 + (1 - a) * 3; c.fillRect(p.x - s / 2, yy - s / 2, s, s); });
+const x = r ? r.x : W / 2, sy = H - (py - cam);
+hero(c, x, sy, r, now);
+if (r && r.bonk) { c.fillStyle = "#ffd700"; c.font = "800 10px monospace"; c.fillText("BONK", x - 12, sy - 30); }
+if (jk.charging) { c.fillStyle = "#000"; c.fillRect(x - 15, sy + 4, 30, 4); c.fillStyle = jk.charge >= 1 ? "#ff1744" : "#ffb800"; c.fillRect(x - 15, sy + 4, 30 * jk.charge, 4); }
+if (!r) { c.fillStyle = "rgba(0,0,0,.6)"; c.fillRect(0, H / 2 - 30, W, 60); c.fillStyle = "#ffb800"; c.font = "800 14px monospace"; c.textAlign = "center"; c.fillText("BUY CLIMBING TIME TO START", W / 2, H / 2 + 5); c.textAlign = "left"; }
+}
+document.addEventListener("keydown", (e) => {
+if (!jk.run || e.target.closest("input,textarea")) return;
+if (e.key === "ArrowLeft" || e.key === "a") { jk.keys.left = true; e.preventDefault(); }
+if (e.key === "ArrowRight" || e.key === "d") { jk.keys.right = true; e.preventDefault(); }
+if ((e.key === " " || e.key === "ArrowUp" || e.key === "w") && !jk.charging) { e.preventDefault(); e.stopPropagation(); startCharge(0); }
+else if (e.key === " ") { e.preventDefault(); e.stopPropagation(); }
+}, true);
+document.addEventListener("keyup", (e) => {
+if (e.key === "ArrowLeft" || e.key === "a") jk.keys.left = false;
+if (e.key === "ArrowRight" || e.key === "d") jk.keys.right = false;
+if ((e.key === " " || e.key === "ArrowUp" || e.key === "w") && jk.run) { e.preventDefault(); e.stopPropagation(); release(0); }
+}, true);
+window.JumpKing = { show: show, start: start, isBusy: () => !!jk.run, _jk: jk, heightValue: heightValue, reward: reward, TIERS: TIERS,
+sim: { jump: simJump, map: () => jk.plat || (jk.plat = buildMap()), W: W, PXM: PXM, TOP_M: TOP_M, CHARGE_MS: CHARGE_MS, charge: startCharge, release: release } };
+(function hook() { if (!window.TT || !TT.isBusy) { setTimeout(hook, 100); return; } const prev = TT.isBusy; TT.isBusy = function () { return prev() || !!jk.run; }; })();
+})();
+</script>
+<style>
+/* ===== PRŠÍ (v8.3) - karetní hra pro 2-4 hráče, vítěz bere bank ===== */
+.pr-wrap { font-size: 12px; }
+.pr-info { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
+.pr-info b { color: var(--amber); }
+.pr-create { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.pr-create select { background: #05070b; color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px; font-size: 12px; }
+.pr-tables { display: grid; gap: 6px; }
+.pr-trow { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; }
+.pr-trow .t { flex: 1; min-width: 0; }
+.pr-trow .t b { color: var(--amber); }
+.pr-felt { position: relative; background: radial-gradient(ellipse at 50% 45%, #1d6b3a 0%, #0f4424 60%, #0a2e18 100%); border: 3px solid #5b3a1e; border-radius: 18px; padding: 10px; min-height: 330px; box-shadow: inset 0 0 40px rgba(0,0,0,.55); }
+.pr-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; font: 700 11px 'Orbitron', monospace; color: #e7ffe9; flex-wrap: wrap; }
+.pr-top .pot { color: #ffd700; }
+.pr-opps { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.pr-opp { min-width: 92px; padding: 6px 8px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.12); text-align: center; color: #e7ffe9; }
+.pr-opp.turn { border-color: #ffd700; box-shadow: 0 0 12px rgba(255,215,0,.5); }
+.pr-opp.out { opacity: .4; }
+.pr-opp .nm { font: 700 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.pr-backs { display: flex; justify-content: center; margin: 4px 0 2px; height: 30px; }
+.pr-backs i { display: block; width: 20px; height: 30px; margin-left: -12px; border-radius: 3px; border: 1px solid #fff; background: repeating-linear-gradient(45deg, #8b1d2c 0 4px, #6b1220 4px 8px); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.pr-backs i:first-child { margin-left: 0; }
+.pr-tbar { height: 4px; background: rgba(0,0,0,.4); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.pr-tbar div { height: 100%; background: linear-gradient(90deg, #ffd700, #ff1744); transition: width .9s linear; }
+.pr-center { display: flex; justify-content: center; align-items: center; gap: 22px; margin: 10px 0; min-height: 104px; }
+.pr-deck { position: relative; cursor: pointer; }
+.pr-deck .pr-card { background: repeating-linear-gradient(45deg, #8b1d2c 0 5px, #6b1220 5px 10px); }
+.pr-deck .cnt { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font: 700 10px 'Orbitron', monospace; color: #e7ffe9; }
+.pr-deck.can .pr-card { box-shadow: 0 0 0 2px #ffd700, 0 0 14px rgba(255,215,0,.6); }
+.pr-pile { position: relative; width: 70px; height: 100px; }
+.pr-pile .pr-card { position: absolute; left: 0; top: 0; }
+.pr-pile .pr-card.under { transform: rotate(-9deg) translate(-6px, 2px); filter: brightness(.8); }
+.pr-badges { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 74px; }
+.pr-badge { font: 800 11px 'Orbitron', monospace; padding: 3px 8px; border-radius: 10px; background: rgba(0,0,0,.4); color: #fff; display: flex; align-items: center; gap: 4px; }
+.pr-badge.pen { background: #b91c1c; animation: tabGlow .5s ease-in-out infinite alternate; }
+.pr-badge.skip { background: #a16207; }
+.pr-badge svg { width: 16px; height: 16px; }
+.pr-card { width: 70px; height: 100px; border-radius: 7px; background: #fbf7ec; border: 1px solid #c9bfa6; box-shadow: 0 2px 4px rgba(0,0,0,.45); position: relative; color: #1f2937; user-select: none; -webkit-user-select: none; flex: none; }
+.pr-card .rk { position: absolute; top: 3px; left: 5px; font: 800 15px 'Orbitron', monospace; line-height: 1; }
+.pr-card .rk2 { position: absolute; bottom: 3px; right: 5px; font: 800 15px 'Orbitron', monospace; line-height: 1; transform: rotate(180deg); }
+.pr-card .si { position: absolute; top: 4px; right: 4px; width: 15px; height: 15px; }
+.pr-card .big { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; transform: translate(-50%, -50%); }
+.pr-card .fc { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 900 24px 'Orbitron', monospace; opacity: .9; }
+.pr-card .fc + .big { width: 22px; height: 22px; top: 74%; }
+.pr-card.s0 .rk, .pr-card.s0 .rk2, .pr-card.s0 .fc { color: #c81e3a; }
+.pr-card.s1 .rk, .pr-card.s1 .rk2, .pr-card.s1 .fc { color: #b07a00; }
+.pr-card.s2 .rk, .pr-card.s2 .rk2, .pr-card.s2 .fc { color: #15803d; }
+.pr-card.s3 .rk, .pr-card.s3 .rk2, .pr-card.s3 .fc { color: #7c4a1e; }
+.pr-hand { display: flex; gap: 6px; overflow-x: auto; padding: 14px 4px 8px; justify-content: safe center; -webkit-overflow-scrolling: touch; }
+.pr-hand .pr-card { transition: transform .12s, filter .12s, opacity .12s; }
+.pr-hand .pr-card.ok { cursor: pointer; box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,.75); transform: translateY(-8px); }
+.pr-hand .pr-card.ok:hover { transform: translateY(-14px); }
+.pr-hand .pr-card.no { filter: grayscale(.75) brightness(.55); }
+.pr-me { text-align: center; font: 700 11px 'Orbitron', monospace; color: #e7ffe9; }
+.pr-me.turn { color: #ffd700; }
+.pr-acts { display: flex; gap: 6px; justify-content: center; margin-top: 6px; flex-wrap: wrap; }
+.pr-acts .btn { padding: 9px 16px; }
+.pr-log { margin-top: 8px; max-height: 120px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,.4); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 5px 8px; display: flex; flex-direction: column-reverse; }
+.pr-log div { color: #8b9bb4; line-height: 1.35; }
+.pr-pick { position: absolute; inset: 0; background: rgba(5,7,11,.82); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 4; }
+.pr-pick .row { display: flex; gap: 8px; }
+.pr-pick button { width: 66px; height: 66px; border-radius: 10px; background: #fbf7ec; border: 2px solid #c9bfa6; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font: 700 9px 'Orbitron', monospace; color: #1f2937; }
+.pr-pick button svg { width: 34px; height: 34px; }
+.pr-done { text-align: center; padding: 20px 8px; color: #fff; }
+.pr-done .big { font: 900 22px 'Orbitron', monospace; color: #ffd700; letter-spacing: 2px; }
+.pr-seat { display: inline-block; padding: 6px 10px; margin: 3px; border-radius: 8px; background: rgba(0,0,0,.3); border: 1px dashed rgba(255,255,255,.25); color: #e7ffe9; font: 700 11px 'Orbitron', monospace; }
+.pr-seat.on { border-style: solid; border-color: #ffd700; }
+@media (max-width: 700px) {
+.pr-card { width: 54px; height: 78px; }
+.pr-card .rk, .pr-card .rk2 { font-size: 12px; }
+.pr-card .big { width: 28px; height: 28px; }
+.pr-card .fc { font-size: 18px; }
+.pr-pile { width: 54px; height: 78px; }
+.pr-center { gap: 14px; min-height: 84px; }
+}
+</style>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
+const trim = (x) => x.toFixed(2).replace(/\.?0+$/, "");
+const short = (n) => n >= 1e9 ? trim(n / 1e9) + "B" : n >= 1e6 ? trim(n / 1e6) + "M" : n >= 1e4 ? trim(n / 1e3) + "K" : Math.floor(n).toLocaleString();
+const SUITS = ["Hearts", "Bells", "Leaves", "Acorns"], RANKS = ["7", "8", "9", "10", "J", "Q", "K", "A"], RANK_N = ["7", "8", "9", "10", "Jack (spodek)", "Queen (svršek)", "King", "Ace"];
+const ICON = [
+'<svg viewBox="0 0 32 32"><path d="M16 29 C10 23 3 18 3 11 C3 6.5 6.5 3.5 10.5 3.5 C13 3.5 15 5 16 7 C17 5 19 3.5 21.5 3.5 C25.5 3.5 29 6.5 29 11 C29 18 22 23 16 29Z" fill="#d61f3c" stroke="#7a0c1e" stroke-width="1.2"/><path d="M9 8 C7 9 6 11 6.5 13" stroke="#ff9aa9" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
+'<svg viewBox="0 0 32 32"><circle cx="16" cy="17" r="11" fill="#f2b705" stroke="#8a6200" stroke-width="1.3"/><path d="M6 14 H26 M5.5 19 H26.5" stroke="#b5161d" stroke-width="2.4"/><circle cx="16" cy="17" r="3" fill="#8a6200"/><circle cx="12" cy="11" r="2" fill="#fff6c7" opacity=".8"/></svg>',
+'<svg viewBox="0 0 32 32"><path d="M16 3 C24 8 27 15 24 22 C22 26 19 27.5 16 28 C13 27.5 10 26 8 22 C5 15 8 8 16 3Z" fill="#22a447" stroke="#0e5a25" stroke-width="1.3"/><path d="M16 6 V30 M16 13 L11 10 M16 13 L21 10 M16 19 L10 16 M16 19 L22 16" stroke="#0e5a25" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>',
+'<svg viewBox="0 0 32 32"><ellipse cx="16" cy="20" rx="8" ry="9.5" fill="#c98a3c" stroke="#6b3d12" stroke-width="1.3"/><path d="M6.5 13 C7 7 12 5 16 5 C20 5 25 7 25.5 13 Z" fill="#7a4b20" stroke="#4a2a0c" stroke-width="1.3"/><path d="M9 10 H23 M8 12 H24" stroke="#5b3510" stroke-width="1"/><path d="M16 5 V2" stroke="#4a2a0c" stroke-width="2" stroke-linecap="round"/><ellipse cx="13" cy="19" rx="2" ry="4" fill="#e7b46d" opacity=".6"/></svg>'
+];
+const suit = (c) => Math.floor(c / 8), rank = (c) => c % 8;
+const P = { list: null, view: null, id: "", rev: -1, busy: false, msg: "", msgC: "", pick: -1, pollT: 0, listT: 0, recvAt: 0, myTurnSeen: "", built: false, lastList: 0 };
+function cardHtml(c, cls, extra) {
+const s = suit(c), r = rank(c), face = r >= 4 && r <= 6;
+return `<div class="pr-card s${s} ${cls || ""}" ${extra || ""} title="${RANK_N[r]} of ${SUITS[s]}"><span class="rk">${RANKS[r]}</span><span class="si">${ICON[s]}</span>${face ? `<span class="fc">${RANKS[r]}</span>` : ""}<span class="big">${ICON[s]}</span><span class="rk2">${RANKS[r]}</span></div>`;
+}
+function playable(v, c) {
+const r = rank(c), top = v.top;
+if (v.pen > 0) return r === 0;
+if (v.skip) return r === 7;
+if (r === 5) return true;
+return suit(c) === v.suit || r === rank(top);
+}
+function me() { return gameState.ldap; }
+function visible() { const el = $("adv-view-prsi"); return !!(el && el.style.display !== "none" && el.offsetParent); }
+function say(t, c) { P.msg = t; P.msgC = c || ""; render(); }
+function run(fn, args) {
+return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); });
+}
+function takePay(pay) {
+(pay || []).forEach(p => {
+if (p.why === "WIN") { TT.win(p.amt); log(`♣ PRŠÍ: you won the table! +${fmt(p.amt)} GC`, "special"); if (window.Meta && Meta.count) { Meta.count("prsiWins", 1); } TT.announce("WON A PRŠÍ TABLE", "PRŠÍ", 0, p.amt); }
+else { gameState.coins += p.amt; gameState.gambleNet = (gameState.gambleNet || 0) + p.amt; log(`♣ PRŠÍ: stake refunded +${fmt(p.amt)} GC`, "success"); }
+});
+if (pay && pay.length) { updateUI(); TT.saveSoon(); }
+}
+async function loadList() {
+if (P.listBusy) return; P.listBusy = true;
+try {
+const r = await run("prsList", []);
+P.lastList = Date.now();
+if (r && r.ok) {
+P.list = r; takePay(r.pay);
+if (r.mine && !P.id) { P.id = r.mine; P.rev = -1; poll(); }
+const waiting = r.tables.filter(t => t.status === "wait" && t.players.indexOf(me()) < 0).length;
+glow(waiting > 0 && !visible());
+}
+} catch (e) { P.list = P.list || { tables: [], stakes: [], max: 2 }; }
+finally { P.listBusy = false; }
+render();
+}
+async function poll() {
+clearTimeout(P.pollT);
+if (!P.id) return;
+try {
+const r = await run("prsPoll", [P.id, P.rev]);
+if (r && r.ok) {
+takePay(r.pay);
+if (r.gone) { P.id = ""; P.view = null; P.rev = -1; loadList(); return; }
+if (r.view) apply(r.view);
+else if (r.same && P.view) { P.view.left = r.left; P.recvAt = Date.now(); }
+}
+} catch (e) {}
+if (P.id) P.pollT = setTimeout(poll, visible() ? 1200 : (P.view && P.view.status === "play" ? 2500 : 5000));
+}
+function apply(v) {
+const prev = P.view;
+P.view = v; P.rev = v.rev; P.recvAt = Date.now();
+if (v.status === "play" && v.turn === me() && P.myTurnSeen !== v.rev + "") {
+P.myTurnSeen = v.rev + "";
+if (!visible()) { glow(true); if (!prev || prev.turn !== me()) log("♣ PRŠÍ: it's your turn!", "special"); }
+}
+if (prev && prev.status === "wait" && v.status === "play") log("♣ PRŠÍ: the game started - good luck!", "special");
+render();
+}
+function glow(on) { const t = $("adv-tab-prsi"); if (t) t.classList.toggle("glow", !!on); }
+async function create() {
+if (P.busy) return;
+const L = P.list || {}, stake = TT.cleanBet($("pr-stake").value, L.minStake || 10, Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9)), seats = Number($("pr-seats").value);
+$("pr-stake").value = stake; P.lastStake = stake;
+if (!(stake > 0)) { say("Enter a stake.", "var(--crimson)"); return; }
+if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
+P.busy = true; TT.spend(stake);
+try {
+const r = await run("prsCreate", [stake, seats]);
+if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You are already at a table.", full: "Both tables are busy - wait a moment.", stake: "Invalid stake." }[r && r.reason] || "Could not open the table.", "var(--crimson)"); }
+} catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { P.busy = false; loadList(); }
+}
+async function join(id, stake) {
+if (P.busy) return;
+if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
+P.busy = true; TT.spend(stake);
+try {
+const r = await run("prsJoin", [id]);
+if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You are already at a table.", seats: "The table is full.", gone: "That table is gone." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); }
+} catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { P.busy = false; }
+}
+function refund(stake) { gameState.coins += stake; gameState.gambleNet = (gameState.gambleNet || 0) + stake; updateUI(); TT.saveSoon(); }
+async function start() { if (P.busy || !P.id) return; P.busy = true; try { await run("prsStart", [P.id]); } catch (e) {} P.busy = false; poll(); }
+async function leave() {
+if (P.busy || !P.id) return;
+const v = P.view;
+if (v && v.status === "play" && v.out.indexOf(me()) < 0 && (v.fin || []).indexOf(me()) < 0 && !window.confirm("Leave the game? Your stake stays in the pot.")) return;
+P.busy = true;
+try { await run("prsLeave", [P.id]); } catch (e) {}
+P.busy = false; P.id = ""; P.view = null; P.rev = -1; clearTimeout(P.pollT); loadList();
+}
+async function move(mv) {
+const v = P.view; if (!v || P.busy || v.status !== "play" || v.turn !== me()) return;
+P.busy = true;
+if (mv.t === "play") {                                         // hned to ukázat (optimisticky)
+v.mine = v.mine.filter(c => c !== mv.c); v.under = v.top; v.top = mv.c; v.suit = rank(mv.c) === 5 ? mv.suit : suit(mv.c); v.turn = "";
+if (rank(mv.c) === 0) { v.pen += 2; if (v.pen >= 6 && window.Meta && Meta.count) Meta.count("prsiStack", 1); }
+render();
+}
+try {
+const r = await run("prsMove", [P.id, mv]);
+if (r && r.view) apply(r.view);
+if (r && !r.ok && r.reason === "card") say("That card can't be played.", "var(--crimson)");
+} catch (e) { say("Connection problem - retrying...", "var(--crimson)"); P.rev = -1; }
+P.busy = false; poll();
+}
+function play(c) {
+const v = P.view; if (!v || v.turn !== me() || !playable(v, c)) return;
+if (rank(c) === 5) { P.pick = c; render(); return; }
+move({ t: "play", c: c });
+}
+function pickSuit(s) { const c = P.pick; P.pick = -1; if (c < 0) return; move({ t: "play", c: c, suit: s }); }
+function draw() { move({ t: "draw" }); }
+function render() {
+const box = $("prs-mount"); if (!box) return;
+const ae = document.activeElement;
+if (!P.id && ae && box.contains(ae) && /INPUT|SELECT/.test(ae.tagName)) return;   // nepřepisovat, když hráč zrovna píše vklad
+box.innerHTML = P.id && P.view ? tableHtml(P.view) : P.id ? `<div class="pr-info">Loading the table...</div>` : lobbyHtml();
+const h = box.querySelector(".pr-hand"); if (h && P.handScroll) h.scrollLeft = P.handScroll;
+}
+function rulesHtml() {
+return `<div class="pr-info">2-6 players, everyone puts in the same stake, <b>the winner takes the pot</b> (-5%) - the rest play on for 2nd place (for glory, it goes to the chat). 4 cards each, play the same <b>suit</b> or <b>rank</b>, or draw 1.
+<b>7</b> = next player takes 2 (stack 7s: 4, 6, 8...). <b>Ace</b> = next player stands (only an ace beats it). <b>Queen</b> (Q = svršek) goes on anything and changes the suit. J = spodek.
+First one out of cards wins. 30 s per turn - 3 timeouts in a row and you are out.</div>`;
+}
+function lobbyHtml() {
+const L = P.list;
+if (!L) return rulesHtml() + `<div class="pr-info">Loading tables...</div>`;
+const active = L.tables.length;
+const rows = L.tables.map(t => `<div class="pr-trow"><div class="t">♣ <b>${short(t.stake)} GC</b> · ${esc(t.host)}'s table · ${t.players.length}/${t.seats} players<br><span style="color:var(--text-dim);font-size:10px;">${t.players.map(esc).join(", ")}</span></div>
+${t.status === "wait" && t.players.length < t.seats ? `<button class="btn btn-gold" ${gameState.coins >= t.stake && !P.busy ? "" : "disabled"} onclick="Prsi.join('${t.id}',${t.stake})">JOIN (${short(t.stake)})</button>` : `<span style="color:var(--text-dim);font-size:10px;">${t.status === "play" ? "PLAYING" : "FULL"}</span>`}</div>`).join("");
+return rulesHtml() + `<div class="pr-create">
+<span style="font-size:11px;">STAKE:</span><input type="number" class="adv-input" id="pr-stake" min="${L.minStake || 10}" step="10" value="${P.lastStake || 1000}" style="width:120px;" oninput="Prsi._st(this.value)">
+<span style="font-size:10px;color:var(--text-dim);">max ${short(Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9))}</span>
+<select id="pr-seats" onchange="Prsi._se(this.value)">${[2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === (P.lastSeats || 4) ? "selected" : ""}>${n} players</option>`).join("")}</select>
+<button class="btn btn-crimson" ${active >= (L.max || 2) || P.busy ? "disabled" : ""} onclick="Prsi.create()">♣ OPEN A TABLE</button>
+<button class="btn" onclick="Prsi.refresh()">↻</button></div>
+${P.msg ? `<div class="pr-info" style="color:${P.msgC || "var(--amber)"};">${esc(P.msg)}</div>` : ""}
+<div class="pr-tables">${rows || `<div class="pr-info">No open tables. Open one and your friends get a message in the chat.</div>`}</div>
+<div class="pr-info" style="margin-top:6px;">Max ${L.max || 2} tables at once. An unfilled table closes after 2 minutes and everyone gets their stake back.</div>`;
+}
+function timeLeft(v) { return Math.max(0, (v.left || 0) - (Date.now() - P.recvAt)); }
+function tableHtml(v) {
+const myTurn = v.status === "play" && v.turn === me();
+let html = `<div class="pr-felt">`;
+html += `<div class="pr-top"><span>♣ PRŠÍ · stake ${short(v.stake)}</span><span class="pot">POT ${fmt(v.pot || v.stake * v.players.length)} GC</span><button class="btn" style="padding:3px 10px;font-size:10px;" ${P.busy ? "disabled" : ""} onclick="Prsi.leave()">${v.status === "done" ? "◀ LOBBY" : "LEAVE"}</button></div>`;
+if (v.status === "wait") {
+const seats = []; for (let i = 0; i < v.seats; i++) seats.push(v.players[i] ? `<span class="pr-seat on">${esc(v.players[i])}${v.players[i] === v.host ? " 👑" : ""}</span>` : `<span class="pr-seat">empty seat</span>`);
+html += `<div class="pr-done"><div class="big" style="font-size:16px;">WAITING FOR PLAYERS</div><div style="margin:10px 0;">${seats.join("")}</div>
+<div class="pr-info" style="color:#cfe9d4;">Starts automatically when all ${v.seats} seats are taken${v.host === me() ? " - or start now with at least 2 players" : ""}. Closes in ${Math.ceil(Math.max(0, v.waitLeft - (Date.now() - P.recvAt)) / 1000)} s if nobody comes (stakes refunded).</div>
+${v.host === me() ? `<button class="btn btn-gold" ${v.players.length >= 2 && !P.busy ? "" : "disabled"} onclick="Prsi.start()">▶ START NOW (${v.players.length} players)</button>` : ""}</div>`;
+return html + `</div>`;
+}
+if (v.status === "done") {
+html += `<div class="pr-done"><div class="big">${v.winner === me() ? "🏆 YOU WIN!" : "🏆 " + esc(v.winner) + " WINS"}</div>
+<div style="margin-top:8px;">${v.winner === me() ? `+${fmt(v.win || Math.floor(v.pot * 0.95))} GC` : "Better luck next time."}</div>
+${v.second ? `<div style="margin-top:6px;">🥈 ${v.second === me() ? "You finished" : esc(v.second) + " finished"} second</div>` : ""}
+<div style="margin-top:12px;"><button class="btn btn-gold" onclick="Prsi.leave()">◀ BACK TO LOBBY</button></div></div>`;
+return html + logHtml(v) + `</div>`;
+}
+const others = v.order.filter(n => n !== me()), fin = v.fin || [];
+const tl = timeLeft(v), pctT = Math.min(100, tl / 300);
+html += `<div class="pr-opps">${others.map(n => { const out = v.out.indexOf(n) >= 0, k = v.hands[n] || 0, turn = v.turn === n;
+const backs = []; for (let i = 0; i < Math.min(k, 8); i++) backs.push("<i></i>");
+const place = fin.indexOf(n);
+return `<div class="pr-opp ${turn ? "turn" : ""} ${out ? "out" : ""}"><div class="nm">${place === 0 ? "🏆 " : place === 1 ? "🥈 " : ""}${esc(n)}</div><div class="pr-backs">${backs.join("")}</div><div style="font-size:10px;">${out ? "OUT" : place >= 0 ? (place === 0 ? "WINNER" : "2ND") : k + " card" + (k === 1 ? "" : "s")}${(v.miss[n] || 0) ? " · ⏱" + v.miss[n] : ""}</div>
+${turn ? `<div class="pr-tbar"><div style="width:${pctT}%"></div></div>` : ""}</div>`; }).join("")}</div>`;
+const topIsOver = v.top >= 0 && rank(v.top) === 5;
+const badges = [];
+if (v.top >= 0 && (topIsOver || v.suit !== suit(v.top))) badges.push(`<span class="pr-badge">${ICON[v.suit]} ${SUITS[v.suit].toUpperCase()}</span>`);
+if (v.pen > 0) badges.push(`<span class="pr-badge pen">+${v.pen} CARDS</span>`);
+if (v.skip) badges.push(`<span class="pr-badge skip">ACE: STAND</span>`);
+const canDraw = myTurn && !P.busy;
+html += `<div class="pr-center">
+<div class="pr-deck ${canDraw ? "can" : ""}" ${canDraw ? `onclick="Prsi.draw()"` : ""} title="Draw"><div class="pr-card"></div><div class="cnt">${v.deck}</div></div>
+<div class="pr-pile">${v.under >= 0 ? cardHtml(v.under, "under") : ""}${v.top >= 0 ? cardHtml(v.top) : ""}</div>
+<div class="pr-badges">${badges.join("")}</div></div>`;
+const hand = v.mine.slice().sort((a, b) => suit(a) - suit(b) || rank(a) - rank(b));
+const amOut = v.out.indexOf(me()) >= 0, myPlace = fin.indexOf(me());
+if (v.winner && v.status === "play") html += `<div class="pr-info" style="text-align:center;color:#ffd700;">🏆 ${v.winner === me() ? "You won " + fmt(v.win) + " GC!" : esc(v.winner) + " won the pot."} The rest play on for 2nd place.</div>`;
+html += `<div class="pr-me ${myTurn ? "turn" : ""}">${myPlace === 0 ? "You won - watch or leave whenever you want." : amOut ? "You are out of this game." : myTurn ? `YOUR TURN · ${Math.ceil(tl / 1000)} s` : `Waiting for ${esc(v.turn)}...`}</div>`;
+html += `<div class="pr-hand" onscroll="Prsi._sc(this)">${hand.map(c => { const ok = myTurn && !P.busy && playable(v, c); return cardHtml(c, myTurn ? (ok ? "ok" : "no") : "", ok ? `onclick="Prsi.play(${c})"` : ""); }).join("")}</div>`;
+if (myTurn) {
+const has = hand.some(c => playable(v, c));
+const lbl = v.pen > 0 ? `TAKE ${v.pen} CARDS` : v.skip ? "STAND (ACE)" : "DRAW 1";
+html += `<div class="pr-acts"><button class="btn ${has ? "" : "btn-gold"}" ${P.busy ? "disabled" : ""} onclick="Prsi.draw()">${lbl}</button></div>`;
+if (!has) html += `<div class="pr-info" style="text-align:center;color:#ffd700;margin:4px 0 0;">No card fits - ${v.pen > 0 ? "take the cards" : v.skip ? "you stand this turn" : "draw one"}.</div>`;
+}
+if (P.msg) html += `<div class="pr-info" style="text-align:center;color:${P.msgC || "var(--amber)"};margin-top:4px;">${esc(P.msg)}</div>`;
+if (P.pick >= 0) html += `<div class="pr-pick"><div style="font:800 13px Orbitron,monospace;color:#ffd700;">QUEEN: PICK THE NEW SUIT</div><div class="row">${[0, 1, 2, 3].map(s => `<button onclick="Prsi.suit(${s})">${ICON[s]}${SUITS[s].toUpperCase()}</button>`).join("")}</div><button class="btn" onclick="Prsi.suit(-2)">CANCEL</button></div>`;
+return html + logHtml(v) + `</div>`;
+}
+function logHtml(v) { return `<div class="pr-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div>`; }
+function show() { glow(false); if (P.id) poll(); else loadList(); render(); }
+function tick() {
+if (!visible()) return;
+if (P.view && P.view.status === "play") { const el = document.querySelector(".pr-me.turn"); if (el && P.view.turn === me()) el.textContent = `YOUR TURN · ${Math.ceil(timeLeft(P.view) / 1000)} s`; const tb = document.querySelector(".pr-opp.turn .pr-tbar div"); if (tb) tb.style.width = Math.min(100, timeLeft(P.view) / 300) + "%"; }
+else if (P.view && P.view.status === "wait") render();
+else if (!P.id && Date.now() - P.lastList > 5000) loadList();
+}
+window.Prsi = { show: show, create: create, join: join, start: start, leave: leave, play: play, draw: draw,
+suit: function (s) { if (s === -2) { P.pick = -1; render(); return; } pickSuit(s); }, refresh: loadList, _st: function (v) { P.lastStake = Math.floor(Number(v)) || 0; }, _se: function (v) { P.lastSeats = Number(v) || 4; }, _sc: function (el) { P.handScroll = el.scrollLeft; },
+state: () => P, playable: playable };
+function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 200); return; }
+TT.onLoaded(() => setTimeout(loadList, 5000));                       // návrat ke stolu po obnovení stránky + vyplacení
+setInterval(tick, 1000);
+setInterval(() => { if (!P.id && !visible()) loadList(); }, 60000);   // svítící záložka, když někdo čeká u stolu
+const prev = TT.isBusy; TT.isBusy = function () { return prev() || !!(P.view && P.view.status === "play" && P.view.out.indexOf(me()) < 0 && (P.view.fin || []).indexOf(me()) < 0); };
+}
+boot();
+})();
+</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["special"] = 1;</script>
+<!-- END-OF-FILE: special -->

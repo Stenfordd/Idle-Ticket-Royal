@@ -1,0 +1,599 @@
+<style>
+/* ===== CHECKERS (v8.4) - česká dáma pro 2 hráče ===== */
+.ck-board { position: relative; width: min(100%, 380px); aspect-ratio: 1; margin: 6px auto; display: grid; grid-template-columns: repeat(8, 1fr); border: 4px solid #5b3a1e; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.5); user-select: none; -webkit-user-select: none; }
+.ck-sq { position: relative; }
+.ck-sq.l { background: #e8d3a8; }
+.ck-sq.d { background: #8a5a33; }
+.ck-sq.last { box-shadow: inset 0 0 0 3px rgba(255,215,0,.55); }
+.ck-sq.dest { cursor: pointer; }
+.ck-sq.dest::after { content: ""; position: absolute; left: 34%; top: 34%; width: 32%; height: 32%; border-radius: 50%; background: rgba(0,255,136,.75); box-shadow: 0 0 10px #00ff88; }
+.ck-sq.capd .ck-pc { opacity: .45; outline: 3px solid #ff1744; }
+.ck-pc { position: absolute; left: 10%; top: 10%; width: 80%; height: 80%; border-radius: 50%; box-shadow: inset 0 -4px 0 rgba(0,0,0,.3), 0 2px 3px rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; font-size: 60%; transition: transform .1s; }
+.ck-pc.w { background: radial-gradient(circle at 40% 35%, #ffffff, #d9d4c7); border: 2px solid #a8a090; }
+.ck-pc.b { background: radial-gradient(circle at 40% 35%, #4b5563, #111827); border: 2px solid #000; }
+.ck-pc.k::after { content: "♛"; font-size: 1.6em; line-height: 1; }
+.ck-pc.w.k::after { color: #b8860b; } .ck-pc.b.k::after { color: #ffd700; }
+.ck-pc.can { cursor: pointer; box-shadow: 0 0 0 3px #ffd700, 0 0 14px rgba(255,215,0,.8); }
+.ck-pc.sel { transform: scale(1.1); box-shadow: 0 0 0 3px #00ff88, 0 0 16px rgba(0,255,136,.9); }
+.ck-fly { position: absolute; width: 12.5%; height: 12.5%; z-index: 3; transition: left .22s ease, top .22s ease; pointer-events: none; }
+.ck-fly .ck-pc { left: 10%; top: 10%; }
+.ck-pl { display: flex; justify-content: space-between; align-items: center; gap: 6px; font: 700 11px 'Orbitron', monospace; padding: 4px 6px; border-radius: 6px; max-width: 380px; margin: 0 auto; }
+.ck-pl.turn { background: rgba(255,215,0,.12); color: #ffd700; }
+.ck-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; margin-right: 4px; border: 1px solid #000; }
+.ck-dot.w { background: #f5f0e4; } .ck-dot.b { background: #1f2937; border-color: #888; }
+.ck-acts { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
+.ck-acts .btn { padding: 7px 12px; font-size: 10px; }
+.ck-log { margin: 8px auto 0; max-width: 380px; max-height: 100px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,.4); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 5px 8px; display: flex; flex-direction: column-reverse; }
+.ck-log div { color: #8b9bb4; line-height: 1.35; }
+</style>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
+const trim = (x) => x.toFixed(2).replace(/\.?0+$/, "");
+const short = (n) => n >= 1e9 ? trim(n / 1e9) + "B" : n >= 1e6 ? trim(n / 1e6) + "M" : n >= 1e4 ? trim(n / 1e3) + "K" : Math.floor(n).toLocaleString();
+const K = { list: null, view: null, id: "", rev: -1, busy: false, msg: "", msgC: "", sel: -1, recvAt: 0, pollT: 0, lastList: 0, animKey: "", animating: false, lastStake: 0, seenTurn: "" };
+const me = () => gameState.ldap;
+function visible() { const el = $("adv-view-checkers"); return !!(el && el.style.display !== "none" && el.offsetParent); }
+function run(fn, args) { return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); }); }
+function glow(on) { const t = $("adv-tab-checkers"); if (t) t.classList.toggle("glow", !!on); }
+function say(t, c) { K.msg = t; K.msgC = c || ""; render(); }
+function takePay(pay) {
+(pay || []).forEach(p => {
+if (p.why === "WIN") { TT.win(p.amt); log(`⛀ CHECKERS: you won! +${fmt(p.amt)} GC`, "special"); if (window.Meta && Meta.count) Meta.count("ckWins", 1); }
+else { gameState.coins += p.amt; gameState.gambleNet = (gameState.gambleNet || 0) + p.amt; log(`⛀ CHECKERS: ${p.why === "DRAW" ? "draw, stake returned" : "stake refunded"} +${fmt(p.amt)} GC`, "success"); }
+});
+if (pay && pay.length) { updateUI(); TT.saveSoon(); }
+}
+async function loadList() {
+if (K.listBusy) return; K.listBusy = true;
+try {
+const r = await run("ckList", []); K.lastList = Date.now();
+if (r && r.ok) { K.list = r; takePay(r.pay); if (r.mine && !K.id) { K.id = r.mine; K.rev = -1; poll(); }
+glow(r.tables.some(t => t.status === "wait" && t.host !== me()) && !visible()); }
+} catch (e) { K.list = K.list || { tables: [], max: 3 }; }
+finally { K.listBusy = false; }
+render();
+}
+async function poll() {
+clearTimeout(K.pollT); if (!K.id) return;
+try {
+const r = await run("ckPoll", [K.id, K.rev]);
+if (r && r.ok) { takePay(r.pay);
+if (r.gone) { K.id = ""; K.view = null; K.rev = -1; loadList(); return; }
+if (r.view) apply(r.view); else if (r.same && K.view) { K.view.left = r.left; K.recvAt = Date.now(); } }
+} catch (e) {}
+if (K.id) K.pollT = setTimeout(poll, visible() ? 1200 : (K.view && K.view.status === "play" ? 2500 : 5000));
+}
+function apply(v) {
+const prev = K.view;
+K.view = v; K.rev = v.rev; K.recvAt = Date.now();
+if (v.status === "play" && v.turn === v.me && K.seenTurn !== v.rev + "") { K.seenTurn = v.rev + ""; if (!visible()) { glow(true); log("⛀ CHECKERS: your move!", "special"); } }
+const key = v.last ? v.last.path.join(",") + "|" + v.rev : "";
+if (prev && prev.board && prev.board.length && v.last && key !== K.animKey && K.animKey !== "own:" + v.last.path.join(",")) { K.animKey = key; animate(prev.board, v.last, render); return; }
+if (v.last) K.animKey = key;
+render();
+}
+function stakeVal() { const L = K.list || {}; return TT.cleanBet($("ck-stake") ? $("ck-stake").value : K.lastStake, L.minStake || 10, Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9)); }
+async function create() {
+if (K.busy) return; const stake = stakeVal(); K.lastStake = stake;
+if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
+K.busy = true; TT.spend(stake);
+try { const r = await run("ckCreate", [stake]);
+if (r && r.ok) { K.id = r.id; K.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You already have a game.", full: "All checkers tables are busy.", stake: "Invalid stake." }[r && r.reason] || "Could not create.", "var(--crimson)"); } }
+catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { K.busy = false; loadList(); }
+}
+async function join(id, stake) {
+if (K.busy) return; if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
+K.busy = true; TT.spend(stake);
+try { const r = await run("ckJoin", [id]);
+if (r && r.ok) { K.id = r.id; K.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You already have a game.", gone: "That game is gone.", self: "That's your own challenge." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); } }
+catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { K.busy = false; }
+}
+function refund(s) { gameState.coins += s; gameState.gambleNet = (gameState.gambleNet || 0) + s; updateUI(); TT.saveSoon(); }
+async function leave() {
+if (K.busy || !K.id) return; const v = K.view;
+if (v && v.status === "play" && v.me && !window.confirm("Resign? Your opponent wins the pot.")) return;
+K.busy = true; try { await run("ckLeave", [K.id]); } catch (e) {}
+K.busy = false; K.id = ""; K.view = null; K.rev = -1; K.sel = -1; clearTimeout(K.pollT); loadList();
+}
+async function draw(what) { if (K.busy || !K.id) return; K.busy = true; try { const r = await run("ckDraw", [K.id, what]); if (r && r.view) apply(r.view); } catch (e) {} K.busy = false; poll(); }
+function pick(sq) {
+const v = K.view; if (!v || v.status !== "play" || v.turn !== v.me || K.busy || K.animating) return;
+if (K.sel >= 0) {
+const ms = v.moves.filter(m => m.path[0] === K.sel && m.path[m.path.length - 1] === sq).sort((a, b) => b.cap.length - a.cap.length);
+if (ms.length) { send(ms[0]); return; }
+}
+K.sel = v.moves.some(m => m.path[0] === sq) ? (K.sel === sq ? -1 : sq) : -1; render();
+}
+async function send(m) {
+const v = K.view; K.busy = true; K.sel = -1;
+K.animKey = "own:" + m.path.join(",");
+const before = v.board.slice();
+animate(before, { path: m.path, cap: m.cap }, () => {});
+try { const r = await run("ckMove", [K.id, m.path]);
+const wait = () => { if (K.animating) { setTimeout(wait, 60); return; } if (r && r.view) apply(r.view); if (r && !r.ok && r.reason === "illegal") say("Illegal move.", "var(--crimson)"); };
+wait(); }
+catch (e) { say("Connection problem - retrying...", "var(--crimson)"); K.rev = -1; }
+K.busy = false; poll();
+}
+const flip = () => K.view && K.view.me === -1;
+function disp(i) { return flip() ? 63 - i : i; }                  // index desky -> pozice na obrazovce
+function pieceHtml(x) { if (!x) return ""; return `<div class="ck-pc ${x > 0 ? "w" : "b"} ${Math.abs(x) === 2 ? "k" : ""}"></div>`; }
+function boardHtml(b, opts) {
+opts = opts || {};
+const cells = [];
+for (let d = 0; d < 64; d++) {
+const i = flip() ? 63 - d : d, r = Math.floor(i / 8), c = i % 8, dark = (r + c) % 2 === 1;
+const cls = ["ck-sq", dark ? "d" : "l"];
+if (opts.last && (opts.last.path[0] === i || opts.last.path[opts.last.path.length - 1] === i)) cls.push("last");
+if (opts.dest && opts.dest.indexOf(i) >= 0) cls.push("dest");
+let pc = pieceHtml(b[i]);
+if (pc && opts.can && opts.can.indexOf(i) >= 0) pc = pc.replace('class="ck-pc', `class="ck-pc can${opts.sel === i ? " sel" : ""}`);
+if (opts.hide === i) pc = "";
+cells.push(`<div class="${cls.join(" ")}" data-i="${i}" ${dark && opts.click ? `onclick="Checkers.pick(${i})"` : ""}>${pc}</div>`);
+}
+return `<div class="ck-board" id="ck-board">${cells.join("")}</div>`;
+}
+function animate(prevBoard, last, done) {
+const box = $("ck-mount"), v = K.view; if (!box || !visible() || !last || !last.path || last.path.length < 2) { done(); return; }
+K.animating = true;
+const from = last.path[0], pc = prevBoard[from];
+const area = box.querySelector("#ck-board-wrap");
+if (!area) { K.animating = false; done(); return; }
+area.innerHTML = boardHtml(prevBoard, { hide: from });
+const bd = $("ck-board"), pos = (i) => { const d = disp(i); return { l: (d % 8) * 12.5, t: Math.floor(d / 8) * 12.5 }; };
+const fly = document.createElement("div"); fly.className = "ck-fly"; fly.innerHTML = pieceHtml(pc);
+let p0 = pos(from); fly.style.left = p0.l + "%"; fly.style.top = p0.t + "%"; bd.appendChild(fly);
+let k = 1;
+const step = () => {
+if (k >= last.path.length) { setTimeout(() => { K.animating = false; done(); }, 120); return; }
+const p = pos(last.path[k]); fly.style.left = p.l + "%"; fly.style.top = p.t + "%";
+const capIdx = (last.cap || [])[k - 1];
+setTimeout(() => { if (capIdx != null) { const el = bd.querySelector(`[data-i="${capIdx}"] .ck-pc`); if (el) el.style.opacity = "0.15"; } k++; step(); }, 240);
+};
+setTimeout(step, 30);
+}
+function render() {
+const box = $("ck-mount"); if (!box || K.animating) return;
+const ae = document.activeElement;
+if (!K.id && ae && box.contains(ae) && /INPUT/.test(ae.tagName)) return;
+box.innerHTML = K.id && K.view ? gameHtml(K.view) : K.id ? `<div class="pr-info">Loading the game...</div>` : lobbyHtml();
+}
+function lobbyHtml() {
+const L = K.list;
+const rules = `<div class="pr-info">Czech checkers for 2 players, same stake each, <b>winner takes the pot</b> (-5%). Capturing is <b>mandatory</b>, men only capture forward, a <b>queen</b> moves and captures any distance (and must capture if she can). 45 s per move, 3 timeouts = loss. 40 moves without a capture = draw (stakes back).</div>`;
+if (!L) return rules + `<div class="pr-info">Loading...</div>`;
+const max = Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9);
+const rows = L.tables.map(t => `<div class="pr-trow"><div class="t">⛀ <b>${short(t.stake)} GC</b> · ${esc(t.host)}${t.status === "play" ? ` · ${esc(t.white)} vs ${esc(t.black)}` : " is waiting"}</div>
+${t.status === "wait" && t.host !== me() ? `<button class="btn btn-gold" ${gameState.coins >= t.stake && !K.busy ? "" : "disabled"} onclick="Checkers.join('${t.id}',${t.stake})">ACCEPT (${short(t.stake)})</button>` : `<span style="color:var(--text-dim);font-size:10px;">${t.status === "play" ? "PLAYING" : "YOURS"}</span>`}</div>`).join("");
+return rules + `<div class="pr-create"><span style="font-size:11px;">STAKE:</span><input type="number" class="adv-input" id="ck-stake" min="10" step="10" value="${K.lastStake || 1000}" style="width:120px;" oninput="Checkers._st(this.value)">
+<span style="font-size:10px;color:var(--text-dim);">max ${short(max)}</span>
+<button class="btn btn-crimson" ${K.busy ? "disabled" : ""} onclick="Checkers.create()">⛀ CHALLENGE</button><button class="btn" onclick="Checkers.refresh()">↻</button></div>
+${K.msg ? `<div class="pr-info" style="color:${K.msgC || "var(--amber)"};">${esc(K.msg)}</div>` : ""}
+<div class="pr-tables">${rows || `<div class="pr-info">No open challenges. Create one and your friends get a message in the chat.</div>`}</div>`;
+}
+function timeLeft(v) { return Math.max(0, (v.left || 0) - (Date.now() - K.recvAt)); }
+function playerRow(v, color, bottom) {
+const nick = color > 0 ? v.white : v.black, turn = v.status === "play" && v.turn === color;
+const cnt = v.board.filter(x => color > 0 ? x > 0 : x < 0).length;
+return `<div class="ck-pl ${turn ? "turn" : ""}"><span><span class="ck-dot ${color > 0 ? "w" : "b"}"></span>${esc(nick)}${nick === me() ? " (you)" : ""}</span><span>${cnt} pieces${turn ? ` · <b class="ck-time">${Math.ceil(timeLeft(v) / 1000)}</b> s` : ""}${(v.miss[nick] || 0) ? " · ⏱" + v.miss[nick] : ""}</span></div>`;
+}
+function gameHtml(v) {
+let html = `<div class="pr-top" style="color:var(--text-main);"><span>⛀ CHECKERS · stake ${short(v.stake)}</span><span class="pot" style="color:#ffd700;">POT ${fmt(v.stake * 2)} GC</span>
+<button class="btn" style="padding:3px 10px;font-size:10px;" ${K.busy ? "disabled" : ""} onclick="Checkers.leave()">${v.status === "play" && v.me ? "RESIGN" : v.status === "wait" ? "CANCEL" : "◀ LOBBY"}</button></div>`;
+if (v.status === "wait") return html + `<div class="pr-done" style="color:var(--text-main);"><div class="big" style="font-size:16px;">WAITING FOR AN OPPONENT</div><div class="pr-info" style="margin-top:8px;">Anyone can accept your ${fmt(v.stake)} GC challenge. Closes in ${Math.ceil(Math.max(0, v.waitLeft - (Date.now() - K.recvAt)) / 1000)} s (stake refunded).</div></div>`;
+const myTurn = v.status === "play" && v.turn === v.me;
+const can = myTurn ? Array.from(new Set(v.moves.map(m => m.path[0]))) : [];
+const dest = myTurn && K.sel >= 0 ? v.moves.filter(m => m.path[0] === K.sel).map(m => m.path[m.path.length - 1]) : [];
+const top = v.me === -1 ? 1 : -1;
+html += playerRow(v, top) + `<div id="ck-board-wrap">${boardHtml(v.board, { last: v.last, can: can, sel: K.sel, dest: dest, click: myTurn })}</div>` + playerRow(v, -top);
+if (v.status === "done") {
+html += `<div class="pr-done" style="color:var(--text-main);padding:10px;"><div class="big">${v.winner ? (v.winner === me() ? "🏆 YOU WIN!" : "🏆 " + esc(v.winner) + " WINS") : "🤝 DRAW"}</div>
+<div style="margin-top:6px;">${esc(v.why)}${v.winner === me() ? ` · +${fmt(v.win)} GC` : !v.winner ? " · stakes returned" : ""}</div>
+<div style="margin-top:10px;"><button class="btn btn-gold" onclick="Checkers.leave()">◀ BACK TO LOBBY</button></div></div>`;
+} else if (v.me) {
+const capNow = myTurn && v.moves.some(m => m.cap.length);
+html += `<div class="pr-info" style="text-align:center;margin:4px 0 0;color:${myTurn ? "#ffd700" : "var(--text-dim)"};">${myTurn ? (capNow ? "You must capture! Pick a glowing piece, then a green spot." : "Your move: pick a glowing piece, then a green spot.") : "Waiting for your opponent..."} · ${40 - v.quiet} moves to a draw</div>`;
+html += `<div class="ck-acts">${v.drawOffer && v.drawOffer !== me() ? `<button class="btn btn-gold" onclick="Checkers.draw('accept')">ACCEPT DRAW</button><button class="btn" onclick="Checkers.draw('decline')">DECLINE</button>`
+: v.drawOffer === me() ? `<span class="pr-info">Draw offered...</span>` : `<button class="btn" ${K.busy ? "disabled" : ""} onclick="Checkers.draw('offer')">OFFER DRAW</button>`}</div>`;
+}
+if (K.msg) html += `<div class="pr-info" style="text-align:center;color:${K.msgC || "var(--amber)"};">${esc(K.msg)}</div>`;
+return html + `<div class="ck-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div>`;
+}
+function show() { glow(false); if (K.id) poll(); else loadList(); render(); }
+function tick() {
+if (!visible()) return;
+const v = K.view;
+if (v && v.status === "play") { const el = document.querySelector(".ck-pl.turn .ck-time"); if (el) el.textContent = Math.ceil(timeLeft(v) / 1000); }
+else if (v && v.status === "wait") render();
+else if (!K.id && Date.now() - K.lastList > 5000) loadList();
+}
+window.Checkers = { show: show, create: create, join: join, leave: leave, draw: draw, pick: pick, refresh: loadList, _st: function (x) { K.lastStake = Math.floor(Number(x)) || 0; },
+state: () => K, playing: () => !!(K.view && K.view.status === "play" && K.view.me) };
+function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 200); return; }
+TT.onLoaded(() => setTimeout(loadList, 6000));
+setInterval(tick, 1000);
+setInterval(() => { if (!K.id && !visible()) loadList(); }, 60000);
+const prev = TT.isBusy; TT.isBusy = function () { return prev() || Checkers.playing(); };
+}
+boot();
+})();
+</script>
+<style>
+/* ===== GAMBLE (v8.4): jeden panel, 3 rozbalovací sekce (vždy max jedna otevřená) ===== */
+.gb .gb-top { display: flex; justify-content: space-between; align-items: center; }
+.gb .gb-bal { font: 700 11px 'Orbitron', monospace; color: var(--amber); }
+.gb-sec { border: 1px solid var(--border-subtle); border-radius: 8px; margin-top: 6px; overflow: hidden; background: rgba(255,255,255,.015); }
+.gb-sec.open { border-color: rgba(255,184,0,.45); }
+.gb-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: var(--bg-panel-elevated); border: 0; color: var(--text-main); cursor: pointer; text-align: left; }
+.gb-head:hover { background: #1a2130; }
+.gb-head .ic { font-size: 18px; width: 24px; text-align: center; }
+.gb-head .nm { flex: 1; min-width: 0; }
+.gb-head .nm b { display: block; font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; }
+.gb-head .nm small { display: block; font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gb-head .st { font: 700 10px 'Orbitron', monospace; color: var(--amber); white-space: nowrap; }
+.gb-head .st.hot { color: #fff; background: var(--crimson); padding: 2px 7px; border-radius: 10px; animation: tabGlow .6s ease-in-out infinite alternate; }
+.gb-head .chev { color: var(--text-dim); transition: transform .15s; }
+.gb-sec.open .gb-head .chev { transform: rotate(180deg); }
+.gb-body { display: none; padding: 8px; }
+.gb-sec.open .gb-body { display: block; }
+.gb-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.gb-tabs .casino-tab-btn { flex: 1 0 22%; margin: 0; }
+.gb .bal-line, .gb .adv-bal { display: none; }
+/* zabalený TELEMETRY & HUD ukáže aspoň GC / tickets / scrap */
+.tele-sum { display: none; font: 700 10px 'Orbitron', monospace; letter-spacing: 0; margin-left: auto; margin-right: 6px; white-space: nowrap; }
+.tele-collapsed .tele-sum { display: inline; }
+.tele-sum .g { color: var(--amber); } .tele-sum .t { color: var(--cyan); } .tele-sum .s { color: var(--text-main); }
+/* Pachinko na mobilu: celé na jedné obrazovce */
+html.m #pc-canvas { height: min(40vh, 330px); width: auto; margin: 0 auto; }
+html.m #adv-view-pachinko > .adv-info { display: none; }
+html.m #adv-view-pachinko .adv-row { margin-bottom: 4px; }
+html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
+</style>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? (n / 1e3).toFixed(1) + "K" : n.toLocaleString(); };
+const SECS = {
+basic: { icon: "🎰", name: "BASIC CASINO", games: [["roulette", "🎰 ROULETTE", "c"], ["slots", "🍒 SLOTS", "c"], ["blackjack", "♠ BLACKJACK", "c"]] },
+adv: { icon: "⚡", name: "ADVANCED", games: [["mega", "💰 MEGA 5×5", "c"], ["crash", "🚀 CRASH", "c"], ["chicken", "🐔 CHICKEN", "a"], ["pachinko", "⚪ PACHINKO", "a"]] },
+special: { icon: "👥", name: "SPECIAL", games: [["showdown", "⚔ SHOWDOWN", "a"], ["climb", "🧗 CLIMB", "a"], ["prsi", "♣ PRŠÍ", "a"], ["checkers", "⛀ CHECKERS", "a"]] }
+};
+const ALL = []; Object.keys(SECS).forEach(s => SECS[s].games.forEach(g => ALL.push({ id: g[0], label: g[1], kind: g[2], sec: s })));
+const viewOf = (g) => $(g.kind === "c" ? "view-" + g.id : "adv-view-" + g.id);
+let open = "basic", last = { basic: "roulette", adv: "mega", special: "prsi" }, built = false;
+try { const o = localStorage.getItem("ir_gb"); if (o !== null) open = o; const l = JSON.parse(localStorage.getItem("ir_gb_last") || "{}"); Object.keys(l).forEach(k => { if (SECS[k] && SECS[k].games.some(g => g[0] === l[k])) last[k] = l[k]; }); } catch (e) {}
+function save() { try { localStorage.setItem("ir_gb", open); localStorage.setItem("ir_gb_last", JSON.stringify(last)); } catch (e) {} }
+function build() {
+if (built) return true;
+const cv = $("view-roulette"), casino = cv && cv.closest(".panel"), mount = $("adv-minigames-mount"), adv = mount && mount.querySelector(".panel");
+if (!casino || !adv || !$("adv-view-checkers")) return false;
+built = true;
+const gp = document.createElement("div");
+gp.className = "panel gb"; gp.id = "gamble-panel"; gp.setAttribute("data-tab", "casino");
+gp.innerHTML = `<div class="panel-header gb-top"><span>🎲 GAMBLE</span><span class="gb-bal">💰 <span id="gb-bal">0</span> GC</span></div>` +
+Object.keys(SECS).map(s => { const S = SECS[s];
+return `<div class="gb-sec" id="gb-sec-${s}"><button class="gb-head" type="button" onclick="Gamble.sec('${s}')"><span class="ic">${S.icon}</span>
+<span class="nm"><b>${S.name}</b><small>${S.games.map(g => g[1].replace(/^\S+\s/, "")).join(" · ")}</small></span><span class="st" id="gb-st-${s}"></span><span class="chev">▾</span></button>
+<div class="gb-body" id="gb-body-${s}"><div class="gb-tabs">${S.games.map(g => `<button class="casino-tab-btn" id="gb-t-${g[0]}" type="button" onclick="Gamble.game('${g[0]}')">${g[1]}</button>`).join("")}</div></div></div>`; }).join("");
+casino.parentNode.insertBefore(gp, casino);
+ALL.forEach(g => { const v = viewOf(g); if (v) $("gb-body-" + g.sec).appendChild(v); });
+[casino, mount].forEach(p => { p.removeAttribute("data-tab"); p.classList.add("gate-hidden"); p.style.display = "none"; });
+const drop = document.querySelector('#adv-view-pachinko [onclick="AdvMini.pcDrop(1)"]'), wrap = document.querySelector("#adv-view-pachinko .pc-canvas-wrap");
+if (drop && wrap) wrap.parentNode.insertBefore(drop.closest(".adv-row"), wrap.nextSibling);
+render();
+return true;
+}
+function sec(s) {
+if (!SECS[s]) return;
+open = open === s ? "" : s; save(); render();
+if (open) game(last[open], true);
+}
+function game(id, fromSec) {
+const g = ALL.find(x => x.id === id); if (!g) return;
+if (open !== g.sec) { open = g.sec; }
+last[g.sec] = id; save();
+if (g.kind === "c") { if (typeof switchCasinoTab === "function") switchCasinoTab(id); }
+else if (window.AdvMini) AdvMini.tab(id);
+ALL.forEach(x => { const v = viewOf(x); if (v) v.style.display = x.id === id ? "block" : "none"; });
+render();
+window.dispatchEvent(new Event("resize"));                   // ruleta / crash si přepočítají šířku
+}
+function render() {
+if (!built) return;
+Object.keys(SECS).forEach(s => { const el = $("gb-sec-" + s); if (el) el.classList.toggle("open", open === s); });
+ALL.forEach(g => { const b = $("gb-t-" + g.id); if (b) b.classList.toggle("active", last[g.sec] === g.id); });
+}
+function busyOf(s) {
+try {
+if (s === "special") return (window.JumpKing && JumpKing.isBusy()) || (window.Prsi && Prsi.state().view && Prsi.state().view.status === "play") || (window.Checkers && Checkers.playing && Checkers.playing());
+if (s === "adv") return (window.AdvMini && AdvMini.isBusy && AdvMini.isBusy()) || (window.Crash && Crash.isBusy && Crash.isBusy());
+} catch (e) {}
+return false;
+}
+function tick() {
+if (!built) { build(); return; }
+const b = $("gb-bal"), t = short(gameState.coins || 0); if (b && b.textContent !== t) b.textContent = t;
+let hot = { basic: "", adv: "", special: "" };
+[["showdown", "challenge!"], ["prsi", "table / your turn"], ["checkers", "your move"]].forEach(([id, txt]) => {
+const old = $("adv-tab-" + id), on = !!(old && old.classList.contains("glow")), nb = $("gb-t-" + id);
+if (nb) nb.classList.toggle("glow", on);
+if (on && !hot.special) hot.special = txt;
+});
+Object.keys(SECS).forEach(s => {
+const el = $("gb-st-" + s); if (!el) return;
+const txt = hot[s] ? "● " + hot[s] : busyOf(s) && open !== s ? "▶ running" : "";
+if (el.textContent !== txt) el.textContent = txt;
+el.classList.toggle("hot", !!hot[s] && open !== s);
+});
+const ts = $("tele-sum");
+if (ts) { const h = `<span class="g">💰 ${short(gameState.coins || 0)}</span> · <span class="t">🎫 ${short(gameState.tickets || 0)}</span> · <span class="s">🔩 ${short(gameState.scrap || 0)}</span>`; if (ts.__h !== h) { ts.innerHTML = h; ts.__h = h; } }
+}
+function boot() {
+if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 100); return; }
+const tp = $("stat-tickets") && $("stat-tickets").closest(".panel"), th = tp && tp.querySelector(".panel-header");
+if (th && !$("tele-sum")) { th.style.display = "flex"; th.insertAdjacentHTML("beforeend", `<span class="tele-sum" id="tele-sum"></span>`); }
+const iv = setInterval(() => { if (build()) { clearInterval(iv); if (open) game(last[open], true); } }, 100);
+setInterval(tick, 500);
+}
+window.Gamble = { sec: sec, game: game, open: () => open };
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+<style>
+/* ===== UPGRADE STATION (forge.html): vylepšení nasazeného itemu +1..+15 za GC, tokeny za GC ===== */
+.enh-tag { color: #ffb800; font: 800 10px 'Orbitron', monospace; margin-left: 3px; }
+.odds-table .odds-t6 { grid-column: 1 / -1; border-color: rgba(0,255,204,.35); }
+.fg-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 8px; }
+.fg-slots .btn { padding: 6px 2px; font-size: 10px; }
+.fg-slots .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.fg-card { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px; margin-bottom: 8px; font-size: 11px; }
+.fg-card .nm { font: 800 12px 'Orbitron', monospace; }
+.fg-pips { display: flex; gap: 2px; margin: 6px 0; }
+.fg-pips i { flex: 1; height: 6px; border-radius: 2px; background: #1e2636; }
+.fg-pips i.c { background: var(--emerald); } .fg-pips i.a { background: var(--cyan); } .fg-pips i.m { background: #ff4dff; }
+.fg-pips i.r { outline: 1px solid rgba(255,23,68,.5); }
+.fg-st { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 2px 6px; margin-top: 4px; }
+.fg-st b { color: var(--emerald); }
+.fg-choice { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; }
+.fg-choice .btn { padding: 6px 2px; font-size: 10px; }
+.fg-choice .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.fg-info { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; line-height: 1.5; }
+.fg-info b { color: var(--amber); }
+.fg-opt { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; cursor: pointer; }
+.fg-msg { font: 700 11px 'Orbitron', monospace; text-align: center; min-height: 16px; margin: 6px 0; }
+.fg-tok { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--border-subtle); padding-top: 8px; margin-top: 4px; font-size: 11px; }
+.fg-tok .btn { padding: 5px 10px; font-size: 10px; }
+</style>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const CHANCE_HI = [45, 38, 31, 25, 20];             // ⚒11..⚒15
+const TOKEN_BASE = 25000, TOKEN_GROWTH = 1.3;
+const CH = { c: ["🖱", "CLICK", "+12% Click"], a: ["⚙", "AUTO", "+12% Auto"], m: ["✨", "MULT", "+0.5% Mult"] };
+let sel = "TOOL", choice = "c", guarantee = false, protect = true, msg = { t: "", c: "" }, lastSig = "";
+try { sel = localStorage.getItem("ir_fg_slot") || "TOOL"; choice = localStorage.getItem("ir_fg_ch") || "c"; } catch (e) {}
+if (!CH[choice]) choice = "c";
+function short(n) { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? (n / 1e3).toFixed(1) + "K" : n.toLocaleString(); }
+function chance(t) { return t <= 5 ? 100 : t <= 10 ? 100 - 10 * (t - 5) : CHANCE_HI[t - 11] || 20; }
+function cost(it) { return Math.round(it.tier * it.tier * 2000 * (1 + 0.15 * (it.lvl || 0)) * Math.pow(1.5, enhOf(it).length)); }
+function tokenPrice() { return Math.round(TOKEN_BASE * Math.pow(TOKEN_GROWTH, gameState.tokBuy || 0)); }
+function item() { return gameState.loadout ? gameState.loadout[sel] : null; }
+function build() {
+const m = $("forge-mount"); if (!m || $("forge-panel")) return;
+m.innerHTML = `<div class="panel" id="forge-panel" data-tab="bag">
+<div class="panel-header"><span>⚒ UPGRADE STATION</span><span style="font-size:10px;color:var(--amber);" id="fg-tokens"></span></div>
+<div id="fg-body"></div></div>`;
+}
+function statsTxt(s) { return [s.c ? s.c.toLocaleString() + " Click" : "", s.a ? s.a.toLocaleString() + " Auto" : "", s.m ? (s.m * 100).toFixed(1) + "% Mult" : ""].filter(Boolean).join(" · ") || "-"; }
+function render(force) {
+const body = $("fg-body"); if (!body || typeof gameState === "undefined") return;
+const g = gameState, it = item(), e = it ? enhOf(it) : "", E = e.length, t = E + 1;
+const c = it ? cost(it) : 0, ch = chance(t), tp = tokenPrice();
+const sig = [sel, it ? it.tier + "_" + (it.lvl || 0) + "_" + e : "-", choice, guarantee, protect, g.slotTokens, g.tokBuy, g.coins >= c, g.coins >= tp, g.coins >= tp * 5, msg.t,
+SLOTS.map(s => g.loadout[s] ? g.loadout[s].tier + enhOf(g.loadout[s]) : "-").join(",")].join("|");
+if (!force && sig === lastSig) return;
+lastSig = sig;
+const tk = $("fg-tokens"); if (tk) tk.textContent = "🎟 " + g.slotTokens + " TOKEN" + (g.slotTokens === 1 ? "" : "S");
+const slots = SLOTS.map(s => { const x = g.loadout[s];
+return `<button class="btn ${s === sel ? "sel" : ""}" onclick="Forge.slot('${s}')" ${x ? "" : "disabled"}>${SLOT_ICONS[s]} ${s}${x && enhOf(x) ? " ⚒" + enhOf(x).length : ""}</button>`; }).join("");
+let html = `<div class="fg-slots">${slots}</div>`;
+if (!it) {
+html += `<div class="fg-info">Equip an item in <b>${sel}</b> to upgrade it. Upgrades stay on the item (+1 to +15).</div>`;
+} else {
+const pips = []; for (let i = 0; i < 15; i++) pips.push(`<i class="${e[i] || ""} ${i >= 10 ? "r" : ""}"></i>`);
+const now = itemStats(it);
+html += `<div class="fg-card"><div class="nm" style="color:var(--rarity-t${it.tier});">${itemName(it)} +${it.lvl || 0} <span class="enh-tag">⚒${E}/15</span></div>
+<div class="fg-pips">${pips.join("")}</div>
+<div>Now: ${statsTxt(now)}</div>
+${E < 15 ? `<div>⚒${t}: <b style="color:var(--emerald);">${statsTxt(itemStats({ slot: it.slot, tier: it.tier, lvl: it.lvl, e: e + choice }))}</b></div>` : ""}</div>`;
+if (E >= 15) html += `<div class="fg-msg" style="color:var(--amber);">MAXED OUT ⚒15</div>`;
+else {
+html += `<div class="fg-choice">${Object.keys(CH).map(k => `<button class="btn ${k === choice ? "sel" : ""}" onclick="Forge.pick('${k}')">${CH[k][0]} ${CH[k][1]}<br><small>${CH[k][2]}</small></button>`).join("")}</div>`;
+const risk = ch >= 100 ? "always succeeds" : t >= 11 ? `fail = GC lost <b style="color:var(--crimson);">and the item drops to ⚒${E - 1 < 0 ? 0 : E - 1}</b>` : "fail = only the GC is lost";
+html += `<div class="fg-info">Every stage: +8% all stats + your bonus. Cost <b>${short(c)} GC</b> · chance <b>${guarantee ? 100 : ch}%</b> · ${guarantee ? "guaranteed" : risk}</div>`;
+if (ch < 100) html += `<label class="fg-opt"><input type="checkbox" ${guarantee ? "checked" : ""} onchange="Forge.opt('g',this.checked)"> ✅ Guarantee success (2 🎟)</label>`;
+if (t >= 11 && !guarantee) html += `<label class="fg-opt"><input type="checkbox" ${protect ? "checked" : ""} onchange="Forge.opt('p',this.checked)"> 🛡 Protect from the drop (1 🎟, only spent if it fails)</label>`;
+const can = g.coins >= c && (!guarantee || g.slotTokens >= 2);
+html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} data-hold="forge-go" onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 🎟" : ""})</button>`;
+}
+}
+html += `<div class="fg-msg" style="color:${msg.c || "var(--text-dim)"};">${msg.t}</div>`;
+html += `<div class="fg-tok"><span>🎟 Slot Token: <b style="color:var(--amber);">${short(tp)} GC</b></span>
+<button class="btn btn-cyan" ${g.coins >= tp ? "" : "disabled"} data-hold="forge-buy1" onclick="Forge.buy(1)">BUY 1</button>
+<button class="btn btn-cyan" ${g.coins >= tp * 5 ? "" : "disabled"} onclick="Forge.buy(5)">BUY 5</button>
+<span style="color:var(--text-dim);font-size:10px;width:100%;">Price +30% per token, resets on prestige. Tokens also give +1 merge level (USE SLOT TOKEN) or HIGH STAKES energy.</span></div>`;
+body.innerHTML = html;
+}
+function say(t, c) { msg = { t: t, c: c }; render(true); }
+function go() {
+const g = gameState, it = item();
+if (!it) return;
+const e = enhOf(it), E = e.length, t = E + 1;
+if (E >= 15) return;
+const c = cost(it);
+if (g.coins < c) { say("Not enough GC.", "var(--crimson)"); return; }
+if (guarantee && g.slotTokens < 2) { say("Need 2 tokens for a guarantee.", "var(--crimson)"); return; }
+g.coins -= c;
+let ok;
+if (guarantee) { g.slotTokens -= 2; ok = true; }
+else ok = Math.random() * 100 < chance(t);
+const name = itemName(it);
+if (!ok) TT.holdStop = true;                          // v8.7: držení tlačítka se po neúspěchu zastaví
+if (ok) {
+it.e = e + choice;
+say(`✔ SUCCESS! ${name} is now ⚒${t} (${CH[choice][2]})`, "var(--emerald)");
+log(`⚒ UPGRADE: ${name} → ⚒${t} (${CH[choice][2]}) for ${short(c)} GC.`, t >= 10 ? "special" : "success");
+if (t >= 13) TT.announce("UPGRADED TO +" + t, name, c, 0);
+} else if (t >= 11 && protect && g.slotTokens >= 1) {
+g.slotTokens -= 1;
+say(`✖ FAILED - 🛡 token saved ${name} at ⚒${E}`, "var(--amber)");
+log(`⚒ UPGRADE FAILED on ${name} ⚒${t}, protected by a token.`, "warning");
+} else if (t >= 11) {
+it.e = e.slice(0, -1);
+if (!it.e) delete it.e;
+say(`✖ FAILED - ${name} dropped to ⚒${E - 1}`, "var(--crimson)");
+log(`⚒ UPGRADE FAILED: ${name} dropped to ⚒${E - 1}.`, "error");
+} else {
+say(`✖ FAILED (${chance(t)}%) - ${short(c)} GC lost`, "var(--crimson)");
+log(`⚒ UPGRADE FAILED on ${name} ⚒${t}: -${short(c)} GC.`, "warning");
+}
+updateUI(); TT.saveSoon(); render(true);
+}
+function buy(n) {
+const g = gameState; let got = 0, paid = 0;
+for (let i = 0; i < n; i++) {
+const p = tokenPrice();
+if (g.coins < p) break;
+g.coins -= p; paid += p; g.slotTokens += 1; g.tokBuy = (g.tokBuy || 0) + 1; got++;
+}
+if (!got) { say("Not enough GC.", "var(--crimson)"); return; }
+say(`🎟 +${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC`, "var(--amber)");
+log(`🎟 Bought ${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC (you have ${g.slotTokens}).`, "success");
+updateUI(); TT.saveSoon();
+}
+window.Forge = {
+slot: function (s) { if (SLOTS.indexOf(s) < 0) return; sel = s; msg = { t: "", c: "" }; try { localStorage.setItem("ir_fg_slot", s); } catch (e) {} render(true); },
+pick: function (k) { if (!CH[k]) return; choice = k; try { localStorage.setItem("ir_fg_ch", k); } catch (e) {} render(true); },
+opt: function (k, v) { if (k === "g") guarantee = !!v; else protect = !!v; render(true); },
+go: go, buy: buy, render: render, cost: cost, chance: chance, tokenPrice: tokenPrice
+};
+build();
+function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
+TT.onLoaded(function () {
+if (!item()) { const f = SLOTS.find(s => gameState.loadout[s]); if (f) sel = f; }
+render(true);
+setInterval(function () { if (!document.hidden) render(false); }, 500);
+});
+setInterval(function () {
+const el = $("consult-scrap"); if (!el || typeof gameState === "undefined") return;
+const v = Math.floor(gameState.scrap || 0).toLocaleString();
+if (el.textContent !== v) el.textContent = v;
+}, 500);
+}
+boot();
+})();
+</script>
+<style>
+/* ===== v8.7 THE OFFICE PLANT (místo Legacy shopu) + držení tlačítek ===== */
+.pl-top { display: flex; gap: 10px; align-items: center; }
+.pl-art { flex: none; width: 92px; height: 92px; border-radius: 8px; background: radial-gradient(circle at 50% 30%, #13261b, #070b0a 75%); border: 1px solid rgba(0,255,136,.18); display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
+.pl-art svg { width: 88px; height: 88px; image-rendering: pixelated; }
+.pl-info { flex: 1; min-width: 0; font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+.pl-info b { color: var(--amber); }
+.pl-stage { font: 800 11px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
+.pl-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.pl-row .btn { flex: 1; padding: 7px 4px; font-size: 10px; min-width: 90px; }
+.pl-fx { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
+.pl-fx span { font-size: 9px; padding: 2px 6px; border-radius: 9px; background: rgba(0,255,136,.08); border: 1px solid rgba(0,255,136,.25); color: #a7f3d0; }
+#pl-screen { position: fixed; inset: 0; z-index: 206; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #0d1f14 0%, var(--bg-core, #07090e) 60%); color: var(--text-main); }
+#pl-screen.open { display: flex; }
+html.m #pl-screen { height: var(--app-h, 100%); }
+.pl-head { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
+.pl-head h1 { flex: 1; margin: 0; font: 900 15px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
+.pl-inner { max-width: 1000px; margin: 0 auto; }
+.pl-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.pl-br { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 760px) { .pl-br { grid-template-columns: 1fr; } }
+.pl-bh { font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; margin-bottom: 6px; display: flex; justify-content: space-between; }
+.pl-n { display: flex; gap: 8px; align-items: center; padding: 7px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 6px; }
+.pl-n.lock { opacity: .4; }
+.pl-n.max { border-color: rgba(0,255,136,.45); }
+.pl-n.key { border-color: rgba(255,215,0,.35); background: linear-gradient(90deg, rgba(255,215,0,.07), transparent); }
+.pl-n .ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; background: #0b1610; border: 1px solid rgba(0,255,136,.3); }
+.pl-n .t { flex: 1; min-width: 0; font-size: 11px; }
+.pl-n .t b { display: block; font: 800 10.5px 'Orbitron', monospace; }
+.pl-n .t span { font-size: 10px; color: var(--text-dim); }
+.pl-n .lv { font: 700 9px 'Orbitron', monospace; color: var(--emerald); }
+.pl-n .btn { flex: none; padding: 6px 8px; font-size: 10px; min-width: 58px; }
+.pl-pips { display: flex; gap: 2px; margin-top: 3px; }
+.pl-pips i { width: 9px; height: 4px; border-radius: 2px; background: #1e2636; }
+.pl-pips i.on { background: var(--emerald); }
+</style>
+<div id="pl-screen">
+<div class="pl-head"><button class="btn btn-cyan" onclick="Plant.close()">◀ OFFICE</button><h1>🌳 THE OFFICE PLANT</h1><span id="pl-lp" style="font:800 12px Orbitron,monospace;color:var(--amber);"></span></div>
+<div class="pl-body"><div class="pl-inner" id="pl-inner"></div></div>
+</div>
+<script>
+/**
+* THE OFFICE PLANT (v8.7) - nahrazuje Legacy shop. Měna = Legacy Points.
+* Semínko -> strom roste ve fázích podle investovaných LP, 3 větve uzlů, keystone plody, sklizeň plodů každé 4 h, zalévání 1× denně.
+* Kvůli kompatibilitě strom dál plní gameState.lpUp (click/auto/scrap/start/heirloom), takže starý kód funguje beze změny.
+*/
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
+const SEED_COST = 1, FRUIT_MS = 4 * 3600000, FRUIT_MAX = 3, WATER_MS = 2 * 3600000;
+const STAGES = [
+{ at: 0, name: "SEED", icon: "🌰" },
+{ at: 0, name: "SPROUT", icon: "🌱" },
+{ at: 6, name: "SAPLING", icon: "🌿" },
+{ at: 18, name: "TREE", icon: "🌳" },
+{ at: 40, name: "ANCIENT TREE", icon: "🌲" }
+];
+const BR = {
+office: { name: "💼 OFFICE", color: "var(--cyan)" },
+casino: { name: "🎰 CASINO", color: "var(--amber)" },
+hs: { name: "⚔ HIGH STAKES", color: "var(--crimson)" }
+};
+/** row = potřebná fáze stromu (1 sprout ... 4 ancient), req = uzel, který musí mít aspoň 1 level */
+const NODES = [
+{ id: "o_click", br: "office", row: 1, icon: "👆", name: "Sunlight", desc: l => `+${10 * l}% click power`, next: "+10% click", costs: [1, 1, 2, 2] },
+{ id: "o_auto", br: "office", row: 1, icon: "⚙", name: "Photosynthesis", desc: l => `+${10 * l}% Auto GC`, next: "+10% auto", costs: [1, 1, 2, 2] },
+{ id: "o_start", br: "office", row: 2, icon: "💰", name: "Fertilizer", req: "o_auto", desc: l => `start every run with +${short(2000 * l)} GC`, next: "+2,000 start GC", costs: [1, 1, 1] },
+{ id: "o_scrap", br: "office", row: 2, icon: "📦", name: "Compost", req: "o_click", desc: l => `chests cost ${4 * l}% less scrap`, next: "-4% chest cost", costs: [1, 1, 2, 2] },
+{ id: "o_heir", br: "office", row: 3, icon: "🏺", name: "Heirloom Roots", req: "o_scrap", desc: l => `Heirloom ${1 + l}: keep your best ${1 + l} items on prestige`, next: "+1 Heirloom item", costs: [1, 2, 2, 3, 3] },
+{ id: "k_ever", br: "office", row: 3, icon: "🌲", name: "Evergreen", key: true, req: "o_start", desc: () => "Autogen runs 60 min instead of 45", costs: [3] },
+{ id: "k_roots", br: "office", row: 4, icon: "🌰", name: "Deep Roots", key: true, req: "o_heir", desc: () => "Keep 10% of your GC on prestige", costs: [5] },
+{ id: "c_bet", br: "casino", row: 1, icon: "🎲", name: "High Roller Leaves", desc: l => `max bets ×${Math.pow(1.5, l).toFixed(2)}`, next: "max bet ×1.5", costs: [1, 2, 2] },
+{ id: "c_cons", br: "casino", row: 2, icon: "🧑‍💼", name: "Consultant Bark", req: "c_bet", desc: l => `consult costs ${10 * l}% less`, next: "-10% consult", costs: [1, 1, 2] },
+{ id: "c_tok", br: "casino", row: 2, icon: "🎟", name: "Token Blossom", req: "c_bet", desc: l => `Slot Token chance from chests +${50 * l}%`, next: "+50% token chance", costs: [2, 2, 3] },
+{ id: "k_cherry", br: "casino", row: 4, icon: "🍒", name: "Lucky Cherry", key: true, req: "c_tok", desc: () => "HIGH STAKES gamble: 🍒 counts as a wild symbol", costs: [5] },
+{ id: "h_xp", br: "hs", row: 1, icon: "📈", name: "Growth Rings", desc: l => `+${8 * l}% HIGH STAKES XP`, next: "+8% XP", costs: [1, 1, 1, 2] },
+{ id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
+{ id: "h_foc", br: "hs", row: 2, icon: "✨", name: "Morning Dew", req: "h_xp", desc: l => `start fights with +${10 * l} focus`, next: "+10 start focus", costs: [1, 2, 2] },
+{ id: "h_parry", br: "hs", row: 3, icon: "🛡", name: "Thick Bark", req: "h_foc", desc: l => `parry windows +${15 * l}%`, next: "+15% parry window", costs: [2, 3] },
+{ id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] }
+];
+const BY = {}; NODES.forEach(n => { BY[n.id] = n; });
+const TOTAL = SEED_COST + NODES.reduce((a, n) => a + n.costs.reduce((x, y) => x + y, 0), 0);
+/** nový přísun LP za prestiž (dřív 1 + floor(p/3)) */
+function lpGainFor(p) { return 2 + Math.floor(p / 2); }
+function oldLpGainFor(p) { return 1 + Math.floor(p / 3); }
+const OLD_COST = { click: l => 2 + l, auto: l => 2 + l, scrap: l => 2 + l, start: l => 1 + l, heirloom: l => 5 * (l + 1) };
+function blank() { return { seed: false, n: {}, fruitAt: 0, waterDay: "", respecP: -1, mig: 1, harvested: 0 }; }
+;(window.__TT_FILES = window.__TT_FILES || {})["meta"] = 1;
+// END-OF-FILE: meta (the script continues in the next file)

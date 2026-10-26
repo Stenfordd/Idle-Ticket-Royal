@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+  <?!= include('style'); ?>
+<style>
+/* ===== v6.1 patch (style.html zůstává beze změny) ===== */
+input, textarea, select { user-select: text; -webkit-user-select: text; }
+.top-bar { backdrop-filter: none; }
+.stat-val.gold, .stat-val.cyan, .stat-val.crimson, .stat-val.emerald { text-shadow: none; }
+.btn-help { padding: 3px 9px; font-size: 11px; }
+.adv-select { background: #000; border: 1px solid var(--border-subtle); color: var(--amber); padding: 6px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; }
+/* HUD chips */
+.buff-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; min-height: 22px; }
+.buff-chip { font-family: 'Orbitron', monospace; font-size: 9px; padding: 3px 7px; border-radius: 10px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: var(--text-dim); white-space: nowrap; }
+.buff-chip.on { color: var(--emerald); border-color: rgba(0,255,136,0.4); background: rgba(0,255,136,0.08); }
+.buff-chip.lp { color: var(--amber); border-color: rgba(255,184,0,0.35); }
+.buff-chip.bad { color: var(--crimson); border-color: rgba(255,23,68,0.4); background: rgba(255,23,68,0.1); }
+/* Autoclicker */
+.ac-box { margin-top: 8px; background: var(--bg-panel-elevated); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,184,0,0.2); }
+.ac-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+.ac-bar { width: 100%; height: 8px; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid var(--border-subtle); margin-bottom: 6px; }
+.ac-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--amber), var(--emerald)); }
+.ac-bar-next { height: 4px; width: 100%; background: #000; border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
+.ac-bar-next-fill { height: 100%; width: 0%; background: var(--cyan); }
+/* Legacy shop */
+.lp-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
+.lp-desc { font-size: 10px; color: var(--text-dim); }
+.lp-lvl { font-size: 10px; color: var(--amber); font-family: 'Orbitron', monospace; }
+/* Backpack */
+.bp-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; font-size: 11px; color: var(--text-dim); }
+.bp-controls label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.bp-empty { color: var(--text-muted); font-size: 11px; text-align: center; grid-column: span 2; padding: 30px; }
+.backpack-container { height: auto; max-height: 640px; }
+.slot-stats { font-size: 9px; color: var(--text-dim); font-weight: 400; }
+.chest-result { font-size: 11px; color: var(--text-dim); min-height: 16px; margin-bottom: 8px; }
+/* Modals */
+.tt-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 12px; }
+.tt-overlay.open { display: flex; }
+.tt-modal { width: 100%; max-width: 560px; background: var(--bg-panel); border: 1px solid var(--crimson); border-radius: 8px; padding: 18px; }
+.tt-modal h2 { font-family: 'Orbitron', monospace; font-size: 15px; color: var(--crimson); margin-bottom: 10px; letter-spacing: 1px; }
+.tt-modal .tt-body { font-size: 14px; line-height: 1.5; min-height: 150px; color: var(--text-main); }
+.tt-modal .tt-body ul { margin: 8px 0 0 18px; }
+.tt-modal .tt-body b { color: var(--amber); }
+.tt-modal .tt-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 8px; }
+.tt-dots { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; flex: 1; }
+.tt-dot { width: 7px; height: 7px; border-radius: 50%; background: #2a3245; }
+.tt-dot.on { background: var(--cyan); }
+.token-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+/* Update banner + tab block */
+.update-banner { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 9998; display: none; background: #0d111a; border: 1px solid var(--amber); color: var(--amber); padding: 8px 16px; border-radius: 6px; font-size: 12px; font-family: 'Orbitron', monospace; }
+.update-banner.open { display: block; }
+/* Roulette bet row */
+.wager-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+.wager-row input { width: 110px; background: #000; border: 1px solid var(--border-subtle); color: #fff; padding: 5px 8px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; }
+.wager-row .btn { padding: 4px 8px; font-size: 10px; }
+.bal-line { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--amber); text-align: right; margin-bottom: 4px; }
+.bet-grid { position: relative; }
+.bet-grid.cool .btn { opacity: .3; filter: grayscale(.8); pointer-events: none; }
+.bet-grid.cool::after { content: attr(data-cd); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 800 13px 'Orbitron', monospace; color: var(--amber); letter-spacing: 1px; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.roulette-result, .slots-banner { font-family: 'Orbitron', monospace; font-size: 12px; text-align: center; min-height: 18px; margin-bottom: 6px; }
+/* Blackjack - široký stůl */
+.bj-table { padding: 14px 10px; }
+.bj-area { margin-bottom: 12px; text-align: center; }
+.bj-label { font-size: 12px; margin-bottom: 6px; }
+.bj-cards { justify-content: center; flex-wrap: wrap; min-height: 84px; gap: 8px; }
+.bj-card { width: 56px; height: 80px; flex-direction: column; font-size: 20px; line-height: 1.1; border-radius: 6px; }
+.bj-card.back { background: #1e293b; color: #fff; justify-content: center; }
+.bj-result { text-align: center; font-family: 'Orbitron', monospace; font-size: 13px; min-height: 30px; padding: 6px; border-radius: 4px; margin-bottom: 8px; background: rgba(255,255,255,0.05); }
+.bj-result.win { background: rgba(0,255,136,0.15); color: var(--emerald); }
+.bj-result.loss { background: rgba(255,23,68,0.15); color: var(--crimson); }
+.bj-result.push { background: rgba(255,184,0,0.15); color: var(--amber); }
+/* v7: přehřátí, autosell info, nepřečtené */
+.heat-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-dim); margin-top: 6px; font-family: 'Orbitron', monospace; }
+.heat-bar { flex: 1; height: 6px; background: #000; border: 1px solid var(--border-subtle); border-radius: 3px; overflow: hidden; }
+.heat-fill { height: 100%; width: 0%; background: var(--cyan); transition: width .2s, background .2s; }
+#btn-click.overheated { filter: grayscale(.8) brightness(.6); cursor: not-allowed; }
+.autosell-info { font-size: 10px; color: var(--text-dim); margin: 0 0 6px; line-height: 1.4; }
+.autosell-info b { color: var(--amber); }
+.unread { display: inline-block; min-width: 14px; padding: 0 4px; border-radius: 7px; background: var(--crimson); color: #fff; font-size: 9px; line-height: 14px; }
+.unread:empty { display: none; }
+.casino-tab-btn.glow { color: var(--amber) !important; border-color: var(--amber) !important; animation: tabGlow 1.2s ease-in-out infinite alternate; }
+@keyframes tabGlow { from { box-shadow: 0 0 0 rgba(255,184,0,0); } to { box-shadow: 0 0 10px rgba(255,184,0,.6); } }
+@media (max-width: 1000px) {
+.grid-columns { flex-direction: column; }
+.column { width: 100%; flex: none; }
+.top-bar { flex-direction: column; gap: 6px; }
+}
+</style>
+<script>window.CLIENT_VERSION = <?!= JSON.stringify(getAppVersion_()) ?>;</script>
+</head>
+<body>
+<!-- TOP HEADER -->
+<div class="top-bar">
+<div class="brand-title">TICKET TYCOON // CASINO ROYALE v9</div>
+<div class="user-badge">
+<span>AGENT: <strong id="user-display" style="color:var(--cyan);">CONNECTING...</strong></span>
+<span>SEASON: <strong id="season-display" style="color:var(--amber);">6</strong></span>
+<button class="btn btn-cyan btn-help" onclick="openTutorial()">? HOW TO PLAY</button>
+<a class="btn btn-gold btn-help" href="https://forms.gle/sF7qT6czkiWvsRzP9" target="_blank" rel="noopener" style="text-decoration:none;">💬 FEEDBACK</a>
+<span class="status-pill"><span class="status-dot"></span> LIVE LINK</span>
+</div>
+</div>
+<div class="main-wrapper">
+<div class="grid-columns">
+<!-- COLUMN 1 -->
+<div class="column">
+<div class="panel">
+<div class="panel-header">
+<span>OPERATOR WORKSTATION</span>
+<span id="multiplier-badge" style="color:var(--amber); font-size:10px;">MULT: 1.00×</span>
+</div>
+<div class="click-btn-wrap">
+<button class="btn-primary-action" id="btn-click" onclick="handleManualClick(event)">
+RESOLVE TICKET (+<span id="click-val">1</span>)
+</button>
+<svg id="click-ring" aria-hidden="true"><rect class="trk"/><rect class="prg" pathLength="100"/></svg>
+<span id="click-ring-pop"></span>
+</div>
+<div class="heat-row"><span>🌡 CPU</span><div class="heat-bar"><div class="heat-fill" id="heat-fill"></div></div><b id="heat-txt">0%</b></div>
+<div class="buff-row" id="buff-row"></div>
+<div class="ac-box">
+<div class="ac-row">
+<span>🔋 AUTOCLICKER BATTERY</span>
+<strong id="ac-charge" style="color:var(--amber);">0s</strong>
+</div>
+<div class="ac-bar"><div class="ac-bar-fill" id="ac-bar-fill"></div></div>
+<div class="ac-row" style="font-size:10px; color:var(--text-dim);">
+<span>Next +1s in: <strong id="ac-next" style="color:var(--cyan);">50 clicks</strong></span>
+<span>Saved avg CPS: <strong id="ac-avg" style="color:var(--emerald);">0.0</strong></span>
+</div>
+<div class="ac-bar-next"><div class="ac-bar-next-fill" id="ac-next-fill"></div></div>
+<button class="btn btn-gold" id="btn-autoclick" style="width:100%;" onclick="toggleAutoclicker()">START AUTOCLICKER</button>
+</div>
+<div style="margin-top:8px; background:var(--bg-panel-elevated); padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+<div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+<span>45M FOCUS AUTOGEN</span>
+<strong id="autogen-timer" style="color:var(--cyan);">IDLE / READY</strong>
+</div>
+<button class="btn btn-cyan" id="btn-autogen" style="width:100%;" onclick="toggleFocusAutogen()">START 45M AUTOGEN</button>
+</div>
+<div style="margin-top:8px; border-top:1px solid var(--border-subtle); padding-top:8px;">
+<div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+<span>PRESTIGE: <strong id="prestige-lvl" style="color:var(--crimson);">0</strong></span>
+<span>AUTO BOOST: <strong id="prestige-bonus" style="color:var(--amber);">1.0×</strong></span>
+<span>LP: <strong id="lp-count" style="color:var(--amber);">0</strong></span>
+</div>
+<button class="btn btn-crimson" id="btn-prestige" style="width:100%;" onclick="performPrestige()">ASCEND PRESTIGE</button>
+<button class="btn" id="btn-restart-run" style="width:100%;margin-top:6px;font-size:11px;opacity:.8;" onclick="restartRun()" title="Start this prestige over: tickets, GC, scrap, chest and items reset. Prestige, Legacy Points, the plant and HIGH STAKES stay.">↺ RESTART RUN (no prestige)</button>
+</div>
+</div>
+<div class="panel">
+<div class="panel-header">TELEMETRY & HUD</div>
+<div class="stats-grid">
+<div class="stat-box"><div class="stat-label">Tickets Resolved</div><div class="stat-val cyan" id="stat-tickets">0</div></div>
+<div class="stat-box"><div class="stat-label">Google Coins (GC)</div><div class="stat-val gold" id="stat-coins">0</div></div>
+<div class="stat-box"><div class="stat-label">Scrap Metal</div><div class="stat-val" id="stat-scrap">0</div></div>
+<div class="stat-box"><div class="stat-label">Click Power</div><div class="stat-val emerald" id="stat-click">1</div></div>
+<div class="stat-box"><div class="stat-label">Auto GC / Sec</div><div class="stat-val gold" id="stat-gc-sec">0.0</div></div>
+<div class="stat-box"><div class="stat-label">Net Multiplier</div><div class="stat-val cyan" id="stat-mult">1.00×</div></div>
+<div class="stat-box"><div class="stat-label">Live CPS</div><div class="stat-val crimson" id="stat-cps">0.0</div></div>
+<div class="stat-box"><div class="stat-label">Peak CPS</div><div class="stat-val crimson" id="stat-peak-cps">0.0</div></div>
+</div>
+</div>
+<div class="panel">
+<div class="panel-header">
+<span>SMART MERGE STATION (3×)</span>
+<button class="btn btn-gold" style="padding:3px 10px; font-size:10px;" onclick="mergeAll()">MERGE ALL</button>
+</div>
+<div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;">
+Merges 3 identical items into +1 level (+60% base stats per level, 10% crit +2, 5% fail = half the scrap back). ⚒ upgraded items merge too (your equipped one counts): you keep the best ⚒ minus 1 stage.
+</div>
+<div id="merge-skip" style="font-size:10px; color:var(--amber); margin-bottom:4px;"></div>
+<div class="merge-list" id="merge-list"></div>
+</div>
+<div class="panel">
+<div class="tab-row">
+<button class="casino-tab-btn active" id="tab-btn-log" onclick="switchBottomLeftTab('log')">📋 SYSTEM LOG</button>
+<button class="casino-tab-btn" id="tab-btn-chat" onclick="switchBottomLeftTab('chat')">💬 OFFICE CHAT <span class="unread" id="chat-unread"></span></button>
+</div>
+<div id="view-system-log"><div id="log" class="log-container"></div></div>
+<div id="view-office-chat" style="display:none;">
+<div id="chat-messages" class="chat-container"><div class="chat-empty">Loading office chat...</div></div>
+<div class="chat-input-row">
+<input type="text" id="chat-input" placeholder="Type message to office chat..." maxlength="180" onkeydown="if(event.key==='Enter') sendChat();">
+<button class="btn btn-cyan" onclick="sendChat()" style="padding:6px 12px;">SEND</button>
+</div>
+</div>
+</div>
+</div>
+<!-- COLUMN 2 -->
+<div class="column">
+<div class="panel">
+<div class="panel-header">
+<span>SCRAP FABRICATION</span>
+<span style="font-size:10px; color:var(--amber);">10 TICKETS = 1 SCRAP</span>
+</div>
+<div style="display:flex; gap:6px;">
+<button class="btn btn-cyan" style="flex:1; padding:8px 4px;" onclick="buyScrap(100)">+100 SCRAP (1K T)</button>
+<button class="btn btn-cyan" style="flex:1; padding:8px 4px;" onclick="buyScrap(1000)">+1,000 SCRAP (10K T)</button>
+<button class="btn btn-gold" style="flex:1; padding:8px 4px;" onclick="buyMaxScrap()">BUY MAX</button>
+</div>
+</div>
+<div class="panel">
+<div class="panel-header">
+<span>🌳 THE OFFICE PLANT</span>
+<span style="font-size:10px; color:var(--amber);">LEGACY POINTS: <span id="lp-count2"></span></span>
+</div>
+<div id="lp-shop"></div>
+</div>
+<div class="panel">
+<div class="panel-header">CYBERNETIC LOADOUT (EQUIPPED)</div>
+<div class="loadout-grid">
+<div class="loadout-slot" id="slot-HEAD"><div class="loadout-slot-label">HEAD</div><div id="slot-HEAD-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+<div class="loadout-slot" id="slot-RIG"><div class="loadout-slot-label">RIG</div><div id="slot-RIG-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+<div class="loadout-slot" id="slot-TOOL"><div class="loadout-slot-label">TOOL</div><div id="slot-TOOL-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+<div class="loadout-slot" id="slot-AUGMENT"><div class="loadout-slot-label">AUGMENT</div><div id="slot-AUGMENT-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+<div class="loadout-slot" id="slot-OS"><div class="loadout-slot-label">OS</div><div id="slot-OS-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+<div class="loadout-slot" id="slot-RELIC"><div class="loadout-slot-label">RELIC</div><div id="slot-RELIC-name" style="font-size:11px; font-weight:700;">EMPTY</div></div>
+</div>
+</div>
+<div id="forge-mount"></div>
+<div class="panel">
+<div class="panel-header">
+<span>BACKPACK STORAGE</span>
+<span style="font-size:10px; color:var(--text-dim);" id="bp-count">0 / 400</span>
+</div>
+<div class="bp-controls">
+<select id="bp-filter" class="adv-select" onchange="setBackpackFilter(this.value)">
+<option value="ALL">All slots</option>
+<option value="HEAD">🧠 HEAD</option><option value="RIG">🦾 RIG</option>
+<option value="TOOL">🔧 TOOL</option><option value="AUGMENT">💉 AUGMENT</option>
+<option value="OS">💾 OS</option><option value="RELIC">🔮 RELIC</option>
+</select>
+<label><input type="checkbox" id="chk-upgrades" onchange="setUpgradesOnly(this.checked)"> Upgrades only</label>
+<span style="margin-left:auto;">Autosell:
+<select id="sel-autosell" class="adv-select" onchange="setAutosellTier(this.value)">
+<option value="0">Off</option><option value="1">≤ T1</option><option value="2">≤ T2</option><option value="3">≤ T3</option><option value="4">≤ T4</option>
+</select>
+</span>
+</div>
+<div class="autosell-info" id="autosell-info"></div>
+<div class="bp-controls" style="background:var(--bg-panel-elevated); padding:6px; border-radius:4px;">
+<span>Scrap up to</span>
+<select id="scrap-tier" class="adv-select" onchange="refreshScrapButton()">
+<option value="1">T1 Common</option><option value="2" selected>T2 Rare</option><option value="3">T3 Epic</option>
+<option value="4">T4 Legendary</option><option value="5">T5 Mythic</option>
+</select>
+<label><input type="checkbox" id="scrap-keep-merged" checked onchange="refreshScrapButton()"> keep merged</label>
+<label><input type="checkbox" id="scrap-keep-upgrades" checked onchange="refreshScrapButton()"> keep upgrades</label>
+<button class="btn btn-crimson" id="btn-scrap-tier" style="width:100%;" onclick="scrapByTier()">SCRAP</button>
+</div>
+<div class="backpack-container" id="backpack-grid"></div>
+</div>
+</div>
+<!-- COLUMN 3 -->
+<div class="column">
+<div class="panel">
+<div class="panel-header">
+<span>COMPANY CHEST</span>
+<span class="chest-lvl-tag">LVL <span id="chest-lvl">1</span></span>
+</div>
+<div class="odds-table">
+<div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t0);">🗑️ Empty</div><div class="odds-val" id="odd-trash" style="color:var(--rarity-t0);">45.0%</div></div>
+<div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t1);">⚪ Common T1</div><div class="odds-val" id="odd-t1" style="color:var(--rarity-t1);">45.0%</div></div>
+<div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t2);">🔵 Rare T2</div><div class="odds-val" id="odd-t2" style="color:var(--rarity-t2);">9.8%</div></div>
+<div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t3);">🟣 Epic T3</div><div class="odds-val" id="odd-t3" style="color:var(--rarity-t3);">0.20%</div></div>
+<div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t4);">🟡 Legendary T4</div><div class="odds-val" id="odd-t4" style="color:var(--rarity-t4);">0.01%</div></div>
+<div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t5);">🔴 Mythic T5</div><div class="odds-val" id="odd-t5" style="color:var(--rarity-t5);">0.001%</div></div>
+<div class="odds-cell odds-t6" title="Prismatic (T6): every HIGH STAKES chapter boss unlocks T6 drops for one body slot (chest LV 50+)"><div class="odds-name" style="color:var(--rarity-t6);">🌌 Prismatic T6</div><div class="odds-val" id="odd-t6" style="color:var(--rarity-t6);">🔒 BOSS</div></div>
+</div>
+<div style="font-size:10px; color:var(--text-dim); margin-bottom:6px;" id="chest-next-info"></div>
+<div class="chest-result" id="chest-result"></div>
+<div style="display:flex; gap:6px; margin-bottom:6px;">
+<button class="btn btn-crimson" id="btn-open-chest" data-hold="chest1" style="flex:1; padding:10px 6px;" onclick="openCompanyChest(1)">OPEN ×1</button>
+<button class="btn btn-crimson" id="btn-open-chest10" data-hold="chest10" style="flex:1; padding:10px 6px;" onclick="openCompanyChest(10)">OPEN ×10</button>
+</div>
+<div style="display:flex; gap:6px;">
+<button class="btn btn-gold" id="btn-upgrade-chest" data-hold="chestup" style="flex:1; padding:8px 6px;" onclick="upgradeCompanyChest()">UPGRADE (<span id="chest-upgrade-cost">100</span> GC)</button>
+<button class="btn btn-cyan" id="btn-token" style="flex:1; padding:8px 6px;" disabled onclick="openTokenPicker(event)">🎟 USE SLOT TOKEN (0)</button>
+</div>
+</div>
+<div class="panel">
+<div class="panel-header">
+<span>CASINO ROYALE</span>
+<span style="font-size:10px; color:var(--amber);">GOOGLE COINS GAMBLING</span>
+</div>
+<div class="tab-row">
+<button class="casino-tab-btn active" id="tab-btn-roulette" onclick="switchCasinoTab('roulette')">🎰 ROULETTE</button>
+<button class="casino-tab-btn" id="tab-btn-slots" onclick="switchCasinoTab('slots')">🍒 SLOTS</button>
+<button class="casino-tab-btn" id="tab-btn-blackjack" onclick="switchCasinoTab('blackjack')">♠️ BLACKJACK</button>
+<button class="casino-tab-btn" id="tab-btn-mega" onclick="switchCasinoTab('mega')">💰 MEGA 5×5</button>
+<button class="casino-tab-btn" id="tab-btn-crash" onclick="switchCasinoTab('crash')">🚀 CRASH</button>
+</div>
+<!-- ROULETTE -->
+<div id="view-roulette">
+<div class="ticker-wrap"><div class="ticker-move" id="ticker-recent"><span>Recent Rolls: Loading live office feed...</span></div></div>
+<div class="ticker-wrap" style="border-color:rgba(255,184,0,0.25);"><div class="ticker-move" id="ticker-top" style="color:var(--amber);"><span>Top Jackpots: Loading...</span></div></div>
+<div class="r-hist" id="r-hist" title="Last 6 roulette results (everyone)"><span class="r-hist-lbl">LAST 6</span></div>
+<div class="roulette-viewport">
+<div class="roulette-marker"></div>
+<div class="roulette-track" id="roulette-track"></div>
+</div>
+<div class="roulette-result" id="roulette-result"></div>
+<div class="bal-line">Balance: <span id="bal-roulette">0 GC</span> · <span id="roulette-cd" style="color:var(--cyan);">READY</span></div>
+<div class="wager-row">
+<span style="font-size:11px;">BET:</span>
+<input type="number" id="wager-input" min="10" step="10" value="100">
+<button class="btn" onclick="wagerMul(0.5)">½</button>
+<button class="btn" onclick="wagerMul(2)">2×</button>
+<button class="btn" onclick="wagerPct(0.1)">10%</button>
+<button class="btn" onclick="wagerPct(0.25)">25%</button>
+<button class="btn" onclick="wagerPct(0.5)">50%</button>
+<button class="btn btn-gold" onclick="wagerPct(1)">MAX</button>
+</div>
+<div class="bet-grid">
+<button class="btn btn-crimson" onclick="placeRouletteBet('red')">RED (2×)</button>
+<button class="btn" style="background:#1a1e28; border-color:#2a3245;" onclick="placeRouletteBet('black')">BLACK (2×)</button>
+<button class="btn" style="background:#008744; border-color:#00ff88; color:#fff;" onclick="placeRouletteBet('zero')">ZERO (36×)</button>
+<button class="btn btn-cyan" onclick="placeRouletteBet('low')">1-18 (2×)</button>
+<button class="btn btn-gold" style="grid-column:span 2;" onclick="placeRouletteBet('high')">19-36 (2×)</button>
+</div>
+</div>
+<!-- SLOTS -->
+<div id="view-slots" style="display:none;">
+<div class="bal-line">Balance: <span id="bal-slots">0 GC</span></div>
+<div class="slots-window">
+<div class="slot-reel" id="reel-1">🍒</div>
+<div class="slot-reel" id="reel-2">🔔</div>
+<div class="slot-reel" id="reel-3">💎</div>
+</div>
+<div class="slots-banner" id="slots-banner"></div>
+<div style="display:flex; justify-content:space-around; font-size:10px; color:var(--text-dim); margin-bottom:8px;">
+<span>🍒 3× = 5×</span><span>🔔 3× = 15×</span><span>7️⃣ 3× = 50×</span><span style="color:var(--amber);">💎 3× = 500×</span>
+</div>
+<div style="display:flex; gap:6px; align-items:center;">
+<input type="number" id="slots-bet" min="10" step="10" value="50" style="width:90px; background:#000; border:1px solid var(--border-subtle); color:#fff; padding:6px; border-radius:4px; font-family:'Orbitron'; font-size:11px;">
+<button class="btn btn-crimson" id="btn-slots-spin" style="flex:1; padding:8px 0;" onclick="spinSlots()">PULL LEVER (SPIN)</button>
+</div>
+</div>
+<!-- BLACKJACK -->
+<div id="view-blackjack" style="display:none;">
+<div class="bal-line">Balance: <span id="bal-bj">0 GC</span></div>
+<div class="bj-table">
+<div class="bj-area">
+<div class="bj-label">DEALER: <span id="bj-dealer-score" style="color:#fff; font-size:16px;">0</span></div>
+<div class="bj-cards" id="bj-dealer-cards"></div>
+</div>
+<div class="bj-area">
+<div class="bj-label">YOU: <span id="bj-player-score" style="color:#fff; font-size:16px;">0</span></div>
+<div class="bj-cards" id="bj-player-cards"></div>
+</div>
+</div>
+<div class="bj-result idle" id="bj-result">Place a bet and deal.</div>
+<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+<span style="font-size:11px;">BET:</span>
+<input type="number" id="bj-bet" min="10" step="10" value="100" style="width:100px; background:#000; border:1px solid var(--border-subtle); color:#fff; padding:5px; border-radius:4px; font-family:'Orbitron'; font-size:11px;">
+<button class="btn btn-gold" id="btn-bj-deal" style="flex:1; padding:8px;" onclick="startBlackjackGame()">DEAL</button>
+</div>
+<div style="display:flex; gap:6px;">
+<button class="btn btn-cyan" id="btn-bj-hit" style="flex:1; padding:8px;" disabled onclick="bjHit()">HIT</button>
+<button class="btn btn-crimson" id="btn-bj-stand" style="flex:1; padding:8px;" disabled onclick="bjStand()">STAND</button>
+<button class="btn" id="btn-bj-double" style="flex:1; padding:8px;" disabled onclick="bjDouble()">DOUBLE</button>
+</div>
+<div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:6px;">Blackjack pays 2.5× · ✋ <b style="color:var(--amber);">Five-Card Charlie</b>: 5 cards without busting = automatic win</div>
+</div>
+<!-- MEGA 5x5 -->
+<div id="view-mega" style="display:none;">
+<div class="bal-line">Balance: <span id="bal-mega">0 GC</span></div>
+<div class="mega-wrap">
+<div class="mega-grid" id="mega-grid"></div>
+<svg class="mega-lines" id="mega-lines" viewBox="0 0 500 500" preserveAspectRatio="none"></svg>
+<div class="mega-banner" id="mega-banner"></div>
+</div>
+<div class="slots-banner" id="mega-msg">10 lines · ⭐ wild · 💰 3+ anywhere = bonus (5× 💰 = 250× JACKPOT)</div>
+<div class="wager-row">
+<span style="font-size:11px;">BET:</span>
+<input type="number" id="mega-bet" min="10" step="10" value="100">
+<button class="btn" onclick="Mega.betMul(0.5)">½</button>
+<button class="btn" onclick="Mega.betMul(2)">2×</button>
+<button class="btn" onclick="Mega.payTable()">PAYTABLE</button>
+</div>
+<div style="display:flex; gap:6px;">
+<button class="btn btn-crimson" id="mega-spin" style="flex:2; padding:9px 0;" onclick="Mega.spin()">SPIN</button>
+<button class="btn btn-gold" id="mega-auto" style="flex:1;" onclick="Mega.auto(10)">AUTO ×10</button>
+<button class="btn btn-gold" id="mega-auto25" style="flex:1;" onclick="Mega.auto(25)">×25</button>
+</div>
+</div>
+<!-- CRASH -->
+<div id="view-crash" style="display:none;">
+<div class="bal-line">Balance: <span id="bal-crash">0 GC</span></div>
+<div class="crash-wrap"><canvas id="crash-canvas" width="440" height="220"></canvas><div class="crash-mult" id="crash-mult">1.00×</div></div>
+<div class="crash-hist" id="crash-hist"></div>
+<div class="slots-banner" id="crash-msg">The line grows exponentially. Cash out before it crashes!</div>
+<div class="wager-row">
+<span style="font-size:11px;">BET:</span>
+<input type="number" id="crash-bet" min="10" step="10" value="100">
+<span style="font-size:11px;">AUTO CASH-OUT:</span>
+<input type="number" id="crash-auto" min="1.01" step="0.1" value="2.00" style="width:80px;">
+</div>
+<button class="btn btn-crimson" id="crash-btn" style="width:100%; padding:11px 0; font-size:13px;" onclick="Crash.press()">START (BET)</button>
+</div>
+</div>
+<div id="adv-minigames-mount"></div>
+<div class="panel">
+<div class="panel-header">SEASON TOP 10 TYCOONS</div>
+<table class="lb-table">
+<thead><tr><th>#</th><th>TYCOON</th><th>PRES</th><th>CHEST</th><th title="HIGH STAKES missions cleared">🎰</th><th>SCORE</th><th>GAMBLE</th></tr></thead>
+<tbody id="lb-body"><tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Syncing database...</td></tr></tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- CONSULT -->
+<div class="panel" style="border-color:rgba(0,240,255,0.25);">
+<div class="panel-header">
+<span>T2 / SME CONSULT ESCALATION PROTOCOL</span>
+<span style="color:var(--cyan); font-size:10px;">HIGH-STAKES DISPATCH SYSTEM</span>
+</div>
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+<div style="font-size:11px; color:var(--text-dim); max-width:760px;">
+Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose 1-10 min of Auto GC. <b>BUG</b> (10%): 50/50 chamber = ×5-10 click power or -50% for 60 s.
+</div>
+<div style="display:flex; gap:6px; flex-wrap:wrap;">
+<button class="btn btn-cyan" id="btn-consult-launch" onclick="launchConsultEscalation()">DISPATCH CONSULT (5,000 SCRAP)</button>
+<button class="btn btn-cyan" id="btn-consult-bulk" onclick="consultBulk(5)">×5 INSTANT (25,000)</button>
+<button class="btn btn-gold" id="btn-consult-auto" onclick="toggleConsultAuto()">🐞 BUGROLL (AUTO UNTIL BUG)</button>
+<span class="consult-scrap" style="font:700 11px 'Orbitron',monospace;color:var(--amber);align-self:center;white-space:nowrap;">🔩 <span id="consult-scrap">0</span> SCRAP</span>
+</div>
+</div>
+<div class="consult-grid">
+<div class="consult-zone-card" id="zone-emea"><div class="zone-name" style="color:var(--cyan);">EMEA NODE</div><div class="zone-odds">Selection: 25% | Win: 55% | Loss: 35% | BUG: 10%</div></div>
+<div class="consult-zone-card" id="zone-apac"><div class="zone-name" style="color:var(--amber);">APAC NODE</div><div class="zone-odds">Selection: 35% | Win: 45% | Loss: 45% | BUG: 10%</div></div>
+<div class="consult-zone-card" id="zone-hindi"><div class="zone-name" style="color:var(--crimson);">HINDI NODE</div><div class="zone-odds">Selection: 40% | Win: 35% | Loss: 55% | BUG: 10%</div></div>
+</div>
+<div class="scanner-display" id="consult-display">SYSTEM READY // AWAITING CONSULT DISPATCH ORDER</div>
+<div class="bug-chamber" id="consult-bug-box" style="display:none;">
+<div class="bug-card" id="bug-card-win"><div style="font-family:'Orbitron'; font-weight:700; color:var(--emerald);">PROTOCOL OVERDRIVE</div><div style="font-size:11px; margin-top:2px;">×5 to ×10 Click Power for 60 Seconds</div></div>
+<div class="bug-card" id="bug-card-loss"><div style="font-family:'Orbitron'; font-weight:700; color:var(--crimson);">SYSTEM CRASH</div><div style="font-size:11px; margin-top:2px;">-50% Auto GC & -50% Click Power for 60 Seconds</div></div>
+</div>
+</div>
+</div>
+<!-- TUTORIAL -->
+<div class="tt-overlay" id="tt-overlay">
+<div class="tt-modal">
+<h2 id="tt-title">WELCOME</h2>
+<div class="tt-body" id="tt-body"></div>
+<div class="tt-nav">
+<button class="btn" id="tt-prev" onclick="tutorialStep(-1)">◀ BACK</button>
+<div class="tt-dots" id="tt-dots"></div>
+<button class="btn btn-cyan" id="tt-next" onclick="tutorialStep(1)">NEXT ▶</button>
+</div>
+<div style="text-align:right; margin-top:8px;"><button class="btn" style="font-size:10px;" onclick="closeTutorial()">CLOSE</button></div>
+</div>
+</div>
+<!-- SLOT TOKEN PICKER -->
+<div class="tt-overlay" id="token-overlay">
+<div class="tt-modal">
+<h2>🎟 SLOT TOKEN</h2>
+<div style="font-size:13px; color:var(--text-dim);">Pick a body slot. The item you have equipped there gets <b>+1 merge level</b>. If the slot is empty or already maxed, a new item is rolled instead (Rare to Legendary). Use the mouse - the keyboard is disabled here.</div>
+<div class="token-grid" id="token-slots"></div>
+<div style="display:flex; gap:8px;">
+<button class="btn btn-gold" id="token-confirm" style="flex:1; padding:10px;" disabled onclick="confirmTokenRoll(event)">PICK A SLOT FIRST</button>
+<button class="btn" onclick="closeTokenPicker(event)">CANCEL</button>
+</div>
+</div>
+</div>
+<!-- OTHER TAB OPEN -->
+<div class="tt-overlay" id="tab-block">
+<div class="tt-modal" style="text-align:center;">
+<h2>GAME ALREADY OPEN</h2>
+<div class="tt-body" style="min-height:60px;">Ticket Tycoon is open in another tab. Two tabs would overwrite each other's progress.</div>
+<button class="btn btn-gold" style="padding:10px 18px;" onclick="takeOverTab()">USE THIS TAB</button>
+</div>
+</div>
+<div class="update-banner" id="update-banner"><span id="update-banner-text">New version available</span></div>
+  <?!= include('office'); ?>
+  <?!= include('casino'); ?>
+  <?!= include('system'); ?>
+  <?!= include('minigames'); ?>
+  <?!= include('special'); ?>
+  <?!= include('meta'); ?>
+  <?!= include('hs_core'); ?>
+  <?!= include('hs_ui'); ?>
+  <?!= include('hs'); ?>
+  <?!= include('prsi'); ?>
+  <?!= include('hs_modes'); ?>
+  <?!= include('mobile'); ?>
+  <?!= include('part13'); ?>
+  <?!= include('part14'); ?>
+  <?!= include('part15'); ?>
+  <?!= include('part16'); ?>
+  <?!= include('part17'); ?>
+<script>
+/* Kontrola po vložení: když se některý soubor nezkopíroval celý, ukáže se červená lišta s jeho jménem. */
+(function () {
+var need = ["office", "casino", "system", "minigames", "special", "meta", "hs_core", "hs_ui", "hs", "prsi", "hs_modes", "mobile", "part13", "part14", "part15", "part16", "part17"], got = window.__TT_FILES || {};
+var bad = need.filter(function (k) { return !got[k]; });
+if (bad.length) {
+var d = document.createElement("div");
+d.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00020;color:#fff;font:700 14px monospace;padding:10px;text-align:center;";
+d.textContent = "COPY ERROR - these files did not load: " + bad.join(", ") + " (re-copy them from the Docs folder: open the Doc, Ctrl+A, Ctrl+C, paste over the whole file)";
+document.body.appendChild(d);
+}
+})();
+</script>
+</body>
+</html>
+<!-- END-OF-FILE: index -->

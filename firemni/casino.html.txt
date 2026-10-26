@@ -1,0 +1,908 @@
+function renderMergeStation() {
+const box = document.getElementById("merge-list");
+if (!box) return;
+const list = gameState.inventory.filter(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL && !enhOf(s))
+.sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0)));
+const eg = enhMergeGroups();
+const sig = list.map(stackKey).join(",") + "#" + list.map(x => x.n).join(",") + "#" + eg.map(g => g.key + g.best.e + g.eq + g.lost).join(",");
+if (_txt.mergeSig === sig) return; _txt.mergeSig = sig;
+setHtml("merge-skip", eg.length ? `MERGE ALL skips ⚒ items (${eg.length} group${eg.length > 1 ? "s" : ""})` : "");
+if (list.length === 0 && eg.length === 0) {
+box.innerHTML = `<div class="bp-empty" style="padding:12px;">No ${MERGE_COUNT}× identical items ready to merge.</div>`;
+return;
+}
+box.innerHTML = eg.map(g => {
+const E = g.best.e.length;
+return `<div class="merge-card" style="border-color:rgba(255,184,0,.45);">
+<div class="merge-card-info">
+<span class="merge-card-title" style="color:var(--rarity-t${g.tier});">${itemName(g)} +${g.lvl} <span class="enh-tag">⚒${E} → ⚒${Math.max(0, E - 1)}</span></span>
+<span class="merge-card-count">${g.units.length} available${g.eq ? " · incl. equipped" : ""} &bull; ${MERGE_COUNT}× → +${g.lvl + 1}${g.lost ? " · uses up ⚒" + g.lost : ""}</span>
+</div>
+<div style="display:flex;gap:4px;"><button class="btn btn-gold" onclick="mergeEnh('${g.key}')">MERGE</button></div>
+</div>`;
+}).join("") + list.map(s => {
+const key = stackKey(s);
+const times = Math.floor(s.n / MERGE_COUNT);
+return `<div class="merge-card">
+<div class="merge-card-info">
+<span class="merge-card-title" style="color:var(--rarity-t${s.tier});">${itemName(s)} +${s.lvl || 0}</span>
+<span class="merge-card-count">${s.n} owned &bull; ${MERGE_COUNT}× → +${(s.lvl || 0) + 1}</span>
+</div>
+<div style="display:flex;gap:4px;">
+<button class="btn btn-cyan" onclick="performSmartMerge('${key}',1)">×1</button>
+${times > 1 ? `<button class="btn btn-gold" onclick="performSmartMerge('${key}',${times})">ALL (${times})</button>` : ""}
+</div>
+</div>`;
+}).join("");
+}
+function mergeAll() {
+let ok = 0, crit = 0, fail = 0, refund = 0, rounds = 0;
+for (; rounds < 60; rounds++) {
+const s = gameState.inventory.filter(x => x.n >= MERGE_COUNT && (x.lvl || 0) < MERGE_MAX_LVL && !enhOf(x))
+.sort((a, b) => (a.lvl || 0) - (b.lvl || 0))[0];
+if (!s) break;
+const r = mergeStack(s, Math.floor(s.n / MERGE_COUNT));
+ok += r.ok; crit += r.crit; fail += r.fail; refund += r.refund;
+}
+if (!ok && !fail) { log("Nothing to merge.", "warning"); return; }
+gameState.scrap += refund;
+log(`MERGE ALL: ${ok} merges${crit ? " (" + crit + " crit +2)" : ""}${fail ? ", " + fail + " failed (+" + refund + " scrap)" : ""}.`, "special");
+updateUI();
+TT.saveSoon();
+}
+function mergeStack(s0, times) {
+const key = stackKey(s0);
+const slot = s0.slot, tier = s0.tier, lvl = s0.lvl || 0;
+const r = { ok: 0, crit: 0, fail: 0, refund: 0, done: 0 };
+for (let i = 0; i < times; i++) {
+if (!invTake(key, MERGE_COUNT)) break;
+r.done++;
+const roll = Math.random() * 100;
+if (roll < 5) {
+r.fail++;
+r.refund += Math.floor(itemScrapValue({ tier: tier, lvl: lvl }) * MERGE_COUNT * 0.5);
+} else {
+const bonus = roll < 15 ? 2 : 1;
+if (bonus === 2) r.crit++;
+invAdd(slot, tier, Math.min(MERGE_MAX_LVL, lvl + bonus), 1);
+r.ok++;
+}
+}
+return r;
+}
+function performSmartMerge(key, times) {
+const s0 = invByKey(key);
+if (!s0) return;
+const slot = s0.slot, tier = s0.tier, lvl = s0.lvl || 0;
+let ok = 0, crit = 0, fail = 0, refund = 0, done = 0;
+for (let i = 0; i < times; i++) {
+if (!invTake(key, MERGE_COUNT)) break;
+done++;
+const roll = Math.random() * 100;
+if (roll < 5) {
+fail++;
+refund += Math.floor(itemScrapValue({ tier: tier, lvl: lvl }) * MERGE_COUNT * 0.5);
+} else {
+const bonus = roll < 15 ? 2 : 1;
+if (bonus === 2) crit++;
+invAdd(slot, tier, Math.min(MERGE_MAX_LVL, lvl + bonus), 1);
+ok++;
+}
+}
+if (done === 0) { log(`Cannot merge: need ${MERGE_COUNT} identical items.`, "warning"); return; }
+gameState.scrap += refund;
+const name = itemName({ slot: slot, tier: tier });
+log(`MERGE ${name} +${lvl}: ${ok} success${crit ? " (" + crit + " crit +2)" : ""}${fail ? ", " + fail + " failed (+" + refund + " scrap salvaged)" : ""}.`, crit || ok ? "special" : "error");
+updateUI();
+}
+</script>
+<script>
+let lastLoopAt = Date.now();
+setInterval(function gameLoop() {
+const now = Date.now();
+let dt = (now - lastLoopAt) / 1000;
+lastLoopAt = now;
+if (!(dt > 0)) dt = 0;
+if (dt > MAX_LOOP_DT) dt = MAX_LOOP_DT;
+if (gameLoaded && dt > 0) {
+if (gameState.focusAutogenActive) {
+const use = Math.min(dt, gameState.focusAutogenRemaining);
+const gain = calculateAutoGcRate() * use;
+if (gain > 0) gameState.coins += gain;
+gameState.focusAutogenRemaining -= use;
+if (gameState.focusAutogenRemaining <= 0.001) {
+gameState.focusAutogenActive = false;
+gameState.focusAutogenRemaining = 0;
+log("45M Focus Autogen session completed. Start it again to renew.");
+}
+}
+autoclickerTick(dt);
+if (gameState.consultBuff.active && now > gameState.consultBuff.expiresAt) {
+gameState.consultBuff.active = false;
+log("Consult buff/debuff has expired.");
+}
+}
+updateUI();
+}, 1000);
+setInterval(updateHud, 250);
+setInterval(function () { saveGame(); }, 12000);
+function fmtTime(sec) {
+sec = Math.max(0, Math.floor(sec));
+return Math.floor(sec / 60) + ":" + (sec % 60 < 10 ? "0" : "") + (sec % 60);
+}
+function buffChips() {
+const g = gameState;
+const chips = [];
+chips.push(`<span class="buff-chip" title="1 + prestige ${g.prestige}×0.25 + gear multipliers">⚡ MULT ${calculateNetMultiplier().toFixed(2)}×</span>`);
+if (g.lpUp.click) chips.push(`<span class="buff-chip lp">★ +${Math.round(g.lpUp.click * 10)}% click</span>`);
+if (g.lpUp.auto) chips.push(`<span class="buff-chip lp">★ +${Math.round(g.lpUp.auto * 10)}% auto</span>`);
+if (g.prestige >= 5) chips.push(`<span class="buff-chip">🔁 AUTO ×${Math.pow(2, Math.floor(g.prestige / 5))}</span>`);
+if (g.focusAutogenActive) chips.push(`<span class="buff-chip on">⏱ AUTOGEN ${fmtTime(g.focusAutogenRemaining)}</span>`);
+if (g.autoclicker.running) chips.push(`<span class="buff-chip on">🤖 AUTOCLICK ${fmtTime(g.autoclicker.charge)}</span>`);
+if (buffActive()) {
+const b = g.consultBuff;
+const left = Math.max(0, Math.ceil((b.expiresAt - Date.now()) / 1000));
+chips.push(b.type === "overdrive"
+? `<span class="buff-chip on">🚀 OVERDRIVE ×${b.clickMult.toFixed(1)} · ${left}s</span>`
+: `<span class="buff-chip bad">💥 CRASH −50% · ${left}s</span>`);
+}
+if (window.Meta && Meta.current()) chips.push(Meta.chip());
+if (window.Colleague) { const cc = Colleague.chip(); if (cc) chips.push(cc); }
+if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">🎟 ${g.slotTokens} token${g.slotTokens > 1 ? "s" : ""}</span>`);
+if (window.Dungeon && Dungeon.netMultBonus() > 1) chips.push(`<span class="buff-chip lp" title="Permanent bonus from HIGH STAKES stars">🎰 STARS ×${Dungeon.netMultBonus().toFixed(2)}</span>`);
+return chips.join("");
+}
+function updateHud() {
+if (!document.getElementById("stat-tickets")) return;
+const g = gameState;
+const coinsTxt = Math.floor(g.coins).toLocaleString();
+setTxt("user-display", g.ldap || "AGENT");
+setTxt("stat-tickets", Math.floor(g.tickets).toLocaleString());
+setTxt("stat-coins", coinsTxt);
+setTxt("stat-scrap", Math.floor(g.scrap).toLocaleString());
+const cp = calculateClickPower();
+const cpTxt = Number.isInteger(cp) ? cp.toLocaleString() : cp.toFixed(2);
+setTxt("stat-click", cpTxt);
+setTxt("click-val", cpTxt);
+setTxt("stat-gc-sec", calculateAutoGcRate().toFixed(1));
+const mult = calculateNetMultiplier();
+setTxt("stat-mult", mult.toFixed(2) + "×");
+setTxt("multiplier-badge", "MULT: " + mult.toFixed(2) + "×");
+setTxt("stat-cps", getLiveCps().toFixed(1));
+const hNow = heatNow(Date.now());
+const hb = document.getElementById("heat-fill");
+if (hb) {
+const over = isOverheated();
+hb.style.width = (over ? 100 : hNow) + "%";
+hb.style.background = over ? "var(--crimson)" : (hNow > 60 ? "var(--amber)" : "var(--cyan)");
+setTxt("heat-txt", over ? "OVERHEATED " + Math.ceil((overheatUntil - Date.now()) / 1000) + "s" : Math.round(hNow) + "%");
+const cb = document.getElementById("btn-click");
+if (cb) cb.classList.toggle("overheated", over);
+}
+setTxt("stat-peak-cps", g.peakCps.toFixed(1));
+["bal-roulette", "bal-slots", "bal-bj", "bal-chicken", "bal-pachinko", "bal-showdown"].forEach(id => setTxt(id, coinsTxt + " GC"));
+setHtml("buff-row", buffChips());
+const btnAg = document.getElementById("btn-autogen");
+if (g.focusAutogenActive) {
+setTxt("autogen-timer", fmtTime(g.focusAutogenRemaining) + " ACTIVE");
+if (btnAg) { btnAg.disabled = true; setTxt("btn-autogen", "AUTOGEN IN PROGRESS"); }
+} else {
+setTxt("autogen-timer", "IDLE / READY");
+if (btnAg) { btnAg.disabled = false; setTxt("btn-autogen", "START 45M AUTOGEN"); }
+}
+const ac = g.autoclicker;
+setTxt("ac-charge", Math.floor(ac.charge) + "s / " + AC_MAX_CHARGE + "s");
+const barA = document.getElementById("ac-bar-fill");
+if (barA) barA.style.width = Math.min(100, ac.charge / AC_MAX_CHARGE * 100) + "%";
+setTxt("ac-next", Math.max(0, AC_CLICKS_PER_SEC - ac.clicks) + " clicks");
+const barN = document.getElementById("ac-next-fill");
+if (barN) barN.style.width = Math.min(100, ac.clicks / AC_CLICKS_PER_SEC * 100) + "%";
+setTxt("ac-avg", ac.avgCps.toFixed(1));
+setTxt("consult-scrap", Math.floor(g.scrap).toLocaleString());
+updateClickRing();
+const btnAc = document.getElementById("btn-autoclick");
+if (btnAc) {
+setTxt("btn-autoclick", ac.running ? `STOP AUTOCLICKER (${Math.floor(ac.charge)}s left)` : (ac.charge >= 1 ? "START AUTOCLICKER" : `AUTOCLICKER (${AC_CLICKS_PER_SEC} CLICKS = +1s)`));
+btnAc.className = ac.running ? "btn btn-crimson" : "btn btn-gold";
+}
+setTxt("prestige-lvl", g.prestige);
+setTxt("prestige-bonus", Math.pow(2, Math.floor(g.prestige / 5)).toFixed(1) + "×");
+setTxt("lp-count", g.lp);
+const nextCost = getPrestigeCost(g.prestige);
+const costTxt = nextCost >= 1e9 ? (nextCost / 1e9).toFixed(2) + "B" : nextCost >= 1e6 ? (nextCost / 1e6).toFixed(2) + "M" : (nextCost / 1e3).toFixed(1) + "K";
+const armed = Date.now() < prestigeArmedUntil;
+setTxt("btn-prestige", armed ? "⚠ CLICK AGAIN TO CONFIRM (resets your run!)" : `ASCEND PRESTIGE (${costTxt} TICKETS · +${lpGainFor(g.prestige + 1)} LP)`);
+const chestCost = getChestScrapCost();
+setTxt("btn-open-chest", `OPEN ×1 (${chestCost.toLocaleString()} SCRAP)`);
+setTxt("btn-open-chest10", `OPEN ×10 (${(chestCost * 10).toLocaleString()})`);
+setTxt("chest-lvl", g.chestLevel);
+setTxt("chest-upgrade-cost", getChestUpgradeCost(g.chestLevel).toLocaleString());
+const o = getChestOdds(g.chestLevel);
+setTxt("odd-trash", o.trash.toFixed(1) + "%");
+setTxt("odd-t1", o.t1.toFixed(1) + "%");
+setTxt("odd-t2", o.t2.toFixed(1) + "%");
+setTxt("odd-t3", o.t3.toFixed(2) + "%");
+setTxt("odd-t4", o.t4.toFixed(2) + "%");
+setTxt("odd-t6", o.t6 > 0 ? o.t6.toFixed(3) + "%" : (g.chestLevel < T6_UNLOCK_LVL && window.Dungeon && Dungeon.t6Slots && Dungeon.t6Slots().length ? "🔒 LVL " + T6_UNLOCK_LVL : "🔒 BOSS"));
+setTxt("odd-t5", g.chestLevel < T5_UNLOCK_LVL ? "🔒 LVL " + T5_UNLOCK_LVL : o.t5.toFixed(3) + "%");
+const nf = chestLevelCostFactor(g.chestLevel + 1), cf = chestLevelCostFactor(g.chestLevel);
+setTxt("chest-next-info", (o.trash > 0
+? "Next level: -0.5% Empty, +0.8% Rare, +0.15% Epic (0% Empty at level 90)."
+: "Level 90+: 0% empty drops.") +
+(nf > cf ? ` ⚠ Next level makes opening ×${(nf / cf).toFixed(2)} more expensive.` : "") +
+(o.t6 > 0 ? ` 🌌 Prismatic T6: ${o.t6.toFixed(2)}% (${Dungeon.t6Slots().join(", ")}).`
+: " 🌌 Prismatic T6: beat HIGH STAKES chapter bosses to unlock body slots (drops from chest LV 50+)."));
+const btnTok = document.getElementById("btn-token");
+if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `🎟 USE SLOT TOKEN (${g.slotTokens})`); }
+setTxt("bp-count", `${g.inventory.length} / ${INV_MAX_STACKS} stacks · ${invItems()} items`);
+const cd = document.getElementById("roulette-cd");
+if (cd) {
+const rem = Math.max(0, Math.ceil((rouletteCooldownUntil - Date.now()) / 1000));
+if (!isRouletteSpinning) setTxt("roulette-cd", rem > 0 ? `COOLDOWN (${rem}s)` : "READY");
+const grid = document.querySelector("#view-roulette .bet-grid");
+if (grid) {
+let lab = isRouletteSpinning ? "🎰 SPINNING..." : rem > 0 ? `⏳ NEXT SPIN IN ${rem}s` : "";
+if (lab && window.Theme && Theme.isNew()) lab = Theme.conv(lab);
+grid.classList.toggle("cool", !!lab);
+if (grid.getAttribute("data-cd") !== lab) grid.setAttribute("data-cd", lab);
+}
+}
+const ss = document.getElementById("btn-slots-spin");
+if (ss) { ss.disabled = !!isSpinningSlots; setTxt("btn-slots-spin", isSpinningSlots ? "🎰 SPINNING..." : "PULL LEVER (SPIN)"); }
+}
+function updatePanels() {
+const g = gameState;
+const sig = g.inventory.map(s => s.slot + s.tier + "_" + (s.lvl || 0) + enhOf(s) + ":" + s.n).join(",") + "|" +
+SLOTS.map(s => g.loadout[s] ? g.loadout[s].tier + "_" + (g.loadout[s].lvl || 0) + enhOf(g.loadout[s]) : "-").join(",") + "|" + backpackFilter + upgradesOnly;
+if (sig === lastPanelSig) return;
+lastPanelSig = sig;
+renderLoadout();
+renderBackpack();
+renderMergeStation();
+refreshScrapButton();
+}
+let panelsQueued = false;
+function updateUI() {
+updateHud();
+renderLpShop(false);
+if (document.hidden) { updatePanels(); return; }
+if (panelsQueued) return;
+panelsQueued = true;
+requestAnimationFrame(function () { panelsQueued = false; updatePanels(); renderAutosellInfo(); });
+}
+</script>
+<script>
+/**
+* TICKET TYCOON v6.1 - CASINO  (soubor "casino")
+* Ruleta, sloty, blackjack a Consult escalation. Spoléhá na globály ze "script" (gameState, TT, log, updateUI ...).
+*/
+/** v8.6: cena consultu škáluje - 10 % aktuálního scrapu, minimum 5 000 */
+function consultCost() { return Math.floor(Math.max(5000, Math.floor((Number(gameState && gameState.scrap) || 0) * 0.10)) * (window.Plant ? Plant.fx("consult") : 1)); }
+const CONSULT_WIN_MIN = 5, CONSULT_WIN_MAX = 30;      // výhra = Auto GC/s x 60 x (5..30 minut)
+const CONSULT_LOSS_MIN = 1, CONSULT_LOSS_MAX = 10;    // prohra = Auto GC/s x 60 x (1..10 minut)
+const CONSULT_BUG_WIN_MIN = 5, CONSULT_BUG_WIN_MAX = 10;   // BUG výhra = click power x (5..10) na 60 s
+const CONSULT_MIN_WIN = 1000, CONSULT_MIN_LOSS = 200;
+/** v9.4: denní strop výher z consultu = 4 h Auto GC (dřív šlo hromadu scrapu z Climbu nekonečně měnit na GC) */
+const CONSULT_DAY_MIN = 240;
+function consultDayKey() { const d = new Date(); return "ir_cday_" + (gameState && gameState.ldap || "") + "_" + d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+function consultDayGot() { try { return Number(localStorage.getItem(consultDayKey())) || 0; } catch (e) { return 0; } }
+function consultDayAdd(v) { try { localStorage.setItem(consultDayKey(), String(consultDayGot() + Math.max(0, v))); } catch (e) {} }
+function consultDayLeft(rate) { return Math.max(0, Math.floor(rate * 60 * CONSULT_DAY_MIN) - consultDayGot()); }
+const ROULETTE_NUMBERS = [
+0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+];
+const RED_NUMS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+function $c(id) { return document.getElementById(id); }
+const CASINO_TABS = ["roulette", "slots", "blackjack"];
+function switchCasinoTab(tab) {
+CASINO_TABS.forEach(t => {
+const v = $c("view-" + t), b = $c("tab-btn-" + t);
+if (v) v.style.display = (t === tab ? "block" : "none");
+if (b) b.className = "casino-tab-btn" + (t === tab ? " active" : "");
+});
+window.dispatchEvent(new Event("resize"));
+}
+function getRouletteBet() {
+const max = Math.max(10, Math.floor(gameState.coins));
+return TT.cleanBet($c("wager-input").value, 10, max);
+}
+function setWager(v) {
+if (isRouletteSpinning) return;
+$c("wager-input").value = TT.cleanBet(v, 10, Math.max(10, Math.floor(gameState.coins)));
+}
+function wagerPct(p) { setWager(Math.floor(gameState.coins * p)); }
+function wagerMul(f) { setWager(Math.floor(getRouletteBet() * f)); }
+function initRouletteWheel() {
+const track = $c("roulette-track");
+if (!track) return;
+let html = "";
+for (let cycle = 0; cycle < 8; cycle++) {
+ROULETTE_NUMBERS.forEach(num => {
+const cls = num === 0 ? "zero" : (RED_NUMS.includes(num) ? "red" : "black");
+html += `<div class="r-slot ${cls}" data-num="${num}">${num}</div>`;
+});
+}
+track.innerHTML = html;
+}
+function placeRouletteBet(type) {
+if (isRouletteSpinning) return;
+if (Date.now() < rouletteCooldownUntil) {
+log("Roulette wheel is stabilizing. Please wait for the cooldown.", "warning");
+return;
+}
+const wager = getRouletteBet();
+$c("wager-input").value = wager;
+if (!TT.spend(wager)) {
+log("Insufficient Google Coins (GC) for this bet.", "warning");
+return;
+}
+isRouletteSpinning = true;
+rouletteCooldownUntil = Date.now() + 30000;
+$c("roulette-result").innerHTML = "";
+updateUI();
+const winningIndex = Math.floor(TT.rnd() * 37);
+const winningNum = ROULETTE_NUMBERS[winningIndex];
+const slotWidth = 48;
+const targetSlotIndex = (5 * 37) + winningIndex;
+const viewportWidth = document.querySelector(".roulette-viewport").offsetWidth || 340;
+const centerOffset = (viewportWidth / 2) - (slotWidth / 2);
+const jitter = (Math.random() * 14) - 7;
+const finalX = -(targetSlotIndex * slotWidth - centerOffset + jitter);
+const track = $c("roulette-track");
+track.style.transition = "none";
+track.style.transform = "translateX(0px)";
+setTimeout(() => {
+track.style.transition = "transform 6.2s cubic-bezier(0.1, 0.85, 0.25, 1)";
+track.style.transform = `translateX(${finalX}px)`;
+}, 30);
+setTimeout(() => {
+isRouletteSpinning = false;
+evaluateRouletteResult(winningNum, type, wager);
+updateUI();
+}, 6400);
+}
+function evaluateRouletteResult(num, betType, wager) {
+const isRed = RED_NUMS.includes(num);
+const isBlack = (num !== 0 && !isRed);
+let mult = 0;
+if (betType === "red" && isRed) mult = 2;
+else if (betType === "black" && isBlack) mult = 2;
+else if (betType === "zero" && num === 0) mult = 36;
+else if (betType === "low" && num >= 1 && num <= 18) mult = 2;
+else if (betType === "high" && num >= 19 && num <= 36) mult = 2;
+const colorName = num === 0 ? "GREEN" : (isRed ? "RED" : "BLACK");
+if (window.pushRouletteHistory) pushRouletteHistory({ user: gameState.ldap, num: String(num), color: colorName });
+const box = $c("roulette-result");
+if (mult > 0) {
+const payout = wager * mult;
+TT.win(payout);
+box.innerHTML = `<span style="color:var(--emerald);">[${num} ${colorName}] WIN +${(payout - wager).toLocaleString()} GC</span>`;
+log(`ROULETTE HIT [${num} ${colorName}]! WON ${payout.toLocaleString()} GC!`, "special");
+TT.announce(String(num), colorName, wager, payout);
+} else {
+box.innerHTML = `<span style="color:var(--crimson);">[${num} ${colorName}] LOSS -${wager.toLocaleString()} GC</span>`;
+log(`Roulette rolled [${num} ${colorName}]. Lost ${wager.toLocaleString()} GC.`, "error");
+TT.announce(String(num), colorName, wager, 0);
+}
+}
+const SLOT_SYMBOLS = ["🍒", "🍒", "🍒", "🔔", "🔔", "7️⃣", "💎"];
+function randSymbol() { return SLOT_SYMBOLS[Math.floor(TT.rnd() * SLOT_SYMBOLS.length)]; }
+function spinSlots() {
+if (isSpinningSlots) return;
+const betInput = $c("slots-bet");
+const bet = TT.cleanBet(betInput.value, 10, 100000000);
+betInput.value = bet;
+if (!TT.spend(bet)) { log("Insufficient Google Coins for Slots spin.", "warning"); return; }
+isSpinningSlots = true;
+updateUI();
+const reels = [$c("reel-1"), $c("reel-2"), $c("reel-3")];
+$c("slots-banner").innerText = "";
+reels.forEach(r => { r.className = "slot-reel spinning"; });
+const spinning = [true, true, true];
+const iv = setInterval(() => { reels.forEach((r, i) => { if (spinning[i]) r.innerText = randSymbol(); }); }, 60);
+const stop = (i, ms, last) => setTimeout(() => {
+spinning[i] = false;
+reels[i].className = "slot-reel";
+reels[i].innerText = randSymbol();
+if (last) {
+clearInterval(iv);
+isSpinningSlots = false;
+evaluateSlots(reels.map(r => r.innerText), bet);
+updateUI();
+}
+}, ms);
+stop(0, 900); stop(1, 1500); stop(2, 2100, true);
+}
+function evaluateSlots(s, bet) {
+const reels = [$c("reel-1"), $c("reel-2"), $c("reel-3")];
+const banner = $c("slots-banner");
+if (s[0] === s[1] && s[1] === s[2]) {
+const mult = { "🍒": 5, "🔔": 15, "7️⃣": 50, "💎": 500 }[s[0]] || 0;
+const payout = bet * mult;
+TT.win(payout);
+reels.forEach(r => { r.className = "slot-reel winner"; });
+banner.innerHTML = `🎉 WIN ${mult}× (+${(payout - bet).toLocaleString()} GC) 🎉`;
+log(`SLOTS JACKPOT [${s.join(" ")}]! ${mult}× = ${payout.toLocaleString()} GC!`, "special");
+if (mult >= 50) TT.announce(s.join(""), "SLOTS", bet, payout);
+} else {
+banner.innerHTML = `<span style="color:var(--crimson);">LOSS -${bet.toLocaleString()} GC</span>`;
+log(`Slots stopped on [${s.join(" | ")}]. No match.`);
+}
+}
+let bjDeck = [], bjPlayerHand = [], bjDealerHand = [], bjWager = 0;
+function createDeck() {
+const suits = ["♠", "♥", "♦", "♣"];
+const values = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+const deck = [];
+for (const s of suits) for (const v of values) deck.push({ suit: s, val: v, isRed: (s === "♥" || s === "♦") });
+for (let i = deck.length - 1; i > 0; i--) {
+const j = Math.floor(TT.rnd() * (i + 1));
+[deck[i], deck[j]] = [deck[j], deck[i]];
+}
+return deck;
+}
+function calculateHandScore(hand) {
+let score = 0, aces = 0;
+for (const c of hand) {
+if (c.val === "A") { aces++; score += 11; }
+else if (["K", "Q", "J", "10"].includes(c.val)) score += 10;
+else score += parseInt(c.val, 10);
+}
+while (score > 21 && aces > 0) { score -= 10; aces--; }
+return score;
+}
+function bjCard(c) { return `<div class="bj-card ${c.isRed ? "red" : ""}"><span>${c.val}</span><span>${c.suit}</span></div>`; }
+function renderBjCards(hideHole) {
+$c("bj-player-cards").innerHTML = bjPlayerHand.map(bjCard).join("");
+$c("bj-player-score").innerText = calculateHandScore(bjPlayerHand);
+if (hideHole && isBjInProgress) {
+$c("bj-dealer-cards").innerHTML = bjCard(bjDealerHand[0]) + `<div class="bj-card back">?</div>`;
+$c("bj-dealer-score").innerText = "?";
+} else {
+$c("bj-dealer-cards").innerHTML = bjDealerHand.map(bjCard).join("");
+$c("bj-dealer-score").innerText = calculateHandScore(bjDealerHand);
+}
+}
+function bjResult(text, cls) {
+const el = $c("bj-result");
+el.className = "bj-result " + cls;
+el.innerText = text;
+}
+function startBlackjackGame() {
+if (isBjInProgress) return;
+const betInput = $c("bj-bet");
+bjWager = TT.cleanBet(betInput.value, 10, 100000000);
+betInput.value = bjWager;
+if (!TT.spend(bjWager)) { log("Insufficient Google Coins for Blackjack bet.", "warning"); return; }
+isBjInProgress = true;
+bjDeck = createDeck();
+bjPlayerHand = [bjDeck.pop(), bjDeck.pop()];
+bjDealerHand = [bjDeck.pop(), bjDeck.pop()];
+bjResult("Your move.", "idle");
+$c("btn-bj-deal").disabled = true;
+$c("btn-bj-hit").disabled = false;
+$c("btn-bj-stand").disabled = false;
+$c("btn-bj-double").disabled = (gameState.coins < bjWager);
+renderBjCards(true);
+updateUI();
+if (calculateHandScore(bjPlayerHand) === 21) bjStand();
+}
+function bjHit() {
+if (!isBjInProgress) return;
+bjPlayerHand.push(bjDeck.pop());
+renderBjCards(true);
+$c("btn-bj-double").disabled = true;
+const s = calculateHandScore(bjPlayerHand);
+if (s > 21) { renderBjCards(false); endBlackjack("BUST", false); }
+else if (bjPlayerHand.length >= 5) { renderBjCards(false); endBlackjack(`FIVE-CARD CHARLIE (${s})`, true); }
+else if (s === 21) bjStand();
+}
+function bjDouble() {
+if (!isBjInProgress || !TT.spend(bjWager)) return;
+bjWager *= 2;
+bjPlayerHand.push(bjDeck.pop());
+renderBjCards(true);
+if (calculateHandScore(bjPlayerHand) > 21) { renderBjCards(false); endBlackjack("BUST on double", false); }
+else bjStand();
+}
+function bjStand() {
+if (!isBjInProgress) return;
+while (calculateHandScore(bjDealerHand) < 17) bjDealerHand.push(bjDeck.pop());
+const p = calculateHandScore(bjPlayerHand), d = calculateHandScore(bjDealerHand);
+renderBjCards(false);
+if (d > 21) endBlackjack(`Dealer busts (${d})`, true);
+else if (p > d) {
+const nat = (p === 21 && bjPlayerHand.length === 2);
+endBlackjack(nat ? "BLACKJACK 2.5×" : `${p} vs ${d}`, true, nat);
+} else if (p < d) endBlackjack(`Dealer wins ${d} vs ${p}`, false);
+else endBlackjack(`Push at ${p}`, "push");
+}
+function endBlackjack(msg, outcome, natural) {
+isBjInProgress = false;
+["btn-bj-hit", "btn-bj-stand", "btn-bj-double"].forEach(id => { $c(id).disabled = true; });
+$c("btn-bj-deal").disabled = false;
+if (outcome === true) {
+const payout = Math.floor(bjWager * (natural ? 2.5 : 2.0));
+TT.win(payout);
+bjResult(`WIN +${(payout - bjWager).toLocaleString()} GC · ${msg}`, "win");
+log(`BLACKJACK WIN: ${msg}. Won ${payout.toLocaleString()} GC!`, "special");
+} else if (outcome === "push") {
+TT.win(bjWager);
+bjResult(`PUSH · bet returned · ${msg}`, "push");
+log(`BLACKJACK PUSH: ${msg}`);
+} else {
+bjResult(`LOSS -${bjWager.toLocaleString()} GC · ${msg}`, "loss");
+log(`BLACKJACK LOSS: ${msg}. Lost ${bjWager.toLocaleString()} GC.`, "error");
+}
+updateUI();
+}
+function randInt(a, b) { return a + Math.floor(TT.rnd() * (b - a + 1)); }
+const CONSULT_ZONES = ["emea", "apac", "hindi"];
+let consultAuto = false, consultStats = null;
+function rollConsult() {
+const r = TT.rnd() * 100;
+const zone = r < 25 ? "emea" : (r < 60 ? "apac" : "hindi");
+const r2 = TT.rnd() * 100;
+const winT = zone === "emea" ? 55 : (zone === "apac" ? 45 : 35);
+return { zone: zone, outcome: r2 < winT ? "win" : (r2 < 90 ? "loss" : "bug") };
+}
+function consultFast() { return consultAuto; }
+function launchConsultEscalation() {
+if (isConsultActive) return;
+if (gameState.scrap < consultCost()) {
+log(`Insufficient scrap: consult requires ${consultCost().toLocaleString()} Scrap.`, "warning");
+if (consultAuto) stopConsultAuto("out of scrap");
+return;
+}
+gameState.scrap -= consultCost();
+isConsultActive = true;
+consultButtons();
+$c("consult-bug-box").style.display = "none";
+updateUI();
+const res = rollConsult();
+const display = $c("consult-display");
+display.innerText = consultAuto ? `AUTO-ROLL #${consultStats.n + 1} /\/ SCANNING FOR A BUG...` : "ESCALATING TO SME NODES - INITIALIZING QUANTUM RADAR...";
+const target = CONSULT_ZONES.indexOf(res.zone);
+const fast = consultFast();
+let steps = (fast ? 6 : 18) + ((target - (fast ? 6 : 18)) % 3 + 3) % 3;   // poslední bliknutí = vybraná zóna
+let step = 0, delay = fast ? 40 : 80;
+function stepRadar() {
+CONSULT_ZONES.forEach(z => { $c("zone-" + z).className = "consult-zone-card"; });
+$c("zone-" + CONSULT_ZONES[step % 3]).className = "consult-zone-card flicker";
+if (step < steps) { step++; delay += fast ? 4 : 12; setTimeout(stepRadar, delay); return; }
+CONSULT_ZONES.forEach(z => { $c("zone-" + z).className = "consult-zone-card"; });
+$c("zone-" + res.zone).className = "consult-zone-card selected";
+display.innerText = `LOCKED ONTO [${res.zone.toUpperCase()} SME NODE] /\/ DECRYPTING TICKET OUTCOME...`;
+setTimeout(() => startOutcomeScan(res), fast ? 250 : 1200);
+}
+stepRadar();
+}
+function startOutcomeScan(res) {
+const display = $c("consult-display");
+let blinks = 0;
+const fast = consultFast();
+const iv = setInterval(() => {
+blinks++;
+display.innerText = `SCANNING NODE CHANNELS: 0x${Math.random().toString(16).substr(2, 6).toUpperCase()}...`;
+if (blinks >= (fast ? 3 : 8)) { clearInterval(iv); evaluateConsultOutcome(res); }
+}, fast ? 90 : 200);
+}
+/** Vyplatí výhru/prohru (bez animace). Vrací text pro displej. */
+function applyConsult(res) {
+const rate = calculateAutoGcRate();
+if (res.outcome === "win") {
+const minutes = randInt(CONSULT_WIN_MIN, CONSULT_WIN_MAX);
+const full = Math.max(CONSULT_MIN_WIN, Math.floor(rate * 60 * minutes));
+const left = consultDayLeft(rate), reward = Math.max(CONSULT_MIN_WIN, Math.min(full, left));     // v9.4: denní strop výher
+consultDayAdd(reward);
+gameState.coins += reward;
+if (reward < full) return { gc: reward, html: `<span style="color:var(--amber);">SUCCESS, BUT TODAY'S CONSULT BUDGET IS USED UP (+${reward.toLocaleString()} GC)</span>`,
+log: `CONSULT WIN [${res.zone.toUpperCase()}]: daily consult budget reached (${CONSULT_DAY_MIN / 60} h of Auto GC) - +${reward.toLocaleString()} GC. Resets tomorrow.`, type: "warning" };
+return { gc: reward, html: `<span style="color:var(--emerald);">SUCCESS! ${minutes} MIN OF AUTO GC (+${reward.toLocaleString()} GC)</span>`,
+log: `CONSULT WIN [${res.zone.toUpperCase()}]: ${minutes} min of Auto GC = +${reward.toLocaleString()} GC!`, type: "special" };
+}
+const minutes = randInt(CONSULT_LOSS_MIN, CONSULT_LOSS_MAX);
+const penalty = Math.min(gameState.coins, Math.max(CONSULT_MIN_LOSS, Math.floor(rate * 60 * minutes)));
+gameState.coins = Math.max(0, gameState.coins - penalty);
+return { gc: -penalty, html: `<span style="color:var(--crimson);">FAILED /\/ ${minutes} MIN LOST (-${Math.floor(penalty).toLocaleString()} GC)</span>`,
+log: `CONSULT FAILURE [${res.zone.toUpperCase()}]: drained ${Math.floor(penalty).toLocaleString()} GC (${minutes} min).`, type: "error" };
+}
+function evaluateConsultOutcome(res) {
+const display = $c("consult-display");
+if (res.outcome === "bug") {
+if (consultAuto) { log(`AUTO-ROLL: BUG found after ${consultStats.n + 1} consult(s)!`, "special"); stopConsultAuto(null, true); }
+display.innerHTML = `<span style="color:var(--amber);">CRITICAL FIRMWARE BUG /\/ OPENING 50/50 OVERDRIVE CHAMBER!</span>`;
+log(`CRITICAL BUG in ${res.zone.toUpperCase()} node! Launching 50/50 chamber.`, "special");
+setTimeout(startBugChamber, 1500);
+return;
+}
+const out = applyConsult(res);
+display.innerHTML = out.html;
+if (consultAuto) {
+consultStats.n++; consultStats.gc += out.gc;
+display.innerHTML += `<br><span style="font-size:11px;color:var(--text-dim);">AUTO-ROLL: ${consultStats.n} consults, net ${consultStats.gc >= 0 ? "+" : ""}${Math.floor(consultStats.gc).toLocaleString()} GC</span>`;
+} else log(out.log, out.type);
+finishConsult();
+if (consultAuto) setTimeout(() => { if (consultAuto) launchConsultEscalation(); }, 450);
+}
+function startBugChamber() {
+const box = $c("consult-bug-box");
+const winCard = $c("bug-card-win"), lossCard = $c("bug-card-loss");
+const display = $c("consult-display");
+box.style.display = "grid";
+const isWinner = TT.rnd() < 0.5;
+const total = 18 + (isWinner ? 0 : 1);     // poslední zvýraznění = skutečný výsledek
+let count = 0, delay = 100;
+function alt() {
+count++;
+winCard.className = "bug-card" + (count % 2 === 0 ? " highlight" : "");
+lossCard.className = "bug-card" + (count % 2 === 1 ? " highlight" : "");
+if (count < total) { delay += 15; setTimeout(alt, delay); return; }
+if (isWinner) {
+const mult = Math.round((CONSULT_BUG_WIN_MIN + TT.rnd() * (CONSULT_BUG_WIN_MAX - CONSULT_BUG_WIN_MIN)) * 10) / 10;
+display.innerHTML = `<span style="color:var(--emerald);">OVERDRIVE: ×${mult.toFixed(1)} CLICK POWER FOR 60 SECONDS!</span>`;
+log(`BUG CHAMBER OVERDRIVE: ×${mult.toFixed(1)} click power for 60s!`, "special");
+gameState.consultBuff = { active: true, type: "overdrive", expiresAt: Date.now() + 60000, clickMult: mult, gcMult: 1.0 };
+} else {
+display.innerHTML = `<span style="color:var(--crimson);">SYSTEM CRASH: -50% AUTO GC & -50% CLICK FOR 60 SECONDS!</span>`;
+log("BUG CHAMBER CRASH: -50% click power and Auto GC for 60s!", "error");
+gameState.consultBuff = { active: true, type: "crash", expiresAt: Date.now() + 60000, clickMult: 0.5, gcMult: 0.5 };
+}
+finishConsult();
+}
+alt();
+}
+/** ×5 najednou bez animace. BUG zastaví sérii a pustí normální 50/50 komoru. */
+function consultBulk(n) {
+if (isConsultActive || consultAuto) return;
+let done = 0, net = 0, wins = 0, losses = 0, bug = null;
+const price = consultCost();                          // v8.7.4: celá dávka za cenu na začátku (tlačítko ukazuje 5× tuhle cenu)
+for (let i = 0; i < n; i++) {
+if (gameState.scrap < price) break;
+gameState.scrap -= price;
+done++;
+const res = rollConsult();
+if (res.outcome === "bug") { bug = res; break; }
+const out = applyConsult(res);
+net += out.gc;
+if (out.gc >= 0) wins++; else losses++;
+}
+if (!done) { log(`Insufficient scrap: consult requires ${consultCost().toLocaleString()} Scrap.`, "warning"); return; }
+const sum = `BULK ×${done}: ${wins} win · ${losses} loss · net ${net >= 0 ? "+" : ""}${Math.floor(net).toLocaleString()} GC${bug ? " · 🐞 BUG!" : ""}`;
+log(sum, net >= 0 ? "special" : "error");
+$c("consult-display").innerHTML = `<span style="color:${net >= 0 ? "var(--emerald)" : "var(--crimson)"};">${sum}</span>`;
+updateUI();
+TT.saveSoon();
+if (bug) {
+isConsultActive = true;
+consultButtons();
+setTimeout(() => evaluateConsultOutcome(bug), 600);
+}
+}
+function toggleConsultAuto() {
+if (consultAuto) { stopConsultAuto("stopped"); return; }
+if (isConsultActive) return;
+if (gameState.scrap < consultCost()) { log(`Insufficient scrap: consult requires ${consultCost().toLocaleString()} Scrap.`, "warning"); return; }
+consultAuto = true;
+consultStats = { n: 0, gc: 0 };
+log("CONSULT AUTO-ROLL started: rolling until a BUG drops.", "special");
+consultButtons();
+launchConsultEscalation();
+}
+function stopConsultAuto(reason, silent) {
+if (!consultAuto) return;
+consultAuto = false;
+if (!silent && consultStats) log(`CONSULT AUTO-ROLL ${reason}: ${consultStats.n} consults, net ${consultStats.gc >= 0 ? "+" : ""}${Math.floor(consultStats.gc).toLocaleString()} GC.`, "warning");
+consultButtons();
+}
+function consultLabel() {
+const b1 = $c("btn-consult-launch"); if (!b1) return;
+const t = "DISPATCH CONSULT (" + consultCost().toLocaleString("en-US") + " SCRAP)";
+if (b1.textContent !== t) b1.textContent = t;
+const b5 = $c("btn-consult-bulk");
+if (b5) { const t5 = "×5 INSTANT (" + (consultCost() * 5).toLocaleString("en-US") + " SCRAP)"; if (b5.textContent !== t5) b5.textContent = t5; }
+}
+setInterval(() => { try { if (typeof gameState !== "undefined") consultLabel(); } catch (e) {} }, 1000);
+function consultButtons() {
+const b1 = $c("btn-consult-launch"), b5 = $c("btn-consult-bulk"), ba = $c("btn-consult-auto");
+if (b1) b1.disabled = isConsultActive || consultAuto;
+consultLabel();
+if (b5) b5.disabled = isConsultActive || consultAuto;
+if (ba) { ba.disabled = isConsultActive && !consultAuto; ba.innerText = consultAuto ? "⏹ STOP AUTO-ROLL" : "🐞 BUGROLL (AUTO UNTIL BUG)"; ba.className = "btn " + (consultAuto ? "btn-crimson" : "btn-gold"); }
+}
+function finishConsult() {
+isConsultActive = false;
+consultButtons();
+updateUI();
+TT.saveSoon();
+}
+</script>
+<style>
+/* ===== CASINO 2: Mega 5x5 sloty, Crash, sdílená historie rulety ===== */
+.r-hist { display: flex; gap: 4px; align-items: center; justify-content: center; margin: 4px 0 6px; min-height: 22px; }
+.r-hist-lbl { font: 700 9px 'Orbitron', monospace; color: var(--text-dim); margin-right: 4px; }
+.r-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 700 9px 'Orbitron', monospace; color: #fff; border: 1px solid rgba(255,255,255,.2); position: relative; }
+.r-dot.RED { background: #c8102e; } .r-dot.BLACK { background: #1a1e28; } .r-dot.GREEN { background: #008744; }
+.r-dot.new { animation: rDotIn .5s ease-out; }
+@keyframes rDotIn { from { transform: scale(0); } to { transform: scale(1); } }
+.mega-wrap { position: relative; margin-bottom: 6px; }
+.mega-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: #070a10; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px; }
+.mega-cell { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; font-size: 26px; background: #121826; border-radius: 6px; transition: transform .15s, box-shadow .15s, background .15s; user-select: none; }
+.mega-cell.spin { animation: megaSpin .09s linear infinite; filter: blur(1px); }
+.mega-cell.land { animation: megaLand .25s ease-out; }
+.mega-cell.hit { background: rgba(255,184,0,.22); box-shadow: 0 0 12px rgba(255,184,0,.7) inset, 0 0 8px rgba(255,184,0,.5); transform: scale(1.06); }
+.mega-cell.sc { background: rgba(0,255,136,.2); box-shadow: 0 0 14px rgba(0,255,136,.8) inset; }
+@keyframes megaSpin { 0% { transform: translateY(-5px); } 50% { transform: translateY(5px); } 100% { transform: translateY(-5px); } }
+@keyframes megaLand { 0% { transform: translateY(-10px); } 70% { transform: translateY(3px); } 100% { transform: none; } }
+.mega-lines { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); pointer-events: none; }
+.mega-lines polyline { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; opacity: .85; filter: drop-shadow(0 0 4px currentColor); }
+.mega-banner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; pointer-events: none; font: 900 30px 'Orbitron', monospace; letter-spacing: 2px; opacity: 0; text-shadow: 0 0 18px currentColor, 0 2px 0 #000; }
+.mega-banner small { font-size: 16px; letter-spacing: 1px; }
+.mega-banner.go { animation: megaBanner 2.2s ease-out forwards; }
+@keyframes megaBanner { 0% { opacity: 0; transform: scale(.4) rotate(-6deg); } 15% { opacity: 1; transform: scale(1.15) rotate(2deg); } 30% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
+.mega-shake { animation: megaShake .5s linear; }
+@keyframes megaShake { 0%,100% { transform: none; } 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, -1px); } 80% { transform: translate(3px, 1px); } }
+.crash-wrap { position: relative; background: #05070b; border: 1px solid var(--border-subtle); border-radius: 6px; margin-bottom: 6px; overflow: hidden; }
+#crash-canvas { width: 100%; height: auto; display: block; }
+.crash-mult { position: absolute; top: 10px; left: 0; right: 0; text-align: center; font: 900 34px 'Orbitron', monospace; color: var(--emerald); text-shadow: 0 0 14px rgba(0,255,136,.6); pointer-events: none; }
+.crash-mult.dead { color: var(--crimson); text-shadow: 0 0 14px rgba(255,23,68,.7); }
+.crash-mult.cashed { color: var(--amber); }
+.crash-hist { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; margin-bottom: 6px; min-height: 18px; }
+.crash-hist span { font: 700 9px 'Orbitron', monospace; padding: 2px 6px; border-radius: 8px; background: #1a1e28; }
+.crash-hist span.hi { color: var(--emerald); } .crash-hist span.lo { color: var(--crimson); }
+html.m .mega-cell { font-size: 22px; }
+html.m .crash-mult { font-size: 28px; }
+</style>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+if (typeof CASINO_TABS !== "undefined") { CASINO_TABS.push("mega", "crash"); }
+let rHist = [], rSeen = "";
+function renderRHist(newest) {
+const box = $("r-hist"); if (!box) return;
+box.innerHTML = '<span class="r-hist-lbl">LAST 6</span>' + rHist.slice(0, 6).map((h, i) =>
+`<span class="r-dot ${h.color} ${i === 0 && newest ? "new" : ""}" title="${escapeHtml(h.user || "")}: ${escapeHtml(h.num)}">${escapeHtml(h.num)}</span>`).join("");
+}
+window.pushRouletteHistory = function (h) { rHist.unshift(h); rHist = rHist.slice(0, 12); renderRHist(true); };
+window.setRouletteHistory = function (list) {
+if (!Array.isArray(list)) return;
+const sig = JSON.stringify(list.slice(0, 6));
+if (sig === rSeen) return;
+rSeen = sig;
+rHist = list.filter(h => h && /^(RED|BLACK|GREEN)$/.test(h.color)).slice(0, 12);
+renderRHist(false);
+};
+const SYM = { C: "🍒", L: "🍋", B: "🔔", K: "🍀", S: "7️⃣", D: "💎", W: "⭐", $: "💰" };
+const WEIGHTS = [["C", 30], ["L", 26], ["B", 18], ["K", 12], ["S", 7], ["D", 4], ["W", 3], ["$", 2.2]];
+const PAY = { C: [1, 3, 8], L: [1.5, 4, 10], B: [2, 6, 15], K: [3, 10, 25], S: [5, 20, 60], D: [10, 50, 200] };
+const LINE_K = 4.4 / 10;                                   // výplata linie = PAY × sázka × 0.44
+const SCATTER = { 3: 4, 4: 20, 5: 250 };
+const LINES = [[0,0,0,0,0],[1,1,1,1,1],[2,2,2,2,2],[3,3,3,3,3],[4,4,4,4,4],[0,1,2,3,4],[4,3,2,1,0],[0,1,2,1,0],[4,3,2,3,4],[2,1,2,3,2]];
+const LINE_COLORS = ["#ffb800", "#00f0ff", "#00ff88", "#ff4dff", "#f43f5e", "#a855f7", "#fbbf24", "#22d3ee", "#84cc16", "#fb7185"];
+const WSUM = WEIGHTS.reduce((a, w) => a + w[1], 0);
+function rollSym() { let r = TT.rnd() * WSUM; for (const w of WEIGHTS) { if (r < w[1]) return w[0]; r -= w[1]; } return "C"; }
+const mega = { busy: false, grid: null, autoLeft: 0 };
+let megaBusyFlag = false;
+function buildGrid() {
+const g = $("mega-grid"); if (!g || g.children.length) return;
+let h = "";
+for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) h += `<div class="mega-cell" id="mc-${c}-${r}">${SYM[rollSym()]}</div>`;
+g.innerHTML = h;
+}
+function cell(c, r) { return $("mc-" + c + "-" + r); }
+function evaluate(g, bet) {
+const wins = [];
+let total = 0;
+LINES.forEach((ln, li) => {
+const syms = ln.map((r, c) => g[c][r]);
+const first = syms.find(x => x !== "W") || "D";
+if (first === "$") return;
+let n = 0;
+for (const x of syms) { if (x === first || x === "W") n++; else break; }
+if (n >= 3) {
+const w = PAY[first][n - 3] * bet * LINE_K;
+total += w;
+wins.push({ line: li, n: n, sym: first, win: w });
+}
+});
+const sc = [];
+for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) if (g[c][r] === "$") sc.push([c, r]);
+let scWin = 0;
+if (sc.length >= 3) { scWin = SCATTER[Math.min(5, sc.length)] * bet; total += scWin; }
+return { total: total, wins: wins, sc: sc, scWin: scWin };
+}
+function getBet() {
+const max = Math.max(10, Math.min(TT.maxBet(), Math.floor(gameState.coins)));
+return TT.cleanBet($("mega-bet").value, 10, max);
+}
+function setBusy(b) {
+mega.busy = b;
+$("mega-spin").disabled = b && !mega.autoLeft;
+$("mega-spin").innerText = mega.autoLeft ? `STOP (${mega.autoLeft} left)` : (b ? "SPINNING..." : "SPIN");
+$("mega-auto").disabled = b || mega.autoLeft > 0;
+$("mega-auto25").disabled = b || mega.autoLeft > 0;
+}
+function spin() {
+if (mega.autoLeft && !mega.busy) { mega.autoLeft = 0; setBusy(false); return; }
+if (mega.autoLeft && mega.busy) { mega.autoLeft = 0; return; }       // STOP během autospinu
+if (mega.busy) return;
+doSpin();
+}
+function doSpin() {
+buildGrid();
+const bet = getBet();
+$("mega-bet").value = bet;
+if (!TT.spend(bet)) { msg("Not enough GC.", "var(--crimson)"); mega.autoLeft = 0; setBusy(false); return; }
+setBusy(true);
+clearLines();
+const g = [];
+for (let c = 0; c < 5; c++) { g.push([]); for (let r = 0; r < 5; r++) g[c].push(rollSym()); }
+mega.grid = g;
+const fast = mega.autoLeft > 0;
+for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) { const el = cell(c, r); el.className = "mega-cell spin"; }
+const iv = setInterval(() => {
+for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) { const el = cell(c, r); if (el.classList.contains("spin")) el.textContent = SYM[rollSym()]; }
+}, 70);
+for (let c = 0; c < 5; c++) {
+setTimeout(() => {
+for (let r = 0; r < 5; r++) { const el = cell(c, r); el.className = "mega-cell land"; el.textContent = SYM[g[c][r]]; }
+if (c === 4) { clearInterval(iv); finish(bet); }
+}, (fast ? 260 : 520) + c * (fast ? 110 : 190));
+}
+}
+function clearLines() { const svg = $("mega-lines"); if (svg) svg.innerHTML = ""; }
+function drawLine(li) {
+const svg = $("mega-lines"); if (!svg) return;
+const pts = LINES[li].map((r, c) => `${50 + c * 100},${50 + r * 100}`).join(" ");
+svg.insertAdjacentHTML("beforeend", `<polyline points="${pts}" stroke="${LINE_COLORS[li]}" color="${LINE_COLORS[li]}"/>`);
+}
+function msg(t, color) { const m = $("mega-msg"); if (m) { m.style.color = color || ""; m.innerHTML = t; } }
+function banner(text, sub, color) {
+const b = $("mega-banner"); if (!b) return;
+b.style.color = color;
+b.innerHTML = text + (sub ? `<small>${sub}</small>` : "");
+b.classList.remove("go"); void b.offsetWidth; b.classList.add("go");
+}
+function finish(bet) {
+const res = evaluate(mega.grid, bet);
+res.wins.forEach(w => {
+drawLine(w.line);
+for (let c = 0; c < w.n; c++) cell(c, LINES[w.line][c]).classList.add("hit");
+});
+res.sc.forEach(([c, r]) => cell(c, r).classList.add("sc"));
+const payout = Math.floor(res.total);
+const x = payout / bet;
+if (payout > 0) {
+TT.win(payout);
+const parts = res.wins.map(w => `${SYM[w.sym]}×${w.n}`).concat(res.sc.length >= 3 ? [`💰×${res.sc.length}`] : []);
+msg(`WIN ${fmt(payout)} GC (${x.toFixed(2)}×) · ${parts.join(" ")}`, x >= 1 ? "var(--emerald)" : "var(--amber)");
+if (res.sc.length >= 5) { banner("JACKPOT!!!", fmt(payout) + " GC", "#ff4dff"); shake(); TT.announce("MEGA 💰×5", "SLOTS", bet, payout); }
+else if (x >= 50) { banner("MEGA WIN", fmt(payout) + " GC", "#f43f5e"); shake(); TT.announce("MEGA x" + x.toFixed(0), "SLOTS", bet, payout); }
+else if (x >= 10) { banner("BIG WIN", fmt(payout) + " GC", "#ffb800"); }
+else if (res.wins.length >= 3 || res.sc.length >= 3) banner("NICE!", "+" + fmt(payout), "#00ff88");
+else if (x < 1) banner("WIN!", "+" + fmt(payout), "#00f0ff");
+if (x >= 10) TT.log(`MEGA SLOTS: ${x.toFixed(1)}× → +${fmt(payout)} GC!`, "special");
+} else {
+msg(`No win this time. -${fmt(bet)} GC`, "var(--text-dim)");
+}
+setTimeout(() => {
+if (mega.autoLeft > 0) {
+mega.autoLeft--;
+if (mega.autoLeft > 0 && gameState.coins >= bet) { setBusy(true); doSpin(); return; }
+mega.autoLeft = 0;
+}
+setBusy(false);
+}, payout > 0 ? (mega.autoLeft ? 700 : 300) : (mega.autoLeft ? 350 : 100));
+}
+function shake() { const w = document.querySelector(".mega-wrap"); if (!w) return; w.classList.remove("mega-shake"); void w.offsetWidth; w.classList.add("mega-shake"); }
+function auto(n) {
+if (mega.busy || mega.autoLeft) return;
+mega.autoLeft = n;
+doSpin();
+}
+function betMul(f) { $("mega-bet").value = TT.cleanBet(Math.floor((Number($("mega-bet").value) || 10) * f), 10, Math.max(10, Math.min(TT.maxBet(), Math.floor(gameState.coins)))); }
+;(window.__TT_FILES = window.__TT_FILES || {})["casino"] = 1;
+// END-OF-FILE: casino (the script continues in the next file)

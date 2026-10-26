@@ -1,0 +1,576 @@
+function arenaAttack(nick) {
+if (arena.busy) return;
+arena.busy = true;
+$("dg-inner").innerHTML = arenaHtml();
+const go = () => google.script.run.withSuccessHandler(r => {
+arena.busy = false;
+if (!r || !r.ok) {
+const why = { limit: "No attacks left today.", cooldown: "You fought this player recently.", target: "Opponent not available.", missing: "Save not found - try again in a few seconds.", noclass: "Pick a HIGH STAKES class first.", busy: "Server busy, try again." }[r && r.reason] || "Fight failed.";
+arena.err = why; log("ARENA: " + why, "warning"); arenaLoad(); return;
+}
+gameState.coins += r.reward;              // odměna hned (i kdyby se replay nedokoukal)
+TT.saveSoon(); updateUI();
+log(`🏟 ARENA ${r.win ? "WIN" : "LOSS"} vs ${escapeHtml(r.opp.nick)}: ${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}), +${fmt(r.reward)} GC.`, r.win ? "special" : "error");
+arena.replay = { r: r, idx: 0, hp: [r.max[0], r.max[1]], sh: [0, 0], lines: [] };
+$("dg-inner").innerHTML = arenaReplayHtml();
+arenaStep();
+}).withFailureHandler(e => { arena.busy = false; arena.err = String(e && e.message || e); arenaLoad(); }).arenaFight(nick, arena.atkStance);
+saveGame(() => go());                      // nejdřív uložit aktuální build, server bojuje s uloženým
+}
+function arenaReplayHtml() {
+const rp = arena.replay, r = rp.r, d = A.HS();
+return `<div class="dg-arena" id="dg-arena">
+<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${E.CLASSES[d.cls].name} · ${STANCE_TXT[arena.atkStance][0]}</div>
+<div id="ar-a">${playerSprite()}</div>
+<div class="dg-bar"><div class="hp-p" id="ar-ahp" style="width:100%"></div><div class="sh" id="ar-ash" style="width:0%"></div></div><div class="dg-hpt" id="ar-ahpt"></div></div>
+<div class="dg-vs">VS</div>
+<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(r.opp.nick)}</div><div class="dg-sub">${E.CLASSES[r.opp.cls] ? E.CLASSES[r.opp.cls].name : ""} LV ${r.opp.level} · ${STANCE_TXT[r.defStance][0]}</div>
+<div id="ar-b">${sprite(CLS_IDX[r.opp.cls] || 0, "p")}</div>
+<div class="dg-bar"><div class="hp-b" id="ar-bhp" style="width:100%"></div><div class="sh" id="ar-bsh" style="width:0%"></div></div><div class="dg-hpt" id="ar-bhpt"></div></div>
+</div>
+<div class="dg-mech" id="ar-res">${r.first === 0 ? "You strike first!" : escapeHtml(r.opp.nick) + " strikes first!"}</div>
+<div class="dg-row"><button class="btn" style="flex:1;" id="ar-skip" onclick="Dungeon.arenaSkip()">SKIP ⏭</button>
+<button class="btn btn-gold" style="flex:1;" id="ar-back" disabled onclick="Dungeon.arenaBack()">BACK TO ARENA</button></div>
+<div class="dg-card" style="margin-top:10px;"><div class="dg-h">FIGHT LOG</div><div class="dg-log" id="ar-log"></div></div>`;
+}
+function arenaBars() {
+const rp = arena.replay; if (!rp) return;
+const m = rp.r.max;
+const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+set("ar-ahp", rp.hp[0] / m[0] * 100); set("ar-bhp", rp.hp[1] / m[1] * 100);
+set("ar-ash", rp.sh[0] / m[0] * 100); set("ar-bsh", rp.sh[1] / m[1] * 100);
+const a = $("ar-ahpt"); if (a) a.textContent = fmt(rp.hp[0]) + " / " + fmt(m[0]);
+const b = $("ar-bhpt"); if (b) b.textContent = fmt(rp.hp[1]) + " / " + fmt(m[1]);
+}
+function arenaLine(e) {
+const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">T${e.t}</span> `;
+if (e.type === "hit") return [T + `${nm(e.i)} ${e.kind === "jp" ? "🎰 <b>JACKPOT</b>" : "hit"} <b>${fmt(e.val)}</b> (${e.mult}×)${e.rev ? " - 🔌 POWER CYCLE!" : ""}`, e.i === 0 ? (e.kind === "jp" ? "y" : "g") : "r"];
+if (e.type === "bf") return [T + `💥 ${nm(e.i)} BACKFIRED for ${fmt(e.val)}`, e.i === 0 ? "r" : "g"];
+if (e.type === "dodge") return [T + `🌀 ${nm(1 - e.i)} dodged`, e.i === 0 ? "r" : "c"];
+if (e.type === "reflect") return [T + `${nm(e.i)} reflected ${fmt(e.val)}`, "c"];
+if (e.type === "heal") return [T + `${nm(e.i)} healed ${fmt(e.val)}`, "g"];
+if (e.type === "dot") return [T + `Zero-day payload ticks ${fmt(e.val)}`, "c"];
+return [T + e.type, ""];
+}
+function arenaApply(e, animate) {
+const rp = arena.replay;
+rp.hp = e.hp.slice(); rp.sh = e.sh.slice();
+const ln = arenaLine(e); rp.lines.unshift(ln);
+const el = $("ar-log"); if (el) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
+if (animate && !document.hidden) {
+const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a";
+if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit") anim(def, "hit"); }
+if (e.type === "bf") anim(atk, "hit");
+const side = (e.type === "hit" || e.type === "dot") ? (e.i === 0 ? "b" : "p") : (e.type === "bf" || e.type === "heal") ? (e.i === 0 ? "p" : "b") : (e.type === "dodge" ? (e.i === 0 ? "b" : "p") : (e.i === 0 ? "b" : "p"));
+const txt = e.type === "hit" ? (e.kind === "jp" ? "JACKPOT " + fmt(e.val) : fmt(e.val)) : e.type === "bf" ? "BACKFIRE" : e.type === "dodge" ? "DODGE" : e.type === "heal" ? "+" + fmt(e.val) : fmt(e.val || 0);
+float(txt, side, e.type === "hit" ? (e.kind === "jp" ? "#ffb800" : "#ffffff") : e.type === "bf" ? "#ff1744" : e.type === "dodge" ? "#00f0ff" : "#00ff88", e.kind === "jp");
+}
+arenaBars();
+}
+function arenaStep() {
+const rp = arena.replay; if (!rp) return;
+clearTimeout(arena.timer);
+if (rp.idx >= rp.r.events.length) { arenaEnd(); return; }
+arenaApply(rp.r.events[rp.idx++], true);
+arena.timer = setTimeout(arenaStep, document.hidden ? 30 : 520);
+}
+function arenaSkip() { const rp = arena.replay; if (!rp) return; clearTimeout(arena.timer); while (rp.idx < rp.r.events.length) arenaApply(rp.r.events[rp.idx++], false); arenaEnd(); }
+function arenaEnd() {
+const rp = arena.replay, r = rp.r;
+rp.done = true;
+const res = $("ar-res");
+if (res) res.innerHTML = `<span style="font:900 18px Orbitron,monospace;color:${r.win ? "var(--emerald)" : "var(--crimson)"};">${r.win ? "🏆 VICTORY" : "☠ DEFEAT"}</span><br>${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}) · +${fmt(r.reward)} GC · ${r.left} attacks left today`;
+const loser = document.querySelector(r.win ? "#ar-b .dg-sprite" : "#ar-a .dg-sprite"); if (loser) loser.classList.add("dead");
+const b = $("ar-back"); if (b) b.disabled = false;
+const s = $("ar-skip"); if (s) s.disabled = true;
+}
+function arenaRestore() {
+$("dg-inner").innerHTML = arenaReplayHtml();
+const rp = arena.replay;
+const el = $("ar-log"); if (el) el.innerHTML = rp.lines.slice().reverse().map(l => `<div class="${l[1]}">${l[0]}</div>`).join("");
+arenaBars();
+if (rp.done) arenaEnd();
+}
+function arenaBack() { clearTimeout(arena.timer); arena.replay = null; arena.data = null; A.render(); }
+function showProfile(u) {
+if (!u) return;
+const dg = u.dungeon || {};
+const cls = dg.cls && H.CLASSES[dg.cls];
+const old = $("dg-profile"); if (old) old.remove();
+const el = document.createElement("div");
+el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
+el.onclick = (e) => { if (e.target === el) el.remove(); };
+el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
+<h2 style="color:var(--cyan);">${escapeHtml(u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
+<div style="display:flex;gap:12px;align-items:center;">
+${cls ? sprite(["sysadmin", "engineer", "cyber"].indexOf(dg.cls), "p") : '<div style="font-size:48px;">👤</div>'}
+<div class="tt-body" style="min-height:0;font-size:13px;">
+${cls ? `🎰 <b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "Not in HIGH STAKES yet<br>"}
+Missions cleared: <b>${dg.best || 0}/51</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
+Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
+Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
+${u.gear ? `<br>Gear: ${u.gear}` : ""}
+${window.Meta ? Meta.badgesHtml(u.ach) : ""}
+</div></div>
+<div style="text-align:right;margin-top:10px;"><button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
+document.body.appendChild(el);
+}
+A.registerMode("arena", { label: "🏟 ARENA", order: 90,
+render: function (box) { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); },
+busy: function () { return arena.busy || !!(arena.replay && !arena.replay.done); } });
+Object.assign(window.Dungeon, { arenaAttack: arenaAttack, arenaAtkStance: arenaAtkStance, arenaDefStance: arenaDefStance, arenaSkip: arenaSkip, arenaBack: arenaBack,
+arenaRefresh: function () { arena.data = null; A.render(); }, showProfile: showProfile });
+})();
+</script>
+<style>
+/* ===== HIGH STAKES - TOWER, ON-CALL SHIFT (roguelite), QUARTERLY REVIEW (world boss) ===== */
+.tw-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-top: 8px; max-width: 460px; }
+.tw-grid div { aspect-ratio: 1; border-radius: 3px; background: #10151f; border: 1px solid #1e2636; font: 700 9px 'Orbitron', monospace; display: flex; align-items: center; justify-content: center; color: #3b4252; }
+.tw-grid .ok { background: rgba(0,255,136,.15); border-color: rgba(0,255,136,.4); color: var(--emerald); }
+.tw-grid .nx { background: rgba(255,184,0,.2); border-color: var(--amber); color: var(--amber); animation: tabGlow .7s ease-in-out infinite alternate; }
+.tw-grid .bs { border-color: rgba(255,23,68,.5); }
+.hm-row { display: flex; gap: 10px; align-items: center; }
+.hm-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
+.sh-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.sh-choice { padding: 12px 8px; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); cursor: pointer; text-align: center; }
+.sh-choice:hover { border-color: var(--cyan); }
+.sh-choice .ic { font-size: 26px; }
+.sh-choice b { display: block; font: 800 11px 'Orbitron', monospace; margin: 4px 0; }
+.sh-perks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.sh-perks span { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: rgba(168,85,247,.15); border: 1px solid rgba(168,85,247,.4); color: #d8b4fe; }
+.sh-path { display: flex; gap: 3px; margin: 6px 0; }
+.sh-path div { flex: 1; height: 6px; border-radius: 3px; background: #1e2636; }
+.sh-path .done { background: var(--emerald); } .sh-path .cur { background: var(--amber); }
+.wb-bar { height: 16px; background: #000; border: 1px solid rgba(255,23,68,.5); border-radius: 8px; overflow: hidden; position: relative; margin: 6px 0; }
+.wb-bar div { height: 100%; background: linear-gradient(90deg, #7f1d1d, #ff1744); transition: width .4s; }
+.wb-bar span { position: absolute; inset: 0; text-align: center; font: 800 10px/16px 'Orbitron', monospace; color: #fff; text-shadow: 0 1px 2px #000; }
+.wb-lb div { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.dg-tabs { flex-wrap: wrap; }
+.dg-tabs button { flex: 1 1 0; min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; }   /* v8.7.5: na PC všech 7 záložek v jedné řadě */
+@media (max-width: 700px) { .dg-tabs button { flex: 1 0 30%; font-size: 10px; } .sh-choices { grid-template-columns: 1fr; } }
+</style>
+<script>
+(function () {
+"use strict";
+const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign;
+const $ = (id) => document.getElementById(id);
+const fmt = A.fmt, fmtT = A.fmtT;
+const R = () => TT.rnd();
+const pick = (arr) => arr[Math.floor(R() * arr.length)];
+const esc = (t) => escapeHtml(String(t));
+function towerGc(f) { return Math.round(400 + 60 * Math.pow(f, 1.6)); }
+function towerXp(f) { return Math.round(30 + 14 * f); }
+function towerHtml(box) {
+const d = A.HS(), b = d.tower.best, next = Math.min(100, b + 1), m = C.towerFloor(next);
+const cells = [];
+for (let f = 1; f <= 100; f++) { const bs = !!C.TOWER_BOSS[f]; cells.push(`<div class="${f <= b ? "ok" : f === b + 1 ? "nx" : ""} ${bs ? "bs" : ""}">${f === 100 ? "🕶" : bs ? "☠" : f}</div>`); }
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>🗼 SERVER TOWER</span><span>${b}/100</span></div>
+<div class="dg-dim">Climb 100 floors of the server tower. Every 5th floor is an elite, every 10th floor (and floor 95) a boss. On floor 100 waits <b>THE ADMINISTRATOR</b> - beat him to unlock <b>♾ CLEAR THE POOL</b> forever.
+Every 10 floors = <b>+1% ATK and HP</b> in all HIGH STAKES modes (now <b>+${Math.floor(b / 10)}%</b>). The tower resets on prestige and gets <b>+25% harder</b> per prestige (now ×${C.prestigeMult().toFixed(2)}).</div></div>
+${b >= 100 ? `<div class="dg-card dg-lock"><div class="big">🏆</div><div style="font:800 14px Orbitron,monospace;color:var(--amber);">TOWER CONQUERED</div><div class="dg-dim">All 100 floors cleared. Respect.</div></div>` :
+`<div class="dg-card"><div class="dg-h"><span>NEXT: ${esc(m.name)}</span><span>⚡1</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}<br>
+Reward: ${fmt(towerXp(next))} XP, ${fmt(towerGc(next))} GC${next % 10 === 0 ? ", a GC bonus and +1% permanent power" : ""}<br>Your stats: ${A.statLine()}</div></div>
+<button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.towerGo()">⚔ CLIMB TO FLOOR ${next} (⚡1)</button></div>`}
+<div class="dg-card"><div class="dg-h">FLOORS</div><div class="tw-grid">${cells.join("")}</div></div>`;
+}
+function towerGo() {
+const d = A.HS(), f = d.tower.best + 1;
+if (f > 100) return;
+if (!A.spendEnergy(1)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
+const m = C.towerFloor(f);
+A.beginFight(m, { mode: "tower", hud: () => `🗼 Floor ${f}/100${f % 10 === 0 ? " · BOSS" : f % 5 === 0 ? " · ELITE" : ""}`,
+onEnd: function (fi) {
+const lines = [], dd = A.HS();
+if (fi.win) {
+dd.wins++;
+if (f > dd.tower.best) dd.tower.best = f;
+gameState.coins += towerGc(f); lines.push(`+${fmt(towerGc(f))} GC`);
+A.gainXp(towerXp(f), lines); lines.unshift(`+${fmt(towerXp(f))} XP`);
+if (f % 10 === 0) { A.dropItem(lines); lines.push(`💪 +1% permanent power`); }
+if (f === 100) { TT.announce("CONQUERED THE SERVER TOWER", "HIGH STAKES", 0, towerGc(f)); if (!dd.pool.unlocked) { dd.pool.unlocked = true; lines.push("♾ CLEAR THE POOL unlocked!"); log("♾ The Administrator is down. CLEAR THE POOL is now unlocked - how deep can you go?", "special"); } }
+log(`🗼 TOWER floor ${f} cleared - ${lines.join(", ")}`, "special");
+} else { dd.losses++; const xp = fi.fled ? 0 : Math.round(towerXp(f) * 0.3); if (xp) A.gainXp(xp, lines); lines.push(xp ? `+${xp} XP` : "no reward"); }
+const btns = [{ label: "◀ TOWER", fn: () => Dungeon.tab("tower") }];
+if (fi.win && f < 100) btns.push({ label: `FLOOR ${f + 1} ▶`, cls: "btn-gold", fn: towerGo });
+else if (!fi.win) btns.push({ label: "↻ RETRY", cls: "btn-cyan", fn: towerGo });
+return { title: fi.win ? `FLOOR ${f} CLEARED` : "FALLEN", lines: lines, buttons: btns };
+} });
+}
+const SHIFT_COST = 3, SHIFT_STEPS = 10, ASC_MAX = 10;
+const PERKS = {
+cpu:   { n: "Overclocked CPU", i: "🔥", t: "+12% ATK", st: true },
+ram:   { n: "Extra RAM", i: "🧠", t: "+15% max HP", st: true },
+l7:    { n: "Lucky 7s", i: "7️⃣", t: "Gamble: much better odds for 7️⃣ and ⭐", st: true },
+caff:  { n: "Caffeine Addict", i: "☕", t: "Block gives +6 focus", st: true },
+mon:   { n: "Wide Monitor", i: "🖥", t: "Power Strike zone +5%", st: true },
+duck:  { n: "Rubber Duck", i: "🦆", t: "Once per fight survive a lethal hit with 1 HP" },
+glove: { n: "Rubber Gloves", i: "🧤", t: "💀💀💀 no longer backfires" },
+vamp:  { n: "Vampire Script", i: "🧛", t: "Heal 8% of damage dealt", st: true },
+thorn: { n: "Thorny Firewall", i: "🌵", t: "Reflect 15% of damage taken", st: true },
+hot:   { n: "Hot Reload", i: "♻", t: "Heal 3% max HP every turn", st: true },
+early: { n: "Early Bird", i: "🐦", t: "First hit of every fight ×2" },
+root:  { n: "Root Access", i: "🔑", t: "Break meter fills 30% faster", st: true },
+chair: { n: "Ergonomic Chair", i: "🪑", t: "Start every fight with a 15% HP shield", st: true },
+mm:    { n: "Muscle Memory", i: "🥋", t: "Parry window much bigger" },
+eyes:  { n: "Sharp Eyes", i: "👁", t: "+6% crit", st: true },
+ninja: { n: "Ninja Mode", i: "🥷", t: "+5% dodge", st: true }
+};
+function applyPerks(h, P) {
+const k = (id) => P[id] || 0;
+h.atk *= 1 + 0.12 * k("cpu"); h.maxHp = Math.round(h.maxHp * (1 + 0.15 * k("ram")));
+h.luckReel += 12 * k("l7"); h.zone = Math.min(0.6, h.zone + 0.05 * k("mon")); h.crit = Math.min(0.6, h.crit + 0.06 * k("eyes")); h.dodge = Math.min(0.5, h.dodge + 0.05 * k("ninja"));
+h.perks = { blockFocus: 6 * k("caff"), duck: !!k("duck"), noBackfire: !!k("glove"), vamp: 0.08 * k("vamp"), thorns: 0.15 * k("thorn"), regen: 0.03 * k("hot"),
+firstStrike: !!k("early"), breakBonus: 0.3 * k("root"), shieldStart: 0.15 * k("chair"), parryEasy: !!k("mm") };
+}
+function perkOffer(P, n) {
+const pool = Object.keys(PERKS).filter(id => PERKS[id].st || !P[id]);
+const out = [];
+while (out.length < n && pool.length) out.push(pool.splice(Math.floor(R() * pool.length), 1)[0]);
+return out;
+}
+function shiftX() { return C.levelToX(A.HS().level); }
+function stepGc() { return Math.round(C.gcFor(Math.min(50, Math.round(shiftX())), false) * 0.45); }
+function run() { return A.HS().shift.run || null; }
+const NODE = { fight: ["⚔", "INCIDENT", "A normal fight. Win = coins + a perk."], elite: ["💀", "ESCALATION", "Elite enemy. Harder, more coins, better perks."],
+event: ["❓", "SOMETHING WEIRD", "A random office event. Could be great. Could be HR."], shop: ["🛒", "VENDING MACHINE", "Spend shift coins on heals and perks."],
+rest: ["🛋", "BREAK ROOM", "Heal up or grab some coins."], boss: ["☠", "SHIFT BOSS", "The end of the shift. Beat it to clear the run."] };
+function rollChoices(r) {
+if (r.step === SHIFT_STEPS - 1) return ["boss"];
+const w = [["fight", 45], ["elite", 16], ["event", 17], ["shop", r.step >= 2 ? 11 : 0], ["rest", r.step >= 3 && r.last !== "rest" ? 11 : 0]];
+const one = () => { const s = w.reduce((a, x) => a + x[1], 0); let x = R() * s; for (const it of w) { if (x < it[1]) return it[0]; x -= it[1]; } return "fight"; };
+const a = one(); let b = one(), g = 0; while (b === a && g++ < 8) b = one();
+return [a, b];
+}
+function shiftStart(asc) {
+const d = A.HS();
+if (run()) return;
+asc = Math.max(0, Math.min(d.shift.asc || 0, asc | 0));
+if (!A.spendEnergy(SHIFT_COST)) { log(`ON-CALL SHIFT costs ⚡${SHIFT_COST}.`, "warning"); A.render(); return; }
+const r = { asc: asc, step: 0, hp: 1, coins: 0, perks: {}, choices: null, phase: "map", offer: null, ev: null, last: "", seed: Math.floor(R() * 1e6), log: [] };
+r.choices = rollChoices(r);
+d.shift.run = r; d.shift.runs = (d.shift.runs || 0) + 1;
+TT.saveSoon(); A.render();
+}
+function shiftHtml(box) {
+const d = A.HS(), r = run(), sh = d.shift;
+if (!r) {
+const ascBtns = []; for (let a = 0; a <= Math.min(ASC_MAX, sh.asc || 0); a++) ascBtns.push(`<button class="btn ${a === (sh.asc || 0) ? "btn-gold" : ""}" style="padding:8px 10px;" onclick="HSModes.shiftStart(${a})">${a === 0 ? "NORMAL" : "ASC " + a}</button>`);
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📟 ON-CALL SHIFT</span><span>⚡${SHIFT_COST}</span></div>
+<div class="dg-dim">A roguelite run: ${SHIFT_STEPS} stops, you pick the path. <b>Your HP does NOT reset between fights.</b> After each fight pick 1 of 3 perks -
+build a broken combo (Lucky 7s + Rubber Gloves = gambling machine). Events, a vending machine, a break room and a boss at the end.
+Enemies scale with your level. Clear a shift to unlock the next <b>Ascension</b> (harder, better rewards).</div>
+<div class="dg-dim" style="margin-top:6px;">Runs ${sh.runs || 0} · Clears ${sh.clears || 0} · Best ${sh.best || 0}/${SHIFT_STEPS} · Ascension unlocked ${sh.asc || 0}/${ASC_MAX}</div>
+<div class="dg-row" style="margin-top:10px;">${ascBtns.join("")}</div></div>`;
+return;
+}
+const pathCells = []; for (let i = 0; i < SHIFT_STEPS; i++) pathCells.push(`<div class="${i < r.step ? "done" : i === r.step ? "cur" : ""}"></div>`);
+const perks = Object.keys(r.perks).map(id => `<span title="${esc(PERKS[id].t)}">${PERKS[id].i} ${esc(PERKS[id].n)}${r.perks[id] > 1 ? " ×" + r.perks[id] : ""}</span>`).join("") || `<span style="opacity:.5;">no perks yet</span>`;
+const hh = shiftHero();
+const head = `<div class="dg-card"><div class="dg-h"><span>📟 SHIFT${r.asc ? " · ASC " + r.asc : ""} · STOP ${r.step + 1}/${SHIFT_STEPS}</span><span>🪙 ${r.coins}</span></div>
+<div class="sh-path">${pathCells.join("")}</div>
+<div class="dg-dim">❤ <b>${fmt(Math.ceil(r.hp * hh.maxHp))}</b> / ${fmt(hh.maxHp)} · ⚔ <b>${fmt(hh.atk)}</b></div>
+<div class="sh-perks">${perks}</div></div>`;
+let body = "";
+if (r.phase === "map") {
+body = `<div class="dg-card"><div class="dg-h">CHOOSE YOUR NEXT STOP</div><div class="sh-choices">${r.choices.map((c, i) => `<div class="sh-choice" onclick="HSModes.shiftGo(${i})"><div class="ic">${NODE[c][0]}</div><b>${NODE[c][1]}</b><div class="dg-dim">${NODE[c][2]}</div></div>`).join("")}</div>
+<div style="text-align:right;margin-top:8px;"><button class="btn" style="padding:5px 10px;font-size:10px;" onclick="HSModes.shiftQuit()">END SHIFT EARLY</button></div></div>`;
+} else if (r.phase === "perk") {
+body = `<div class="dg-card"><div class="dg-h">PICK A PERK</div><div class="sh-choices">${r.offer.map(id => `<div class="sh-choice" onclick="HSModes.shiftPerk('${id}')"><div class="ic">${PERKS[id].i}</div><b>${esc(PERKS[id].n)}${r.perks[id] ? " (" + (r.perks[id] + 1) + ")" : ""}</b><div class="dg-dim">${esc(PERKS[id].t)}</div></div>`).join("")}</div></div>`;
+} else if (r.phase === "event") {
+const e = EVENTS[r.ev];
+body = `<div class="dg-card"><div class="dg-h">${e.i} ${esc(e.n)}</div><div class="dg-dim">${esc(e.t)}</div>
+<div class="sh-choices">${e.o.map((o, i) => `<div class="sh-choice" onclick="HSModes.shiftEvent(${i})"><b>${esc(o[0])}</b><div class="dg-dim">${esc(o[1])}</div></div>`).join("")}</div></div>`;
+} else if (r.phase === "shop") {
+body = `<div class="dg-card"><div class="dg-h">🛒 VENDING MACHINE <span>🪙 ${r.coins}</span></div><div class="sh-choices">
+${SHOP.map((s, i) => `<div class="sh-choice" onclick="HSModes.shiftBuy(${i})" style="${r.coins < s.c || (r.bought || {})[i] ? "opacity:.4;" : ""}"><div class="ic">${s.i}</div><b>${esc(s.n)} - 🪙${s.c}</b><div class="dg-dim">${esc(s.t)}</div></div>`).join("")}</div>
+<button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="HSModes.shiftShopDone()">CONTINUE ▶</button></div>`;
+} else if (r.phase === "rest") {
+body = `<div class="dg-card"><div class="dg-h">🛋 BREAK ROOM</div><div class="sh-choices">
+<div class="sh-choice" onclick="HSModes.shiftRest(0)"><div class="ic">😴</div><b>POWER NAP</b><div class="dg-dim">Heal 40% max HP</div></div>
+<div class="sh-choice" onclick="HSModes.shiftRest(1)"><div class="ic">🎲</div><b>OFFICE POKER</b><div class="dg-dim">+1 random perk, but -10% HP</div></div></div></div>`;
+}
+const logH = r.log.length ? `<div class="dg-card"><div class="dg-h">SHIFT LOG</div>${r.log.slice(-6).reverse().map(l => `<div class="dg-dim">${l}</div>`).join("")}</div>` : "";
+box.innerHTML = head + body + logH;
+}
+function shiftHero() { const r = run(), h = A.hero(); applyPerks(h, r ? r.perks : {}); return h; }
+function rlog(t) { const r = run(); if (r) { r.log.push(t); if (r.log.length > 20) r.log.shift(); } }
+function heal(p) { const r = run(); r.hp = Math.min(1, r.hp + p); }
+function shiftGo(i) {
+const r = run(); if (!r || r.phase !== "map") return;
+const node = r.choices[i]; if (!node) return;
+r.last = node;
+if (node === "fight" || node === "elite" || node === "boss") return shiftFight(node);
+if (node === "event") { r.ev = Math.floor(R() * EVENTS.length); r.phase = "event"; }
+if (node === "shop") { r.phase = "shop"; r.bought = {}; }
+if (node === "rest") r.phase = "rest";
+TT.saveSoon(); A.render();
+}
+function shiftFight(node) {
+const r = run();
+const m = C.shiftEnemy(A.HS().level, node, r.step, r.asc, r.seed + r.step * 31, A.hero());
+A.beginFight(m, { mode: "shift",
+prepHero: function (h) { applyPerks(h, r.perks); h.startHp = Math.max(1, r.hp * h.maxHp); },
+hud: () => `📟 Shift stop ${r.step + 1}/${SHIFT_STEPS}${r.asc ? " · ASC " + r.asc : ""} · ${node.toUpperCase()} · HP carries over!`,
+onEnd: function (f) {
+const lines = [], d = A.HS();
+if (f.win) {
+d.wins++;
+r.hp = Math.max(0.01, f.hp / f.h.maxHp);
+const coins = node === "boss" ? 0 : node === "elite" ? 45 : 25;
+r.coins += coins;
+const gc = Math.round(stepGc() * (node === "elite" ? 1.5 : 1) * (1 + 0.25 * r.asc));
+gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
+const xp = Math.round(C.xpFor(Math.min(50, Math.round(shiftX())), false) * 0.6 * (1 + 0.15 * r.asc));
+A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`);
+if (coins) lines.push(`+${coins} 🪙`);
+rlog(`${NODE[node][0]} Beat ${esc(f.e.name)} (${Math.round(r.hp * 100)}% HP left)`);
+if (node === "boss") return shiftEnd(true, lines);
+r.step++; r.phase = "perk"; r.offer = perkOffer(r.perks, 3);
+d.shift.best = Math.max(d.shift.best || 0, r.step);
+return { title: node === "elite" ? "ESCALATION HANDLED" : "INCIDENT RESOLVED", lines: lines, buttons: [{ label: "PICK A PERK ▶", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+}
+d.losses++;
+return shiftEnd(false, lines);
+} });
+}
+function shiftEnd(win, lines) {
+const d = A.HS(), r = run();
+const steps = win ? SHIFT_STEPS : r.step;
+d.shift.best = Math.max(d.shift.best || 0, steps);
+if (win) {
+d.shift.clears = (d.shift.clears || 0) + 1;
+const bonus = Math.round(stepGc() * 3 * (1 + 0.25 * r.asc));
+gameState.coins += bonus; lines.push(`🏆 shift bonus +${fmt(bonus)} GC`);
+A.dropItem(lines); A.dropItem(lines);
+if (r.asc >= (d.shift.asc || 0) && (d.shift.asc || 0) < ASC_MAX) { d.shift.asc = (d.shift.asc || 0) + 1; lines.push(`🔓 Ascension ${d.shift.asc} unlocked`); }
+log(`📟 ON-CALL SHIFT CLEARED${r.asc ? " (ASC " + r.asc + ")" : ""}! ${lines.join(", ")}`, "special");
+if (r.asc >= 5) TT.announce("CLEARED ASCENSION " + r.asc + " SHIFT", "HIGH STAKES", 0, bonus);
+} else log(`📟 Shift over at stop ${r.step + 1}/${SHIFT_STEPS}.`, "warning");
+d.shift.run = null;
+if (window.Meta && Meta.onShift) try { Meta.onShift(r.asc, steps); } catch (e) {}
+TT.saveSoon();
+return { title: win ? "SHIFT CLEARED" : "BURNED OUT", sub: `${steps}/${SHIFT_STEPS} stops`, lines: lines.length ? lines : ["Better luck next shift."],
+buttons: [{ label: "◀ SHIFT", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+}
+function shiftPerk(id) {
+const r = run(); if (!r || r.phase !== "perk" || r.offer.indexOf(id) < 0) return;
+r.perks[id] = (r.perks[id] || 0) + 1; rlog(`${PERKS[id].i} Took ${esc(PERKS[id].n)}`);
+shiftNext();
+}
+function shiftNext() { const r = run(); if (!r) return; r.phase = "map"; r.choices = rollChoices(r); TT.saveSoon(); A.render(); }
+function advance() { const r = run(); r.step++; A.HS().shift.best = Math.max(A.HS().shift.best || 0, r.step); }
+function shiftQuit() { const r = run(); if (!r) return; if (!confirm("End this shift? You keep what you earned so far.")) return; A.HS().shift.run = null; TT.saveSoon(); A.render(); }
+const EVENTS = [
+{ i: "☕", n: "Free Coffee", t: "Someone left a full coffee on their desk. Nobody is looking.", o: [["Drink it", "Heal 30% (or is it decaf?)"], ["Leave it", "+15 coins for honesty"]],
+f: [() => { if (R() < 0.75) { heal(0.3); return "☕ Delicious. +30% HP"; } return "☕ It was decaf. Nothing happens."; }, () => { run().coins += 15; return "😇 +15 coins"; }] },
+{ i: "🚪", n: "Open Server Room", t: "The server room door is propped open with a chair.", o: [["Sneak in", "Random perk, -15% HP"], ["Report it", "+25 coins"]],
+f: [() => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; run().hp = Math.max(0.05, run().hp - 0.15); return "🚪 Found " + PERKS[id].n + "! -15% HP"; }, () => { run().coins += 25; return "📋 +25 coins"; }] },
+{ i: "🎰", n: "Break Room Slot Machine", t: "There's a slot machine in the break room. Since when?", o: [["Spin (20 coins)", "50% +60 coins, 15% perk"], ["Walk away", "Nothing happens"]],
+f: [() => { const r = run(); if (r.coins < 20) return "🎰 Not enough coins."; r.coins -= 20; const x = R(); if (x < 0.5) { r.coins += 60; return "🎰 WIN! +60 coins"; } if (x < 0.65) { const id = perkOffer(r.perks, 1)[0]; r.perks[id] = (r.perks[id] || 0) + 1; return "🎰 JACKPOT: " + PERKS[id].n; } return "🎰 Nothing. Classic."; }, () => "🚶 You walk away."] },
+{ i: "📅", n: "Quick Sync?", t: "Your manager wants a 'quick sync'. It will not be quick.", o: [["Accept", "-10% HP, +40 coins"], ["Fake a call", "Nothing happens"]],
+f: [() => { run().hp = Math.max(0.05, run().hp - 0.1); run().coins += 40; return "📅 1 hour later... +40 coins, -10% HP"; }, () => "📞 'Sorry, I'm on a call!'"] },
+{ i: "💾", n: "Mysterious USB Stick", t: "A USB stick labelled 'SALARIES 2026' lies on the floor.", o: [["Plug it in", "50% perk / 50% -25% HP"], ["Throw it away", "+10 coins"]],
+f: [() => { if (R() < 0.5) { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; return "💾 Free perk: " + PERKS[id].n; } run().hp = Math.max(0.05, run().hp - 0.25); return "💾 It was malware. -25% HP"; }, () => { run().coins += 10; return "🗑 +10 coins"; }] },
+{ i: "🍕", n: "Pizza Friday", t: "There's leftover pizza in the kitchen.", o: [["Eat 3 slices", "Heal 50%"], ["Take it to the team", "+35 coins"]],
+f: [() => { heal(0.5); return "🍕 +50% HP"; }, () => { run().coins += 35; return "🍕 The team loves you. +35 coins"; }] }
+];
+const SHOP = [
+{ i: "🩹", n: "First Aid Kit", c: 30, t: "Heal 35% HP", f: () => heal(0.35) },
+{ i: "🎁", n: "Mystery Perk", c: 60, t: "A random perk", f: () => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; rlog("🛒 Bought " + PERKS[id].n); } }
+];
+function shiftEvent(i) {
+const r = run(); if (!r || r.phase !== "event") return;
+const e = EVENTS[r.ev]; const msg = e.f[i] ? e.f[i]() : "";
+rlog(msg); advance(); shiftNext();
+}
+function shiftBuy(i) {
+const r = run(); if (!r || r.phase !== "shop") return;
+r.bought = r.bought || {};
+const s = SHOP[i]; if (!s || r.coins < s.c || r.bought[i]) return;
+r.coins -= s.c; r.bought[i] = true; s.f(); TT.saveSoon(); A.render();
+}
+function shiftRest(i) {
+const r = run(); if (!r || r.phase !== "rest") return;
+if (i === 0) { heal(0.4); rlog("😴 Power nap: +40% HP"); }
+else { const id = perkOffer(r.perks, 1)[0]; r.perks[id] = (r.perks[id] || 0) + 1; r.hp = Math.max(0.05, r.hp - 0.1); rlog("🎲 Won " + PERKS[id].n + " at poker, -10% HP"); }
+advance(); shiftNext();
+}
+function shiftShopDone() { const r = run(); if (!r || r.phase !== "shop") return; advance(); shiftNext(); }
+const wb = { st: null, loading: false, err: "", busy: false, at: 0 };
+function week() { return String(Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000))); }
+function wbLoad(force) {
+if (wb.loading || (!force && wb.st && Date.now() - wb.at < 20000)) return;
+wb.loading = true;
+google.script.run.withSuccessHandler(r => {
+wb.loading = false; wb.at = Date.now();
+if (r && r.ok) { wb.st = r; wb.err = ""; wbClaim(); } else wb.err = "Could not load the boss.";
+if (A.isOpen() && A.view() === "boss") A.render();
+}).withFailureHandler(e => { wb.loading = false; wb.err = String(e && e.message || e); if (A.isOpen() && A.view() === "boss") A.render(); }).wbState();
+}
+/** odměna za minulý týden: když padl a hráč se zúčastnil -> +10 % do kanceláře (+3 % za každý další MK, max +25 %; nejlepší +5 %), GC ×(1 + 0.25 za každý další MK) */
+function wbReward(kills, top) { const k = Math.max(1, kills || 1); return { buff: Math.min(0.25, 0.10 + 0.03 * (k - 1)) + (top ? 0.05 : 0), gcMul: 1 + 0.25 * (k - 1) }; }
+function wbClaim() {
+const l = wb.st && wb.st.last, d = A.HS();
+if (!l || d.wb.claimed === String(l.week)) return;
+d.wb.claimed = String(l.week);
+if (l.killed && l.myDmg > 0) {
+const rw = wbReward(l.kills, l.top === gameState.ldap);
+d.wb.buff = rw.buff; d.wb.buffWeek = week();
+const gc = Math.round(l.myDmg * 4 * rw.gcMul);
+gameState.coins += gc;
+log(`📊 QUARTERLY REVIEW: last week's boss went down${l.kills > 1 ? " " + l.kills + "× (up to " + C.mkName(l.kills) + ")" : ""}! You get ×${(1 + d.wb.buff).toFixed(2)} office income this week and +${fmt(gc)} GC${l.top === gameState.ldap ? " (Employee of the Week!)" : ""}.`, "special");
+updateUI();
+}
+TT.saveSoon();
+}
+function wbHtml(box) {
+wbLoad(false);
+const s = wb.st;
+if (!s) { box.innerHTML = `<div class="dg-card"><div class="dg-dim">${wb.err ? "⚠ " + esc(wb.err) : "Loading the Quarterly Review..."}</div></div>`; return; }
+const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk, A.hero()), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
+const wait = Math.max(0, c.me.wait - (Date.now() - wb.at)), dead = false, rw = wbReward(kills, false), rwN = wbReward(kills + 1, false);
+const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
+const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
+const l = s.last;
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
+<div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
+<div class="dg-dim">Everyone in the company hits the same boss. 1 attack per hour, 15 turns, no energy needed. HP grows with every new attendee.
+When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.6 HP, +15% ATK).<br>
+${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
+Next kill → <b>×${(1 + rwN.buff).toFixed(2)}</b>.</div></div></div>
+${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING (15 turns)"}</button>`}
+<div class="dg-dim" style="margin-top:6px;">Your damage this week: <b>${fmt(c.me.dmg)}</b> in ${c.me.n} attack${c.me.n === 1 ? "" : "s"}${A.HS().wb.buffWeek === week() ? ` · 🎉 Active bonus: <b>×${(1 + A.HS().wb.buff).toFixed(2)}</b> office income` : ""}</div></div>
+<div class="dg-grid2"><div class="dg-card"><div class="dg-h">DAMAGE LEADERBOARD</div><div class="wb-lb">${lb}</div></div>
+<div class="dg-card"><div class="dg-h">LAST WEEK</div><div class="dg-dim">${l ? `${esc(C.WB[l.idx % C.WB.length].e)} - ${l.killed ? "<b style='color:var(--emerald);'>DEFEATED" + (l.kills > 1 ? " " + l.kills + "× (" + C.mkName(l.kills) + ")" : "") + "</b>" : "<b style='color:var(--crimson);'>SURVIVED</b>"} · ${l.participants} attendees<br>
+${l.top ? `🏅 Employee of the Week: <b>${esc(l.top)}</b><br>` : ""}Your damage: ${fmt(l.myDmg)}` : "No meeting last week."}</div></div></div>`;
+}
+function wbGo() {
+const s = wb.st; if (!s || wb.busy) return;
+const c = s.cur;
+if (c.me.wait - (Date.now() - wb.at) > 0) return;
+const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1, A.hero());
+let atkUsed = 0;
+A.beginFight(m, { mode: "boss", prepHero: (h) => { atkUsed = h.atk; },
+hud: (f) => `📊 Quarterly Review · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,
+onEnd: function (f) {
+const dmg = Math.round(f.emax - Math.max(0, f.ehp));
+wb.busy = true;
+const gc = Math.round(dmg * 3);
+gameState.coins += gc;
+const lines = [`💥 ${fmt(dmg)} damage`, `+${fmt(gc)} GC`];
+const xp = Math.round(C.xpFor(Math.min(50, Math.round(C.levelToX(L))), false) * 0.5);
+A.gainXp(xp, lines); lines.splice(1, 0, `+${fmt(xp)} XP`);
+saveGame(() => google.script.run.withSuccessHandler(r => {
+wb.busy = false;
+if (r && r.ok) { wb.st.cur = r.state; wb.at = Date.now(); if (window.Meta && Meta.onWb) try { Meta.onWb(r.dmg, !!r.kill, r.mk || 1); } catch (e) {}
+if (r.kill) { log(`📊 YOU TOOK DOWN ${C.mkName(r.mk || 1)} of the Quarterly Review boss! ${C.mkName((r.mk || 1) + 1)} just walked in.`, "special"); TT.announce("KILLED THE WEEKLY BOSS " + C.mkName(r.mk || 1), "HIGH STAKES", 0, gc); } }
+else log("QUARTERLY REVIEW: damage not counted (" + (r && r.reason || "error") + ").", "warning");
+if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-res")) A.render();
+}).withFailureHandler(() => { wb.busy = false; log("QUARTERLY REVIEW: could not reach the server.", "warning"); }).wbSubmit(dmg, Math.round(atkUsed)));
+return { title: "MEETING OVER", sub: `💥 ${fmt(dmg)}`, lines: lines, note: "Damage is being submitted to the company-wide total...",
+buttons: [{ label: "◀ QUARTERLY REVIEW", cls: "btn-gold", fn: () => { wbLoad(true); Dungeon.tab("boss"); } }] };
+} });
+}
+const POOL_COST = 1, POOL_SEED = 90210;                 // stejná patra pro všechny (fér žebříček)
+function poolGc(n) { return Math.round(3 * (2000 + 400 * Math.pow(n, 1.4))); }
+function poolXp(n) { return Math.round(2 * (40 + 12 * n)); }
+const pb = { list: null, at: 0, loading: false };
+function poolBoardLoad(force) {
+if (pb.loading || (!force && pb.list && Date.now() - pb.at < 30000)) return;
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+pb.loading = true;
+google.script.run.withSuccessHandler(r => { pb.loading = false; pb.at = Date.now(); pb.list = r && r.ok ? r.list : []; if (A.isOpen() && A.view() === "pool" && !document.querySelector(".hs-ov")) A.render(); })
+.withFailureHandler(() => { pb.loading = false; pb.at = Date.now(); pb.list = pb.list || []; }).poolBoard();
+}
+function poolHtml(box) {
+const d = A.HS(), P = d.pool;
+if (!P.unlocked) {
+box.innerHTML = `<div class="dg-card dg-lock"><div class="big">♾</div><div style="font:800 14px Orbitron,monospace;color:var(--crimson);margin:8px 0;">Clear the Pool is locked</div>
+<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to unlock it (forever - prestige won't lock it again).<br>Tower: ${d.tower.best}/100</div></div>`;
+return;
+}
+poolBoardLoad(false);
+const lb = pb.list ? (pb.list.length ? pb.list.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>floor ${fmt(p.best)}</span></div>`).join("") : `<div class="dg-dim">Nobody yet. Be the first!</div>`) : `<div class="dg-dim">Loading...</div>`;
+const n = P.best + 1, m = C.poolFloor(n, POOL_SEED), q = window.Gear ? Gear.POOL_QUANTUM : 50;
+const from = Math.floor(P.best / 10) * 10 + 1, cells = [];
+for (let f = from; f < from + 20; f++) cells.push(`<div class="${f <= P.best ? "ok" : f === n ? "nx" : ""} ${f % 25 === 0 ? "bs" : ""}">${f % 25 === 0 ? "☠" : f}</div>`);
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>♾ Clear the Pool</span><span>best: floor ${fmt(P.best)}</span></div>
+<div class="dg-dim">An endless tower of tickets. Every floor is its own fight with <b>full HP</b> and your progress is saved - lose and just try the same floor again.
+Floors get <b>+6%</b> harder, every 5th is an elite, every 25th one of the company's bosses. ⚡${POOL_COST} per fight, rewards for every new floor.
+${P.best < q ? `<br>🎯 Clear <b>floor ${q}</b> to unlock <b>⚛ Quantum</b> gear.` : ""}</div></div>
+<div class="dg-card"><div class="dg-h"><span>Next: ${esc(m.name)}</span><span>⚡${POOL_COST}</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}${m.enemy.mech ? " · ⚙ " + esc(m.enemy.mech) : ""}<br>
+Reward: ${fmt(poolXp(n))} XP, ${fmt(poolGc(n))} GC${m.kind === "boss" ? " + GC bonus" : ""}${n === q ? " + <b>⚛ Quantum gear</b>" : ""}<br>Your stats: ${A.statLine()}</div></div>
+<button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.poolGo()">⚔ Fight floor ${n} (⚡${POOL_COST})</button></div>
+<div class="dg-card"><div class="dg-h">Floors</div><div class="tw-grid">${cells.join("")}</div></div>
+<div class="dg-card"><div class="dg-h">Deepest pool</div><div class="wb-lb">${lb}</div></div>`;
+}
+function poolGo() {
+const d = A.HS(); if (!d.pool.unlocked) return;
+const n = d.pool.best + 1, m = C.poolFloor(n, POOL_SEED);
+if (!A.spendEnergy(POOL_COST)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
+A.beginFight(m, { mode: "pool",
+hud: () => `♾ Pool floor ${n}${m.kind === "boss" ? " · BOSS" : m.kind === "elite" ? " · ELITE" : ""} · best ${A.HS().pool.best}`,
+onEnd: function (fi) {
+const dd = A.HS(), lines = [];
+if (fi.win) {
+dd.wins++;
+if (n > dd.pool.best) {
+dd.pool.best = n;
+const gc = poolGc(n), xp = poolXp(n);
+gameState.coins += gc;
+A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
+if (m.kind === "boss") A.dropItem(lines);
+lines.push(`🏆 New best: floor ${n}`);
+if (n % 25 === 0) TT.announce("REACHED POOL FLOOR " + n, "HIGH STAKES", 0, gc);
+if (window.Gear && n === Gear.POOL_QUANTUM) { lines.push("⚛ QUANTUM gear unlocked!"); Gear.st(); }
+log(`♾ POOL floor ${n} cleared - ${lines.join(", ")}`, "special");
+}
+TT.saveSoon(); poolBoardLoad(true);
+return { title: `FLOOR ${n} CLEARED`, lines: lines,
+buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: `FLOOR ${n + 1} ▶`, cls: "btn-gold", fn: poolGo }] };
+}
+dd.losses++;
+const xp = fi.fled ? 0 : Math.round(poolXp(n) * 0.3); if (xp) A.gainXp(xp, lines);
+lines.push(xp ? `+${xp} XP` : "no reward", "Your progress is saved - try again.");
+return { title: "THE POOL WINS", sub: `floor ${n}`, lines: lines,
+buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: "↻ RETRY", cls: "btn-cyan", fn: poolGo }] };
+} });
+}
+A.registerMode("tower", { label: "🗼 TOWER", order: 20, render: towerHtml });
+A.registerMode("pool", { label: "♾ POOL", order: 25, render: poolHtml });
+A.registerMode("shift", { label: "📟 SHIFT", order: 30, render: shiftHtml });
+A.registerMode("boss", { label: "📊 BOSS", order: 40, render: wbHtml, busy: () => wb.busy });
+window.HSModes = { week: week, towerGo: towerGo, shiftStart: shiftStart, shiftGo: shiftGo, shiftPerk: shiftPerk, shiftEvent: shiftEvent, shiftBuy: shiftBuy,
+shiftRest: shiftRest, shiftShopDone: shiftShopDone, shiftQuit: shiftQuit, wbGo: wbGo, poolGo: poolGo, PERKS: PERKS, applyPerks: applyPerks };
+(function wait() { if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(wait, 200); return; } TT.onLoaded(() => setTimeout(() => wbLoad(true), 4000)); })();
+setInterval(() => { if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-ov")) { const b = document.querySelector('[onclick="HSModes.wbGo()"]'); if (b && b.disabled && wb.st) A.render(); } }, 1000);
+})();
+</script>
+<style>
+/* ===== v8.8 THE COLLEAGUE: pomocník, který farmí poražené bosse a kliká za tebe ===== */
+.cl-row { display: flex; gap: 10px; align-items: center; }
+.cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
+.cl-name { font: 900 14px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
+.cl-quip { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
+.cl-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
+.cl-slot { padding: 5px; border-radius: 6px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); font-size: 10px; text-align: center; min-width: 0; }
+.cl-slot b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-boss { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 5px; cursor: pointer; }
+.cl-boss.sel { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald) inset; }
+.cl-boss .ic { font-size: 20px; width: 26px; text-align: center; }
+.cl-boss .t { flex: 1; min-width: 0; font-size: 11px; }
+.cl-boss .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-boss .wr { font: 800 11px 'Orbitron', monospace; }
+.cl-give { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px; }
+.cl-give span { flex: 1; min-width: 0; }
+.cl-give .btn { padding: 4px 10px; font-size: 10px; }
+.cl-log div { font-size: 11px; color: var(--text-dim); padding: 2px 0; }
+.cl-sleep { text-align: center; padding: 18px 10px; }
+.cl-sleep .big { font-size: 44px; }
+</style>
+<script>
+;(window.__TT_FILES = window.__TT_FILES || {})["part14"] = 1;
+// END-OF-FILE: part14 (the script continues in the next file)

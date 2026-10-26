@@ -1,0 +1,666 @@
+function payTable() {
+const rows = Object.keys(PAY).map(k => `${SYM[k]} 3/4/5 in a row: <b>${PAY[k].map(v => (v * LINE_K).toFixed(2) + "×").join(" / ")}</b>`).join("<br>");
+msg(`${rows}<br>⭐ wild replaces anything except 💰 · 💰 anywhere 3/4/5: <b>4× / 20× / 250×</b> · paid per line, × your bet`, "var(--text-main)");
+}
+window.Mega = { spin: spin, auto: auto, betMul: betMul, payTable: payTable, evaluate: evaluate, isBusy: () => mega.busy || mega.autoLeft > 0 };
+const CR_GROW = 0.11;                     // m(t) = e^(0.11 t)   → 2× za ~6 s, 10× za ~21 s
+const crash = { phase: "idle", bet: 0, point: 1, t0: 0, cashed: 0, raf: 0, hist: [], pts: [] };
+function crashPoint() {
+const u = TT.rnd();
+return Math.min(1000, Math.max(1, Math.floor(0.97 / (1 - u) * 100) / 100));
+}
+function multAt(ms) { return Math.max(1, Math.floor(Math.exp(CR_GROW * ms / 1000) * 100) / 100); }
+function crashBtn() {
+const b = $("crash-btn"); if (!b) return;
+if (crash.phase === "run") { b.className = "btn btn-gold"; b.innerText = `CASH OUT ${fmt(crash.bet * multAt(performance.now() - crash.t0))} GC`; b.disabled = false; }
+else { b.className = "btn btn-crimson"; b.innerText = "START (BET)"; b.disabled = false; }
+}
+function press() {
+if (crash.phase === "run") { cashOut(false); return; }
+const max = Math.max(10, Math.min(TT.maxBet(), Math.floor(gameState.coins)));
+const bet = TT.cleanBet($("crash-bet").value, 10, max);
+$("crash-bet").value = bet;
+if (!TT.spend(bet)) { crashMsg("Not enough GC.", "var(--crimson)"); return; }
+crash.phase = "run"; crash.bet = bet; crash.point = crashPoint(); crash.t0 = performance.now(); crash.cashed = 0; crash.pts = [];
+$("crash-mult").className = "crash-mult";
+crashMsg("Rising... cash out in time!", "var(--cyan)");
+tick();
+}
+function cashOut(auto) {
+if (crash.phase !== "run" || crash.cashed) return;
+const m = Math.min(multAt(performance.now() - crash.t0), crash.point);
+if (m >= crash.point && !auto) return;      // už spadlo (tick to dořeší)
+crash.cashed = m;
+const payout = Math.floor(crash.bet * m);
+TT.win(payout);
+crashMsg(`CASHED OUT at ${m.toFixed(2)}× → +${fmt(payout)} GC${auto ? " (auto)" : ""}`, "var(--amber)");
+TT.log(`CRASH: cashed out at ${m.toFixed(2)}× → +${fmt(payout)} GC`, m >= 2 ? "special" : "success");
+if (m >= 20) TT.announce("CRASH x" + m.toFixed(1), "CRASH", crash.bet, payout);
+$("crash-mult").className = "crash-mult cashed";
+crashBtn();
+}
+function tick() {
+cancelAnimationFrame(crash.raf);
+const now = performance.now();
+const el = now - crash.t0;
+let m = multAt(el);
+const autoAt = Number($("crash-auto").value) || 0;
+if (!crash.cashed && autoAt >= 1.01 && m >= autoAt && autoAt < crash.point) { cashOutAt(autoAt); }
+if (m >= crash.point) {
+m = crash.point;
+crash.phase = "idle";
+$("crash-mult").innerText = m.toFixed(2) + "×";
+$("crash-mult").className = "crash-mult dead";
+if (!crash.cashed) {
+crashMsg(`💥 CRASHED at ${m.toFixed(2)}×. -${fmt(crash.bet)} GC`, "var(--crimson)");
+TT.log(`CRASH: crashed at ${m.toFixed(2)}× - lost ${fmt(crash.bet)} GC.`, "error");
+}
+crash.hist.unshift(m); crash.hist = crash.hist.slice(0, 12);
+$("crash-hist").innerHTML = crash.hist.map(x => `<span class="${x >= 2 ? "hi" : "lo"}">${x.toFixed(2)}×</span>`).join("");
+draw(el, true);
+crashBtn();
+return;
+}
+$("crash-mult").innerText = m.toFixed(2) + "×";
+draw(el, false);
+if (crash.phase === "run" && !crash.cashed) crashBtn();
+else if (crash.cashed) { const b = $("crash-btn"); if (b) { b.disabled = true; b.innerText = "WAITING FOR CRASH..."; } }
+crash.raf = requestAnimationFrame(tick);
+}
+function cashOutAt(m) {
+crash.cashed = m;
+const payout = Math.floor(crash.bet * m);
+TT.win(payout);
+crashMsg(`AUTO CASH-OUT at ${m.toFixed(2)}× → +${fmt(payout)} GC`, "var(--amber)");
+TT.log(`CRASH: auto cash-out at ${m.toFixed(2)}× → +${fmt(payout)} GC`, "success");
+}
+setInterval(() => { if (crash.phase === "run" && document.hidden) tick(); }, 500);
+function draw(el, dead) {
+const cv = $("crash-canvas"); if (!cv) return;
+const ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+ctx.clearRect(0, 0, W, H);
+const tMax = Math.max(8, el / 1000 * 1.15);
+const mMax = Math.max(2, Math.exp(CR_GROW * tMax));
+ctx.strokeStyle = "rgba(255,255,255,.06)"; ctx.lineWidth = 1;
+for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(0, H * i / 4); ctx.lineTo(W, H * i / 4); ctx.stroke(); }
+ctx.beginPath();
+const steps = 60;
+let lx = 0, ly = H;
+for (let i = 0; i <= steps; i++) {
+const t = (el / 1000) * i / steps;
+const m = Math.exp(CR_GROW * t);
+const x = 10 + (W - 30) * (t / tMax);
+const y = H - 12 - (H - 30) * ((m - 1) / (mMax - 1));
+if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+lx = x; ly = y;
+}
+ctx.strokeStyle = dead ? "#ff1744" : (crash.cashed ? "#ffb800" : "#00ff88");
+ctx.lineWidth = 3; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10; ctx.stroke(); ctx.shadowBlur = 0;
+ctx.font = "22px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+ctx.fillText(dead ? "💥" : "🚀", lx, ly);
+}
+function crashMsg(t, c) { const m = $("crash-msg"); if (m) { m.style.color = c || ""; m.innerText = t; } }
+window.Crash = { press: press, isBusy: () => crash.phase === "run" };
+function boot() {
+if (!window.TT) { setTimeout(boot, 50); return; }
+buildGrid();
+draw(0, false);
+setInterval(() => {
+const t = Math.floor(gameState.coins).toLocaleString() + " GC";
+const a = $("bal-mega"), b = $("bal-crash");
+if (a && a.textContent !== t) a.textContent = t;
+if (b && b.textContent !== t) b.textContent = t;
+}, 400);
+const prev = TT.isBusy;
+TT.isBusy = function () { return prev() || Mega.isBusy() || Crash.isBusy(); };
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+<script>
+/**
+* TICKET TYCOON v6.1 - SYNC  (soubor "sync")
+* Tutorial, leaderboard, ukládání/načítání (s migrací starých savů), ochrana dvou tabů, auto-obnova při nové verzi.
+*/
+const TUTORIAL_STEPS = [
+{ t: "WELCOME TO TICKET TYCOON", b: `
+<p>Grind <b>Tickets</b>, turn them into <b>Scrap</b>, open the <b>Company Chest</b> for gear, gamble your <b>Google Coins (GC)</b>, <b>Prestige</b> for permanent bonuses and fight your way through the office in <b>HIGH STAKES</b>.</p>
+<ul><li>Currencies: <b>Tickets</b>, <b>Scrap</b>, <b>GC</b>, <b>Legacy Points</b> (prestige) and HIGH STAKES <b>energy</b> ⚡</li>
+<li>🏠 <b>Your office is a room</b>: tap anything in it (desk, closet, chest, roulette, the TV with the console...) and your character walks there and opens it. The tabs still work as shortcuts. Every prestige upgrades the room - from a garage all the way to a space station</li>
+<li>Cloud save every few seconds, after every bet and when you leave the app</li>
+<li>Season wipes reset everyone, the Top 10 is ranked by a score that never drops</li>
+<li>On PC you can switch to the <b>📱 COMPACT</b> layout (tabs at the bottom, like on a phone) in the top bar</li></ul>` },
+{ t: "1) CLICKING", b: `
+<p><b>RESOLVE TICKET</b> gives <b>Click Power</b> × <b>Net Multiplier</b>. <b>5% of clicks are CRITS</b> (×3).</p>
+<ul><li>Your first click also starts the <b>45 min Autogen</b> automatically</li>
+<li>🌡 <b>CPU heat</b>: clicking faster than ~15 CPS heats it up. At 100% it <b>overheats</b> and clicks do nothing for 8 s - slow down!</li></ul>` },
+{ t: "2) AUTOCLICKER BATTERY", b: `
+<p>Every <b>50 manual clicks = +1 second</b> of battery (max 10 min). It remembers your average CPS (cap 15).</p>
+<ul><li>A pause longer than 1.5 s breaks the series</li><li>Clicks faster than 35 ms apart do not count for charging</li></ul>` },
+{ t: "3) SCRAP & COMPANY CHEST", b: `
+<p>10 Tickets = 1 Scrap. Opening costs Scrap (×1.15 per prestige, ×1.25 per 10 chest levels from LV20). Upgrade the chest with GC for better odds.</p>
+<ul><li>From chest <b>level 20</b> opening costs ×2, then ×1.5 every 10 levels</li>
+<li><b>Mythic (T5)</b> only drops from chest level 40</li>
+<li>🌌 <b>Prismatic / Quantum (T6)</b>: every HIGH STAKES <b>chapter boss</b> unlocks T6 for one body slot (Great "I" = HEAD, Pookie = RIG, Ransomware = OS, LLM = AUGMENT, Massi = TOOL, Compliance = RELIC). From then on that slot can drop T6 from the chest (LV 50+, always rarer than Mythic), even after prestige. Beating the boss gives no free T6 item. The 🌌 T6 cell in the odds table shows your chance</li>
+<li>🎟 <b>Slot Token</b> (rare): +1 merge level to the item equipped in a slot you pick (or a new item if the slot is empty) - or turn it into 4 HIGH STAKES energy</li></ul>` },
+{ t: "4) GEAR, MERGE & AUTOSELL", b: `
+<p>Equal items <b>stack</b>. <b>Merge 3 identical → +1 level</b> (+60% base stats per level). <b>MERGE ALL</b> merges everything at once.</p>
+<ul><li><b>Autosell</b> (up to T4): new drops at or below the chosen tier become scrap instantly, but <b>upgrades are always kept</b></li>
+<li>Scrap by rarity has a preview and a confirm click</li></ul>` },
+{ t: "4b) ⚒ UPGRADE STATION", b: `
+<p>Upgrade the <b>item you have equipped</b> from <b>+1 to +15</b> with GC (shown as ⚒). The upgrade stays <b>on that item</b> - if you swap it out, it keeps its ⚒ level in the backpack.</p>
+<ul><li>Every stage: <b>+8% all stats</b> of the item + a bonus you pick: 🖱 +12% Click, ⚙ +12% Auto or ✨ +0.5% Mult</li>
+<li>⚒1-5 always succeed. ⚒6-10: 90% → 50% chance, a fail only costs GC. ⚒11-15: 45% → 20%, a fail <b>drops the item one stage</b></li>
+<li>🎟 <b>Slot Tokens</b> can now be bought with GC (price rises with every buy, resets on prestige). 1 token = protection against the drop, 2 tokens = guaranteed success</li>
+<li>Upgraded items can be merged by hand in the Merge Station (your equipped item counts too): the result keeps the best ⚒ minus 1 stage. MERGE ALL skips them. Prestige wipes gear (Heirloom keeps half the ⚒ stages)</li></ul>` },
+{ t: "5) AUTOGEN, PRESTIGE & LEGACY", b: `
+<p><b>45M Autogen</b> makes GC from the Auto stat of your gear. <b>Prestige</b> resets your run (tickets, scrap, GC, chest, gear) but raises the multiplier and gives <b>Legacy Points</b>.</p>
+<ul><li>LP shop: click/auto bonuses, cheaper chests, start GC, <b>Heirloom</b> (keep best items at half tier & merge level)</li>
+<li>Max bets grow ×2 with every prestige</li></ul>` },
+{ t: "6) 🎲 GAMBLE", b: `
+<p>All games are in the <b>GAMBLE</b> panel, split into 3 sections - only one is open at a time, click it again to fold everything away.</p>
+<ul><li><b>🎰 BASIC</b>: <b>Roulette</b> (shows the last 6 results of everyone), <b>Slots</b>, <b>Blackjack</b> (2.5× blackjack, <b>Five-Card Charlie</b> = 5 cards without bust wins)</li>
+<li><b>⚡ ADVANCED</b>: <b>MEGA 5×5</b> (10 lines, ⭐ wild, 💰×5 = 250× jackpot), <b>CRASH</b> (cash out before the rocket explodes), <b>Chicken Road</b>, <b>Pachinko</b></li>
+<li><b>👥 SPECIAL</b>: <b>Showdown</b> PvP, <b>Corporate Climb</b>, <b>♣ PRŠÍ</b> (Czech card game for 2-6 players, the winner takes the pot, the rest play on for 2nd place) and <b>⛀ CHECKERS</b> (Czech checkers 1 vs 1: capturing is mandatory, the queen flies). A glowing section means someone is waiting for you</li></ul>` },
+{ t: "7) CONSULT", b: `
+<p><b>Consult</b> (5,000 scrap): win/lose minutes of Auto GC, 10% BUG chamber. Wins are capped at <b>4 hours of Auto GC per day</b>. <b>×5 INSTANT</b> rolls 5 at once, <b>BUGROLL</b> keeps rolling until a bug drops.</p>` },
+{ t: "8) 🎰 HIGH STAKES", b: `
+<p>Unlocks at <b>chest level 10</b> (or Prestige 1). An action fighting game: pick a class, then every turn choose your move. The enemy shows its next move - ⚔ attack, 💥 HEAVY, 🛡 defend - so play around it.</p>
+<ul><li>⚔ Quick / 🗡 Strike = safe hits. 💥 <b>Power</b> = stop the needle in the green zone (1.9×) or gold (2.5×), then 2 turns cooldown. 🎰 <b>Gamble</b> = a mini slot machine (777 = 6×, 💀💀💀 = backfire)</li>
+<li>🛡 Block a HEAVY and tap when the ring hits gold: <b>PERFECT</b> parry (no damage, counter, stun) or <b>GOOD</b> (-90%). The ring comes after a random wind-up, UNLEASH sends 3 of them. 🎰 Gamble: HOLD reels and re-spin once. ✨ Ultimates are a 2-second mini-game (70-125% power). 💢 Fill the BREAK bar to stagger enemies and cancel ⏳ charged attacks. 💨 Dodge. ✨ Class skill at 100 focus. ⚡ Stamina does not refill by itself - QUICK and BLOCK recharge it for STRIKE and POWER. During POWER and PARRY you can tap <b>anywhere</b> on the screen</li>
+<li>Campaign: 5 chapters, 50 missions. Each mission has 3 separate stars: ★ win, ★ win with 50%+ HP, ★ the bonus goal <b>or</b> a win within 3 turns. Stars you earn stay - you can collect them over several runs. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min, max 16, or turn a Slot Token into +4 ⚡ with the button at the top)</li>
+<li>📋 <b>Compliance audits</b>: every turn a form asks for one move. Do it = bonus damage. Ignore it = RED TAPE (-ATK, -dodge, stacks). Dodging twice in a row works less often</li>
+<li>🗼 <b>TOWER</b>: 100 floors, every 10 = +1% power. 📟 <b>SHIFT</b>: roguelite run with perks, HP carries over. 📊 <b>BOSS</b>: weekly company-wide boss, 1 attack per hour - kill it together for ×1.10 income next week. Kill it and a stronger MK.II spawns right away (then MK.III...) - the higher the MK, the bigger the weekly reward</li>
+<li>Level up = +3 stat points. ⚒ <b>Combat gear</b> (HERO tab): a weapon (ATK), armor (HP) and a trinket (both + crit). Upgrade them +1 to +5 with GC, then evolve to the next material: Paper → Cardboard → Wood → Plastic → Steel → Titanium → Carbon → Quantum. Chapter bosses, the Administrator and Pool floor 50 unlock the materials. Prestige resets the campaign, the tower and the gear +levels (materials stay). Office items only boost the office</li>
+<li>♾ <b>CLEAR THE POOL</b> (after Tower floor 100): an endless tower, every floor is a fresh fight and your progress is saved. 🧑‍💼 <b>COLLEAGUE</b>: farms bosses you beat and clicks for you, even offline</li>
+<li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC</li></ul>` },
+{ t: "9) 🏆 HALL OF FAME", b: `
+<p>Open it with the <b>🏆 HALL OF FAME</b> button (on mobile: MORE).</p>
+<ul><li><b>Achievements</b>: ${window.Meta ? Meta.ACH.length : 42} badges, each one gives +1 🎟 Slot Token and shows on your player card</li>
+<li><b>Weekly boards</b>: Corporate Climb height, best Shift, world boss damage and biggest casino win. Top 3 get 3 / 2 / 1 🎟 every week</li>
+<li><b>Company events</b>: every hour a 10-minute event for everyone (Payday, Coffee Machine Broke, Audit Week, Supply Drop, Overtime). Watch for the banner</li></ul>` },
+{ t: "10) SCORE", b: `
+<p>Score = prestige, lifetime tickets, best chest level and HIGH STAKES missions cleared. It never goes down. Click a player in the Top 10 to see their card.</p>
+<p>Reopen this guide anytime with <b>? HOW TO PLAY</b>.</p>` }
+];
+let tutorialIdx = 0;
+function openTutorial() { tutorialIdx = 0; document.getElementById("tt-overlay").classList.add("open"); renderTutorial(); }
+function closeTutorial() {
+document.getElementById("tt-overlay").classList.remove("open");
+if (!gameState.tutorialDone) { gameState.tutorialDone = true; saveGame(); }
+}
+function tutorialStep(d) {
+const n = tutorialIdx + d;
+if (n >= TUTORIAL_STEPS.length) { closeTutorial(); return; }
+if (n < 0) return;
+tutorialIdx = n;
+renderTutorial();
+}
+function renderTutorial() {
+const s = TUTORIAL_STEPS[tutorialIdx];
+document.getElementById("tt-title").innerText = s.t;
+document.getElementById("tt-body").innerHTML = s.b;
+document.getElementById("tt-dots").innerHTML = TUTORIAL_STEPS.map((_, i) => `<span class="tt-dot ${i === tutorialIdx ? "on" : ""}"></span>`).join("");
+document.getElementById("tt-prev").disabled = (tutorialIdx === 0);
+document.getElementById("tt-next").innerText = (tutorialIdx === TUTORIAL_STEPS.length - 1) ? "FINISH ✔" : "NEXT ▶";
+}
+function fmtAgo(ms) {
+const m = Math.floor(ms / 60000);
+return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.floor(m / 60) + " h ago" : Math.floor(m / 1440) + " d ago";
+}
+function presenceText(u) {
+if (!u || !u.presence) return "";
+return u.presence === "on" ? "🟢 playing now" : u.presence === "afk" ? "🟡 online (AFK)" : (u.seen >= 0 ? "⚫ last seen " + fmtAgo(u.seen) : "⚫ offline");
+}
+function presenceDot(u) {
+const p = (u && u.presence) || "off";
+return `<span class="pres-dot ${p}" title="${presenceText(u)}"></span>`;
+}
+function refreshLeaderboard() {
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+google.script.run
+.withSuccessHandler(data => {
+if (!data) return;
+if (data.leaderboard) {
+window.__lbRows = data.leaderboard;
+const mob = document.documentElement.classList.contains("m");
+const num = (n) => { n = Math.floor(n); if (!mob) return n.toLocaleString(); const a = Math.abs(n), sg = n < 0 ? "-" : ""; return a >= 1e9 ? sg + (a / 1e9).toFixed(a >= 1e11 ? 0 : 1) + "B" : a >= 1e6 ? sg + (a / 1e6).toFixed(a >= 1e8 ? 0 : 1) + "M" : a >= 1e4 ? sg + Math.round(a / 1e3) + "K" : n.toLocaleString(); };
+document.getElementById("lb-body").innerHTML = data.leaderboard.map((u, i) => {
+const isMe = (u.ldap === gameState.ldap);
+const gn = u.gambleNet || 0;
+return `<tr class="${isMe ? "me" : ""}" onclick="window.Dungeon && Dungeon.showProfile(window.__lbRows[${i}])" title="Click for player card">
+<td>${i + 1}</td><td>${presenceDot(u)}${escapeHtml(u.ldap)}</td>
+<td style="color:var(--crimson);">${u.prestige || 0}</td>
+<td style="color:var(--cyan);">${u.chestLvl || 1}</td>
+<td style="color:#ff4d6d;">${(u.dungeon && u.dungeon.best) || 0}</td>
+<td style="color:var(--amber);">${num(u.score || 0)}</td>
+<td style="color:${gn >= 0 ? "var(--emerald)" : "var(--crimson)"};">${gn >= 0 ? "+" : ""}${num(gn)}</td>
+</tr>`;
+}).join("");
+}
+if (data.currentSeason) {
+const srv = Number(data.currentSeason);
+document.getElementById("season-display").innerText = srv;
+if (gameState.season && Number(gameState.season) < srv) {
+log("NEW SEASON DETECTED! Resetting terminal profile...", "special");
+gameState.season = srv;
+gameLoaded = false;
+setTimeout(() => location.reload(), 800);
+return;
+}
+gameState.season = srv;
+}
+if (Array.isArray(data.feed)) {
+const t = data.feed.map(f => `[${escapeHtml(f.time || "")} ${escapeHtml(f.user)}: ${escapeHtml(f.num)} ${escapeHtml(f.color)} - ${f.payout > 0 ? "WON " + Number(f.payout).toLocaleString() + " GC" : "LOST"}]`).join(" &bull; ");
+document.getElementById("ticker-recent").innerHTML = `<span>${t || "No recent spins recorded."}</span>`; document.getElementById("ticker-recent").style.animation = t ? "" : "none";   // v8.7.5: prázdný text se nescrolluje pryč
+}
+if (Array.isArray(data.topWins)) {
+const t = data.topWins.map((w, i) => `#${i + 1} ${escapeHtml(w.user)}: +${Number(w.payout).toLocaleString()} GC on ${escapeHtml(w.num)}`).join(" &bull; ");
+document.getElementById("ticker-top").innerHTML = `<span>${t || "No jackpots recorded yet."}</span>`; document.getElementById("ticker-top").style.animation = t ? "" : "none";
+}
+if (data.chat) renderChatMessages(data.chat);
+if (data.rouletteHistory && window.setRouletteHistory) setRouletteHistory(data.rouletteHistory);
+if (window.Dungeon && Dungeon.onLeaderboard) Dungeon.onLeaderboard(data);
+})
+.getLeaderboardAndRoulette();
+}
+let reloading = false;
+let saveRev = 0;                 // revize uložení, ze které tahle hra vychází (server odmítne uložení ze zastaralého stavu)
+let saveInFlight = false, saveQueued = null, saveFails = 0;
+function buildPayload() {
+const g = gameState, ac = g.autoclicker;
+sanitizeAc();
+return JSON.stringify({
+ldap: g.ldap, season: g.season, sid: tabId,          // v8.6.1: ID tabu - server pozná vlastní dřívější uložení (ztracená odpověď) a nehlásí konflikt
+tickets: g.tickets, lifetimeTickets: g.lifetimeTickets,
+coins: g.coins, scrap: g.scrap,
+prestige: g.prestige, chestLevel: g.chestLevel, maxChestLevel: g.maxChestLevel,
+peakCps: g.peakCps, gambleNet: g.gambleNet,
+loadout: g.loadout, inventory: g.inventory,
+autosellTier: g.autosellTier,
+focusAutogenActive: g.focusAutogenActive, focusAutogenRemaining: g.focusAutogenRemaining,
+tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy,
+lp: g.lp, lpUp: window.Plant ? {} : g.lpUp, plant: window.Plant ? Plant.payload() : g.plant,
+autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
+pachinko: g.pachinko, pcPending: g.pcPending,
+dungeon: window.Dungeon ? Dungeon.payload() : g.dungeon,
+hs: window.Dungeon && Dungeon.hsPayload ? Dungeon.hsPayload() : g.hs
+});
+}
+/** v8.7.4: OFFLINE ZÁLOHA - poslední stav hry v localStorage. Když se neuloží na server (letadlo, výpadek) a hra se zavře,
+*  při dalším načtení se záloha nahraje, pokud se save na serveru mezitím nezměnil odjinud (jinak vyhrává server). */
+const BACKUP_KEY = "ir_backup";
+function backupWrite(payload, synced) {
+try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ nick: gameState.ldap, season: gameState.season, rev: saveRev, t: Date.now(), synced: !!synced, data: synced ? "" : payload })); } catch (e) {}
+}
+function backupRead() { try { return JSON.parse(localStorage.getItem(BACKUP_KEY) || "null"); } catch (e) { return null; } }
+function offlineChip(on) {
+let el = document.getElementById("ir-offline");
+if (!el) {
+el = document.createElement("div"); el.id = "ir-offline";
+el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:calc(74px + env(safe-area-inset-bottom));z-index:9997;display:none;padding:5px 12px;border-radius:14px;background:rgba(13,17,26,.95);border:1px solid var(--amber);color:var(--amber);font:700 10px Orbitron,monospace;letter-spacing:.5px;white-space:nowrap;pointer-events:none;";
+el.textContent = "📴 OFFLINE - progress saved on this device";
+document.body.appendChild(el);
+}
+el.style.display = on ? "" : "none";
+}
+window.addEventListener("online", function () { setTimeout(function () { try { saveGame(); } catch (e) {} }, 1500); });
+window.addEventListener("offline", function () { offlineChip(true); try { backupWrite(buildPayload(), false); } catch (e) {} });
+function noteSave(ok) {
+offlineChip(!ok && (saveFails >= 1 || navigator.onLine === false));
+const pill = document.querySelector(".status-pill");
+const label = pill && pill.lastChild;
+if (ok) {
+if (saveFails >= 3) log("Cloud save is working again.", "success");
+saveFails = 0;
+if (pill && label && label.nodeType === 3) { label.textContent = " LIVE LINK"; pill.style.color = ""; }
+} else {
+saveFails += 1;
+if (saveFails === 3) log("Cloud save is failing (check your connection). Your progress is NOT saved yet.", "error");
+if (saveFails >= 3 && pill && label && label.nodeType === 3) { label.textContent = " SAVE ERROR"; pill.style.color = "var(--crimson)"; }
+}
+}
+function showConflict() {
+gameLoaded = false;                       // zastaví ukládání i herní smyčku v tomhle okně
+if (document.getElementById("ir-conflict")) return;
+const d = document.createElement("div");
+d.id = "ir-conflict";
+d.style.cssText = "position:fixed;inset:0;z-index:400;background:rgba(5,7,11,.93);display:flex;align-items:center;justify-content:center;padding:16px;";
+d.innerHTML = '<div style="max-width:380px;background:var(--bg-panel);border:1px solid var(--crimson);border-radius:10px;padding:22px;text-align:center;">' +
+'<div style="font:800 15px Orbitron,monospace;color:var(--crimson);letter-spacing:2px;margin-bottom:10px;">SAVE UPDATED ELSEWHERE</div>' +
+'<div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;line-height:1.5;">This save was changed on another device or tab. To avoid overwriting your progress, this window stopped saving. Reload to continue with the latest save.</div>' +
+'<button class="btn btn-crimson" style="width:100%;padding:12px;" onclick="location.reload()">RELOAD</button></div>';
+document.body.appendChild(d);
+}
+function saveGame(cb) {
+if (!cb && window.TT && TT.holding) { TT.saveSoon(); return; }      // v8.7: při držení tlačítka se ukládá až po puštění
+if (!gameLoaded || reloading) { if (cb) cb(false); return; }
+if (typeof google === "undefined" || !google.script || !google.script.run) { if (cb) cb(false); return; }
+if (saveInFlight) {                       // ukládání po jednom, ať se revize nepřetahují s vlastním dřívějším uložením
+saveQueued = saveQueued || [];
+if (cb) saveQueued.push(cb);
+return;
+}
+saveInFlight = true;
+const payload = buildPayload();
+backupWrite(payload, false);                 // v8.7.4: kopie v telefonu - kdyby uložení nevyšlo (offline) a hra se zavřela
+const done = function (ok) {
+saveInFlight = false;
+if (cb) cb(ok);
+if (saveQueued) {
+const q = saveQueued; saveQueued = null;
+saveGame(function (o) { q.forEach(function (f) { try { f(o); } catch (e) {} }); });
+}
+};
+google.script.run
+.withSuccessHandler(res => {
+if (res && res.ok) { saveRev = Number(res.rev) || saveRev; backupWrite(payload, true); noteSave(true); done(true); return; }
+if (res && res.reason === "conflict") { showConflict(); done(false); return; }
+if (res && res.reason === "season") {
+log("Season changed on server. Reloading...", "special");
+gameLoaded = false;
+setTimeout(() => location.reload(), 800);
+done(false);
+return;
+}
+noteSave(false);
+done(false);
+})
+.withFailureHandler(err => { console.error("Cloud save failed: " + err); noteSave(false); done(false); })
+.saveGame(payload, saveRev);
+}
+window.addEventListener("beforeunload", function () { try { saveGame(); } catch (e) {} });
+window.addEventListener("pagehide", function () { try { saveGame(); } catch (e) {} });
+document.addEventListener("visibilitychange", function () { if (document.hidden) { try { saveGame(); } catch (e) {} } });
+function nv(v, d) { v = Number(v); return isFinite(v) ? v : d; }
+function cleanEnh(e) { return typeof e === "string" ? e.replace(/[^cam]/g, "").slice(0, 15) : ""; }
+function migrateInventory(arr) {
+const out = [];
+(Array.isArray(arr) ? arr : []).forEach(o => {
+if (!o || SLOTS.indexOf(o.slot) < 0) return;
+const tier = Math.floor(nv(o.tier, 0));
+if (tier < 1 || tier > 6) return;
+const lvl = Math.max(0, Math.min(MERGE_MAX_LVL, Math.floor(nv(o.lvl !== undefined ? o.lvl : o.mergeLevel, 0))));
+const n = o.n !== undefined ? Math.max(1, Math.floor(nv(o.n, 1))) : 1;
+const e = cleanEnh(o.e);
+const ex = out.find(s => s.slot === o.slot && s.tier === tier && s.lvl === lvl && (s.e || "") === e);
+if (ex) ex.n += n; else { const it = { slot: o.slot, tier: tier, lvl: lvl, n: n }; if (e) it.e = e; out.push(it); }
+});
+return out;
+}
+function migrateLoadout(lo) {
+const out = { HEAD: null, RIG: null, TOOL: null, AUGMENT: null, OS: null, RELIC: null };
+if (!lo) return out;
+SLOTS.forEach(s => {
+const o = lo[s];
+if (!o) return;
+const tier = Math.floor(nv(o.tier, 0));
+if (tier < 1 || tier > 6) return;
+out[s] = { slot: s, tier: tier, lvl: Math.max(0, Math.min(MERGE_MAX_LVL, Math.floor(nv(o.lvl !== undefined ? o.lvl : o.mergeLevel, 0)))) };
+const e = cleanEnh(o.e); if (e) out[s].e = e;
+});
+return out;
+}
+function applyLoaded(l) {
+const g = gameState;
+g.ldap = l.ldap || g.ldap;
+saveRev = Math.max(0, Math.floor(nv(l.rev, 0)));
+g.season = Number(l.season) || g.season;
+g.tickets = Math.max(0, nv(l.tickets, 0));
+g.coins = l.coins !== undefined ? Math.max(0, nv(l.coins, 500)) : 500;
+g.scrap = l.scrap !== undefined ? Math.max(0, nv(l.scrap, 250)) : 250;
+g.prestige = Math.max(0, Math.floor(nv(l.prestige, 0)));
+g.chestLevel = Math.max(1, Math.floor(nv(l.chestLevel, 1)));
+g.maxChestLevel = Math.max(g.chestLevel, Math.floor(nv(l.maxChestLevel, 1)));
+g.peakCps = Math.max(0, nv(l.peakCps, 0));
+g.gambleNet = nv(l.gambleNet, 0);
+if (l.lifetimeTickets !== undefined && nv(l.lifetimeTickets, 0) > 0) {
+g.lifetimeTickets = nv(l.lifetimeTickets, 0);
+} else {
+let est = g.tickets;
+for (let p = 0; p < g.prestige; p++) est += getPrestigeCost(p);
+g.lifetimeTickets = est;
+}
+if (g.lifetimeTickets < g.tickets) g.lifetimeTickets = g.tickets;
+g.loadout = migrateLoadout(l.loadout);
+g.inventory = migrateInventory(l.inventory);
+g.autosellTier = l.autosellTier !== undefined ? Math.max(0, Math.min(4, Math.floor(nv(l.autosellTier, 0)))) : (l.autosellGrey ? 1 : 0);
+g.focusAutogenActive = !!l.focusAutogenActive;
+g.focusAutogenRemaining = Math.max(0, nv(l.focusAutogenRemaining, 0));
+g.tutorialDone = !!l.tutorialDone;
+g.slotTokens = Math.max(0, Math.floor(nv(l.slotTokens, 0)));
+g.tokBuy = Math.max(0, Math.floor(nv(l.tokBuy, 0)));
+if (l.lp === undefined) {
+let lp = 0;
+for (let p = 1; p <= g.prestige; p++) lp += lpGainFor(p);
+g.lp = lp;
+} else g.lp = Math.max(0, Math.floor(nv(l.lp, 0)));
+if (window.Plant) Plant.load(g, l);                 // v8.7: THE OFFICE PLANT (+ jednorázová migrace starého Legacy shopu)
+if (l.autoclicker) {
+g.autoclicker.charge = nv(l.autoclicker.charge, 0);
+g.autoclicker.avgCps = nv(l.autoclicker.avgCps, 0);
+g.autoclicker.running = !!l.autoclicker.running;
+}
+sanitizeAc();
+if (g.autoclicker.charge < 1 || g.autoclicker.avgCps <= 0) g.autoclicker.running = false;
+if (l.pachinko) Object.keys(g.pachinko).forEach(k => { g.pachinko[k] = Math.max(0, Math.floor(nv(l.pachinko[k], 0))); });
+g.pcPending = Array.isArray(l.pcPending) ? l.pcPending.filter(p => p && nv(p.value, 0) > 0) : [];
+g.dungeon = (l.dungeon && typeof l.dungeon === "object") ? l.dungeon : {};
+g.hs = (l.hs && typeof l.hs === "object") ? l.hs : {};          // HIGH STAKES (nový režim, starý dungeon se nepřenáší)
+if (window.Dungeon) Dungeon.state();          // ošetří a doplní hodnoty
+}
+function finishLoading() {
+gameLoaded = true;
+lastLoopAt = Date.now();
+const sel = document.getElementById("sel-autosell");
+if (sel) sel.value = String(gameState.autosellTier);
+lastPanelSig = "";
+updateUI();
+renderLpShop(true);
+while (_loadedCallbacks.length) {
+try { _loadedCallbacks.shift()(); } catch (e) { console.error(e); }
+}
+if (!gameState.tutorialDone) openTutorial();
+checkWipeNotice();
+startVersionWatch();
+}
+/** Po wipe (nová sezóna) jednou ukáže omluvnou hlášku. */
+function checkWipeNotice() {
+const key = "ir_season_seen_" + String(gameState.ldap || "").toLowerCase();
+let seen = 0;
+try { seen = Number(localStorage.getItem(key)) || 0; } catch (e) {}
+const cur = Number(gameState.season) || 0;
+try { localStorage.setItem(key, String(cur)); } catch (e) {}
+if (!seen || !cur || cur <= seen) return;
+const d = document.createElement("div");
+d.className = "tt-overlay open";
+d.style.zIndex = 10001;
+d.innerHTML = `<div class="tt-modal" style="text-align:center;border-color:var(--amber);">
+<h2 style="color:var(--amber);font-size:20px;">⚠ WIPE HAS BEEN DONE!</h2>
+<div class="tt-body" style="min-height:0;">Sorry, it was necessary :(<br><br>
+Season <b>${cur}</b> starts now - everyone begins from zero with the new economy, the dungeon and new casino games.
+Check <b>? HOW TO PLAY</b> for what's new.</div>
+<button class="btn btn-gold" style="padding:10px 22px;margin-top:10px;" onclick="this.closest('.tt-overlay').remove()">LET'S GO</button></div>`;
+document.body.appendChild(d);
+}
+let loadTries = 0;
+function loadFromServer() {
+loadTries++;
+google.script.run
+.withSuccessHandler(loaded => {
+loadTries = 0;
+if (window.__irConn) window.__irConn.hide();
+const bk = backupRead();
+let restored = false;
+if (loaded && loaded.ldap && bk && !bk.synced && bk.data && bk.nick === loaded.ldap && Number(bk.season) === Number(loaded.season) && Number(loaded.rev || 0) <= Number(bk.rev || 0)) {
+try { const d = JSON.parse(bk.data); d.rev = loaded.rev || 0; d.season = loaded.season; applyLoaded(d); restored = true; } catch (e) { console.error(e); }
+}
+if (restored) {
+log(`📴 Restored your offline progress from this device (${new Date(bk.t).toLocaleString()}) and uploading it now.`, "special");
+setTimeout(function () { try { saveGame(); } catch (e) {} }, 2500);
+} else if (loaded && !loaded.isNew) {
+applyLoaded(loaded);
+log(`Welcome back, Agent ${escapeHtml(gameState.ldap)}. Profile loaded.`, "success");
+} else if (loaded && loaded.ldap) {
+saveRev = Math.max(0, Math.floor(nv(loaded.rev, 0)));
+gameState.ldap = loaded.ldap;
+gameState.season = Number(loaded.season) || gameState.season;
+log(`New terminal session for Agent ${escapeHtml(gameState.ldap)} (Season ${gameState.season}).`, "special");
+}
+finishLoading();
+refreshLeaderboard();
+})
+.withFailureHandler(err => {
+if (window.__irConn) {
+if (loadTries < 3) { window.__irConn.show("Loading your save - attempt " + (loadTries + 1) + "/3 (the server is waking up...)"); setTimeout(loadFromServer, 1500); return; }
+loadTries = 0;
+window.__irConn.fail("Could not load your save: " + String(err && err.message || err), loadFromServer);
+return;
+}
+log("Could not load your save (" + escapeHtml(String(err)) + "). Reload the page. Saving is disabled.", "error");
+updateUI();
+})
+.loadGame();
+}
+let tabChannel = null;
+const tabId = Math.random().toString(36).slice(2);
+function showTabBlock(on) {
+if (on && window.__irConn) window.__irConn.hide();
+const el = document.getElementById("tab-block");
+if (el) el.classList.toggle("open", !!on);
+}
+function takeOverTab() {
+if (tabChannel) tabChannel.postMessage({ t: "takeover", id: tabId });
+showTabBlock(false);
+setTimeout(loadFromServer, 2500);     // starý tab si mezitím uloží a zablokuje se
+}
+function initTabGuard(start) {
+try { tabChannel = new BroadcastChannel("tt_tab_guard"); } catch (e) { start(); return; }
+let other = false;
+tabChannel.onmessage = function (e) {
+const d = e.data || {};
+if (d.id === tabId) return;
+if (d.t === "hello" && gameLoaded) tabChannel.postMessage({ t: "present", id: tabId });
+else if (d.t === "present") other = true;
+else if (d.t === "takeover" && gameLoaded) {
+saveGame(function () { gameLoaded = false; showTabBlock(true); });
+}
+};
+tabChannel.postMessage({ t: "hello", id: tabId });
+setTimeout(function () { if (other) showTabBlock(true); else start(); }, 700);
+}
+let versionTimer = null, reloadAt = 0, reloadWatch = null;
+function startVersionWatch() {
+if (versionTimer || typeof google === "undefined" || !google.script || !google.script.run) return;
+versionTimer = setInterval(checkVersion, 5 * 60 * 1000);
+}
+function checkVersion() {
+if (reloadAt) return;
+google.script.run.withSuccessHandler(v => {
+if (String(v) !== String(window.CLIENT_VERSION)) scheduleReload();
+}).getAppVersion();
+}
+function scheduleReload() {
+if (reloadAt) return;
+reloadAt = Date.now() + 15000 + Math.random() * 105000;      // rozptyl 15-120 s, ať se Sheets nezahltí
+const banner = document.getElementById("update-banner");
+if (banner) banner.classList.add("open");
+reloadWatch = setInterval(function () {
+const left = Math.ceil((reloadAt - Date.now()) / 1000);
+const txt = left > 0 ? `New version available - refreshing in ${left}s (your game is saved first)`
+: (TT.isBusy() ? "New version available - waiting for your round to finish..." : "Saving and refreshing...");
+const b = document.getElementById("update-banner-text");
+if (b) b.innerText = txt;
+if (left <= 0 && !TT.isBusy()) {
+clearInterval(reloadWatch);
+let done = false;
+const go = function () { if (done) return; done = true; reloading = true; location.reload(); };
+saveGame(go);
+setTimeout(go, 8000);
+}
+}, 1000);
+}
+function initGame() {
+initRouletteWheel();
+if (typeof google !== "undefined" && google.script && google.script.run) {
+initTabGuard(loadFromServer);
+} else {
+log("Running in local offline sandbox mode (no saving).", "warning");
+updateUI();
+}
+setInterval(refreshLeaderboard, 5000);
+}
+window.addEventListener("DOMContentLoaded", initGame);
+</script>
+<style>
+/* ===== ADVANCED MINIGAMES: Chicken Road, Pachinko, Showdown (PvP) ===== */
+.adv-wrap .tab-row { margin-bottom: 8px; }
+.adv-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.adv-input { background: #000; border: 1px solid var(--border-subtle); color: #fff; padding: 6px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; width: 90px; }
+.adv-select { background: #000; border: 1px solid var(--border-subtle); color: var(--amber); padding: 6px; border-radius: 4px; font-family: 'Orbitron', monospace; font-size: 11px; }
+.adv-info { font-size: 11px; color: var(--text-dim); }
+.adv-info b { color: var(--amber); }
+.adv-bal { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--amber); text-align: right; margin-bottom: 4px; }
+.cr-road { display: flex; gap: 3px; overflow-x: auto; padding: 8px 2px; background: #11151e; border: 1px solid var(--border-subtle); border-radius: 4px; margin-bottom: 8px; }
+.cr-cell { flex: 0 0 46px; height: 74px; background: #1b2130; border-radius: 4px; border-bottom: 3px dashed #3a4560; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; position: relative; }
+.cr-cell .cr-lbl { font-family: 'Orbitron', monospace; font-size: 8px; color: var(--text-dim); position: absolute; bottom: 3px; }
+.cr-cell.done { background: rgba(0, 255, 136, 0.12); }
+.cr-cell.done .cr-lbl { color: var(--emerald); }
+.cr-cell.next { border-bottom-color: var(--amber); box-shadow: 0 0 8px rgba(255, 184, 0, 0.35); }
+.cr-cell.dead { background: rgba(255, 23, 68, 0.25); }
+.cr-cell.curb { background: #1d3b2a; }
+.cr-car { position: absolute; top: 4px; font-size: 14px; opacity: 0.55; }
+.cr-chicken.hop { display: inline-block; animation: crHop 0.28s ease-out; }
+@keyframes crHop { 0% { transform: translateY(0); } 40% { transform: translateY(-14px) scale(1.15); } 100% { transform: translateY(0); } }
+.cr-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+.cr-stats .stat-box { text-align: center; }
+.cr-msg { text-align: center; font-family: 'Orbitron', monospace; font-size: 12px; min-height: 18px; margin-bottom: 6px; }
+.pc-canvas-wrap { position: relative; background: radial-gradient(ellipse at 50% 0%, #121a2c 0%, #05070b 70%); border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+#pc-canvas { width: 100%; height: auto; display: block; aspect-ratio: 360 / 400; }
+.pc-risk { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px; }
+.pc-risk .btn { padding: 5px 0; font-size: 10px; }
+.pc-risk .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.pc-pops { position: absolute; inset: 0; pointer-events: none; }
+.pc-pop { position: absolute; transform: translateX(-50%); font: 900 13px 'Orbitron', monospace; white-space: nowrap; text-shadow: 0 0 8px currentColor, 0 1px 0 #000; animation: pcPop 1.2s ease-out forwards; }
+.pc-pop.big { font-size: 20px; }
+@keyframes pcPop { 0% { opacity: 0; transform: translate(-50%, 8px) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -4px) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -48px) scale(1); } }
+.pc-live { display: flex; justify-content: space-between; font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin-bottom: 6px; min-height: 14px; }
+.pc-live b { color: var(--amber); }
+.sd-picker { background: var(--bg-panel-elevated); border-radius: 4px; padding: 8px; margin-bottom: 8px; }
+.sd-pick-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.sd-pick-row span.lbl { font-family: 'Orbitron', monospace; font-size: 10px; color: var(--text-dim); width: 62px; }
+.sd-mv { flex: 1; font-size: 18px; padding: 4px 0; }
+.sd-mv.sel { background: rgba(255, 184, 0, 0.3); border-color: var(--amber); box-shadow: 0 0 8px rgba(255, 184, 0, 0.35); }
+.sd-list { max-height: 170px; overflow-y: auto; margin-bottom: 8px; }
+.sd-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; background: var(--bg-panel-elevated); border-left: 3px solid var(--cyan); border-radius: 4px; margin-bottom: 4px; font-size: 12px; }
+.sd-item.mine { border-left-color: var(--amber); }
+.sd-hist { font-size: 11px; margin-bottom: 3px; }
+.sd-hist.WIN { color: var(--emerald); } .sd-hist.LOSE { color: var(--crimson); } .sd-hist.DRAW { color: var(--amber); }
+</style>
+<script>
+/**
+* TICKET TYCOON v6.1 - ADVANCED MINIGAMES (soubor "advanced_minigames")
+* Chicken Road, Pachinko (opravené zasekávání + uložení míčků v letu), Showdown (PvP kámen-nůžky-papír).
+*/
+(function () {
+'use strict';
+const CR_MAX_JUMPS = 15, CR_GROWTH = 1.92, CR_MAX_BET = 100000, CR_JACKPOT_MULT = 50;
+const PC_ROWS = 12;
+const PC_VALUES = ["10", "50", "100", "500"];
+const PC_RISKS = {
+low:    [10, 3, 1.6, 1.4, 1.1, 1, 0.4, 1, 1.1, 1.4, 1.6, 3, 10],
+medium: [33, 11, 4, 2, 1.2, 0.5, 0.2, 0.5, 1.2, 2, 4, 11, 33],
+high:   [500, 25, 4, 1.2, 0.5, 0.3, 0.3, 0.3, 0.5, 1.2, 4, 25, 500]
+};
+let PC_MULTS = PC_RISKS.high;
+const PC_MAX_ACTIVE = 25;
+const W = 360, H = 400, HS = 13.5, TOP = 46, DY = 24, SEG_MS = 165, PEG_R = 3.2, BALL_R = 5.2, BIN_Y = 344, BIN_H = 40;
+const SD_ICON = { R: "✊", P: "✋", S: "✌️" };
+const SD_MIN = 10, SD_MAX = 100000;
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+function crMult(n) { return Math.round(Math.pow(CR_GROWTH, n) * 100) / 100; }
+function binom(n, k) { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
+function pcRtp(t) { t = t || PC_MULTS; let s = 0; for (let k = 0; k <= PC_ROWS; k++) s += (binom(PC_ROWS, k) / Math.pow(2, PC_ROWS)) * t[k]; return s; }
+;(window.__TT_FILES = window.__TT_FILES || {})["system"] = 1;
+// END-OF-FILE: system (the script continues in the next file)

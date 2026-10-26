@@ -1,0 +1,1100 @@
+/**
+* TICKET TYCOON // CASINO ROYALE v6.1
+* Apps Script Backend Controller  (soubor v Google Sheets: "code")
+*
+* v6.1:
+*  - Score je spojité a monotónní (prestiž + lifetime tickets + nejvyšší chest level) -> neskáče při prestiži
+*  - Verze aplikace v Config!B8  -> klienti se po deployi sami bezpečně obnoví (menu Ticket Tycoon > Bump version)
+*  - PvP "Showdown" (kámen-nůžky-papír, best of 3) přes listy PvP_Challenges a PvP_Payouts
+*  - Wipe sezóny čistí i PvP listy
+*
+* Soubory v projektu (v9): code + engine (.gs) a HTML: index, style, office, casino, system, minigames, special, meta, hs_core, hs_ui, hs, prsi, hs_modes
+*/
+var CHUNK_SIZE = 45000;
+function doGet(e) {
+return HtmlService.createTemplateFromFile('index')
+.evaluate()
+.setTitle('Ticket Tycoon /\/ Casino Royale')
+.addMetaTag('viewport', 'width=device-width, initial-scale=1')
+.setFaviconUrl('https:/\/cdn-icons-png.flaticon.com/512/4883/4883370.png')
+.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+function include(filename) {
+return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+function onOpen() {
+try {
+SpreadsheetApp.getUi()
+.createMenu('Ticket Tycoon')
+.addItem('Bump version (po deployi: donutí klienty k obnovení)', 'bumpAppVersionUi_')
+.addSeparator()
+.addItem('Wipe season (nová sezóna)', 'adminSeasonWipeUi_')
+.addToUi();
+} catch (e) {}
+}
+function adminSeasonWipeUi_() {
+var ui = SpreadsheetApp.getUi();
+var r = ui.alert('Opravdu spustit novou sezónu?', 'Smaže všechny savy, chat, feed a PvP. Nelze vrátit.', ui.ButtonSet.YES_NO);
+if (r === ui.Button.YES) ui.alert(adminSeasonWipe());
+}
+function bumpAppVersionUi_() {
+var v = bumpAppVersion_();
+SpreadsheetApp.getUi().alert('Verze nastavena na ' + v + '. Klienti se obnoví do pár minut (po dohrání kola a uložení).');
+}
+function getAppVersion_() {
+try {
+var cfg = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
+if (!cfg) return '1';
+var v = cfg.getRange('B8').getValue();
+if (v === '' || v === null) {
+cfg.getRange('A8:B8').setValues([['App_Version', '1']]);
+return '1';
+}
+return String(v);
+} catch (e) { return '1'; }
+}
+function getAppVersion() { return getAppVersion_(); }
+function bumpAppVersion_() {
+var cfg = getDb_().config;
+var v = String(Date.now());
+cfg.getRange('A8:B8').setValues([['App_Version', v]]);
+return v;
+}
+function getUserLdap() {
+try {
+var email = Session.getActiveUser().getEmail();
+if (email && email.indexOf('@') !== -1) return email.split('@')[0];
+} catch (err) {}
+try {
+var props = PropertiesService.getUserProperties();
+var id = props.getProperty('TT_AGENT_ID');
+if (!id) {
+id = 'agent_' + Utilities.getUuid().substring(0, 5);
+props.setProperty('TT_AGENT_ID', id);
+}
+return id;
+} catch (err2) {}
+return 'agent_anon';
+}
+function getDb_() {
+var ss = SpreadsheetApp.getActiveSpreadsheet();
+var savesSheet = ss.getSheetByName('Saves');
+if (!savesSheet) {
+savesSheet = ss.insertSheet('Saves');
+savesSheet.appendRow(['LDAP', 'SaveData']);
+savesSheet.setFrozenRows(1);
+}
+var configSheet = ss.getSheetByName('Config');
+if (!configSheet) {
+configSheet = ss.insertSheet('Config');
+configSheet.getRange('A1:B8').setValues([
+['Current_Season', 6],
+['Roulette_Start_Time', 0],
+['Roulette_Pot', 0],
+['Roulette_Status', 'WAITING'],
+['Last_Winner', 'None yet'],
+['Roulette_Feed', '[]'],
+['Roulette_Top_Wins', '[]'],
+['App_Version', '1']
+]);
+configSheet.setFrozenRows(1);
+}
+var chatSheet = ss.getSheetByName('Chat');
+if (!chatSheet) {
+chatSheet = ss.insertSheet('Chat');
+chatSheet.appendRow(['Timestamp', 'User', 'Message']);
+chatSheet.setFrozenRows(1);
+}
+return { ss: ss, saves: savesSheet, config: configSheet, chat: chatSheet };
+}
+function rowToJson_(row) {
+var s = '';
+for (var c = 1; c < row.length; c++) {
+if (row[c] !== '' && row[c] !== null) s += String(row[c]);
+}
+return s;
+}
+function loadGame() {
+var db = getDb_();
+var user = getUserLdap();
+var currentSeason = Number(db.config.getRange('B1').getValue()) || 1;
+var data = db.saves.getDataRange().getValues();
+for (var i = 1; i < data.length; i++) {
+if (data[i][0] === user) {
+try {
+var parsed = JSON.parse(rowToJson_(data[i]));
+parsed.ldap = user;
+if (!parsed.season || Number(parsed.season) < currentSeason) {
+return { ldap: user, isNew: true, season: currentSeason };
+}
+return parsed;
+} catch (e) {
+break;
+}
+}
+}
+return { ldap: user, isNew: true, season: currentSeason };
+}
+/** Vrací { ok: true } nebo { ok: false, reason: 'season' | 'busy' | 'error' } */
+function saveGame(stateJson) {
+var db = getDb_();
+var user = getUserLdap();
+var currentSeason = Number(db.config.getRange('B1').getValue()) || 1;
+var state;
+try {
+state = JSON.parse(stateJson);
+} catch (e) {
+return { ok: false, reason: 'error' };
+}
+if (state.season && Number(state.season) < currentSeason) {
+return { ok: false, reason: 'season', season: currentSeason };
+}
+state.season = currentSeason;
+presenceStamp_(user, state);
+stateJson = JSON.stringify(state);
+var chunks = [];
+for (var p = 0; p < stateJson.length; p += CHUNK_SIZE) {
+chunks.push(stateJson.substring(p, p + CHUNK_SIZE));
+}
+var row = [user].concat(chunks);
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(8000)) return { ok: false, reason: 'busy' };
+try {
+var lastRow = db.saves.getLastRow();
+var rowIndex = -1;
+if (lastRow >= 2) {
+var users = db.saves.getRange(2, 1, lastRow - 1, 1).getValues();
+for (var i = 0; i < users.length; i++) {
+if (users[i][0] === user) { rowIndex = i + 2; break; }
+}
+}
+if (rowIndex > 0) {
+var width = Math.max(db.saves.getLastColumn(), row.length);
+while (row.length < width) row.push('');
+db.saves.getRange(rowIndex, 1, 1, width).setValues([row]);
+} else {
+db.saves.appendRow(row);
+}
+return { ok: true };
+} catch (err) {
+return { ok: false, reason: 'error' };
+} finally {
+lock.releaseLock();
+}
+}
+function cleanTxt_(v, max) {
+return String(v === undefined || v === null ? '' : v).replace(/[<>&"']/g, '').substring(0, max);
+}
+function logRouletteSpin(entryJson) {
+var db = getDb_();
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(5000)) return false;
+try {
+var entry = JSON.parse(entryJson);
+entry.user = cleanTxt_(entry.user, 30);
+entry.num = cleanTxt_(entry.num, 30);
+entry.color = cleanTxt_(entry.color, 20);
+entry.payout = Number(entry.payout) || 0;
+entry.wager = Number(entry.wager) || 0;
+entry.time = cleanTxt_(entry.time, 10);
+var configVals = db.config.getRange('A1:B7').getValues();
+var feed = [];
+try { feed = JSON.parse(configVals[5][1]); } catch (e) { feed = []; }
+if (!Array.isArray(feed)) feed = [];
+feed.unshift(entry);
+if (feed.length > 10) feed = feed.slice(0, 10);
+var topWins = [];
+try { topWins = JSON.parse(configVals[6][1]); } catch (e) { topWins = []; }
+if (!Array.isArray(topWins)) topWins = [];
+if (entry.payout > 0) {
+topWins.push(entry);
+topWins.sort(function (a, b) { return (b.payout || 0) - (a.payout || 0); });
+if (topWins.length > 10) topWins = topWins.slice(0, 10);
+}
+db.config.getRange('B6').setValue(JSON.stringify(feed));
+db.config.getRange('B7').setValue(JSON.stringify(topWins));
+if (/^(RED|BLACK|GREEN)$/.test(entry.color)) {
+var hist = [];
+try { hist = JSON.parse(db.config.getRange('B12').getValue() || '[]'); } catch (e) { hist = []; }
+if (!Array.isArray(hist)) hist = [];
+hist.unshift({ user: entry.user, num: entry.num, color: entry.color });
+db.config.getRange('A12:B12').setValues([['Roulette_History', JSON.stringify(hist.slice(0, 12))]]);
+}
+return true;
+} catch (err) {
+return false;
+} finally {
+lock.releaseLock();
+}
+}
+function sendChatMessage(text) {
+if (!text || typeof text !== 'string') return { success: false, error: 'Empty message' };
+var cleanText = text.trim().substring(0, 180);
+if (!cleanText) return { success: false, error: 'Empty message' };
+var user = getUserLdap();
+var db = getDb_();
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(4000)) return { success: false, error: 'Server busy, retry in a moment' };
+try {
+if (/^[=+\-@]/.test(cleanText)) cleanText = "'" + cleanText;
+db.chat.appendRow([new Date(), user, cleanText]);
+var lastRow = db.chat.getLastRow();
+if (lastRow > 105) {
+db.chat.deleteRows(2, lastRow - 101);
+}
+return { success: true, messages: getRecentChatMessages_(db.chat) };
+} catch (e) {
+return { success: false, error: e.toString() };
+} finally {
+lock.releaseLock();
+}
+}
+function getRecentChatMessages_(chatSheet) {
+var lastRow = chatSheet.getLastRow();
+if (lastRow <= 1) return [];
+var startRow = Math.max(2, lastRow - 39);
+var numRows = lastRow - startRow + 1;
+var rows = chatSheet.getRange(startRow, 1, numRows, 3).getValues();
+var result = [];
+for (var i = 0; i < rows.length; i++) {
+var rawDate = rows[i][0];
+var timeStr = '';
+if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+timeStr = Utilities.formatDate(rawDate, Session.getScriptTimeZone() || 'GMT+1', 'HH:mm');
+} else if (rawDate) {
+var s = String(rawDate);
+var parts = s.split(' ');
+timeStr = parts.length > 1 ? parts[1].substring(0, 5) : s.substring(0, 5);
+}
+result.push({
+time: timeStr,
+user: String(rows[i][1] || 'agent'),
+text: String(rows[i][2] || '')
+});
+}
+return result;
+}
+function prestigeCost_(p) {
+return Math.floor(200000 * Math.pow(4.2, p));
+}
+function computeScore_(s) {
+var prestige = Number(s.prestige) || 0;
+var life = Number(s.lifetimeTickets);
+if (!isFinite(life) || life <= 0) {
+life = Number(s.tickets) || 0;
+for (var p = 0; p < prestige; p++) life += prestigeCost_(p);
+}
+var maxChest = Math.max(Number(s.maxChestLevel) || 0, Number(s.chestLevel) || 1);
+var floor = (s.dungeon && Number(s.dungeon.best)) || 0;
+return Math.floor(prestige * 1000000 + 100000 * Math.log(1 + life) / Math.LN10 + 5000 * maxChest + 25000 * floor);
+}
+function buildLeaderboard_(db, currentSeason) {
+var saves = db.saves.getDataRange().getValues();
+var leaderboard = [];
+for (var i = 1; i < saves.length; i++) {
+try {
+var raw = rowToJson_(saves[i]);
+if (!raw) continue;
+var s = JSON.parse(raw);
+if (!s.season || Number(s.season) < currentSeason) continue;
+var dg = s.dungeon || {};
+var gear = [];
+['HEAD', 'RIG', 'TOOL', 'AUGMENT', 'OS', 'RELIC'].forEach(function (k) {
+var it = s.loadout && s.loadout[k];
+if (it) gear.push('T' + (Number(it.tier) || 0) + '+' + (Number(it.lvl) || 0));
+});
+leaderboard.push({
+ldap: saves[i][0],
+prestige: s.prestige || 0,
+chestLvl: Math.max(Number(s.maxChestLevel) || 0, Number(s.chestLevel) || 1),
+gambleNet: s.gambleNet || 0,
+peakCps: Number(s.peakCps) || 0,
+gear: cleanTxt_(gear.join(' '), 80),
+dungeon: { cls: cleanTxt_(dg.cls, 12), level: Number(dg.level) || 0, best: Number(dg.best) || 0, wins: Number(dg.wins) || 0, losses: Number(dg.losses) || 0, title: cleanTxt_(dg.title, 40), honor: arenaHonorOf_(saves[i][0]) },
+ach: (function () { var u = s.hs && s.hs.ach && s.hs.ach.u; if (!u || typeof u !== 'object') return []; return Object.keys(u).slice(0, 60).map(function (k) { return cleanTxt_(k, 20); }); })(),
+score: computeScore_(s),
+presence: presenceOf_(s).presence,
+seen: presenceOf_(s).seen
+});
+} catch (e) {}
+}
+leaderboard.sort(function (a, b) { return b.score - a.score; });
+return leaderboard.slice(0, 10);
+}
+function getLeaderboardAndRoulette() {
+var db = getDb_();
+var config = db.config.getRange('A1:B7').getValues();
+var currentSeason = Number(config[0][1]) || 1;
+var cache = CacheService.getScriptCache();
+var key = 'tt_lb_v4_s' + currentSeason;
+var leaderboard = null;
+try {
+var cached = cache.get(key);
+if (cached) leaderboard = JSON.parse(cached);
+} catch (e) {}
+if (!leaderboard) {
+leaderboard = buildLeaderboard_(db, currentSeason);
+try { cache.put(key, JSON.stringify(leaderboard), 10); } catch (e) {}
+}
+var feed = [];
+try { feed = JSON.parse(config[5][1]); } catch (e) {}
+var topWins = [];
+try { topWins = JSON.parse(config[6][1]); } catch (e) {}
+var rouletteHistory = [];
+try { rouletteHistory = JSON.parse(db.config.getRange('B12').getValue() || '[]'); } catch (e) {}
+return {
+leaderboard: leaderboard,
+feed: feed,
+topWins: topWins,
+rouletteHistory: rouletteHistory,
+chat: getRecentChatMessages_(db.chat),
+currentSeason: currentSeason
+};
+}
+var PVP_RAKE = 0.05;
+var PVP_MAX_OPEN = 3;
+var PVP_EXPIRE_MS = 24 * 3600 * 1000;
+var PVP_MIN_STAKE = 10;
+var PVP_MAX_STAKE = 10000000;
+function pvpSheets_() {
+var ss = SpreadsheetApp.getActiveSpreadsheet();
+var ch = ss.getSheetByName('PvP_Challenges');
+if (!ch) {
+ch = ss.insertSheet('PvP_Challenges');
+ch.appendRow(['ID', 'Creator', 'Stake', 'CreatorMoves', 'Status', 'Opponent', 'OppMoves', 'Result', 'CreatedAt', 'ResolvedAt', 'Score']);
+ch.setFrozenRows(1);
+}
+var pay = ss.getSheetByName('PvP_Payouts');
+if (!pay) {
+pay = ss.insertSheet('PvP_Payouts');
+pay.appendRow(['ID', 'Player', 'Amount', 'Claimed', 'Reason', 'Time']);
+pay.setFrozenRows(1);
+}
+return { ch: ch, pay: pay };
+}
+function pvpBeats_(x, y) {
+return (x === 'R' && y === 'S') || (x === 'P' && y === 'R') || (x === 'S' && y === 'P');
+}
+function pvpOutcome_(a, b) {
+var wa = 0, wb = 0;
+for (var i = 0; i < 3; i++) {
+var x = a.charAt(i), y = b.charAt(i);
+if (x === y) continue;
+if (pvpBeats_(x, y)) wa++; else wb++;
+}
+return { wa: wa, wb: wb, winner: wa > wb ? 'A' : (wb > wa ? 'B' : 'D') };
+}
+function pvpCreate(stake, moves) {
+stake = Math.floor(Number(stake));
+moves = String(moves || '').toUpperCase();
+if (!isFinite(stake) || stake < PVP_MIN_STAKE || stake > PVP_MAX_STAKE) return { ok: false, reason: 'stake' };
+if (!/^[RPS]{3}$/.test(moves)) return { ok: false, reason: 'moves' };
+var user = getUserLdap();
+var sh = pvpSheets_();
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(6000)) return { ok: false, reason: 'busy' };
+try {
+var data = sh.ch.getDataRange().getValues();
+var open = 0;
+for (var i = 1; i < data.length; i++) {
+if (data[i][4] === 'OPEN' && data[i][1] === user) open++;
+}
+if (open >= PVP_MAX_OPEN) return { ok: false, reason: 'limit' };
+var id = Utilities.getUuid().substring(0, 8);
+sh.ch.appendRow([id, user, stake, moves, 'OPEN', '', '', '', Date.now(), '', '']);
+return { ok: true, id: id };
+} catch (e) {
+return { ok: false, reason: 'error' };
+} finally {
+lock.releaseLock();
+}
+}
+function pvpCancel(id) {
+var user = getUserLdap();
+var sh = pvpSheets_();
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(6000)) return { ok: false, reason: 'busy' };
+try {
+var data = sh.ch.getDataRange().getValues();
+for (var i = 1; i < data.length; i++) {
+if (data[i][0] === id) {
+if (data[i][1] !== user || data[i][4] !== 'OPEN') return { ok: false, reason: 'state' };
+var now = Date.now();
+sh.ch.getRange(i + 1, 5).setValue('CANCELLED');
+sh.ch.getRange(i + 1, 10).setValue(now);
+sh.pay.appendRow([id, user, Number(data[i][2]), 0, 'CANCELLED', now]);
+return { ok: true };
+}
+}
+return { ok: false, reason: 'missing' };
+} catch (e) {
+return { ok: false, reason: 'error' };
+} finally {
+lock.releaseLock();
+}
+}
+function pvpAccept(id, moves, stake) {
+moves = String(moves || '').toUpperCase();
+stake = Math.floor(Number(stake));
+if (!/^[RPS]{3}$/.test(moves)) return { ok: false, reason: 'moves' };
+var user = getUserLdap();
+var sh = pvpSheets_();
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(6000)) return { ok: false, reason: 'busy' };
+try {
+var data = sh.ch.getDataRange().getValues();
+for (var i = 1; i < data.length; i++) {
+if (data[i][0] !== id) continue;
+var row = data[i];
+if (row[4] !== 'OPEN') return { ok: false, reason: 'taken' };
+if (row[1] === user) return { ok: false, reason: 'own' };
+if (Number(row[2]) !== stake) return { ok: false, reason: 'stake' };
+var creator = row[1];
+var cMoves = String(row[3]);
+var out = pvpOutcome_(cMoves, moves);        // A = tvůrce, B = přijímající
+var now = Date.now();
+var result = out.winner === 'A' ? 'CREATOR' : (out.winner === 'B' ? 'OPPONENT' : 'DRAW');
+var score = out.wa + '-' + out.wb;
+sh.ch.getRange(i + 1, 5, 1, 7).setValues([['DONE', user, moves, result, row[8], now, score]]);
+var win = Math.floor(stake * 2 * (1 - PVP_RAKE));
+var payout = 0;
+if (out.winner === 'B') {
+payout = win;
+sh.pay.appendRow([id, user, win, 1, 'WIN', now]);        // přijímající dostane hned v odpovědi
+} else if (out.winner === 'A') {
+sh.pay.appendRow([id, creator, win, 0, 'WIN', now]);
+} else {
+payout = stake;
+sh.pay.appendRow([id, user, stake, 1, 'DRAW', now]);
+sh.pay.appendRow([id, creator, stake, 0, 'DRAW', now]);
+}
+return {
+ok: true,
+result: out.winner === 'B' ? 'WIN' : (out.winner === 'A' ? 'LOSE' : 'DRAW'),
+score: out.wb + '-' + out.wa,
+creator: creator,
+theirMoves: cMoves,
+payout: payout
+};
+}
+return { ok: false, reason: 'missing' };
+} catch (e) {
+return { ok: false, reason: 'error' };
+} finally {
+lock.releaseLock();
+}
+}
+/** Expiruje staré výzvy, vyzvedne výplaty hráče a (volitelně) vrátí seznam výzev + historii. */
+function pvpPoll(wantList) {
+var user = getUserLdap();
+var sh = pvpSheets_();
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(6000)) return { ok: false, reason: 'busy' };
+try {
+var now = Date.now();
+var ch = sh.ch.getDataRange().getValues();
+for (var i = 1; i < ch.length; i++) {
+if (ch[i][4] === 'OPEN' && now - Number(ch[i][8]) > PVP_EXPIRE_MS) {
+sh.ch.getRange(i + 1, 5).setValue('EXPIRED');
+sh.ch.getRange(i + 1, 10).setValue(now);
+sh.pay.appendRow([ch[i][0], ch[i][1], Number(ch[i][2]), 0, 'EXPIRED', now]);
+ch[i][4] = 'EXPIRED';
+ch[i][9] = now;
+}
+}
+var pay = sh.pay.getDataRange().getValues();
+var claimed = [];
+for (var j = 1; j < pay.length; j++) {
+if (pay[j][1] === user && Number(pay[j][3]) === 0) {
+claimed.push({ id: pay[j][0], amount: Number(pay[j][2]), reason: pay[j][4] });
+sh.pay.getRange(j + 1, 4).setValue(1);
+}
+}
+var out = { ok: true, claimed: claimed };
+if (!wantList) return out;
+var open = [], hist = [];
+var w = 0, l = 0, d = 0, net = 0;
+for (var k = ch.length - 1; k >= 1; k--) {
+var r = ch[k];
+var status = r[4];
+var stake = Number(r[2]);
+if (status === 'OPEN') {
+open.push({ id: r[0], creator: r[1], stake: stake, created: Number(r[8]), mine: r[1] === user });
+continue;
+}
+var iAmCreator = r[1] === user;
+var iAmOpp = r[5] === user;
+if (!iAmCreator && !iAmOpp) continue;
+var res;
+if (status === 'DONE') {
+var cw = r[7] === 'CREATOR', ow = r[7] === 'OPPONENT';
+if (r[7] === 'DRAW') { res = 'DRAW'; d++; }
+else if ((iAmCreator && cw) || (iAmOpp && ow)) { res = 'WIN'; w++; net += Math.floor(stake * 2 * (1 - PVP_RAKE)) - stake; }
+else { res = 'LOSE'; l++; net -= stake; }
+} else {
+res = status;
+}
+if (hist.length < 8) {
+var score = String(r[10] || '');
+var parts = score.split('-');
+var mine = iAmCreator ? parts[0] : parts[1];
+var theirs = iAmCreator ? parts[1] : parts[0];
+hist.push({
+id: r[0], res: res, stake: stake,
+vs: iAmCreator ? (r[5] || '-') : r[1],
+score: (parts.length === 2) ? (mine + '-' + theirs) : '',
+myMoves: status === 'DONE' ? String(iAmCreator ? r[3] : r[6]) : '',
+theirMoves: status === 'DONE' ? String(iAmCreator ? r[6] : r[3]) : '',
+at: Number(r[9]) || Number(r[8])
+});
+}
+}
+open.reverse();
+out.open = open;
+out.history = hist;
+out.stats = { w: w, l: l, d: d, net: net };
+return out;
+} catch (e) {
+return { ok: false, reason: 'error' };
+} finally {
+lock.releaseLock();
+}
+}
+function adminSeasonWipe() {
+var ss = SpreadsheetApp.getActiveSpreadsheet();
+var config = ss.getSheetByName('Config');
+var newSeason = 7;
+if (config) {
+var cur = Number(config.getRange('B1').getValue()) || 6;
+newSeason = cur + 1;
+config.getRange('A1:B7').setValues([
+['Current_Season', newSeason],
+['Roulette_Start_Time', 0],
+['Roulette_Pot', 0],
+['Roulette_Status', 'WAITING'],
+['Last_Winner', 'None yet'],
+['Roulette_Feed', '[]'],
+['Roulette_Top_Wins', '[]']
+]);
+}
+var saves = ss.getSheetByName('Saves');
+if (saves) {
+saves.clearContents();
+saves.appendRow(['LDAP', 'SaveData']);
+saves.setFrozenRows(1);
+}
+var chat = ss.getSheetByName('Chat');
+if (chat) {
+chat.clearContents();
+chat.appendRow(['Timestamp', 'User', 'Message']);
+chat.setFrozenRows(1);
+}
+var rouletteState = ss.getSheetByName('Roulette_State');
+if (rouletteState) {
+rouletteState.clearContents();
+rouletteState.appendRow(['LDAP', 'BetAmount', 'Status (IN / IDLE)']);
+rouletteState.setFrozenRows(1);
+}
+var pvpC = ss.getSheetByName('PvP_Challenges');
+if (pvpC) {
+pvpC.clearContents();
+pvpC.appendRow(['ID', 'Creator', 'Stake', 'CreatorMoves', 'Status', 'Opponent', 'OppMoves', 'Result', 'CreatedAt', 'ResolvedAt', 'Score']);
+pvpC.setFrozenRows(1);
+}
+var pvpP = ss.getSheetByName('PvP_Payouts');
+if (pvpP) {
+pvpP.clearContents();
+pvpP.appendRow(['ID', 'Player', 'Amount', 'Claimed', 'Reason', 'Time']);
+pvpP.setFrozenRows(1);
+}
+try { if (config) config.getRange('A12:B12').setValues([['Roulette_History', '[]']]); } catch (e) {}
+['Arena', 'Arena_Log'].forEach(function (n) { var sh = ss.getSheetByName(n); if (sh) ss.deleteSheet(sh); });
+ARENA_HONOR_CACHE_ = null;
+try { CacheService.getScriptCache().remove('tt_lb_v4_s' + newSeason); } catch (e) {}
+bumpAppVersion_();
+return 'Season ' + newSeason + ' initialized. All old saves quarantined.';
+}
+function presenceStamp_(user, state) {
+var now = Date.now(), c = CacheService.getScriptCache(), k = 'pres_' + user, prev = null;
+try { prev = JSON.parse(c.get(k) || 'null'); } catch (e) {}
+var inv = Array.isArray(state.inventory) ? state.inventory.reduce(function (a, s) { return a + (Number(s && s.n) || 0); }, 0) : 0;
+var sig = [Math.floor(Number(state.lifetimeTickets) || 0), Math.floor(Number(state.scrap) || 0), Number(state.prestige) || 0,
+Number(state.chestLevel) || 0, Math.floor(Number(state.gambleNet) || 0), inv, (state.dungeon && state.dungeon.wins) || 0].join('|');
+var activeAt = (prev && prev.sig === sig && prev.activeAt) ? prev.activeAt : now;
+state.savedAt = now;
+state.activeAt = activeAt;
+try { c.put(k, JSON.stringify({ sig: sig, activeAt: activeAt }), 21600); } catch (e) {}
+}
+function presenceOf_(s) {
+var now = Date.now(), saved = Number(s.savedAt) || 0, act = Number(s.activeAt) || 0;
+var p = !saved || now - saved > 90000 ? 'off' : (now - act < 150000 ? 'on' : 'afk');
+return { presence: p, seen: saved ? now - saved : -1 };
+}
+var ARENA_PER_DAY = 8;
+var ARENA_SAME_TARGET_MS = 20 * 60 * 1000;
+var ARENA_START = 1000;
+var ARENA_HONOR_CACHE_ = null;
+function arenaSheets_() {
+var ss = SpreadsheetApp.getActiveSpreadsheet();
+var a = ss.getSheetByName('Arena');
+if (!a) { a = ss.insertSheet('Arena'); a.appendRow(['Nick', 'Honor', 'Day', 'FightsToday', 'Wins', 'Losses', 'LastTargets']); a.setFrozenRows(1); }
+var l = ss.getSheetByName('Arena_Log');
+if (!l) { l = ss.insertSheet('Arena_Log'); l.appendRow(['Time', 'Attacker', 'Defender', 'Winner', 'DeltaA', 'DeltaD', 'Turns', 'Reward']); l.setFrozenRows(1); }
+return { a: a, l: l };
+}
+function arenaDay_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'GMT', 'yyyy-MM-dd'); }
+function arenaRows_(sh) {
+var last = sh.a.getLastRow();
+var rows = last >= 2 ? sh.a.getRange(2, 1, last - 1, 7).getValues() : [];
+var map = {};
+rows.forEach(function (r, i) { map[String(r[0])] = { row: i + 2, honor: Number(r[1]) || ARENA_START, day: String(r[2] || ''), fights: Number(r[3]) || 0, wins: Number(r[4]) || 0, losses: Number(r[5]) || 0, last: r[6] ? safeJson_(r[6], {}) : {} }; });
+return map;
+}
+function safeJson_(s, d) { try { return JSON.parse(s); } catch (e) { return d; } }
+function arenaHonorOf_(nick) {
+if (!ARENA_HONOR_CACHE_) {
+ARENA_HONOR_CACHE_ = {};
+var ss = SpreadsheetApp.getActiveSpreadsheet(), a = ss.getSheetByName('Arena');
+if (a && a.getLastRow() >= 2) a.getRange(2, 1, a.getLastRow() - 1, 2).getValues().forEach(function (r) { ARENA_HONOR_CACHE_[String(r[0])] = Number(r[1]) || ARENA_START; });
+}
+return ARENA_HONOR_CACHE_[nick] || ARENA_START;
+}
+function arenaWrite_(sh, nick, rec) {
+var vals = [[nick, rec.honor, rec.day, rec.fights, rec.wins, rec.losses, JSON.stringify(rec.last || {})]];
+if (rec.row) sh.a.getRange(rec.row, 1, 1, 7).setValues(vals);
+else { sh.a.appendRow(vals[0]); rec.row = sh.a.getLastRow(); }
+}
+/** načte savy aktuální sezóny: { nick: stateObj } */
+function arenaSaves_() {
+var db = getDb_();
+var season = Number(db.config.getRange('B1').getValue()) || 1;
+var data = db.saves.getDataRange().getValues(), out = {};
+for (var i = 1; i < data.length; i++) {
+try {
+var s = JSON.parse(rowToJson_(data[i]));
+if (!s.season || Number(s.season) < season) continue;
+out[String(data[i][0])] = s;
+} catch (e) {}
+}
+return out;
+}
+function arenaPlayer_(s) {
+var d = s.dungeon || {};
+if (!d.cls) return null;
+var lo = s.loadout || {}, g = { atk: 1, hp: 1 };
+['TOOL', 'AUGMENT', 'RELIC'].forEach(function (k) { var it = lo[k]; if (it) g.atk += DungeonEngine.gearSlotValue(Number(it.tier) || 1, Number(it.lvl) || 0); });
+['HEAD', 'RIG', 'OS'].forEach(function (k) { var it = lo[k]; if (it) g.hp += DungeonEngine.gearSlotValue(Number(it.tier) || 1, Number(it.lvl) || 0); });
+if (d.gear && Number(d.gear.atk) > 0 && Number(d.gear.hp) > 0) g = { atk: Math.min(5, Number(d.gear.atk)), hp: Math.min(5, Number(d.gear.hp)) };
+var arts = d.artifacts || {}, eq = Array.isArray(d.equipped) ? d.equipped.filter(function (id) { return arts[id]; }).slice(0, 6) : [];
+var dd = { cls: d.cls, level: Math.max(1, Math.min(999, Number(d.level) || 1)), tier: Math.max(1, Math.min(4, Number(d.tier) || 1)), branch: d.branch === 'a' || d.branch === 'b' ? d.branch : '',
+artifacts: arts, equipped: eq, exec: !!(d.promos && d.promos.bod) };
+return DungeonEngine.buildPlayer(dd, g);
+}
+function arenaList() {
+var me = getUserLdap();
+var saves = arenaSaves_();
+var sh = arenaSheets_();
+var recs = arenaRows_(sh);
+var day = arenaDay_();
+var mine = recs[me] || { honor: ARENA_START, fights: 0, wins: 0, losses: 0, day: day };
+var used = mine.day === day ? mine.fights : 0;
+var opp = [];
+Object.keys(saves).forEach(function (nick) {
+if (nick === me) return;
+var p = arenaPlayer_(saves[nick]); if (!p) return;
+var d = saves[nick].dungeon || {}, r = recs[nick] || {};
+var last = (mine.last || {})[nick] || 0;
+opp.push({ nick: nick, cls: d.cls, level: p.level, title: cleanTxt_(d.title, 40), best: Number(d.best) || 0, honor: r.honor || ARENA_START,
+power: DungeonEngine.power(p), wins: r.wins || 0, losses: r.losses || 0, cooldown: Math.max(0, ARENA_SAME_TARGET_MS - (Date.now() - last)),
+presence: presenceOf_(saves[nick]).presence });
+});
+opp.sort(function (a, b) { return b.honor - a.honor; });
+var logs = [], lr = sh.l.getLastRow();
+if (lr >= 2) {
+var rows = sh.l.getRange(Math.max(2, lr - 199), 1, Math.min(199, lr - 1), 8).getValues();
+for (var i = rows.length - 1; i >= 0 && logs.length < 12; i--) {
+var r2 = rows[i];
+if (r2[1] === me || r2[2] === me) logs.push({ time: Number(r2[0]) || 0, attacker: r2[1], defender: r2[2], winner: r2[3], delta: r2[1] === me ? Number(r2[4]) : Number(r2[5]), turns: Number(r2[6]) || 0 });
+}
+}
+var mp = saves[me] ? arenaPlayer_(saves[me]) : null;
+return { ok: true, me: { honor: mine.honor, wins: mine.wins, losses: mine.losses, left: Math.max(0, ARENA_PER_DAY - used), perDay: ARENA_PER_DAY, power: mp ? DungeonEngine.power(mp) : 0 }, opponents: opp, log: logs };
+}
+function arenaFight(target, stance) {
+var me = getUserLdap();
+target = String(target || '');
+if (!target || target === me) return { ok: false, reason: 'target' };
+if (['safe', 'normal', 'allin'].indexOf(stance) < 0) stance = 'normal';
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(8000)) return { ok: false, reason: 'busy' };
+try {
+var saves = arenaSaves_();
+if (!saves[me] || !saves[target]) return { ok: false, reason: 'missing' };
+var A = arenaPlayer_(saves[me]), B = arenaPlayer_(saves[target]);
+if (!A) return { ok: false, reason: 'noclass' };
+if (!B) return { ok: false, reason: 'target' };
+var sh = arenaSheets_();
+var recs = arenaRows_(sh), day = arenaDay_();
+var ra = recs[me] || { honor: ARENA_START, day: day, fights: 0, wins: 0, losses: 0, last: {} };
+var rb = recs[target] || { honor: ARENA_START, day: '', fights: 0, wins: 0, losses: 0, last: {} };
+if (ra.day !== day) { ra.day = day; ra.fights = 0; }
+if (ra.fights >= ARENA_PER_DAY) return { ok: false, reason: 'limit' };
+var lastT = (ra.last || {})[target] || 0;
+if (Date.now() - lastT < ARENA_SAME_TARGET_MS) return { ok: false, reason: 'cooldown', wait: ARENA_SAME_TARGET_MS - (Date.now() - lastT) };
+var dStance = (saves[target].dungeon && saves[target].dungeon.arenaStance) || 'normal';
+if (['safe', 'normal', 'allin'].indexOf(dStance) < 0) dStance = 'normal';
+var seed = Math.floor(Math.random() * 2147483646) + 1;
+var res = DungeonEngine.duel(A, B, seed, stance, dStance);
+var exp = 1 / (1 + Math.pow(10, (rb.honor - ra.honor) / 400));
+var dA = Math.round(32 * ((res.win ? 1 : 0) - exp));
+if (res.win && dA < 1) dA = 1;
+var dB = -dA;
+ra.honor = Math.max(0, ra.honor + dA); rb.honor = Math.max(0, rb.honor + dB);
+ra.fights++; if (res.win) { ra.wins++; rb.losses++; } else { ra.losses++; rb.wins++; }
+ra.last = ra.last || {}; ra.last[target] = Date.now();
+Object.keys(ra.last).forEach(function (k) { if (Date.now() - ra.last[k] > ARENA_SAME_TARGET_MS) delete ra.last[k]; });
+var reward = res.win ? Math.round(1500 + 120 * A.level + 0.5 * Math.max(0, rb.honor - ra.honor + 200)) : Math.round(300 + 20 * A.level);
+arenaWrite_(sh, me, ra); arenaWrite_(sh, target, rb);
+sh.l.appendRow([Date.now(), me, target, res.win ? me : target, dA, dB, res.turns, reward]);
+if (sh.l.getLastRow() > 600) sh.l.deleteRows(2, 100);
+ARENA_HONOR_CACHE_ = null;
+return { ok: true, win: res.win, first: res.first, events: res.events, max: res.max, turns: res.turns, defStance: dStance,
+honor: ra.honor, delta: dA, reward: reward, left: ARENA_PER_DAY - ra.fights,
+opp: { nick: target, cls: B.cls, level: B.level, title: cleanTxt_((saves[target].dungeon || {}).title, 40), honor: rb.honor } };
+} catch (e) {
+return { ok: false, reason: 'error', msg: String(e) };
+} finally {
+lock.releaseLock();
+}
+}
+var WB_COOLDOWN_MS = 60 * 60 * 1000;
+var WB_COUNT = 11;                 // v8.6: rotace přes všech 11 bossů
+var WB_BASE_HP = 3000;
+var WB_CONTRIB = 100;
+var WB_MK_HP = 1.6;            // v8.2: po zabití hned naskočí MK.II, MK.III... (HP ×1.6 za každý MK)
+function wbWeek_() { return Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000)); }
+function wbSheet_() {
+var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName('World_Boss');
+if (!sh) { sh = ss.insertSheet('World_Boss'); sh.appendRow(['Week', 'Data']); sh.setFrozenRows(1); }
+return sh;
+}
+function wbLoad_(sh, week) {
+var last = sh.getLastRow();
+if (last >= 2) {
+var rows = sh.getRange(2, 1, last - 1, 2).getValues();
+for (var i = rows.length - 1; i >= 0; i--) if (Number(rows[i][0]) === week) return { row: i + 2, data: safeJson_(rows[i][1], null) };
+}
+return { row: 0, data: null };
+}
+function wbFresh_(week) { return { week: week, idx: week % WB_COUNT, maxHp: WB_BASE_HP, baseHp: WB_BASE_HP, mk: 1, kills: [], dmg: 0, killedAt: 0, killer: '', players: {} }; }
+function wbFix_(d) {
+if (!d.mk) d.mk = d.killedAt ? 2 : 1;
+if (!d.baseHp) d.baseHp = d.maxHp;
+if (!d.kills) d.kills = d.killedAt ? [{ mk: 1, killer: d.killer, at: d.killedAt }] : [];
+if (d.killedAt && d.mk === 2 && d.dmg >= d.maxHp) { d.dmg = 0; d.maxHp = Math.round(d.baseHp * WB_MK_HP); }
+return d;
+}
+function wbMkMult_(mk) { return Math.pow(WB_MK_HP, mk - 1); }
+function wbPublic_(d, me) {
+var list = Object.keys(d.players).map(function (n) { var p = d.players[n]; return { nick: n, dmg: p.dmg, n: p.n }; });
+list.sort(function (a, b) { return b.dmg - a.dmg; });
+var mine = d.players[me] || { dmg: 0, n: 0, last: 0 };
+return { week: d.week, idx: d.idx, maxHp: d.maxHp, dmg: d.dmg, mk: d.mk, kills: d.kills, killedAt: d.killedAt, killer: d.killer, players: list.slice(0, 30),
+me: { dmg: mine.dmg, n: mine.n, wait: Math.max(0, WB_COOLDOWN_MS - (Date.now() - (mine.last || 0))) } };
+}
+function wbState() {
+var me = getUserLdap(), sh = wbSheet_(), w = wbWeek_();
+var cur = wbFix_(wbLoad_(sh, w).data || wbFresh_(w));
+var prev = wbLoad_(sh, w - 1).data;
+if (prev) wbFix_(prev);
+var last = null;
+if (prev) {
+var top = Object.keys(prev.players).sort(function (a, b) { return prev.players[b].dmg - prev.players[a].dmg; })[0] || '';
+last = { week: prev.week, idx: prev.idx, killed: !!prev.killedAt, kills: prev.kills.length, mk: prev.mk, top: top, myDmg: (prev.players[me] || {}).dmg || 0, participants: Object.keys(prev.players).length };
+}
+return { ok: true, now: Date.now(), cooldown: WB_COOLDOWN_MS, cur: wbPublic_(cur, me), last: last };
+}
+function wbSubmit(dmg, atk) {
+var me = getUserLdap();
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(8000)) return { ok: false, reason: 'busy' };
+try {
+var sh = wbSheet_(), w = wbWeek_(), got = wbLoad_(sh, w), d = wbFix_(got.data || wbFresh_(w));
+var p = d.players[me];
+if (p && Date.now() - (p.last || 0) < WB_COOLDOWN_MS) return { ok: false, reason: 'cooldown' };
+atk = Math.max(1, Math.min(1000000, Number(atk) || 1));
+dmg = Math.max(0, Math.min(Math.floor(Number(dmg) || 0), Math.round(atk * 90)));   // v8.6: 15 kol + silnější ulty
+if (!p) { p = d.players[me] = { dmg: 0, n: 0, last: 0, contrib: Math.round(atk * WB_CONTRIB) }; d.baseHp += p.contrib; d.maxHp += Math.round(p.contrib * wbMkMult_(d.mk)); }
+var before = d.dmg, mkBefore = d.mk;
+dmg = Math.min(dmg, d.maxHp - d.dmg);                      // přebytek se nepřenáší do dalšího MK
+p.dmg += dmg; p.n++; p.last = Date.now();
+d.dmg += dmg;
+var kill = false;
+if (d.dmg >= d.maxHp) {
+kill = true;
+if (!d.killedAt) { d.killedAt = Date.now(); d.killer = me; }
+d.kills.push({ mk: d.mk, killer: me, at: Date.now() });
+d.mk++; d.dmg = 0; d.maxHp = Math.round(d.baseHp * wbMkMult_(d.mk));
+try { getDb_().chat.appendRow([new Date(), '📢 QUARTERLY REVIEW', me + ' took down MK.' + (d.mk - 1) + '! MK.' + d.mk + ' just walked in - the weekly reward grows.']); } catch (e) {}
+}
+var json = JSON.stringify(d);
+if (got.row) sh.getRange(got.row, 2).setValue(json); else sh.appendRow([w, json]);
+if (sh.getLastRow() > 30) sh.deleteRows(2, sh.getLastRow() - 30);
+return { ok: true, dmg: dmg, kill: kill, mk: mkBefore, counted: dmg, state: wbPublic_(d, me) };
+} catch (e) {
+return { ok: false, reason: 'error', msg: String(e) };
+} finally {
+lock.releaseLock();
+}
+}
+var WEEKLY_CATS = { climb: 280, shift: 999, casino: 1e18 };
+/** v8.6: CLEAR THE POOL - žebříček nejhlubšího patra (ze savů, cache 60 s) */
+function poolBoard() {
+try {
+var cache = CacheService.getScriptCache(), hit = cache.get('poolBoard');
+if (hit) return { ok: true, list: JSON.parse(hit) };
+var db = getDb_(), saves = db.saves.getDataRange().getValues(), list = [];
+for (var i = 1; i < saves.length; i++) {
+try {
+var raw = rowToJson_(saves[i]); if (!raw) continue;
+var s = JSON.parse(raw), b = Number(s.hs && s.hs.pool && s.hs.pool.best) || 0;
+if (b > 0) list.push({ nick: String(saves[i][0]), best: Math.min(100000, Math.floor(b)) });
+} catch (e) {}
+}
+list.sort(function (a, b) { return b.best - a.best; });
+list = list.slice(0, 10);
+try { cache.put('poolBoard', JSON.stringify(list), 60); } catch (e) {}
+return { ok: true, list: list };
+} catch (e) {
+return { ok: false, list: [], msg: String(e) };
+}
+}
+function weeklySheet_() {
+var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName('Weekly');
+if (!sh) { sh = ss.insertSheet('Weekly'); sh.appendRow(['Week', 'Data']); sh.setFrozenRows(1); }
+return sh;
+}
+function weeklyTop_(map, n) {
+return Object.keys(map || {}).map(function (k) { return { nick: k, v: Number(map[k]) || 0 }; })
+.filter(function (x) { return x.v > 0; }).sort(function (a, b) { return b.v - a.v; }).slice(0, n);
+}
+function weeklyBoards_(w) {
+var d = wbLoad_(weeklySheet_(), w).data || {};
+var wb = wbLoad_(wbSheet_(), w).data, dmg = {};
+if (wb && wb.players) Object.keys(wb.players).forEach(function (k) { dmg[k] = wb.players[k].dmg || 0; });
+return { climb: d.climb || {}, shift: d.shift || {}, casino: d.casino || {}, wbdmg: dmg };
+}
+function weeklyState() {
+var me = getUserLdap(), w = wbWeek_(), cur = weeklyBoards_(w), prev = weeklyBoards_(w - 1), out = { ok: true, week: w, cur: {}, last: {}, mine: {} };
+Object.keys(cur).forEach(function (c) {
+out.cur[c] = weeklyTop_(cur[c], 10);
+out.last[c] = weeklyTop_(prev[c], 3);
+out.mine[c] = Number(cur[c][me]) || 0;
+});
+return out;
+}
+function weeklySubmit(cat, val) {
+var me = getUserLdap();
+if (!WEEKLY_CATS.hasOwnProperty(cat)) return { ok: false, reason: 'cat' };
+val = Math.max(0, Math.min(WEEKLY_CATS[cat], Number(val) || 0));
+var lock = LockService.getScriptLock();
+if (!lock.tryLock(8000)) return { ok: false, reason: 'busy' };
+try {
+var sh = weeklySheet_(), w = wbWeek_(), got = wbLoad_(sh, w), d = got.data || {};
+d[cat] = d[cat] || {};
+var old = Number(d[cat][me]) || 0;
+if (val <= old) return { ok: true, best: old };
+d[cat][me] = val;
+var json = JSON.stringify(d);
+if (got.row) sh.getRange(got.row, 2).setValue(json); else sh.appendRow([w, json]);
+if (sh.getLastRow() > 20) sh.deleteRows(2, sh.getLastRow() - 20);
+return { ok: true, best: val };
+} catch (e) {
+return { ok: false, reason: 'error', msg: String(e) };
+} finally {
+lock.releaseLock();
+}
+}
+var PRS_MIN_STAKE = 10, PRS_MAX_STAKE = 1000000000;   // vklad si volí zakladatel (jako u Showdownu)
+var PRS_MAX_TABLES = 2, PRS_TURN_MS = 30000, PRS_WAIT_MS = 120000, PRS_IDLE_MS = 30 * 60000, PRS_RAKE = 0.05, PRS_MAX_MISS = 3;
+function prsProps_() { return PropertiesService.getScriptProperties(); }
+function prsGet_(id) {
+var raw = CacheService.getScriptCache().get('pr_' + id);
+if (!raw) raw = prsProps_().getProperty('pr_' + id);
+return raw ? JSON.parse(raw) : null;
+}
+function prsPut_(t) {
+var json = JSON.stringify(t);
+CacheService.getScriptCache().put('pr_' + t.id, json, 21600);
+prsProps_().setProperty('pr_' + t.id, json);
+}
+function prsDel_(id) { CacheService.getScriptCache().remove('pr_' + id); prsProps_().deleteProperty('pr_' + id); }
+function prsIndex_() { try { return JSON.parse(prsProps_().getProperty('pr_index') || '[]'); } catch (e) { return []; } }
+function prsSetIndex_(a) { prsProps_().setProperty('pr_index', JSON.stringify(a)); CacheService.getScriptCache().put('pr_ver', String(Date.now()), 21600); }
+function prsPay_(nick, amt, why, id) {
+if (!(amt > 0)) return;
+var p = prsProps_(), m = {};
+try { m = JSON.parse(p.getProperty('pr_pay') || '{}'); } catch (e) {}
+(m[nick] = m[nick] || []).push({ amt: Math.floor(amt), why: why, id: id });
+p.setProperty('pr_pay', JSON.stringify(m));
+}
+function prsTakePay_(nick) {
+var p = prsProps_(), raw = p.getProperty('pr_pay');
+if (!raw || raw.indexOf('"' + nick + '"') < 0) return [];
+var m = {}; try { m = JSON.parse(raw); } catch (e) {}
+var out = m[nick] || []; delete m[nick];
+p.setProperty('pr_pay', JSON.stringify(m));
+return out;
+}
+function prsLock_() { var l = LockService.getScriptLock(); if (!l.tryLock(10000)) throw new Error('Server is busy, try again.'); return l; }
+function prsShuffle_(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), x = a[i]; a[i] = a[j]; a[j] = x; } return a; }
+function prsSuit_(c) { return Math.floor(c / 8); }
+function prsRank_(c) { return c % 8; }
+function prsLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 40) t.log.shift(); }
+var PRS_SUITS = ['Hearts', 'Bells', 'Leaves', 'Acorns'], PRS_RANKS = ['7', '8', '9', '10', 'Jack', 'Queen', 'King', 'Ace'];
+function prsName_(c) { return PRS_RANKS[prsRank_(c)] + ' of ' + PRS_SUITS[prsSuit_(c)]; }
+function prsTop_(t) { return t.pile[t.pile.length - 1]; }
+function prsPlayable_(t, c) {
+var r = prsRank_(c), top = prsTop_(t);
+if (t.pen > 0) return r === 0;                       // aktivní sedma: jen sedma
+if (t.skip) return r === 7;                          // aktivní eso: jen eso
+if (r === 5) return true;                            // svršek na cokoli
+return prsSuit_(c) === t.suit || r === prsRank_(top);
+}
+function prsDraw_(t, n) {
+var got = [];
+for (var i = 0; i < n; i++) {
+if (!t.deck.length) { if (t.pile.length <= 1) break; t.deck = prsShuffle_(t.pile.slice(0, -1)); t.pile = t.pile.slice(-1); }
+got.push(t.deck.pop());
+}
+return got;
+}
+function prsActive_(t) { var f = t.fin || []; return t.order.filter(function (n) { return t.out.indexOf(n) < 0 && f.indexOf(n) < 0; }); }
+function prsNext_(t) {
+var act = prsActive_(t); if (!act.length) return;
+var cur = t.order[t.turn], i = t.order.indexOf(cur);
+for (var k = 1; k <= t.order.length; k++) { var n = t.order[(i + k) % t.order.length]; if (act.indexOf(n) >= 0) { t.turn = t.order.indexOf(n); break; } }
+t.deadline = Date.now() + PRS_TURN_MS;
+}
+/** někdo se zbavil karet: 1. místo bere bank, pak se (od 3 hráčů) dohrává o 2. místo */
+function prsPlaceOut_(t, nick, why) {
+t.fin = t.fin || [];
+if (t.fin.indexOf(nick) >= 0) return;
+t.fin.push(nick);
+if (t.fin.length === 1) {
+t.winner = nick; t.win = Math.floor(t.pot * (1 - PRS_RAKE));
+prsPay_(nick, t.win, 'WIN', t.id);
+prsLog_(t, '🏆 ' + nick + ' wins ' + t.win.toLocaleString() + ' GC' + (why ? ' (' + why + ')' : '') + '!');
+} else if (t.fin.length === 2) { t.second = nick; prsLog_(t, '🥈 ' + nick + ' finishes second' + (why ? ' (' + why + ')' : '') + '.'); }
+var act = prsActive_(t);
+if (t.fin.length >= 2 || act.length <= 1) {
+if (!t.second && act.length === 1 && t.fin.length === 1) { t.second = act[0]; t.fin.push(act[0]); }
+prsEnd_(t);
+} else if (t.order[t.turn] === nick) prsNext_(t);
+else t.deadline = t.deadline || Date.now() + PRS_TURN_MS;
+}
+function prsEnd_(t) {
+t.status = 'done'; t.doneAt = Date.now(); t.deadline = 0;
+try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', '🏆 ' + t.winner + ' won a Prší table (+' + Math.round(t.win).toLocaleString() + ' GC)' + (t.second ? ', 🥈 ' + t.second + ' finished second' : '') + '.']); } catch (e) {}
+prsSetIndex_(prsIndex_());
+}
+function prsFinish_(t, winner, why) { prsPlaceOut_(t, winner, why); }
+function prsCheckLastStanding_(t) {
+var act = prsActive_(t);
+if (t.status !== 'play' || act.length !== 1) return;
+if (!t.winner) prsPlaceOut_(t, act[0], 'everyone else left');
+else prsPlaceOut_(t, act[0], 'last one standing');
+}
+function prsRemovePlayer_(t, nick, why) {
+if (t.out.indexOf(nick) >= 0) return;
+t.out.push(nick);
+t.deck = (t.hands[nick] || []).concat(t.deck); t.hands[nick] = [];
+prsLog_(t, '🚪 ' + nick + ' ' + why + ' (stake lost)');
+if (t.order[t.turn] === nick) { prsNext_(t); }
+prsCheckLastStanding_(t);
+}
+/** úklid: čekající stoly po 2 min (vrátit vklady), dohrané po 2 min smazat, mrtvé hry po 30 min (vrátit vklady) */
+function prsHousekeep_(t) {
+var now = Date.now();
+if (t.status === 'wait' && now - t.created > PRS_WAIT_MS) {
+t.players.forEach(function (n) { prsPay_(n, t.stake, 'REFUND', t.id); });
+t.status = 'gone'; return true;
+}
+if (t.status === 'done' && now - t.doneAt > 120000) { t.status = 'gone'; return true; }
+if (t.status === 'play' && now - t.moved > PRS_IDLE_MS) {
+if (t.winner) { t.status = 'gone'; return true; }        // bank už je vyplacený, jen se zavře
+var act = prsActive_(t);
+act.forEach(function (n) { prsPay_(n, Math.floor(t.pot / act.length), 'REFUND', t.id); });
+t.status = 'gone'; return true;
+}
+return false;
+}
+/** vyprší-li čas na tah: automaticky líže / stojí; 3× po sobě = vyhozen */
+function prsTimeouts_(t) {
+var changed = false, guard = 0;
+while (t.status === 'play' && t.deadline && Date.now() > t.deadline && guard++ < 8) {
+var nick = t.order[t.turn];
+t.miss[nick] = (t.miss[nick] || 0) + 1;
+if (t.miss[nick] >= PRS_MAX_MISS) { prsRemovePlayer_(t, nick, 'timed out 3× and was kicked'); }
+else { prsAutoDraw_(t, nick, true); }
+t.rev++; changed = true;
+}
+return changed;
+}
+function prsAutoDraw_(t, nick, auto) {
+var pre = auto ? '⏱ ' + nick + ' ran out of time: ' : nick + ' ';
+if (t.pen > 0) { var g = prsDraw_(t, t.pen); t.hands[nick] = t.hands[nick].concat(g); prsLog_(t, pre + 'takes ' + g.length + ' cards'); t.pen = 0; }
+else if (t.skip) { t.skip = false; prsLog_(t, pre + 'stands (ace)'); }
+else { var g2 = prsDraw_(t, 1); t.hands[nick] = t.hands[nick].concat(g2); prsLog_(t, pre + 'draws a card'); }
+t.moved = Date.now();
+prsNext_(t);
+}
+function prsDeal_(t) {
+var deck = []; for (var i = 0; i < 32; i++) deck.push(i);
+t.deck = prsShuffle_(deck); t.hands = {}; t.order = prsShuffle_(t.players.slice());
+t.order.forEach(function (n) { t.hands[n] = t.deck.splice(-4, 4); });
+t.pile = [t.deck.pop()]; var top = prsTop_(t);
+t.suit = prsSuit_(top); t.pen = prsRank_(top) === 0 ? 2 : 0; t.skip = prsRank_(top) === 7;
+t.out = []; t.fin = []; t.winner = ''; t.second = ''; t.miss = {}; t.turn = 0; t.status = 'play'; t.pot = t.stake * t.players.length; t.started = Date.now(); t.moved = Date.now();
+t.deadline = Date.now() + PRS_TURN_MS + 5000; t.rev++;
+prsLog_(t, '🃏 Cards dealt! ' + t.order[0] + ' starts. Pot ' + t.pot.toLocaleString() + ' GC.');
+}
+function prsLoadAll_() {
+var ids = prsIndex_(), out = [], keep = [], dirty = false;
+ids.forEach(function (id) {
+var t = prsGet_(id);
+if (!t) { dirty = true; return; }
+var hk = prsHousekeep_(t), to = prsTimeouts_(t);
+if (hk || to) { dirty = true; if (t.status === 'gone') { prsDel_(id); return; } prsPut_(t); }
+keep.push(id); out.push(t);
+});
+if (dirty) prsSetIndex_(keep);
+return out;
+}
+function prsPublic_(t) {
+return { id: t.id, host: t.host, stake: t.stake, seats: t.seats, players: t.players, status: t.status, created: t.created };
+}
+function prsList() {
+var me = getUserLdap(), lock = prsLock_();
+try {
+var ts = prsLoadAll_(), mine = '';
+ts.forEach(function (t) { if (t.players.indexOf(me) >= 0 && t.status !== 'gone' && !(t.seen && t.seen[me])) mine = t.id; });
+return { ok: true, tables: ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).map(prsPublic_), mine: mine, max: PRS_MAX_TABLES, minStake: PRS_MIN_STAKE, maxStake: PRS_MAX_STAKE, pay: prsTakePay_(me) };
+} finally { lock.releaseLock(); }
+}
+function prsCreate(stake, seats) {
+var me = getUserLdap(), lock = prsLock_();
+try {
+stake = Math.floor(Number(stake)); seats = Math.max(2, Math.min(6, Number(seats) || 4));
+if (!(stake >= PRS_MIN_STAKE && stake <= PRS_MAX_STAKE)) return { ok: false, reason: 'stake' };
+var ts = prsLoadAll_();
+if (ts.some(function (t) { return t.players.indexOf(me) >= 0 && (t.status === 'wait' || t.status === 'play') && !(t.seen && t.seen[me]); })) return { ok: false, reason: 'already' };
+if (ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).length >= PRS_MAX_TABLES) return { ok: false, reason: 'full' };
+var t = { id: Utilities.getUuid().slice(0, 8), host: me, stake: stake, seats: seats, players: [me], status: 'wait', created: Date.now(), rev: 1, log: [], pot: 0, out: [], order: [], hands: {}, deck: [], pile: [], miss: {}, seen: {} };
+prsLog_(t, me + ' opened the table');
+prsPut_(t); var idx = prsIndex_(); idx.push(t.id); prsSetIndex_(idx);
+try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', me + ' opened a Prší table (' + stake.toLocaleString() + ' GC, ' + seats + ' seats). Join in GAMBLE > SPECIAL!']); } catch (e) {}
+return { ok: true, id: t.id };
+} finally { lock.releaseLock(); }
+}
+// END-OF-FILE: code (continues in engine)

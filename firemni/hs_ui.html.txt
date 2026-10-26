@@ -1,0 +1,706 @@
+const ACH = [
+["OFFICE", [
+["prestige_1", "🔁", "New Hire. Again.", "Prestige once", () => gameState.prestige || 0, 1],
+["prestige_5", "🪜", "Career Ladder", "Reach Prestige 5", () => gameState.prestige || 0, 5],
+["prestige_10", "🏢", "Lifer", "Reach Prestige 10", () => gameState.prestige || 0, 10],
+["chest_20", "📦", "Box Opener", "Chest level 20", maxChest, 20],
+["chest_40", "🎁", "Mythic Hunter", "Chest level 40", maxChest, 40],
+["chest_75", "🗝", "Chest Whisperer", "Chest level 75", maxChest, 75],
+["tokens_10", "🎟", "Token Collector", "Hold 10 Slot Tokens at once", () => gameState.slotTokens || 0, 10]
+]],
+["GEAR", [
+["gear_mythic", "🟥", "Red Alert", "Equip a Mythic (T5) item", () => eq().some(i => i.tier >= 5) ? 1 : 0, 1],
+["gear_quantum", "🌌", "Prismatic", "Equip a Quantum (T6) item", () => eq().some(i => i.tier >= 6) ? 1 : 0, 1],
+["gear_dress", "👔", "Dress Code", "All 6 slots Legendary (T4) or better", () => eq().filter(i => i.tier >= 4).length, 6],
+["forge_10", "⚒", "Blacksmith", "Upgrade an item to ⚒10", () => Math.max(0, ...eq().map(i => (typeof enhOf === "function" ? enhOf(i) : "").length)), 10],
+["forge_15", "🔥", "Perfectionist", "Upgrade an item to ⚒15", () => Math.max(0, ...eq().map(i => (typeof enhOf === "function" ? enhOf(i) : "").length)), 15]
+]],
+["CASINO", [
+["casino_1m", "🍀", "Lucky Break", "Win 1M GC in a single casino payout", () => cnt("casinoBest"), 1e6],
+["casino_1b", "🐋", "Whale", "Win 1B GC in a single casino payout", () => cnt("casinoBest"), 1e9],
+["casino_net", "🏦", "House Always Loses", "Be +10M GC up on gambling overall", () => Math.max(0, gameState.gambleNet || 0), 1e7],
+["prsi_win", "♣", "Prší Champion", "Win 10 Prší tables", () => cnt("prsiWins"), 10],
+["prsi_stack", "7️⃣", "Seven Stack", "Stack sevens up to +6 cards in Prší", () => cnt("prsiStack"), 1],
+["ck_win", "⛀", "Checkers Champion", "Win 5 games of checkers", () => cnt("ckWins"), 5]
+]],
+["HIGH STAKES", [
+["hs_class", "🧍", "Pick A Side", "Choose a HIGH STAKES class", () => hs().cls ? 1 : 0, 1],
+["hs_lv10", "⬆", "Promoted", "HIGH STAKES level 10", () => hs().level || 1, 10],
+["hs_lv30", "🎖", "Veteran", "HIGH STAKES level 30", () => hs().level || 1, 30],
+["hs_ch1", "☎", "Hello Fighters", "Beat The Great \"I\"", () => cleared(9), 1],
+["hs_ch3", "🔓", "Breach Buster", "Beat the Ransomware Executive", () => cleared(29), 1],
+["hs_ch5", "👑", "Massi's Favourite", "Beat The Big Massi", () => cleared(49), 1],
+["hs_secret", "📋", "They Actually Came", "Beat The Compliance Control", () => cleared(50), 1],
+["hs_stars75", "⭐", "Star Collector", "Collect 75 campaign stars", starsTotal, 75],
+["hs_stars153", "🌟", "Perfect Record", "Collect all 153 campaign stars", starsTotal, 153],
+["hs_onehit", "👊", "One Punch", "Win a fight in a single turn", () => cnt("oneTurn"), 1],
+["hs_jackpot", "7️⃣", "Triple Seven", "Hit a 777 jackpot in a fight", () => cnt("jackpots"), 1],
+["hs_parry", "🛡", "Parry God", "Land 25 parries", () => cnt("parries"), 25],
+["hs_break", "💢", "Breaker", "Break enemies 50 times", () => cnt("breaks"), 50],
+["hs_forms", "🖋", "By The Book", "Fill out 30 compliance forms", () => cnt("forms"), 30]
+]],
+["MODES", [
+["tower_50", "🗼", "Halfway Up", "Server Tower floor 50", () => (hs().tower || {}).best || 0, 50],
+["tower_100", "🏁", "Top Floor", "Server Tower floor 100", () => (hs().tower || {}).best || 0, 100],
+["shift_clear", "📟", "Survived The Shift", "Clear an On-Call Shift", () => (hs().shift || {}).clears || 0, 1],
+["shift_asc5", "🔥", "Burnout Proof", "Unlock Shift Ascension 5", () => (hs().shift || {}).asc || 0, 5],
+["wb_kill", "📊", "Quarterly Killer", "Land the final blow on the weekly boss", () => cnt("wbKills"), 1],
+["wb_mk3", "🤖", "Hostile Takeover", "Take down a weekly boss MK.III or higher", () => cnt("wbMaxMk"), 3],
+["climb_100", "🧗", "Halfway To The Roof", "Climb 100 m in Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 100],
+["climb_200", "🏙", "Roof Access", "Reach 200 m in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 200],
+["climb_280", "👑", "Top Of The Tower", "Reach the new roof (280 m) in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 280]
+]],
+["SOCIAL", [
+["events_10", "🎉", "Party Animal", "Be online for 10 company events", () => cnt("events"), 10],
+["weekly_top", "🏅", "Employee Of The Week", "Finish top 3 on a weekly board", () => cnt("weeklyTop"), 1]
+]]
+];
+const ALL = []; ACH.forEach(g => g[1].forEach(a => ALL.push({ id: a[0], icon: a[1], name: a[2], desc: a[3], cur: a[4], goal: a[5], cat: g[0] })));
+const BY = {}; ALL.forEach(a => { BY[a.id] = a; });
+const REWARD_TOKENS = 1;
+function prog(a) { let v = 0; try { v = Number(a.cur()) || 0; } catch (e) {} return Math.min(1, v / a.goal); }
+let checking = false;
+function check() {
+const S = st(); if (!S || checking || !gameState.ldap) return;
+checking = true;
+const got = [];
+ALL.forEach(a => { if (!S.u[a.id] && prog(a) >= 1) { S.u[a.id] = Date.now(); got.push(a); } });
+checking = false;
+if (!got.length) return;
+gameState.slotTokens = (gameState.slotTokens || 0) + REWARD_TOKENS * got.length;
+got.forEach((a, i) => { log(`🏆 ACHIEVEMENT UNLOCKED: ${a.icon} ${a.name} - ${a.desc} (+${REWARD_TOKENS} 🎟)`, "special"); setTimeout(() => toast(a), i * 1600); });
+TT.saveSoon(); if (typeof updateUI === "function") updateUI();
+if (isOpen) render();
+}
+function toast(a) {
+if (document.hidden) return;
+const el = document.createElement("div"); el.className = "mt-toast";
+el.innerHTML = `<span class="ic">${a.icon}</span><div><b>ACHIEVEMENT UNLOCKED</b>${esc(a.name)} · +${REWARD_TOKENS} 🎟</div>`;
+el.onclick = () => { el.remove(); open("ach"); };
+const n = document.querySelectorAll(".mt-toast").length;
+if (document.documentElement.classList.contains("m")) { el.style.bottom = "auto"; el.style.top = "calc(" + (58 + n * 58) + "px + env(safe-area-inset-top))"; el.style.left = "8px"; el.style.right = "8px"; }   // v8.8: na mobilu nahoře, ať nepřekrývá tlačítka
+else el.style.bottom = (70 + n * 62) + "px";
+document.body.appendChild(el); setTimeout(() => el.remove(), 4200);
+}
+function badgesHtml(ids) {
+ids = (ids || []).filter(id => BY[id]);
+if (!ids.length) return "";
+return `<div class="mt-dim" style="margin-top:8px;">🏆 Achievements <b>${ids.length}/${ALL.length}</b></div><div class="mt-badges">${ids.map(id => `<span title="${esc(BY[id].name)}: ${esc(BY[id].desc)}">${BY[id].icon}</span>`).join("")}</div>`;
+}
+function bump(k, n) { const S = st(); if (!S || !n) return; S.c[k] = (Number(S.c[k]) || 0) + n; }
+function onFight(f) {
+if (!f || !f.st) return;
+bump("jackpots", f.st.jackpots); bump("parries", f.st.parries); bump("breaks", f.st.breaks); bump("forms", f.st.forms);
+if (f.win && f.turn <= 1) bump("oneTurn", 1);
+setTimeout(check, 300);
+}
+function onWb(dmg, kill, mk) {
+const S = st(); if (!S) return;
+if (kill) { bump("wbKills", 1); S.c.wbMaxMk = Math.max(Number(S.c.wbMaxMk) || 0, mk || 1); }
+setTimeout(check, 300);
+}
+function onClimb(best) { submit("climb", Math.floor(best * 10) / 10); setTimeout(check, 300); }
+function onShift(asc, steps) { submit("shift", (asc | 0) * 11 + Math.min(10, steps | 0)); setTimeout(check, 300); }
+function onCasinoWin(amount) {
+const S = st(); if (!S || !(amount > 0)) return;
+if (amount > (Number(S.c.casinoBest) || 0)) S.c.casinoBest = amount;
+submit("casino", amount);
+setTimeout(check, 300);
+}
+const CATS = {
+climb: { icon: "🧗", name: "CORPORATE CLIMB", unit: (v) => v.toFixed(1) + " m" },
+shift: { icon: "📟", name: "ON-CALL SHIFT", unit: (v) => (Math.floor(v / 11) ? "ASC " + Math.floor(v / 11) + " · " : "") + (v % 11) + "/10" },
+wbdmg: { icon: "📊", name: "WORLD BOSS DAMAGE", unit: (v) => short(v) },
+casino: { icon: "🎰", name: "BIGGEST CASINO WIN", unit: (v) => short(v) + " GC" }
+};
+const PRIZE = [3, 2, 1];
+const wkSt = { data: null, at: 0, loading: false, err: "" };
+function submit(cat, val) {
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+const w = wk(); if (!(val > (Number(w.best[cat]) || 0))) return;
+w.best[cat] = val; TT.saveSoon();
+google.script.run.withSuccessHandler(() => { wkSt.at = 0; }).withFailureHandler(() => {}).weeklySubmit(cat, val);
+}
+function wkLoad(force) {
+if (wkSt.loading || (!force && wkSt.data && Date.now() - wkSt.at < 30000)) return;
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+wkSt.loading = true;
+google.script.run.withSuccessHandler(r => {
+wkSt.loading = false; wkSt.at = Date.now();
+if (r && r.ok) { wkSt.data = r; wkSt.err = ""; claim(); } else wkSt.err = "Could not load the weekly boards.";
+if (isOpen && view === "weekly") render();
+}).withFailureHandler(e => { wkSt.loading = false; wkSt.err = String(e && e.message || e); if (isOpen && view === "weekly") render(); }).weeklyState();
+}
+/** top 3 minulého týdne: 3 / 2 / 1 Slot Token za každý žebříček */
+function claim() {
+const r = wkSt.data, w = wk(); if (!r || !r.last) return;
+const lw = String(r.week - 1); if (w.claimed[lw]) return;
+w.claimed[lw] = 1;
+Object.keys(w.claimed).forEach(k => { if (Number(k) < r.week - 4) delete w.claimed[k]; });
+let tok = 0; const parts = [];
+Object.keys(CATS).forEach(c => { const i = (r.last[c] || []).findIndex(x => x.nick === gameState.ldap); if (i >= 0 && i < 3) { tok += PRIZE[i]; parts.push(`#${i + 1} ${CATS[c].name}`); } });
+if (tok) {
+gameState.slotTokens = (gameState.slotTokens || 0) + tok; bump("weeklyTop", 1);
+log(`🏅 WEEKLY BOARDS: last week you finished ${parts.join(", ")} → +${tok} 🎟 Slot Tokens!`, "special");
+if (typeof updateUI === "function") updateUI();
+setTimeout(check, 300);
+}
+TT.saveSoon();
+}
+const TABS = { ach: "🏆 ACHIEVEMENTS", weekly: "📅 WEEKLY", events: "🎉 EVENTS" };
+function open(v) { if (v && TABS[v]) view = v; isOpen = true; $("mt-screen").classList.add("open"); check(); if (view === "weekly") wkLoad(true); render(); }
+function close() { isOpen = false; $("mt-screen").classList.remove("open"); }
+function tab(v) { view = v; if (v === "weekly") wkLoad(false); render(); }
+function render() {
+if (!isOpen) return;
+const S = st() || { u: {} }, n = Object.keys(S.u).filter(k => BY[k]).length;
+$("mt-count").textContent = `${n}/${ALL.length} 🏆`;
+$("mt-tabs").innerHTML = Object.keys(TABS).map(k => `<button class="casino-tab-btn${k === view ? " active" : ""}" onclick="Meta.tab('${k}')">${TABS[k]}</button>`).join("");
+const box = $("mt-inner");
+if (view === "ach") box.innerHTML = achHtml(S, n);
+else if (view === "weekly") box.innerHTML = weeklyHtml();
+else box.innerHTML = eventsHtml();
+}
+function achHtml(S, n) {
+return `<div class="mt-card"><div class="mt-h"><span>🏆 ACHIEVEMENTS</span><span>${n}/${ALL.length}</span></div>
+<div class="mt-dim">Every achievement gives <b>+${REWARD_TOKENS} 🎟 Slot Token</b> and a badge on your player card. Progress never resets (not even on prestige).</div>
+<div class="mt-pb" style="height:7px;margin-top:6px;"><div style="width:${n / ALL.length * 100}%"></div></div></div>` +
+ACH.map(g => `<div class="mt-cat">${g[0]}</div><div class="mt-grid">${g[1].map(x => { const a = BY[x[0]], done = !!S.u[a.id], p = done ? 1 : prog(a);
+let cur = 0; try { cur = Number(a.cur()) || 0; } catch (e) {}
+return `<div class="mt-a ${done ? "done" : ""}"><div class="ic">${a.icon}</div><div class="t"><b>${esc(a.name)}</b><span>${esc(a.desc)}${done ? " · ✔ " + new Date(S.u[a.id]).toLocaleDateString() : " · " + short(Math.min(cur, a.goal)) + " / " + short(a.goal)}</span>
+<div class="mt-pb"><div style="width:${p * 100}%"></div></div></div></div>`; }).join("")}</div>`).join("");
+}
+function weeklyHtml() {
+const r = wkSt.data;
+const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
+if (!r) return `<div class="mt-card"><div class="mt-dim">${wkSt.err ? "⚠ " + esc(wkSt.err) : "Loading the weekly boards..."}</div></div>`;
+const me = gameState.ldap;
+return `<div class="mt-card"><div class="mt-h"><span>📅 WEEKLY BOARDS</span><span class="mt-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
+<div class="mt-dim">Four boards, new every Monday. Top 3 on each board get <b>3 / 2 / 1 🎟 Slot Tokens</b> (collected automatically next week).</div></div>
+<div class="mt-lb">${Object.keys(CATS).map(c => { const C = CATS[c], rows = r.cur[c] || [], last = r.last[c] || [];
+return `<div class="mt-card"><div class="mt-h"><span>${C.icon} ${C.name}</span><span class="mt-dim">you: ${r.mine[c] ? C.unit(r.mine[c]) : "-"}</span></div>
+${rows.length ? rows.map((x, i) => `<div class="mt-row ${x.nick === me ? "me" : ""}"><span>${i < 3 ? ["🥇", "🥈", "🥉"][i] : (i + 1) + "."} ${esc(x.nick)}</span><span>${C.unit(x.v)}</span></div>`).join("") : `<div class="mt-dim">Nobody yet this week.</div>`}
+<div class="mt-dim" style="margin-top:6px;">Last week: ${last.length ? last.map((x, i) => ["🥇", "🥈", "🥉"][i] + " " + esc(x.nick)).join(" ") : "-"}</div></div>`; }).join("")}</div>`;
+}
+function eventsHtml() {
+const c = current(), up = upcoming(8);
+return `<div class="mt-card"><div class="mt-h"><span>🎉 COMPANY EVENTS</span></div>
+<div class="mt-dim">Every hour there is a 10-minute company event at a random minute - the same time for everyone. Watch for the banner at the top.</div></div>
+${c ? `<div class="mt-card" style="border-color:var(--amber);"><div class="mt-h"><span>${c.ev.icon} NOW: ${c.ev.name}</span><span style="color:var(--amber);">${fmtT(c.end - Date.now())} left</span></div><div class="mt-dim">${esc(c.ev.txt)}</div></div>` : ""}
+<div class="mt-card"><div class="mt-h"><span>SCHEDULE</span></div>${up.map(u => { const now = Date.now() >= u.start;
+return `<div class="mt-ev ${now ? "now" : ""}"><span class="ic">${u.ev.icon}</span><div style="flex:1;"><b>${u.ev.name}</b><br><span class="mt-dim">${esc(u.ev.txt)}</span></div>
+<span class="mt-dim" style="text-align:right;">${new Date(u.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<br>${now ? "<b>NOW</b>" : "in " + fmtWhen(u.start - Date.now())}</span></div>`; }).join("")}</div>
+<div class="mt-card"><div class="mt-h"><span>ALL EVENTS</span></div>${EVENTS.map(e => `<div class="mt-ev"><span class="ic">${e.icon}</span><div><b>${e.name}</b><br><span class="mt-dim">${esc(e.txt)}</span></div></div>`).join("")}</div>`;
+}
+window.Meta = { open: open, close: close, tab: tab, mult: mult, current: current, upcoming: upcoming, active: active, chip: chip, EVENTS: EVENTS,
+count: function (k, n) { bump(k, n); setTimeout(check, 300); }, onFight: onFight, onWb: onWb, onClimb: onClimb, onShift: onShift, onCasinoWin: onCasinoWin, check: check, badgesHtml: badgesHtml, ACH: ALL,
+isOpen: () => isOpen, weeklyLoad: wkLoad };
+function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
+const badge = document.querySelector(".user-badge");
+if (badge && !$("mt-open-btn")) {
+const b = document.createElement("button"); b.id = "mt-open-btn"; b.className = "btn btn-gold"; b.textContent = "🏆 HALL OF FAME"; b.onclick = () => open();
+const hsb = $("dg-open-btn"); if (hsb && hsb.parentNode === badge) badge.insertBefore(b, hsb.nextSibling); else badge.insertBefore(b, badge.firstChild);
+}
+const more = $("m-settings");
+if (more && !$("mt-more")) {
+const p = document.createElement("div"); p.className = "panel"; p.id = "mt-more"; p.setAttribute("data-tab", "more");
+p.innerHTML = `<div class="panel-header">🏆 HALL OF FAME</div><div class="row" style="display:flex;gap:6px;"><button class="btn btn-gold" style="flex:1;" onclick="Meta.open('ach')">ACHIEVEMENTS</button><button class="btn btn-cyan" style="flex:1;" onclick="Meta.open('weekly')">WEEKLY</button><button class="btn" style="flex:1;" onclick="Meta.open('events')">EVENTS</button></div>`;
+more.parentNode.insertBefore(p, more);
+}
+const prevWin = TT.win;
+TT.win = function (amount) { prevWin.apply(this, arguments); try { onCasinoWin(Math.floor(Number(amount)) || 0); } catch (e) {} };
+TT.onLoaded(() => { setTimeout(check, 2500); setTimeout(() => wkLoad(true), 6000); });
+setInterval(tickEvent, 1000); tickEvent();
+setInterval(check, 5000);
+setInterval(() => { if (isOpen && view === "events") render(); }, 1000);
+document.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") close(); });
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+<style>
+/* ===== FX layer (fx.html) - jen transform/opacity, jednorázové animace, žádná nová smyčka ===== */
+:root { --fx-ease: cubic-bezier(.2,.8,.2,1); }
+/* --- obecné doladění (funguje i s FX vypnutými) --- */
+.btn { transition: transform .12s var(--fx-ease), box-shadow .15s, filter .15s, background .15s, border-color .15s, color .15s; }
+.btn:not(:disabled):hover { filter: brightness(1.18); }
+.btn:not(:disabled):active { transform: translateY(1px) scale(.975); filter: brightness(.95); }
+.btn:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.item-card { transition: transform .15s var(--fx-ease), border-color .15s, box-shadow .2s; }
+.item-card:hover { transform: translateY(-1px); }
+.item-card.t3 { box-shadow: inset 3px 0 12px -8px var(--rarity-t3); }
+.item-card.t4 { box-shadow: inset 3px 0 14px -7px var(--rarity-t4); }
+.item-card.t5 { box-shadow: inset 3px 0 16px -6px var(--rarity-t5); }
+.item-card.t6 { box-shadow: inset 3px 0 18px -5px var(--rarity-t6); }
+* { scrollbar-width: thin; scrollbar-color: #2a3345 transparent; }
+/* --- ovládací přepínač --- */
+#fx-toggle {
+position: fixed; left: 10px; bottom: 10px; z-index: 50;
+font: 700 10px 'Orbitron', monospace; letter-spacing: .5px;
+padding: 5px 9px; border-radius: 4px; cursor: pointer;
+background: rgba(13,17,26,.85); color: var(--text-dim); border: 1px solid var(--border-subtle);
+}
+#fx-toggle:hover { color: var(--cyan); border-color: var(--cyan); }
+/* --- plovoucí +N při kliku --- */
+.fx-float {
+position: fixed; z-index: 60; pointer-events: none; left: 0; top: 0;
+font: 800 16px 'Orbitron', monospace; color: var(--cyan);
+text-shadow: 0 0 8px rgba(0,240,255,.7), 0 1px 0 #000;
+opacity: 0; will-change: transform, opacity;
+}
+.fx-float.go { animation: fxFloat .75s var(--fx-ease) forwards; }
+.fx-float.crit { color: var(--amber); font-size: 20px; text-shadow: 0 0 10px rgba(255,184,0,.9), 0 1px 0 #000; }
+.fx-float.hot { color: var(--crimson); font-size: 13px; text-shadow: 0 0 8px rgba(255,23,68,.8); }
+@keyframes fxFloat {
+0%   { opacity: 0; transform: translate(var(--fx-x), var(--fx-y)) scale(.7); }
+15%  { opacity: 1; transform: translate(var(--fx-x), calc(var(--fx-y) - 14px)) scale(1.15); }
+100% { opacity: 0; transform: translate(calc(var(--fx-x) + var(--fx-dx)), calc(var(--fx-y) - 70px)) scale(.9); }
+}
+/* --- číslo "poskočí" při změně --- */
+.fx-pop { animation: fxPop .28s var(--fx-ease); }
+@keyframes fxPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
+/* --- výhra / prohra --- */
+.fx-win  { animation: fxWin .7s var(--fx-ease); }
+.fx-loss { animation: fxShake .35s linear; }
+@keyframes fxWin {
+0% { transform: scale(.96); filter: brightness(1); }
+30% { transform: scale(1.05); filter: brightness(1.6) drop-shadow(0 0 10px rgba(0,255,136,.7)); }
+100% { transform: scale(1); filter: brightness(1); }
+}
+@keyframes fxShake {
+0%,100% { transform: translateX(0); } 20% { transform: translateX(-4px); }
+40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); }
+}
+/* --- bedna: text výsledku --- */
+.fx-chest { animation: fxChest .5s var(--fx-ease); }
+@keyframes fxChest { 0% { opacity: 0; transform: translateY(6px) scale(.98); } 100% { opacity: 1; transform: none; } }
+/* --- celoobrazovkový záblesk (vzácný drop, prestiž) --- */
+#fx-flash {
+position: fixed; inset: 0; z-index: 55; pointer-events: none; opacity: 0;
+background: radial-gradient(ellipse at center, var(--fx-c, #fff) 0%, transparent 70%);
+}
+#fx-flash.go { animation: fxFlash .9s ease-out; }
+@keyframes fxFlash { 0% { opacity: 0; } 12% { opacity: .38; } 100% { opacity: 0; } }
+/* --- velký banner uprostřed (prestiž, velká výhra) --- */
+#fx-banner {
+position: fixed; left: 50%; top: 22%; z-index: 65; pointer-events: none; opacity: 0;
+transform: translate(-50%, 0); text-align: center;
+font: 900 34px 'Orbitron', monospace; letter-spacing: 3px; color: var(--amber);
+text-shadow: 0 0 18px rgba(255,184,0,.6), 0 2px 0 #000; white-space: nowrap;
+}
+#fx-banner small { display: block; font-size: 14px; letter-spacing: 2px; margin-top: 6px; color: var(--text-main); }
+#fx-banner.go { animation: fxBanner 1.7s var(--fx-ease) forwards; }
+@keyframes fxBanner {
+0% { opacity: 0; transform: translate(-50%, 14px) scale(.8); }
+14% { opacity: 1; transform: translate(-50%, 0) scale(1.06); }
+24% { transform: translate(-50%, 0) scale(1); }
+78% { opacity: 1; }
+100% { opacity: 0; transform: translate(-50%, -18px) scale(1); }
+}
+/* --- vstupní animace panelů (jednorázově) --- */
+.fx-intro .panel { animation: fxIn .5s var(--fx-ease) backwards; }
+.fx-intro .panel:nth-child(2) { animation-delay: .06s; }
+.fx-intro .panel:nth-child(3) { animation-delay: .12s; }
+.fx-intro .panel:nth-child(4) { animation-delay: .18s; }
+@keyframes fxIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+/* --- FX vypnuto / reduced motion --- */
+html.fx-off .fx-float, html.fx-off #fx-flash, html.fx-off #fx-banner { display: none !important; }
+html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-chest, html.fx-off .fx-intro .panel { animation: none !important; }
+@media (max-width: 700px) { #fx-banner { font-size: 22px; } }
+</style>
+<div id="fx-flash"></div>
+<div id="fx-banner"></div>
+<button id="fx-toggle" type="button" title="Zapnout / vypnout efekty">✨ FX: ON</button>
+<script>
+(function () {
+"use strict";
+var $ = function (id) { return document.getElementById(id); };
+var on = true;
+var saved = null;
+try { saved = localStorage.getItem("tt_fx"); } catch (e) {}
+if (saved === "0") on = false;
+else if (saved === null) { try { if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) on = false; } catch (e) {} }   // systémové "méně animací" jen jako výchozí, tlačítko má vždy poslední slovo
+function applyOn() {
+document.documentElement.classList.toggle("fx-off", !on);
+var t = $("fx-toggle"); if (t) t.textContent = "✨ FX: " + (on ? "ON" : "OFF");
+}
+applyOn();
+$("fx-toggle").addEventListener("click", function () {
+on = !on; applyOn();
+try { localStorage.setItem("tt_fx", on ? "1" : "0"); } catch (e) {}
+});
+function canFx() { return on && !document.hidden; }
+function retrigger(el, cls) {
+if (!el) return;
+el.classList.remove(cls);
+void el.offsetWidth;            // restart animace
+el.classList.add(cls);
+}
+document.body.classList.add("fx-intro");
+setTimeout(function () { document.body.classList.remove("fx-intro"); }, 1200);
+var POOL = [], poolIdx = 0, lastFloat = 0;
+for (var i = 0; i < 14; i++) {
+var d = document.createElement("div");
+d.className = "fx-float";
+d.addEventListener("animationend", function (ev) { ev.target.classList.remove("go"); });
+document.body.appendChild(d); POOL.push(d);
+}
+var btn = $("btn-click");
+function spawnFloat(x, y) {
+if (!canFx()) return;
+var now = performance.now();
+var crit = window.__lastCrit;
+if (now - lastFloat < 70 && !crit) return;           // max ~14 / s (crit se ukáže vždy)
+lastFloat = now;
+var cv = $("click-val");
+var el = POOL[poolIdx++ % POOL.length];
+var base = cv ? cv.textContent.trim() : "1";
+if (crit === "heat") el.textContent = "🔥 TOO HOT";
+else if (crit) { var n = Number(base.replace(/,/g, "")); el.textContent = "CRIT +" + (isFinite(n) ? (Math.round(n * 3 * 100) / 100).toLocaleString() : base); }
+else el.textContent = "+" + base;
+el.classList.toggle("crit", !!crit && crit !== "heat");
+el.classList.toggle("hot", crit === "heat");
+el.style.setProperty("--fx-x", (x - 14) + "px");
+el.style.setProperty("--fx-y", (y - 24) + "px");
+el.style.setProperty("--fx-dx", (Math.random() * 40 - 20).toFixed(0) + "px");
+el.classList.remove("go"); void el.offsetWidth; el.classList.add("go");
+}
+window.__fxTap = spawnFloat;                   // mobil: dotykové ťuknutí (mobile.html)
+if (btn) btn.addEventListener("click", function (ev) {
+if (!ev.isTrusted) return;
+var r = btn.getBoundingClientRect();
+spawnFloat(ev.detail > 0 ? ev.clientX : r.left + r.width / 2, ev.detail > 0 ? ev.clientY : r.top + r.height / 2);
+});
+["stat-coins", "stat-scrap", "stat-click", "stat-mult"].forEach(function (id) {
+var el = $(id); if (!el) return;
+var last = 0, first = true;
+new MutationObserver(function () {
+if (first) { first = false; return; }
+if (!canFx()) return;
+var n = performance.now(); if (n - last < 600) return; last = n;
+retrigger(el, "fx-pop");
+}).observe(el, { childList: true, characterData: true, subtree: true });
+});
+document.addEventListener("animationend", function (e) {
+if (e.target && e.target.classList) {
+["fx-pop", "fx-win", "fx-loss", "fx-chest"].forEach(function (c) { e.target.classList.remove(c); });
+}
+});
+var flash = $("fx-flash"), banner = $("fx-banner"), bannerTimer = 0;
+function doFlash(color) {
+if (!canFx()) return;
+flash.style.setProperty("--fx-c", color);
+retrigger(flash, "go");
+}
+flash.addEventListener("animationend", function () { flash.classList.remove("go"); });
+function doBanner(html, color) {
+if (!canFx()) return;
+banner.style.color = color || "var(--amber)";
+banner.innerHTML = html;
+retrigger(banner, "go");
+}
+banner.addEventListener("animationend", function () { banner.classList.remove("go"); });
+function amount(txt) {
+var m = /([+-])\s*([\d][\d,]*)\s*GC/.exec(txt);
+return m ? Number(m[2].replace(/,/g, "")) : 0;
+}
+function watchResult(id, target) {
+var el = $(id); if (!el) return;
+var lastTxt = "";
+new MutationObserver(function () {
+var t = (el.textContent || "").trim();
+if (!t || t === lastTxt) return;
+lastTxt = t;
+if (!canFx()) return;
+var box = target ? $(target) : el;
+if (/\b(WIN|SUCCESS|OVERDRIVE|JACKPOT)\b/.test(t)) {
+retrigger(box, "fx-win");
+var a = amount(t);
+if (a >= 5000) { doFlash("#00ff88"); doBanner("+" + a.toLocaleString() + " GC", "var(--emerald)"); }
+} else if (/\b(LOSS|FAILED|CRASH|BUST)\b/.test(t)) {
+retrigger(box, "fx-loss");
+}
+}).observe(el, { childList: true, characterData: true, subtree: true });
+}
+watchResult("roulette-result");
+watchResult("slots-banner");
+watchResult("bj-result");
+watchResult("consult-display");
+watchResult("cr-msg");
+watchResult("pc-msg");
+watchResult("sd-msg");
+var chest = $("chest-result");
+if (chest) {
+var lastChest = "";
+var COLORS = { 3: "#a855f7", 4: "#fbbf24", 5: "#f43f5e", 6: "#00ffcc" };
+new MutationObserver(function () {
+var t = chest.textContent || "";
+if (!t || t === lastChest) return; lastChest = t;
+if (!canFx()) return;
+retrigger(chest, "fx-chest");
+var best = 0, re = /T([1-6])×/g, m;
+while ((m = re.exec(t))) best = Math.max(best, Number(m[1]));
+if (best >= 3) doFlash(COLORS[best]);
+if (best >= 5) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
+if (/SLOT TOKEN/.test(t)) doBanner("🎟 SLOT TOKEN!", "var(--amber)");
+}).observe(chest, { childList: true, characterData: true, subtree: true });
+}
+var pl = $("prestige-lvl");
+if (pl) {
+var lastP = null;
+new MutationObserver(function () {
+var v = (pl.textContent || "").trim();
+if (lastP === null) { lastP = v; return; }
+if (v === lastP) return;
+lastP = v;
+doFlash("#ffb800");
+doBanner("ASCENDED", "var(--amber)");
+banner.innerHTML = "ASCENDED<small>PRESTIGE " + v + "</small>";
+}).observe(pl, { childList: true, characterData: true, subtree: true });
+}
+})();
+</script>
+<script>
+/**
+* IDLE ROYALE - DUNGEON ENGINE (čistá logika bez DOM; stejný kód běží ve hře i v simulaci pro ladění čísel)
+* Tahový souboj: hráč udeří (útok se losuje z tabulky podle třídy a postoje), pak boss.
+* Každý postoj má průměr (EV) přesně 1.00× ATK - postoj mění jen riziko, ne průměrný damage.
+*/
+(function (root) {
+"use strict";
+function rng(seed) {
+let a = (seed >>> 0) || 1;
+return function () {
+a |= 0; a = (a + 0x6D2B79F5) | 0;
+let t = Math.imul(a ^ (a >>> 15), 1 | a);
+t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+}
+const RAW = {
+sysadmin: {
+safe:   [[0.25, 0.70, "low"], [0.55, 1.00, "mid"], [0.20, 1.38, "high"]],
+normal: [[0.15, 0.40, "low"], [0.50, 0.90, "mid"], [0.30, 1.30, "high"], [0.05, 3.00, "jp"]],
+allin:  [[0.03, 0, "bf"], [0.30, 0.15, "low"], [0.30, 0.70, "mid"], [0.32, 1.60, "high"], [0.05, 5.50, "jp"]]
+},
+engineer: {
+safe:   [[0.30, 0.60, "low"], [0.45, 1.00, "mid"], [0.25, 1.55, "high"]],
+normal: [[0.25, 0.30, "low"], [0.40, 0.85, "mid"], [0.28, 1.60, "high"], [0.07, 3.50, "jp"]],
+allin:  [[0.04, 0, "bf"], [0.33, 0.10, "low"], [0.25, 0.60, "mid"], [0.31, 1.80, "high"], [0.07, 8.00, "jp"]]
+},
+cyber: {
+safe:   [[0.25, 0.60, "low"], [0.50, 1.00, "mid"], [0.25, 1.50, "high"]],
+normal: [[0.25, 0.30, "low"], [0.42, 0.90, "mid"], [0.27, 1.50, "high"], [0.06, 3.00, "jp"]],
+allin:  [[0.03, 0, "bf"], [0.30, 0.10, "low"], [0.30, 0.60, "mid"], [0.31, 1.70, "high"], [0.06, 7.00, "jp"]]
+}
+};
+const BACKFIRE_SELF = { sysadmin: 1.2, engineer: 1.5, cyber: 1.2 };   // backfire = tolik × vlastní ATK do sebe
+const TABLES = {};
+Object.keys(RAW).forEach(c => {
+TABLES[c] = {};
+Object.keys(RAW[c]).forEach(s => {
+const rows = RAW[c][s];
+const ev = rows.reduce((a, r) => a + r[0] * r[1], 0);
+TABLES[c][s] = rows.map(r => ({ p: r[0], m: Math.round(r[1] / ev * 1000) / 1000, k: r[2] }));   // normalizace na EV = 1.00
+});
+});
+function tableEV(rows) { return rows.reduce((a, r) => a + r.p * r.m, 0); }
+const CLASSES = {
+sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. Low variance, +4% HP and a small shield (4% HP) at the start of every fight.",
+tiers: ["Junior Helpdesk Agent", "System Administrator", "Senior Infrastructure Engineer"],
+branches: { a: "Site Reliability Engineer", b: "Cloud Infrastructure Architect" },
+perks: ["Power Cycle: once per fight you survive a lethal hit with 10% HP.",
+"Reboot Script: in SAFE stance, hits of 1.0× or more heal 4% max HP.",
+"HA Cluster: backfire self-damage is halved and turns into a shield.",
+"SRE - SLO Breach Counter: after a heavy boss hit (>12% HP) the next one is halved.",
+"Cloud Architect - Elastic Auto-Scaling: jackpots add 2× your current shield as damage, +8% starting shield."] },
+engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. High variance, +18% ATK, +5% HP, big jackpots. +1% click crit chance per career tier.",
+tiers: ["Intern Developer", "Full-Stack Developer", "Lead Software Architect"],
+branches: { a: "Algorithmic Quant Dev", b: "Principal Systems Engineer" },
+perks: ["StackOverflow Copy-Paste: 8% chance to repeat your previous good hit.",
+"Unit Test Coverage: backfire self-damage -30%.",
+"CI Burst: every hit of 1.0× or more in a row adds +1.5% jackpot chance (max +6%).",
+"Quant Dev - HFT: jackpots hit ×1.35 harder, but backfire chance +1%.",
+"Principal - Zero-Cost Abstraction: your weakest hits are never below 0.6×."] },
+cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. 17% dodge, +10% boss loot.",
+tiers: ["Script Kiddie", "SOC Security Analyst", "Senior Red Teamer"],
+branches: { a: "CISO", b: "Black-Hat Mercenary" },
+perks: ["Lucky Port Scan: 4% of your weakest hits become strong hits.",
+"Threat Intel: a dodge reflects 40% of the boss attack back.",
+"Zero-Day Payload: jackpots infect the boss - 0.4× ATK damage for 3 turns.",
+"CISO - Corporate Insurance: boss loot ×1.5 and 35% chance a won fight costs no key.",
+"Black-Hat - Ghost in the Shell: after a dodge your next hit can't backfire and deals +40%."] }
+};
+const ARTIFACTS = [
+{ id: "key",    name: "Master Admin Key",     icon: "🗝", fx: { atk: 0.12, hp: -0.08 } },
+{ id: "token",  name: "Quantum Token",        icon: "🪙", fx: { hp: 0.08, jp: 0.015 } },
+{ id: "pen",    name: "Cyber Pen",            icon: "🖊", fx: { dodge: 0.08, atk: -0.05 } },
+{ id: "drive",  name: "Encrypted Hard Drive", icon: "💽", fx: { hp: 0.15, atk: -0.05 } },
+{ id: "usb",    name: "Zero-Day USB",         icon: "🔌", fx: { atk: 0.08, bf: 0.01 } },
+{ id: "mug",    name: "SME Coffee Mug",       icon: "☕", fx: { hp: 0.10, safeDef: 0.10 } },
+{ id: "gpu",    name: "Overclocked GPU",      icon: "🎛", fx: { atk: 0.15, bfDmg: 0.25 } },
+{ id: "node",   name: "Decentralized Node",   icon: "🛰", fx: { loot: 0.15, atk: 0.03 } },
+{ id: "fw",     name: "Shadow Firewall",      icon: "🧱", fx: { dodge: 0.05, hp: 0.05 } },
+{ id: "coin",   name: "Coin Toss Token",      icon: "🎲", fx: { coin: 1 } },
+{ id: "bounty", name: "Bug Bounty Badge",     icon: "🏅", fx: { loot: 0.20, jp: 0.01 } },
+{ id: "relic",  name: "Mainframe Relic",      icon: "🗄", fx: { hp: 0.20, dodge: -0.06 } }
+];
+const ARTIFACT_BY_ID = {}; ARTIFACTS.forEach(a => { ARTIFACT_BY_ID[a.id] = a; });
+function artifactText(a, lvl) {
+const f = 1 + 0.25 * ((lvl || 1) - 1), o = [];
+const pct = (v) => (v > 0 ? "+" : "") + Math.round(v * f * 1000) / 10 + "%";
+const fx = a.fx;
+if (fx.atk) o.push(pct(fx.atk) + " ATK");
+if (fx.hp) o.push(pct(fx.hp) + " HP");
+if (fx.dodge) o.push(pct(fx.dodge) + " dodge");
+if (fx.jp) o.push(pct(fx.jp) + " jackpot chance");
+if (fx.bf) o.push(pct(fx.bf) + " backfire chance (All-in)");
+if (fx.bfDmg) o.push(pct(fx.bfDmg) + " backfire self-damage");
+if (fx.safeDef) o.push(pct(-fx.safeDef) + " damage taken in SAFE");
+if (fx.loot) o.push(pct(fx.loot) + " boss loot");
+if (fx.coin) o.push("fight start: 50% +25% ATK or 50% -15% ATK");
+return o.join(", ");
+}
+const BOSSES = [
+{ name: "Unplugged Router",          icon: "📡", mech: "router",   txt: "Cable Glitch: every 4th turn the signal drops and it skips its attack." },
+{ name: "The Great \"I\"",          icon: "🅸", mech: "dust",     txt: "The Great I: hits weaker as it loses HP, but dodges more (up to 25%) - it's just one letter, how hard can it be?" },
+{ name: "Printer Spooler Ghost",     icon: "🖨", mech: "printer",  txt: "Paper Jam: its hits have a 25% chance to jam your next attack (0 damage)." },
+{ name: "Rogue Cron Job",            icon: "⏰", mech: "cron",     txt: "Scheduled Run: weak hits, but every 4th turn a massive batch job (×2.6)." },
+{ name: "Memory Leak Java App",      icon: "☕", mech: "leak",     txt: "OutOfMemory: its attack grows +8% every turn. End it fast." },
+{ name: "Legacy COBOL Mainframe",    icon: "🖥", mech: "cobol",    txt: "Tape Backup: every 4th turn it restores 12% of its max HP." },
+{ name: "DDoS Botnet Cluster",       icon: "🕸", mech: "ddos",     txt: "Packet Storm: attacks 3× per turn with weak hits (dodge each one)." },
+{ name: "Shadow IT Spreadsheet",     icon: "📊", mech: "excel",    txt: "VLOOKUP Crash: 15% chance to reflect 30% of your damage back at you." },
+{ name: "Crypto-Miner Trojan",       icon: "⛏", mech: "miner",    txt: "Resource Theft: its hits halve your jackpot chance for 2 turns." },
+{ name: "Rogue LLM Agent",           icon: "🤖", mech: "llm",      txt: "Hallucination Counter: after your strong hit or jackpot it counterattacks instantly." },
+{ name: "Spaghetti Cabling Rack",    icon: "🍝", mech: "spaghetti",txt: "Cable Trap: every 5th turn your stance is locked for 2 turns." },
+{ name: "Zero-Day Broker",           icon: "🕵", mech: "broker",   txt: "Exposed Vulnerability: each of your weak hits makes you take +10% damage (max +50%)." },
+{ name: "Public S3 Leak",            icon: "🪣", mech: "s3",       txt: "Data Siphon: your strong hits give it a shield of 20% of that damage." },
+{ name: "Deprecated API Dependency", icon: "🧩", mech: "api",      txt: "Breaking Change: below 50% HP its attack is ×1.4." },
+{ name: "Ransomware Executive",      icon: "🔒", mech: "ransom",   txt: "Equipment Encryption: every 5th turn your ATK -20% until you land a 1.3×+ hit." },
+{ name: "Corporate Audit Bot",       icon: "📋", mech: "audit",    txt: "Bureaucratic Brake: all your hits are pulled halfway towards average (All-in is weaker)." },
+{ name: "Rogue Microservice Mesh",   icon: "🧬", mech: "mesh",     txt: "Cascade Failure: after hitting you 3 turns in a row its next hit is ×2." },
+{ name: "Unstable Staging Env",      icon: "🧪", mech: "staging",  txt: "Environment Reset: every 4th turn it wipes all shields, buffs and debuffs." },
+{ name: "Legacy Monolith Architect", icon: "🏛", mech: "monolith", txt: "Monolithic Armor: your hits under 1.0× only deal 40% damage." },
+{ name: "The Big Massi",            icon: "👑", mech: "darkweb",  txt: "FINAL BOSS - Executive Override: below 30% HP his attack is ×2, but he burns 5% max HP per turn. The best boss you could ever ask for." }
+];
+const PROMOS = [
+{ id: "lead",  name: "Micromanager Team Lead",   icon: "📣", lvl: 10, mech: "lead",  reward: "tier2",   txt: "Quick Sync: every 4th turn ALL-IN is disabled for 2 turns.", unlock: "Unlocks career tier 2" },
+{ id: "hr",    name: "HR Compliance Specialist", icon: "🧑‍💼", lvl: 15, mech: "hr",   reward: "slot",    txt: "Mandatory Team Building: after your strong hit or jackpot you are forced into SAFE for 1 turn.", unlock: "+1 artifact slot" },
+{ id: "board", name: "Technical Board Review",   icon: "🧾", lvl: 20, mech: "board", reward: "tier3",   txt: "Budget Cuts: below 50% HP it cuts your ATK by 25%.", unlock: "Unlocks career tier 3" },
+{ id: "cto",   name: "The CTO",                  icon: "🎩", lvl: 25, mech: "cto",   reward: "branch",  txt: "AI Paradigm Shift: every 3 turns it demands a stance - if you are not in it, it hits +60% harder.", unlock: "Choose your career branch" },
+{ id: "bod",   name: "Board of Directors",       icon: "🏦", lvl: 30, mech: "bod",   reward: "exec",    txt: "Quarterly Goals: defeat it within 18 turns or the contract is terminated.", unlock: "EXECUTIVE title: +10% ATK/HP, +5% ticket multiplier" }
+];
+function roman(n) { return n <= 1 ? "" : (["", "", " Mk II", " Mk III", " Mk IV", " Mk V", " Mk VI", " Mk VII", " Mk VIII", " Mk IX", " Mk X"][n] || (" Mk " + n)); }
+let BOSS_TABLE = [[215,11.9],[295,14.6],[382,12.2],[477,19.3],[579,18],[688,19.6],[805,28.4],[929,36.3],[1060,43.8],[1199,53],[1345,58.9],[1498,55.7],[1658,71.9],[1826,66.1],[2001,83.7],[2183,99.1],[2372,82.3],[2569,113.2],[2773,85.7],[2985,124.7],[3204,175.9],[3430,173.2],[3663,121.3],[3903,161.4],[4151,127.7],[4406,121.5],[4669,165.3],[4939,194.8],[5216,212.5],[5500,240],[5792,256.4],[6090,220.6],[6397,271.1],[6710,242.1],[7031,286],[7359,328.2],[7694,270.8],[8037,348.2],[8387,261.5],[8744,366.1],[9108,495.2],[9480,473.4],[9859,326.5],[10246,422.9],[10639,325.3],[11040,306.9],[11449,413.5],[11864,461.3],[12287,505.2],[12717,557.3],[13154,573.2],[13599,483.2],[14051,589.4],[14510,523.8],[14977,604.7],[15451,690.8],[15932,558.2],[16420,714.4],[16916,515.2],[17419,720.5],[17929,1004.7],[18447,932],[18972,618.8],[19504,812.5],[20043,621.7],[20590,572.8],[21144,760.9],[21706,855],[22274,900.9],[22850,1003.3],[23433,1031],[24024,891.2],[24622,1033.6],[25227,915.3],[25839,1072.2],[26459,1184],[27086,951.6],[27720,1212],[28361,889.6],[29010,1222],[29666,1637.7],[30330,1552.7],[31000,1031.1],[31678,1326.7],[32364,998.3],[33056,921.1],[33756,1211.2],[34463,1360.1],[35177,1446.6],[35899,1560.7],[36628,1589],[37364,1349.6],[38108,1645.2],[38859,1400],[39617,1606.4],[40383,1816.3],[41155,1421.9],[41935,1865.9],[42723,1318.9],[43517,1807.7]];
+function bossFor(floor) {
+const b = BOSSES[(floor - 1) % 20];
+const t = bossStats(floor);
+return { floor: floor, name: b.name + roman(Math.ceil(floor / 20)), icon: b.icon, mech: b.mech, txt: b.txt, hp: t.hp, atk: t.atk, sprite: (floor - 1) % 20 };
+}
+const EASE = [0.72, 0.8, 0.87, 0.93, 0.97];          // první patra mírnější (nováček ještě nemá gear)
+function bossStats(floor) {
+if (BOSS_TABLE && floor <= BOSS_TABLE.length) { const r = BOSS_TABLE[floor - 1], e = EASE[floor - 1] || 1; return { hp: Math.round(r[0] * e), atk: Math.round(r[1] * e * 10) / 10 }; }
+const N = BOSS_TABLE.length;
+const F0 = N - 20 + ((floor - 1) % 20) + 1;
+const refA = (F) => (15 + 4.5 * (F - 1)) * (1 + 0.06 * F), refH = (F) => (100 + 30 * (F - 1)) * (1 + 0.06 * F);
+const r = BOSS_TABLE[F0 - 1];
+return { hp: Math.round(r[0] * refA(floor) / refA(F0)), atk: Math.round(r[1] * refH(floor) / refH(F0) * 10) / 10 };
+}
+let PROMO_TABLE = {"lead":[1288,51.7],"hr":[2149,86.5],"board":[3206,110.5],"cto":[4459,125.1],"bod":[4481,300.9]};
+function promoBoss(id) {
+const p = PROMOS.find(x => x.id === id);
+const t = (PROMO_TABLE && PROMO_TABLE[id]) ? { hp: PROMO_TABLE[id][0], atk: PROMO_TABLE[id][1] } : bossStats(p.lvl);
+return { floor: 0, promo: p.id, name: p.name, icon: p.icon, mech: p.mech, txt: p.txt, hp: t.hp, atk: t.atk, sprite: 20 + PROMOS.indexOf(p) };
+}
+/** gear: { atk: násobek ze zbraní (TOOL/AUGMENT/RELIC), hp: násobek ze zbroje (HEAD/RIG/OS) } */
+function gearSlotValue(tier, lvl) { return 0.1 * Math.pow(tier, 1.3) * (1 + 0.2 * (lvl || 0)); }
+function buildPlayer(d, gear) {
+const L = Math.max(1, d.level || 1);
+const cls = d.cls || "sysadmin";
+const tier = d.tier || 1, branch = d.branch || "";
+const fx = { atk: 0, hp: 0, dodge: 0, jp: 0, bf: 0, bfDmg: 0, safeDef: 0, loot: 0, coin: 0 };
+(d.equipped || []).forEach(id => {
+const a = ARTIFACT_BY_ID[id]; if (!a) return;
+const f = 1 + 0.25 * (((d.artifacts || {})[id] || 1) - 1);
+Object.keys(a.fx).forEach(k => { fx[k] += a.fx[k] * (k === "coin" ? 1 : f); });
+});
+let atkMul = 1 + fx.atk, hpMul = 1 + fx.hp;
+if (cls === "engineer") { atkMul += 0.18; hpMul += 0.05; }
+if (cls === "sysadmin") hpMul += 0.04;
+if (d.exec) { atkMul += 0.10; hpMul += 0.10; }
+const maxHp = Math.round((100 + 30 * (L - 1)) * (gear ? gear.hp : 1) * hpMul);
+const atk = (15 + 4.5 * (L - 1)) * (gear ? gear.atk : 1) * atkMul;
+let dodge = (cls === "cyber" ? 0.17 : 0) + fx.dodge;
+dodge = Math.max(0, Math.min(0.35, dodge));
+return { cls: cls, tier: tier, branch: branch, level: L, maxHp: maxHp, atk: atk, dodge: dodge, fx: fx,
+shieldPct: cls === "sysadmin" ? 0.04 + (branch === "b" && tier >= 4 ? 0.08 : 0) : 0,
+loot: fx.loot + (cls === "cyber" ? 0.10 : 0) + (cls === "cyber" && tier >= 4 && branch === "a" ? 0.5 : 0) };
+}
+function newFight(player, boss, seed) {
+const R = rng(seed || 1);
+const f = {
+R: R, p: player, b: boss, turn: 0, over: false, win: false, events: [],
+php: player.maxHp, shield: Math.round(player.maxHp * player.shieldPct),
+bhp: boss.hp, bmax: boss.hp, bshield: 0,
+atkBuff: 1, jam: false, jpDebuff: 0, weakStacks: 0, ransom: false, hitStreak: 0, lockLeft: 0, lockedStance: null,
+forceSafe: 0, ctoWant: null, sreHalf: false, revived: false, ciStacks: 0, prevMult: 0, dot: 0, ghost: false, allinBlock: 0,
+coin: 0
+};
+if (player.fx.coin) { f.coin = R() < 0.5 ? 0.25 : -0.15; f.atkBuff *= 1 + f.coin; }
+return f;
+}
+/** Které postoje teď smí hráč použít (zámky bossů). */
+function allowedStances(f) {
+if (f.lockLeft > 0) return [f.lockedStance];
+if (f.forceSafe > 0) return ["safe"];
+if (f.allinBlock > 0) return ["safe", "normal"];
+return ["safe", "normal", "allin"];
+}
+function rollRow(f, stance) {
+const p = f.p, R = f.R;
+let rows = TABLES[p.cls][stance].map(r => ({ p: r.p, m: r.m, k: r.k }));
+const take = (fromK, toK, amt) => {
+const a = rows.find(r => r.k === fromK), b = rows.find(r => r.k === toK);
+if (!a || !b) return;
+const x = Math.min(a.p, amt); a.p -= x; b.p += x;
+};
+let jp = p.fx.jp + (p.cls === "engineer" && p.tier >= 3 ? f.ciStacks * 0.015 : 0);
+if (f.jpDebuff > 0) { const j = rows.find(r => r.k === "jp"); if (j) { const half = j.p / 2; j.p -= half; rows.find(r => r.k === "low").p += half; } }
+if (jp > 0) take("low", "jp", jp);
+if (p.cls === "cyber") take("low", "high", 0.04);
+if (stance === "allin") {
+let bf = p.fx.bf + (p.cls === "engineer" && p.tier >= 4 && p.branch === "a" ? 0.01 : 0);
+if (bf > 0) take("low", "bf", bf);
+}
+let r = R(), row = rows[rows.length - 1];
+for (const x of rows) { if (r < x.p) { row = x; break; } r -= x.p; }
+let m = row.m, k = row.k;
+if (p.cls === "engineer" && f.prevMult >= 1 && R() < 0.08) { m = f.prevMult; k = "copy"; }
+if (k === "jp" && p.cls === "engineer" && p.tier >= 4 && p.branch === "a") m *= 1.35;
+if (k === "low" && p.cls === "engineer" && p.tier >= 4 && p.branch === "b") m = Math.max(m, 0.6);
+if (k === "bf" && f.ghost) { k = "mid"; m = 1; }
+return { m: m, k: k };
+}
+function ev(f, type, val, extra) { const e = { t: f.turn, type: type, val: val }; if (extra) Object.assign(e, extra); f.events.push(e); return e; }
+function damagePlayer(f, dmg, src) {
+const p = f.p;
+if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && f.sreHalf) { dmg *= 0.5; f.sreHalf = false; }
+dmg = Math.round(dmg);
+const s = Math.min(f.shield, dmg); f.shield -= s; dmg -= s;
+f.php -= dmg;
+if (f.php <= 0 && p.cls === "sysadmin" && !f.revived) { f.revived = true; f.php = Math.round(p.maxHp * 0.10); ev(f, "revive", f.php); }
+if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg + s > p.maxHp * 0.12) f.sreHalf = true;
+ev(f, "phit", dmg + s, { src: src, absorbed: s });
+return dmg + s;
+}
+function damageBoss(f, dmg, label) {
+dmg = Math.max(0, Math.round(dmg));
+const s = Math.min(f.bshield, dmg); f.bshield -= s;
+f.bhp -= (dmg - s);
+return dmg;
+}
+/** Jeden tah. stance = "safe" | "normal" | "allin". Vrací nové eventy. */
+;(window.__TT_FILES = window.__TT_FILES || {})["hs_ui"] = 1;
+// END-OF-FILE: hs_ui (the script continues in the next file)

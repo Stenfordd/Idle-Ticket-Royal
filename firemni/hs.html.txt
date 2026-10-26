@@ -1,0 +1,727 @@
+function step(f, stance) {
+if (f.over) return [];
+const start = f.events.length;
+const p = f.p, b = f.b, R = f.R;
+f.turn++;
+const allowed = allowedStances(f);
+if (allowed.indexOf(stance) < 0) stance = allowed.indexOf("normal") >= 0 ? "normal" : allowed[0];
+const mech = b.mech;
+if (mech === "staging" && f.turn % 4 === 0) {
+f.shield = 0; f.bshield = 0; f.atkBuff = 1 + f.coin; f.jam = false; f.jpDebuff = 0; f.weakStacks = 0; f.ransom = false; f.dot = 0; f.ghost = false;
+ev(f, "mech", 0, { msg: "ENVIRONMENT RESET - all buffs and shields wiped!" });
+}
+if (mech === "spaghetti" && f.turn % 5 === 0 && f.lockLeft <= 0) { f.lockLeft = 2; f.lockedStance = stance; ev(f, "mech", 0, { msg: "CABLE TRAP - stance locked for 2 turns!" }); }
+if (mech === "ransom" && f.turn % 5 === 0 && !f.ransom) { f.ransom = true; ev(f, "mech", 0, { msg: "EQUIPMENT ENCRYPTED - your ATK -20% until you land a 1.3× hit!" }); }
+if (mech === "lead" && f.turn % 4 === 0) { f.allinBlock = 2; ev(f, "mech", 0, { msg: "QUICK SYNC - ALL-IN disabled for 2 turns!" }); }
+if (mech === "cto" && f.turn % 3 === 1) { f.ctoWant = ["safe", "normal", "allin"][Math.floor(R() * 3)]; ev(f, "mech", 0, { msg: "CTO demands: " + f.ctoWant.toUpperCase() + "!", want: f.ctoWant }); }
+if (f.dot > 0) { const d = damageBoss(f, p.atk * 0.4); f.dot--; ev(f, "dot", d); }
+let mult = 0, kind = "mid", self = 0;
+if (f.jam) { f.jam = false; kind = "jam"; ev(f, "pattack", 0, { kind: "jam", stance: stance }); }
+else {
+const r = rollRow(f, stance);
+mult = r.m; kind = r.k;
+if (mech === "audit") mult = 1 + (mult - 1) * 0.5;
+let atk = p.atk * f.atkBuff * (f.ransom ? 0.8 : 1);
+if (mech === "board" && f.bhp < f.bmax * 0.5) atk *= 0.75;
+if (f.ghost) { atk *= 1.4; f.ghost = false; }
+let dmg = atk * mult;
+if (mech === "monolith" && mult < 1) dmg *= 0.4;
+if (mech === "dust") { const bd = 0.25 * (1 - f.bhp / f.bmax); if (R() < bd) { dmg = 0; kind = "bdodge"; } }
+if (kind === "bf") {
+self = p.atk * BACKFIRE_SELF[p.cls] * (1 + p.fx.bfDmg);
+if (p.cls === "engineer" && p.tier >= 2) self *= 0.7;
+if (p.cls === "sysadmin" && p.tier >= 3) { self *= 0.5; f.shield += Math.round(self); }
+}
+if (kind === "jp" && p.cls === "sysadmin" && p.tier >= 4 && p.branch === "b") dmg += f.shield * 2;
+const dealt = damageBoss(f, dmg);
+ev(f, "pattack", dealt, { kind: kind, mult: Math.round(mult * 100) / 100, stance: stance });
+if (self > 0) damagePlayer(f, self, "backfire");
+if (kind === "jp" && p.cls === "cyber" && p.tier >= 3) { f.dot = 3; ev(f, "mech", 0, { msg: "ZERO-DAY PAYLOAD injected!" }); }
+if (p.cls === "sysadmin" && p.tier >= 2 && stance === "safe" && mult >= 1) { const h = Math.round(p.maxHp * 0.04); f.php = Math.min(p.maxHp, f.php + h); ev(f, "heal", h); }
+if (p.cls === "engineer" && p.tier >= 3) f.ciStacks = mult >= 1 ? Math.min(4, f.ciStacks + 1) : 0;
+f.prevMult = mult >= 1 ? mult : 0;
+if (mech === "excel" && dealt > 0 && R() < 0.15) damagePlayer(f, dealt * 0.3, "reflect");
+if (mech === "broker" && mult < 0.8) f.weakStacks = Math.min(5, f.weakStacks + 1);
+if (mech === "s3" && mult >= 1.5) { f.bshield += Math.round(dealt * 0.2); ev(f, "mech", 0, { msg: "DATA SIPHON - boss gains a shield!" }); }
+if (mech === "ransom" && mult >= 1.3 && f.ransom) { f.ransom = false; ev(f, "mech", 0, { msg: "Decrypted! ATK restored." }); }
+if (mech === "hr" && (kind === "jp" || mult >= 1.6)) { f.forceSafe = 2; ev(f, "mech", 0, { msg: "MANDATORY TEAM BUILDING - forced into SAFE!" }); }
+if (mech === "llm" && (kind === "jp" || mult >= 1.6) && f.bhp > 0) { ev(f, "mech", 0, { msg: "HALLUCINATION COUNTER!" }); bossHit(f, b.atk * (0.5 + R()), "counter", stance); }
+}
+if (f.php <= 0) return finish(f, false, start);
+if (f.bhp <= 0) return finish(f, true, start);
+let skip = false;
+if (mech === "router" && f.turn % 4 === 0) { skip = true; ev(f, "mech", 0, { msg: "Signal dropped - the router skips its attack." }); }
+if (!skip) {
+if (mech === "ddos") { for (let i = 0; i < 3; i++) bossHit(f, b.atk * 0.4, "packet", stance); }
+else {
+let a = b.atk;
+if (mech === "dust") a *= 0.5 + 0.5 * (f.bhp / f.bmax);
+if (mech === "cron") a *= (f.turn % 4 === 0 ? 2.6 : 0.6);
+if (mech === "leak") a *= 1 + 0.08 * (f.turn - 1);
+if (mech === "api" && f.bhp < f.bmax * 0.5) a *= 1.4;
+if (mech === "darkweb" && f.bhp < f.bmax * 0.3) a *= 2;
+if (mech === "mesh" && f.hitStreak >= 3) { a *= 2; f.hitStreak = 0; ev(f, "mech", 0, { msg: "CASCADE FAILURE!" }); }
+if (mech === "cto" && f.ctoWant && stance !== f.ctoWant) a *= 1.6;
+bossHit(f, a, "hit", stance);
+}
+}
+if (mech === "cobol" && f.turn % 4 === 0) { const h = Math.round(f.bmax * 0.12); f.bhp = Math.min(f.bmax, f.bhp + h); ev(f, "bheal", h); }
+if (mech === "darkweb" && f.bhp < f.bmax * 0.3) { const d = Math.round(f.bmax * 0.05); f.bhp -= d; ev(f, "mech", d, { msg: "Self-destruct: the boss burns " + d + " HP." }); }
+if (f.lockLeft > 0) f.lockLeft--;
+if (f.forceSafe > 0) f.forceSafe--;
+if (f.allinBlock > 0) f.allinBlock--;
+if (f.jpDebuff > 0) f.jpDebuff--;
+if (f.php <= 0) return finish(f, false, start);
+if (f.bhp <= 0) return finish(f, true, start);
+if (mech === "bod" && f.turn >= 18) { ev(f, "mech", 0, { msg: "QUARTERLY GOALS MISSED - contract terminated!" }); return finish(f, false, start); }
+if (f.turn >= 60) { ev(f, "mech", 0, { msg: "Overtime - the boss escaped." }); return finish(f, false, start); }
+return f.events.slice(start);
+}
+function bossHit(f, a, src, stance) {
+const p = f.p, R = f.R;
+if (R() < p.dodge) {
+ev(f, "dodge", 0, { src: src });
+if (p.cls === "cyber" && p.tier >= 2) { const d = damageBoss(f, a * 0.4); ev(f, "reflect", d); }
+if (p.cls === "cyber" && p.tier >= 4 && p.branch === "b") f.ghost = true;
+f.hitStreak = 0;
+return;
+}
+let d = a * (0.85 + 0.3 * R());
+if (f.b.mech === "broker") d *= 1 + 0.1 * f.weakStacks;
+if (stance === "safe" && p.fx.safeDef) d *= 1 - p.fx.safeDef;
+damagePlayer(f, d, src);
+f.hitStreak++;
+if (f.b.mech === "printer" && R() < 0.25) { f.jam = true; ev(f, "mech", 0, { msg: "PAPER JAM - your next attack is blocked!" }); }
+if (f.b.mech === "miner") f.jpDebuff = 2;
+}
+function finish(f, win, start) {
+f.over = true; f.win = win;
+f.php = Math.max(0, f.php); f.bhp = Math.max(0, f.bhp);
+ev(f, win ? "win" : "lose", 0);
+return f.events.slice(start);
+}
+/** Celý souboj s pevnou strategií (pro simulace). policy(f) -> stance */
+function simulate(player, boss, seed, policy) {
+const f = newFight(player, boss, seed);
+while (!f.over) step(f, typeof policy === "function" ? policy(f) : (policy || "normal"));
+return f;
+}
+const PVP_HP = 2.0;                       // v aréně mají oba víc HP, ať duel trvá ~10-16 akcí
+function duel(A, B, seed, stA, stB) {
+const R = rng(seed || 1);
+const mk = (p, st) => {
+const hp = Math.round(p.maxHp * PVP_HP);
+return { p: p, R: R, stance: st || "normal", hp: hp, max: hp, shield: Math.round(hp * p.shieldPct), ciStacks: 0, prevMult: 0, ghost: false,
+jpDebuff: 0, revived: false, dot: 0, sreHalf: false, atkBuff: p.fx.coin ? (R() < 0.5 ? 1.25 : 0.85) : 1 };
+};
+const S = [mk(A, stA), mk(B, stB)];
+const events = [];
+const snap = () => [Math.max(0, S[0].hp), Math.max(0, S[1].hp)];
+const shs = () => [S[0].shield, S[1].shield];
+const push = (e) => { e.hp = snap(); e.sh = shs(); events.push(e); };
+const hurt = (side, dmg) => {
+const p = side.p;
+if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && side.sreHalf) { dmg *= 0.5; side.sreHalf = false; }
+dmg = Math.round(dmg);
+const sh = Math.min(side.shield, dmg); side.shield -= sh; side.hp -= dmg - sh;
+let revived = false;
+if (side.hp <= 0 && p.cls === "sysadmin" && !side.revived) { side.revived = true; side.hp = Math.round(side.max * 0.10); revived = true; }
+if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg > side.max * 0.12) side.sreHalf = true;
+return { dmg: dmg, absorbed: sh, revived: revived };
+};
+let turn = 0, cur = R() < 0.5 ? 0 : 1;
+const first = cur;
+while (turn < 60) {
+turn++;
+const a = S[cur], d = S[1 - cur];
+if (d.dot > 0) { d.dot--; const x = hurt(d, a.p.atk * 0.4); push({ t: turn, i: cur, type: "dot", val: x.dmg }); if (d.hp <= 0) break; }
+const r = rollRow(a, a.stance);
+if (r.k === "bf") {
+let self = a.p.atk * BACKFIRE_SELF[a.p.cls] * (1 + a.p.fx.bfDmg);
+if (a.p.cls === "engineer" && a.p.tier >= 2) self *= 0.7;
+if (a.p.cls === "sysadmin" && a.p.tier >= 3) { self *= 0.5; a.shield += Math.round(self); }
+const x = hurt(a, self);
+push({ t: turn, i: cur, type: "bf", val: x.dmg, rev: x.revived });
+a.prevMult = 0; a.ciStacks = 0;
+} else if (r.m > 0 && R() < d.p.dodge) {
+push({ t: turn, i: cur, type: "dodge" });
+if (d.p.cls === "cyber" && d.p.tier >= 2) { const x = hurt(a, a.p.atk * r.m * 0.4); push({ t: turn, i: 1 - cur, type: "reflect", val: x.dmg }); }
+if (d.p.cls === "cyber" && d.p.tier >= 4 && d.p.branch === "b") d.ghost = true;
+} else {
+let atk = a.p.atk * a.atkBuff;
+if (a.ghost) { atk *= 1.4; a.ghost = false; }
+let dmg = atk * r.m;
+if (r.k === "jp" && a.p.cls === "sysadmin" && a.p.tier >= 4 && a.p.branch === "b") dmg += a.shield * 2;
+const x = hurt(d, dmg);
+push({ t: turn, i: cur, type: "hit", val: x.dmg, kind: r.k, mult: Math.round(r.m * 100) / 100, abs: x.absorbed, rev: x.revived });
+if (r.k === "jp" && a.p.cls === "cyber" && a.p.tier >= 3) d.dot = 3;
+if (a.p.cls === "sysadmin" && a.p.tier >= 2 && a.stance === "safe" && r.m >= 1) { const h = Math.round(a.max * 0.04); a.hp = Math.min(a.max, a.hp + h); push({ t: turn, i: cur, type: "heal", val: h }); }
+if (a.p.cls === "engineer" && a.p.tier >= 3) a.ciStacks = r.m >= 1 ? Math.min(4, a.ciStacks + 1) : 0;
+a.prevMult = r.m >= 1 ? r.m : 0;
+}
+if (S[0].hp <= 0 || S[1].hp <= 0) break;
+cur = 1 - cur;
+}
+let winner;
+if (S[0].hp <= 0 && S[1].hp <= 0) winner = 1;              // oba padli (backfire) - vyhrává obránce
+else if (S[0].hp <= 0) winner = 1;
+else if (S[1].hp <= 0) winner = 0;
+else winner = (S[0].hp / S[0].max >= S[1].hp / S[1].max) ? 0 : 1;   // limit tahů: rozhodne % HP
+return { win: winner === 0, winner: winner, first: first, turns: turn, events: events, max: [S[0].max, S[1].max], hp: snap() };
+}
+/** síla postavy (pro řazení soupeřů v aréně) */
+function power(p) { return Math.round(Math.sqrt(p.atk * p.maxHp) * (1 + p.dodge)); }
+function xpToNext(L) { return 75 + 30 * L; }
+function winXp(floor, first) { return Math.round((30 + 12 * floor) * (first ? 2.5 : 1)); }
+function refGear(floor) { return 1 + 0.06 * floor; }
+const api = {
+rng: rng, TABLES: TABLES, tableEV: tableEV, CLASSES: CLASSES, ARTIFACTS: ARTIFACTS, ARTIFACT_BY_ID: ARTIFACT_BY_ID, artifactText: artifactText,
+BOSSES: BOSSES, PROMOS: PROMOS, bossFor: bossFor, bossStats: bossStats, promoBoss: promoBoss, setBossTable: function (t, pt) { BOSS_TABLE = t; if (pt) PROMO_TABLE = pt; },
+gearSlotValue: gearSlotValue, buildPlayer: buildPlayer, newFight: newFight, step: step, allowedStances: allowedStances, simulate: simulate,
+xpToNext: xpToNext, winXp: winXp, refGear: refGear, duel: duel, power: power, PVP_HP: PVP_HP
+};
+if (typeof module !== "undefined" && module.exports) module.exports = api;
+else root.DungeonEngine = api;
+})(typeof window !== "undefined" ? window : this);
+</script>
+<script>
+/**
+* HIGH STAKES - akční bojový engine (čistý JS, běží ve hře i v simulaci pro ladění).
+* Hráč každý tah volí akci, nepřítel dopředu ukazuje svůj záměr (intent).
+*/
+(function (root) {
+"use strict";
+function rng(seed) {
+let a = (seed >>> 0) || 1;
+return function () {
+a |= 0; a = (a + 0x6D2B79F5) | 0;
+let t = Math.imul(a ^ (a >>> 15), 1 | a);
+t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+}
+const CLASSES = {
+sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. +6% HP, blocks absorb more (70%).", skill: "FIREWALL", skillTxt: "Shield = 40% max HP, heal 10% and STUN the enemy for a turn." },
+engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. +12% ATK, bigger timing zone for Power Strike. +3% click crit in the office.", skill: "PRODUCTION PUSH", skillTxt: "One huge guaranteed 3.2× hit, double crit chance, big BREAK." },
+cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. +6% dodge, the slot machine favours you (+LUCK on Gamble Strike).", skill: "EXPLOIT", skillTxt: "2.8× hit that ignores defence, wipes the enemy's buffs and instantly BREAKS it." }
+};
+const ACTIONS = {
+quick:  { name: "QUICK", icon: "⚔", sta: 0,  gain: 15, hit: 0.95, mult: 0.6, txt: "95% hit · 0.6× · +15 STA · +20 focus" },
+strike: { name: "STRIKE", icon: "🗡", sta: 25, hit: 0.82, mult: 1.15, txt: "82% hit · 1.15×" },
+power:  { name: "POWER", icon: "💥", sta: 35, hit: 0.85, mult: 1.0,  cd: 2, txt: "timing! green = 1.9×, gold = 2.5× · 2-turn cooldown" },
+gamble: { name: "GAMBLE", icon: "🎰", sta: 20, hit: 1,    mult: 0,    txt: "slot machine: HOLD + re-spin, 🍒 heal 🔔 break ⭐ focus 7️⃣ dmg 💀 backfire" },
+block:  { name: "BLOCK", icon: "🛡", sta: 0,  gain: 25, hit: 0, mult: 0, txt: "-60% dmg, +25 stamina, PERFECT / GOOD parry vs HEAVY" },
+dodge:  { name: "DODGE", icon: "💨", sta: 10, hit: 0,    mult: 0,    txt: "big chance to avoid the hit" },
+skill:  { name: "SKILL", icon: "✨", sta: 0,  hit: 1,    mult: 0,    txt: "100 focus" }
+};
+const ITEMS = {};                      // v8.5: consumables (coffee, energy drink, hotfix, coin) odstraněny
+const MAX_ITEMS_PER_FIGHT = 0;
+const REELS = [["🍒", 30], ["🔔", 22], ["⭐", 12], ["7️⃣", 8], ["💀", 14]];
+function statPoints(level) { return 3 * (level - 1); }
+function buildHero(h, gear) {
+const L = Math.max(1, h.level || 1), st = h.stats || {};
+const S = (k) => 5 + (Number(st[k]) || 0);
+const cls = h.cls || "sysadmin";
+gear = gear || { atk: 1, hp: 1 };
+const bonus = h.bonus || 0;                                     // trvalé % z hvězd (kampaň)
+return {
+cls: cls, level: L,
+str: S("str"), vit: S("vit"), agi: S("agi"), luck: S("luck"), end: S("end"),
+maxHp: Math.round((80 + 12 * S("vit") + 8 * (L - 1)) * gear.hp * (cls === "sysadmin" ? 1.06 : cls === "cyber" ? 1.03 : 1) * (1 + bonus)),
+atk: (8 + 2.2 * S("str") + 1.2 * (L - 1)) * gear.atk * (cls === "engineer" ? 1.12 : cls === "cyber" ? 1.04 : 1) * (1 + bonus),
+hitBonus: S("agi") * 0.006,
+dodge: Math.min(0.4, 0.05 + S("agi") * 0.005 + (cls === "cyber" ? 0.06 : 0)),
+crit: Math.min(0.5, 0.05 + S("luck") * 0.004),
+staMax: Math.round(60 + 3 * S("end")),                       // v8.2: 75 na startu (dřív 100)
+staRegen: 0,                                                  // v8.6: žádná pasivní regenerace
+staGain: Math.max(0, (S("end") - 5) * 0.5),                   // v8.6: END přidává ke každému dobití (QUICK / BLOCK)
+zone: Math.min(0.45, 0.16 + S("luck") * 0.0035 + (cls === "engineer" ? 0.06 : 0)),   // šířka zeleného pole u timingu
+luckReel: S("luck") + (cls === "cyber" ? 10 : 0),
+items: {}
+};
+}
+/** mission: { enemy: {name, hp, atk, pattern:{atk,heavy,defend,special}, mech}, survive: n|0, turnLimit } */
+function newFight(hero, mission, seed) {
+const R = rng(seed || 1);
+const e = mission.enemy;
+const f = {
+R: R, h: hero, m: mission, e: e, turn: 0, over: false, win: false, events: [],
+hp: hero.startHp != null ? Math.max(1, Math.min(hero.maxHp, Math.round(hero.startHp))) : hero.maxHp, sta: hero.staMax, focus: Math.min(99, 30 + (hero.startFocus || 0)),
+shield: Math.round(hero.maxHp * ((hero.perks || {}).shieldStart || 0)), firstHit: !!(hero.perks || {}).firstStrike, duckUsed: false,
+ehp: e.hp, emax: e.hp, eatk: e.atk, eshield: 0, estacks: 0, edefend: false,
+hotfix: false, coin: 0, coinTurns: 0, disabled: {}, cd: {}, itemsUsed: 0, revived: false, dodgeStreak: 0, demand: null, redTape: 0,
+lastAct: null, flamenco: 0, slow: 0, rage: 0, payroll: 0, pastaPending: false, restartPending: false,
+intent: null, lastIntent: null, phase2: false, form: "I", brk: 0, vuln: false, stunNext: false,
+st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, crits: 0, parries: 0, breaks: 0, forms: 0, maxHit: 0 }
+};
+pickIntent(f);
+return f;
+}
+function ev(f, type, extra) { const e = Object.assign({ t: f.turn, type: type }, extra || {}); f.events.push(e); return e; }
+function pickIntent(f) {
+const e = f.e, R = f.R, p = e.pattern || { atk: 6, heavy: 2, defend: 1 };
+if (f.stunNext) { f.stunNext = false; f.intent = { k: "stun", val: 0, fake: false }; f.lastIntent = "stun"; return; }
+if (f.lastIntent === "charge") { f.intent = { k: "unleash", val: Math.round(f.eatk * 2.7), fake: false }; f.lastIntent = "unleash"; return; }
+const fx = forcedIntent(f);
+if (fx) { f.intent = Object.assign({ val: 0, fake: false }, fx); f.lastIntent = fx.k; pickDemand(f); return; }
+const chW = f.lastIntent === "unleash" || f.turn < 1 ? 0 : (p.charge != null ? p.charge : (f.m.kind === "normal" || f.m.kind === "compliance" ? 0 : 1));
+let w = [["charge", chW], ["atk", p.atk || 0], ["heavy", f.lastIntent === "heavy" ? 0 : (p.heavy || 0)], ["defend", f.lastIntent === "defend" ? 0 : (p.defend || 0)], ["special", f.lastIntent === "special" ? 0 : (p.special || 0)]];
+if (e.mech === "pookie" && (f.turn + 1) % 3 === 0) w = [["flex", 1]];
+if (e.mech === "pookie" && f.lastIntent === "flex") w = [["heavy", 1]];
+const sum = w.reduce((a, x) => a + x[1], 0);
+let r = R() * sum, k = "atk";
+for (const x of w) { if (r < x[1]) { k = x[0]; break; } r -= x[1]; }
+let val = 0;
+if (k === "atk") val = Math.round(f.eatk);
+if (k === "heavy") val = Math.round(f.eatk * 2.2);
+f.intent = { k: k, val: val, fake: false };
+if (e.mech === "llm" && R() < 0.3) f.intent.fake = true;
+f.lastIntent = k;
+pickDemand(f);
+}
+/** v8.6: noví bossové - záměry, které si boss vynutí (siesta, pasta break, withdrawal, restart, sudo rm -rf) */
+function forcedIntent(f) {
+const m = f.e.mech;
+if (m === "louis") {
+if (f.lastIntent === "siesta") return { k: "heavy", val: Math.round(f.eatk * 2.2) };
+if ((f.turn + 1) % 5 === 0) return { k: "siesta" };
+}
+if (m === "italian" && f.pastaPending) { f.pastaPending = false; return { k: "pasta" }; }
+if (m === "polishen" && (f.turn + 1) % 4 === 0) return { k: "withdraw", val: Math.max(1, Math.round(Math.max(0, f.hp) * 0.2)) };
+if (m === "admin") {
+if (f.restartPending) { f.restartPending = false; return { k: "restart" }; }
+if (f.ehp < f.emax * 0.25 && (f.turn + 1) % 3 === 0 && f.lastIntent !== "unleash") return { k: "unleash", val: Math.round(f.eatk * 2.7), rm: true };
+}
+return null;
+}
+/** COMPLIANCE (v8.2): každý tah formulář "udělej X". Splníš = bonusové poškození, ignoruješ = RED TAPE (-ATK, -dodge, sčítá se). */
+const FORMS = ["quick", "strike", "block", "dodge", "power"];
+const FORM_NO = { quick: "QK-1", strike: "ST-12", block: "27-B", dodge: "DG-6", power: "PW-99" };
+const RED_TAPE_MAX = 6;
+function pickDemand(f) {
+const m = f.e.mech;
+if (m === "cobol") { f.demand = f.turn > 0 && f.R() < 0.3 && f.intent.k !== "heavy" ? "block" : null; return; }   // "Do you want a bryndza?" - odpověď BLOCK
+if (m === "louis") { if (!(f.turn > 0 && f.R() < 0.3)) { f.demand = null; return; } }                              // SUPREME DECREE
+else if (m !== "compliance") { f.demand = null; return; }
+const pool = FORMS.filter(a => a !== f.demand && (a === "block" || (ACTIONS[a].sta <= f.sta && !(f.cd[a] > 0))));
+f.demand = pool.length ? pool[Math.floor(f.R() * pool.length)] : "block";
+}
+function redTapeAtk(f) { return 1 - 0.08 * f.redTape; }
+function allowed(f, a) {
+const A = ACTIONS[a]; if (!A) return false;
+if (f.disabled[a] > 0) return false;
+if (a === "skill") return f.focus >= 100;
+if (f.cd[a] > 0) return false;
+return f.sta >= A.sta;
+}
+/** Break meter: zásahy plní, na 100 je nepřítel STAGGERED (přijde o tah) a další rána dá 1,5×. */
+const BREAK = { quick: 7, strike: 15, power: 22, gamble: 9, skill: 30, parry: 40, perfect: 15 };
+function addBreak(f, n) {
+if (f.over || f.intent.k === "stun") return;
+n *= 1 + ((f.h.perks || {}).breakBonus || 0);
+const res = f.m.kind === "boss" || f.m.kind === "secret" || f.m.kind === "world" ? 0.65 : f.m.kind === "mini" || f.m.kind === "elite" ? 0.85 : 1;
+f.brk = Math.min(100, f.brk + n * res * (f.intent.k === "charge" || f.intent.k === "unleash" ? 1.6 : 1));
+}
+function hurtEnemy(f, dmg, ignoreDef) {
+const P = f.h.perks || {};
+if (f.vuln) { dmg *= 1.5; f.vuln = false; }
+if (f.firstHit) { dmg *= 2; f.firstHit = false; }
+if (f.edefend && !ignoreDef) dmg *= 0.4;
+if (f.e.mech === "great_i" && f.form === "l" && !ignoreDef) dmg *= 0.6;
+if (f.intent && f.intent.k === "siesta") dmg *= 1.5;
+dmg = Math.max(0, Math.round(dmg));
+const s = Math.min(f.eshield, dmg); f.eshield -= s;
+f.ehp -= dmg - s;
+if (P.vamp && dmg > 0) f.hp = Math.min(f.h.maxHp, f.hp + Math.round(dmg * P.vamp));
+if (dmg > f.st.maxHit) f.st.maxHit = dmg;
+return dmg;
+}
+function hurtHero(f, dmg, src) {
+dmg = Math.round(dmg);
+const s = Math.min(f.shield, dmg); f.shield -= s;
+f.hp -= dmg - s;
+f.focus = Math.min(100, f.focus + 10);
+const P = f.h.perks || {};
+if (P.thorns && src !== "backfire" && dmg - s > 0) f.ehp -= Math.round((dmg - s) * P.thorns);
+if (f.hp <= 0 && f.h.cls === "sysadmin" && !f.revived) { f.revived = true; f.hp = Math.round(f.h.maxHp * 0.1); ev(f, "revive", { val: f.hp }); }
+if (f.hp <= 0 && P.duck && !f.duckUsed) { f.duckUsed = true; f.hp = 1; ev(f, "revive", { val: 1, src: "duck" }); }
+ev(f, "hhit", { val: dmg, absorbed: s, src: src });
+return dmg;
+}
+function atkMult(f) { return f.h.atk * (1 + f.coin) * (f.hotfix ? 2 : 1) * redTapeAtk(f) * (f.payroll > 0 ? 0.75 : 1); }
+function gainSta(f, n) { f.sta = Math.min(f.h.staMax, f.sta + n + (f.h.staGain || 0)); }
+function critRoll(f) { const c = f.R() < f.h.crit; if (c) f.st.crits++; return c; }
+function spinReels(f) {
+const L = f.h.luckReel || 0;
+const w = REELS.map(([s, x]) => [s, s === "💀" ? Math.max(4, x - L * 0.3) : s === "7️⃣" ? x + L * 0.15 : s === "⭐" ? x + L * 0.1 : x]);
+const sum = w.reduce((a, x) => a + x[1], 0);
+const one = () => { let r = f.R() * sum; for (const x of w) { if (r < x[1]) return x[0]; r -= x[1]; } return "🍒"; };
+return [one(), one(), one()];
+}
+/** v8.7: každý symbol má vlastní efekt, efekty se sčítají. Tři stejné = velký bonus.
+*  🍒 heal · 🔔 BREAK · ⭐ focus · 7️⃣ damage · 💀 backfire (zraní tebe) */
+const SYM = {
+"🍒": { m: 0.2, heal: 0.04 },
+"🔔": { m: 0.3, brk: 12 },
+"⭐": { m: 0.3, foc: 14 },
+"7️⃣": { m: 0.75 },
+"💀": { m: 0, self: 0.25 }
+};
+const RESPIN_STA = 10;
+function reelResult(r, opt) {
+opt = opt || {};
+const c = {}; r.forEach(s => { c[s] = (c[s] || 0) + 1; });
+if (opt.wildCherry && c["🍒"]) {                                     // Office Plant: Lucky Cherry - 🍒 je wild (doplní nejčastější symbol)
+const best = Object.keys(c).filter(s => s !== "🍒" && s !== "💀").sort((a, b) => c[b] - c[a] || (SYM[b].m - SYM[a].m))[0];
+if (best) { c[best] += c["🍒"]; delete c["🍒"]; }
+}
+if (c["7️⃣"] === 3) return { mult: 6, txt: "JACKPOT", jp: true, heal: 0, brk: 30, foc: 20, self: 0 };
+if (c["💀"] === 3) return { mult: 0, txt: "BACKFIRE", bf: true, heal: 0, brk: 0, foc: 0, self: 0.9 };
+if (c["⭐"] === 3) return { mult: 3.5, txt: "STARS", heal: 0.15, brk: 15, foc: 60, self: 0 };
+if (c["🔔"] === 3) return { mult: 3, txt: "BELLS", heal: 0, brk: 70, foc: 10, self: 0 };
+if (c["🍒"] === 3) return { mult: 2.2, txt: "CHERRIES", heal: 0.25, brk: 10, foc: 10, self: 0 };
+let mult = 0, heal = 0, brk = 0, foc = 0, self = 0;
+Object.keys(c).forEach(s => { const x = SYM[s], n = c[s]; mult += x.m * n; heal += (x.heal || 0) * n; brk += (x.brk || 0) * n; foc += (x.foc || 0) * n; self += (x.self || 0) * n; });
+const pair = Object.keys(c).find(s => c[s] === 2 && s !== "💀");
+if (pair) mult += 0.4;
+const txt = c["💀"] === 2 ? "two skulls" : pair ? "pair " + pair + pair : "mixed";
+return { mult: Math.round(mult * 100) / 100, txt: txt, heal: heal, brk: brk, foc: foc, self: self };
+}
+/** GAMBLE krok 1: zatočí válce (tah ještě neproběhl). */
+function gambleRoll(f) { f.gReels = spinReels(f); f.gRespun = false; return f.gReels.slice(); }
+/** GAMBLE krok 2 (volitelný): podržené válce zůstanou, ostatní se přetočí. Stojí RESPIN_STA staminy, jen jednou. */
+function canRespin(f) { return !!f.gReels && !f.gRespun && f.sta >= ACTIONS.gamble.sta + RESPIN_STA; }
+function gambleRespin(f, hold) {
+if (!canRespin(f)) return null;
+const fresh = spinReels(f);
+f.gReels = f.gReels.map((s, i) => hold && hold[i] ? s : fresh[i]);
+f.gRespun = true; f.sta -= RESPIN_STA; f.st.respins = (f.st.respins || 0) + 1;
+return f.gReels.slice();
+}
+/** simulace / auto: které válce podržet */
+function autoHold(r) {
+const c = {}; r.forEach(s => { c[s] = (c[s] || 0) + 1; });
+const keep = Object.keys(c).find(s => c[s] >= 2 && s !== "💀") || (c["7️⃣"] ? "7️⃣" : null);
+return r.map(s => s === keep);
+}
+/** Použití lektvaru (nestojí tah). */
+function useItem() { return null; }                // v8.5: žádné consumables
+/** Jeden tah.
+*  timing (string, starý formát): POWER "perfect" | "good" | "none", BLOCK "parry" (= perfect).
+*  timing (objekt, v8.7): { t: power timing, parry: "perfect" | "good" | "none", rings: [..] (UNLEASH kombo), q: síla ulti 0.7-1.25, all: EXPLOIT všechny porty } */
+function step(f, action, timing) {
+if (f.over) return [];
+const opt = timing && typeof timing === "object" ? timing : { t: timing };
+if (opt.parry == null) opt.parry = opt.t === "parry" ? "perfect" : opt.t === "goodblock" ? "good" : "none";
+timing = opt.t;
+const q = Math.max(0.7, Math.min(1.25, opt.q == null ? 1 : Number(opt.q) || 0.7));
+if (!allowed(f, action)) action = !f.disabled.quick ? "quick" : "block";
+const start = f.events.length;
+const h = f.h, e = f.e, R = f.R, A = ACTIONS[action];
+f.turn++;
+f.sta -= A.sta;
+if (A.cd) f.cd[action] = A.cd + 1;                            // odečte se už na konci tohoto tahu -> 2 tahy pauza
+f.dodgeStreak = action === "dodge" ? f.dodgeStreak + 1 : 0;
+const intent = f.intent;
+if (e.mech === "polishen" && f.lastAct === action) { f.redTape = Math.min(RED_TAPE_MAX, f.redTape + 1); ev(f, "mech", { msg: "🇵🇱 AUDIT: " + ACTIONS[action].name + " twice in a row? That's a deduction. RED TAPE ×" + f.redTape }); }
+f.lastAct = action;
+if (f.demand) {
+if (action === f.demand) {
+f.st.forms++;
+const d = hurtEnemy(f, f.h.atk * 0.7, true);
+if (f.redTape > 0) f.redTape--;
+const txt = e.mech === "cobol" ? "🥟 \"Do you want a bryndza?\" - \"Yes, thanks!\" He is happy. Bonus hit for <b>" + d + "</b>"
+: e.mech === "louis" ? "👑 SUPREME DECREE obeyed (" + ACTIONS[action].name + ") - bonus hit for <b>" + d + "</b>" : "";
+ev(f, "form", { ok: true, a: action, val: d, no: FORM_NO[action], tape: f.redTape, txt: txt });
+} else {
+f.redTape = Math.min(RED_TAPE_MAX, f.redTape + 1);
+if (e.mech === "cobol") f.rage = 2;
+const txt = e.mech === "cobol" ? "🥟 You refused the bryndza! He is offended: <b>+30% ATK for 2 turns</b> · RED TAPE ×" + f.redTape
+: e.mech === "louis" ? "👑 You ignored the SUPREME DECREE (" + ACTIONS[f.demand].name + ") - <b>RED TAPE ×" + f.redTape + "</b>" : "";
+ev(f, "form", { ok: false, a: f.demand, no: FORM_NO[f.demand], tape: f.redTape, txt: txt });
+}
+if (f.ehp <= 0) return finish(f, true, start);
+}
+f.edefend = intent.k === "defend" || intent.k === "flex";
+let blocking = false, dodging = false;
+if (action === "block") { blocking = true; f.st.usedBlock++; gainSta(f, A.gain); f.focus = Math.min(100, f.focus + 6 + ((h.perks || {}).blockFocus || 0)); ev(f, "pact", { a: action }); }
+else if (action === "dodge") { dodging = true; ev(f, "pact", { a: action }); }
+else if (action === "skill") {
+f.focus = 0; f.st.usedSkill++;
+const pct = Math.round(q * 100);
+if (h.cls === "sysadmin") {
+const sh = Math.round(h.maxHp * 0.4 * q), hh = Math.round(h.maxHp * 0.1 * q);
+f.shield += sh; f.hp = Math.min(h.maxHp, f.hp + hh); f.stunNext = true;
+ev(f, "skill", { a: "FIREWALL", q: q, msg: "Firewall up (" + pct + "%)! +" + sh + " shield, +" + hh + " HP - the enemy is stunned next turn" });
+} else if (h.cls === "engineer") {
+const c = f.R() < Math.min(0.9, h.crit * 2); if (c) f.st.crits++;
+const d = hurtEnemy(f, atkMult(f) * 3.2 * q * (c ? 1.8 : 1), false);
+f.hotfix = false; addBreak(f, 50 * q); ev(f, "skill", { a: "PRODUCTION PUSH", q: q, val: d, msg: "Deployed at " + pct + "% - pushed straight to production for " + d + (c ? " - CRIT!" : "") });
+} else {
+const all = opt.all == null ? true : !!opt.all;
+const d = hurtEnemy(f, atkMult(f) * 2.8 * q, true); f.hotfix = false; f.estacks = 0; f.eshield = 0; f.rage = 0; f.flamenco = 0; f.disabled = {};
+if (all) f.brk = 100; else addBreak(f, 50);
+ev(f, "skill", { a: "EXPLOIT", q: q, val: d, msg: "Exploit (" + pct + "%) for " + d + " - enemy buffs wiped" + (all ? " and its defences BROKEN" : "") });
+}
+} else if (action === "gamble") {
+f.st.usedGamble++;
+const P = h.perks || {};
+const reels = f.gReels || spinReels(f), respun = !!f.gRespun;
+f.gReels = null; f.gRespun = false;
+let res = reelResult(reels, { wildCherry: !!(P.wildCherry || h.wildCherry) });
+if (res.bf && P.noBackfire) res = reelResult(["7️⃣", "7️⃣", "🍒"]), res.txt = "pair (Rubber Gloves)";
+if (P.noBackfire) res.self = 0;
+if (res.bf) { const self = hurtHero(f, h.atk * res.self, "backfire"); ev(f, "gamble", { reels: reels, res: res.txt, val: 0, self: self, bf: true, respun: respun }); }
+else {
+const c = critRoll(f);
+const d = res.mult > 0 ? hurtEnemy(f, atkMult(f) * res.mult * (c ? 1.8 : 1)) : 0;
+if (res.jp) f.st.jackpots++;
+addBreak(f, BREAK.gamble * Math.min(res.mult, 3) + res.brk);
+let hh = 0;
+if (res.heal) { hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
+const self = res.self > 0 ? hurtHero(f, h.atk * res.self, "backfire") : 0;
+f.hotfix = false;
+f.focus = Math.min(100, f.focus + 6 + res.foc);
+ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult, heal: hh, brk: Math.round(res.brk), foc: res.foc, self: self, respun: respun });
+}
+} else {
+let hit = Math.min(0.99, A.hit + h.hitBonus);
+if (e.mech === "great_i" && f.form === "l" && action !== "power") hit *= 0.6;
+if (f.flamenco > 0 && !(action === "power" && timing === "perfect")) hit *= 0.5;          // Louis FLAMENCO
+if (A.gain) gainSta(f, A.gain);
+if (R() < hit) {
+let m = A.mult, tm = "";
+if (action === "power") { if (timing === "perfect") { m = 2.5; tm = "PERFECT"; f.st.perfectPower++; } else if (timing === "good") { m = 1.9; tm = "GOOD"; } }
+if (tm === "PERFECT" && e.mech === "italian") { m *= 1.2; ev(f, "mech", { msg: "🤌 \"Perfetto! Al dente!\" (+20% damage)" }); }
+const c = critRoll(f);
+const d = hurtEnemy(f, atkMult(f) * m * (c ? 1.8 : 1));
+f.hotfix = false;
+f.focus = Math.min(100, f.focus + (action === "quick" ? 20 : 12));
+addBreak(f, BREAK[action] * (tm === "PERFECT" ? 1.4 : tm === "GOOD" ? 1.2 : 1));
+ev(f, "pact", { a: action, val: d, crit: c, timing: tm });
+if (e.mech === "ransom" && action === "power" && Object.keys(f.disabled).length) { f.disabled = {}; ev(f, "mech", { msg: "Decrypted! All actions available again." }); }
+} else { if (action === "quick") f.focus = Math.min(100, f.focus + 8); ev(f, "pact", { a: action, miss: true }); }
+}
+if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
+if (f.ehp <= 0) return finish(f, true, start);
+if (f.brk >= 100) {
+f.brk = 0; f.st.breaks++; f.vuln = true;
+ev(f, "break", { was: intent.k });
+intent.k = "stun"; f.lastIntent = "stun";
+}
+const k = intent.k;
+if (k === "atk" || k === "heavy" || k === "unleash" || k === "withdraw") {
+const big = k === "heavy" || k === "unleash" || k === "withdraw";
+let dmg = f.eatk * (k === "heavy" ? 2.2 : k === "unleash" ? 2.7 : 1) * (0.9 + R() * 0.2);
+if (e.mech === "pookie") dmg *= 1 + 0.05 * f.estacks;
+if (f.rage > 0) dmg *= 1.3;
+if (k === "withdraw") dmg = Math.max(1, Math.round(Math.max(0, f.hp) * 0.2));          // Da Polishen: 20 % aktuálního HP
+if (k === "unleash" && intent.rm) ev(f, "mech", { msg: "🕶 sudo rm -rf / --no-preserve-root" });
+const dch = Math.max(0, (dodging ? Math.min(0.9, 0.55 + h.agi * 0.008 + (h.cls === "cyber" ? 0.08 : 0)) * Math.pow(0.7, f.dodgeStreak - 1) : h.dodge) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0));
+const blk = h.cls === "sysadmin" ? 0.3 : 0.4;
+let tier = blocking && big ? opt.parry : "none", frac = null;
+if (blocking && k === "unleash" && Array.isArray(opt.rings) && opt.rings.length) {
+const rs = opt.rings.slice(0, 3); while (rs.length < 3) rs.push("none");
+frac = rs.reduce((a, r) => a + (r === "perfect" ? 0 : r === "good" ? 0.1 : blk), 0) / 3;
+const ok = rs.filter(r => r !== "none").length;
+tier = rs.every(r => r === "perfect") ? "perfect" : ok >= 2 ? "good" : ok >= 1 ? "partial" : "none";
+}
+if (tier === "perfect") {
+f.st.perfectBlocks++; f.st.parries++;
+const ctr = hurtEnemy(f, h.atk * 1.2, true);
+f.focus = Math.min(100, f.focus + 20); gainSta(f, 10);
+addBreak(f, BREAK.parry); f.stunNext = true;
+ev(f, "parry", { val: ctr, heavy: true, rings: frac != null });
+} else if (R() < dch) ev(f, "dodge", { heavy: big });
+else if (k === "withdraw") {
+const d = hurtHero(f, dmg * (tier === "good" ? 0.5 : 1), "withdraw"); f.ehp = Math.min(f.emax, f.ehp + d);
+ev(f, "mech", { msg: "💸 \"The withdrawal from your life.\" She takes " + d + " HP and keeps it." + (tier === "good" ? " (GOOD block - only half!)" : blocking ? " (only a PERFECT parry or a dodge stops it!)" : "") });
+} else if (tier === "good" || tier === "partial") {
+f.st.perfectBlocks++;
+hurtHero(f, dmg * (frac != null ? frac : 0.1), "heavy");
+const ctr = tier === "good" ? hurtEnemy(f, h.atk * 0.6, true) : 0;
+f.focus = Math.min(100, f.focus + (tier === "good" ? 15 : 8));
+if (tier === "good") addBreak(f, BREAK.perfect);
+ev(f, "perfect", { val: ctr, partial: tier === "partial", rings: frac != null });
+} else hurtHero(f, dmg * (blocking ? (frac != null ? frac : blk) : 1), k === "unleash" ? "heavy" : k);
+if (f.brk >= 100 && !f.over) { f.brk = 0; f.st.breaks++; f.vuln = true; f.stunNext = true; ev(f, "break", { was: "counter" }); }
+} else if (k === "charge") ev(f, "mech", { msg: "⏳ " + f.e.name + " is CHARGING a 2.7× attack! Break it or get ready to block." });
+else if (k === "stun") ev(f, "mech", { msg: "😵 " + f.e.name + " is stunned!" });
+else if (k === "defend") ev(f, "edef", {});
+else if (k === "flex") { f.estacks += 2; ev(f, "mech", { msg: "PRE-WORKOUT! The E flexes... HEAVY hit incoming!" }); }
+else if (k === "special") special(f);
+else if (k === "siesta") ev(f, "mech", { msg: "😴 SIESTA... zzz. The Supreme Louis took +50% damage. He wakes up grumpy - HEAVY incoming!" });
+else if (k === "pasta") { const hh = Math.round(f.emax * 0.2); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🍝 PASTA BREAK! \"First we eat, then we fight.\" +" + hh + " HP" }); }
+else if (k === "restart") { const hh = Math.round(f.emax * 0.2); f.ehp = Math.min(f.emax, f.ehp + hh); f.shield = 0; f.vuln = false; ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🔄 FORCE RESTART! The Administrator reboots: +" + hh + " HP and your buffs are gone." }); }
+if (h.staRegen) f.sta = Math.min(h.staMax, f.sta + h.staRegen);
+if ((h.perks || {}).regen && f.hp > 0) f.hp = Math.min(h.maxHp, f.hp + Math.round(h.maxHp * h.perks.regen));
+Object.keys(f.disabled).forEach(a => { if (--f.disabled[a] <= 0) delete f.disabled[a]; });
+Object.keys(f.cd).forEach(a => { if (--f.cd[a] <= 0) delete f.cd[a]; });
+mechEndTurn(f);
+if (f.hp <= 0) return finish(f, false, start);
+if (f.ehp <= 0) return finish(f, true, start);
+if (f.m.survive && f.turn >= f.m.survive) { ev(f, "mech", { msg: f.m.surviveMsg || "You survived!" }); return finish(f, true, start); }
+if (f.m.turnLimit && f.turn >= f.m.turnLimit) { ev(f, "mech", { msg: "Out of time!" }); return finish(f, false, start); }
+if (f.turn >= 80) return finish(f, false, start);
+pickIntent(f);
+return f.events.slice(start);
+}
+function special(f) {
+const e = f.e, R = f.R;
+switch (e.mech) {
+case "heal": { const h = Math.round(f.emax * 0.12); f.ehp = Math.min(f.emax, f.ehp + h); ev(f, "eheal", { val: h }); break; }
+case "drain": { const d = Math.min(f.sta, 20); f.sta -= d; ev(f, "mech", { msg: "Drains " + d + " of your stamina!" }); break; }
+case "ransom": case "audit": {
+const pool = ["power", "gamble", "strike", "dodge", "block"].filter(a => !f.disabled[a]);
+const a = pool[Math.floor(R() * pool.length)];
+f.disabled[a] = 2;
+ev(f, "mech", { msg: (e.mech === "ransom" ? "ENCRYPTED: " : "AUDITED: ") + ACTIONS[a].name + " is disabled for 2 turns!" + (e.mech === "ransom" ? " (Power Strike decrypts)" : "") });
+break;
+}
+case "great_i": { f.form = f.form === "I" ? "l" : "I"; ev(f, "mech", { msg: f.form === "l" ? "Identity crisis! The Great \"I\" turns into a lowercase \"l\" - hard to hit!" : "It's a capital \"I\" again." }); break; }
+case "llm": { const d = hurtHero(f, f.eatk * (0.5 + R() * 1.4), "hallucination"); ev(f, "mech", { msg: "Hallucinated attack for " + d + "!" }); break; }
+case "massi": { const h = Math.round(f.h.maxHp * 0.12); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "mech", { msg: "The Big Massi approves your PTO. You heal " + h + ". Best boss ever." }); break; }
+case "italian": {
+const pool = ["power", "gamble", "strike", "dodge"].filter(a => !f.disabled[a]);
+if (pool.length) { const a = pool[Math.floor(R() * pool.length)]; f.disabled[a] = 2; ev(f, "mech", { msg: "🍝 SPAGHETTI CODE! " + ACTIONS[a].name + " is tangled up for a turn." }); }
+break;
+}
+case "louis": { f.flamenco = 2; ev(f, "mech", { msg: "💃 FLAMENCO! The Supreme Louis dances around: your hits miss half the time for 2 turns (a PERFECT Power Strike always lands)." }); break; }
+case "cobol": { const d = hurtHero(f, f.eatk * 1.5, "special"); f.slow = 2; ev(f, "mech", { msg: "🥟 \"Take a Halušky!\" " + d + " damage - you're stuffed: -20% dodge for 2 turns." }); break; }
+case "polishen": { f.payroll = 2; ev(f, "mech", { msg: "🧾 PAYROLL CUT! -25% ATK for 2 turns." }); break; }
+case "admin": { const d = hurtHero(f, f.eatk * 1.5, "special"); ev(f, "mech", { msg: "🕶 KERNEL PANIC for " + d + "!" }); break; }
+case "compliance": { const d = hurtHero(f, f.eatk * (1 + 0.15 * f.redTape), "special"); ev(f, "mech", { msg: "📋 PAPER CUT! " + d + " damage" + (f.redTape ? " (+" + 15 * f.redTape + "% for your red tape)" : "") + "." }); break; }
+default: { const d = hurtHero(f, f.eatk * 1.4, "special"); ev(f, "mech", { msg: (e.specialTxt || "Special attack") + " for " + d + "!" }); }
+}
+}
+function mechEndTurn(f) {
+const e = f.e;
+["flamenco", "slow", "rage", "payroll"].forEach(k => { if (f[k] > 0) f[k]--; });
+if (e.mech === "italian" && !f.phase2 && f.ehp > 0 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.pastaPending = true; ev(f, "mech", { msg: "🍝 The Italian Guy is getting hungry... PASTA BREAK next turn! BREAK him to stop it." }); }
+if (e.mech === "cobol" && f.turn % 5 === 0) {
+if (f.intent && f.intent.k === "stun") ev(f, "mech", { msg: "🖥 LEGACY CODE crashed - you broke it before it could recover." });
+else { const hh = Math.round(f.emax * 0.08); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); ev(f, "mech", { msg: "🖥 LEGACY CODE: \"It still runs.\" +" + hh + " HP (BREAK him to stop it)" }); }
+}
+if (e.mech === "admin") {
+if (!f.phase2 && f.ehp > 0 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.restartPending = true; ev(f, "mech", { msg: "🔄 The Administrator is preparing a FORCE RESTART! BREAK him to cancel it." }); }
+const pool = ["power", "gamble", "strike", "dodge"].filter(a => !f.disabled[a]);
+if (pool.length) { const a = pool[Math.floor(f.R() * pool.length)]; f.disabled[a] = 1; ev(f, "mech", { msg: "🕶 ROOT ACCESS: " + ACTIONS[a].name + " - permission denied this turn." }); }
+}
+if (e.mech === "pookie") { f.estacks++; if (f.turn % 2 === 0) ev(f, "mech", { msg: ["\"Do you even lift, bro?\"", "\"It's not fat, it's BULK.\"", "🤘 BLAST BEAT! 🤘", "\"Skip leg day? NEVER.\"", "\"Protein shake break? No. MORE METAL.\""][(f.turn / 2) % 5] }); }
+if (e.mech === "massi" && !f.phase2 && f.ehp < f.emax * 0.5) { f.phase2 = true; f.eatk *= 1.3; const h = Math.round(f.emax * 0.15); f.ehp += h; ev(f, "mech", { msg: "EXECUTIVE OVERRIDE! The Big Massi restructures: +" + h + " HP, +30% ATK." }); }
+if (e.mech === "audit_final" && f.turn % 1 === 0) {
+const pool = ["power", "gamble", "strike", "dodge", "quick"].filter(a => !f.disabled[a]);
+const a = pool[Math.floor(f.R() * pool.length)];
+f.disabled[a] = 1;
+ev(f, "mech", { msg: "AUDIT FINDING: " + ACTIONS[a].name + " is not compliant this turn." });
+}
+}
+function finish(f, win, start) {
+f.over = true; f.win = win; f.hp = Math.max(0, f.hp); f.ehp = Math.max(0, f.ehp);
+ev(f, win ? "win" : "lose", {});
+return f.events.slice(start);
+}
+/** v8.2 hvězdy jsou 3 samostatné úkoly (bitmaska): 1 = výhra, 2 = výhra s >=50 % HP, 4 = bonus NEBO výhra do 3 tahů */
+const QUICK_WIN = 3;
+function starMask(f) {
+if (!f.win) return 0;
+let m = 1;
+if (f.hp >= f.h.maxHp * 0.5) m |= 2;
+if (bonusDone(f) || f.turn <= QUICK_WIN) m |= 4;
+return m;
+}
+function starCount(m) { return (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1); }
+function stars(f) { return starCount(starMask(f)); }
+function bonusDone(f) {
+const b = f.m.bonus || {}, st = f.st;
+switch (b.type) {
+case "turns": return f.turn <= b.n;
+case "noGamble": return st.usedGamble === 0;
+case "noItem": return st.usedItem === 0;
+case "noBlock": return st.usedBlock === 0;
+case "perfectBlock": return st.perfectBlocks >= (b.n || 1);
+case "jackpot": return st.jackpots >= 1;
+case "hp": return f.hp >= f.h.maxHp * b.pct / 100;
+case "skill": return st.usedSkill >= 1;
+case "perfectPower": return st.perfectPower >= (b.n || 1);
+case "crits": return st.crits >= (b.n || 1);
+default: return true;
+}
+}
+function bonusText(b) {
+switch ((b || {}).type) {
+case "turns": return "Win within " + b.n + " turns";
+case "noGamble": return "Win without Gamble Strike";
+case "noItem": return "Win without items";
+case "noBlock": return "Win without blocking";
+case "perfectBlock": return "Land " + (b.n || 1) + " perfect block" + ((b.n || 1) > 1 ? "s" : "") + " (block a HEAVY)";
+case "jackpot": return "Hit a 7️⃣7️⃣7️⃣ jackpot";
+case "hp": return "Win with " + b.pct + "%+ HP";
+case "skill": return "Use your class skill";
+case "perfectPower": return "Land " + (b.n || 1) + " PERFECT Power Strike" + ((b.n || 1) > 1 ? "s" : "");
+case "crits": return "Land " + b.n + " crits";
+default: return "-";
+}
+}
+/** Heuristický hráč pro simulace. */
+function autoPolicy(f, R) {
+const h = f.h, k = f.intent.k;
+if (f.demand && allowed(f, f.demand) && (f.demand === "block" || !(k === "heavy" || k === "unleash"))) return f.demand;
+if (k === "heavy" || k === "unleash") return "block";
+if (k === "charge" && allowed(f, "strike")) return allowed(f, "power") ? "power" : "strike";
+if (k === "withdraw") return allowed(f, "dodge") ? "dodge" : "block";
+if (allowed(f, "skill")) return "skill";
+if (k === "defend" || k === "flex") return allowed(f, "quick") ? "quick" : "block";
+if (k === "siesta" && allowed(f, "power")) return "power";
+if (allowed(f, "power") && (f.sta >= 60 || R() < 0.5)) return "power";
+if (allowed(f, "strike") && f.sta >= 45) return "strike";
+if (allowed(f, "gamble") && f.sta >= 45 && R() < 0.2) return "gamble";
+if (allowed(f, "quick")) return "quick";
+return "block";
+}
+function timingRoll(R, zone) { const r = R(); return r < zone * 0.3 ? "perfect" : r < zone * 1.7 ? "good" : "none"; }
+const PARRY_SKILL = { perfect: 0.35, good: 0.45, p: 0.35 };        // simulace: jak často hráč trefí PERFECT / GOOD (v8.7)
+const ULT_SKILL = { q: 1.0, sd: 0.1, all: 0.6 };                  // simulace: průměrná síla ulti z mini-hry
+function parryRoll(R) { const r = R(); return r < PARRY_SKILL.perfect ? "perfect" : r < PARRY_SKILL.perfect + PARRY_SKILL.good ? "good" : "none"; }
+/** jak by tah zahrál hráč (simulace) - vrací timing objekt pro step() */
+function autoOpt(f, a, R, skill) {
+if (a === "power") return { t: timingRoll(R, skill == null ? f.h.zone : skill) };
+if (a === "block" && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) {
+if (f.intent.k === "unleash") return { rings: [parryRoll(R), parryRoll(R), parryRoll(R)] };
+return { parry: parryRoll(R) };
+}
+if (a === "skill") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all };
+if (a === "gamble") {
+const r = gambleRoll(f), hold = autoHold(r);
+if (!hold.every(Boolean) && canRespin(f) && R() < 0.85) gambleRespin(f, hold);
+return { t: "none" };
+}
+return { t: "none" };
+}
+function simulate(hero, mission, seed, skill) {
+const f = newFight(hero, mission, seed), R = rng((seed || 1) * 7 + 3);
+while (!f.over) { const a = autoPolicy(f, R); step(f, a, autoOpt(f, a, R, skill)); }
+return f;
+}
+const api = { rng: rng, CLASSES: CLASSES, ACTIONS: ACTIONS, ITEMS: ITEMS, MAX_ITEMS_PER_FIGHT: MAX_ITEMS_PER_FIGHT, statPoints: statPoints, buildHero: buildHero,
+newFight: newFight, step: step, useItem: useItem, allowed: allowed, stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, FORM_NO: FORM_NO, bonusText: bonusText, simulate: simulate, autoPolicy: autoPolicy, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, BREAK: BREAK, reelResult: reelResult,
+gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM, autoOpt: autoOpt };
+if (typeof module !== "undefined" && module.exports) module.exports = api;
+else root.HSEngine = api;
+})(typeof window !== "undefined" ? window : this);
+</script>
+<script>
+/**
+* HIGH STAKES - kampaň: 5 kapitol × 10 misí + tajná mise. Staty nepřátel ladí simulace (STATS níže).
+*/
+(function (root) {
+"use strict";
+const P = {
+normal: { atk: 6, heavy: 3, defend: 1 },                // v8.6: HEAVY častěji
+brute: { atk: 4, heavy: 5, defend: 1 },
+turtle: { atk: 4, heavy: 2, defend: 4 },
+caster: { atk: 4, heavy: 2, defend: 1, special: 3 },
+boss: { atk: 5, heavy: 4, defend: 1, special: 2 }
+};
+;(window.__TT_FILES = window.__TT_FILES || {})["hs"] = 1;
+// END-OF-FILE: hs (the script continues in the next file)

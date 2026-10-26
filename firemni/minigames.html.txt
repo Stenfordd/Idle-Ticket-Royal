@@ -1,0 +1,711 @@
+function buildUi() {
+const mount = $("adv-minigames-mount");
+if (!mount || mount.dataset.built) return false;
+mount.dataset.built = "1";
+mount.innerHTML = `
+<div class="panel adv-wrap">
+<div class="panel-header"><span>ADVANCED MINIGAMES</span><span style="font-size:10px; color:var(--amber);">HIGH RISK / HIGH REWARD</span></div>
+<div class="tab-row">
+<button class="casino-tab-btn active" id="adv-tab-chicken" onclick="AdvMini.tab('chicken')">🐔 CHICKEN</button>
+<button class="casino-tab-btn" id="adv-tab-pachinko" onclick="AdvMini.tab('pachinko')">⚪ PACHINKO</button>
+<button class="casino-tab-btn" id="adv-tab-showdown" onclick="AdvMini.tab('showdown')">⚔ SHOWDOWN</button>
+<button class="casino-tab-btn" id="adv-tab-climb" onclick="AdvMini.tab('climb')">🧗 CLIMB</button>
+<button class="casino-tab-btn" id="adv-tab-prsi" onclick="AdvMini.tab('prsi')">♣ PRŠÍ</button>
+<button class="casino-tab-btn" id="adv-tab-checkers" onclick="AdvMini.tab('checkers')">⛀ CHECKERS</button>
+</div>
+<div id="adv-view-chicken">
+<div class="adv-bal">Balance: <span id="bal-chicken">0 GC</span></div>
+<div class="adv-info" style="margin-bottom:6px;">Every jump has a <b>50% chance to die</b>. Multiplier grows <b>×${CR_GROWTH}</b> per jump (max ${CR_MAX_JUMPS} jumps = ${fmt(crMult(CR_MAX_JUMPS))}×).</div>
+<div class="cr-road" id="cr-road"></div>
+<div class="cr-stats">
+<div class="stat-box"><div class="stat-label">Jumps</div><div class="stat-val cyan" id="cr-jumps">0</div></div>
+<div class="stat-box"><div class="stat-label">Multiplier</div><div class="stat-val gold" id="cr-mult">1.00×</div></div>
+<div class="stat-box"><div class="stat-label">Cash out</div><div class="stat-val emerald" id="cr-payout">0</div></div>
+</div>
+<div class="cr-msg" id="cr-msg">Place a bet and start crossing.</div>
+<div class="adv-row">
+<span style="font-size:11px;">BET:</span>
+<input type="number" class="adv-input" id="cr-bet" min="10" step="10" value="100">
+<button class="btn btn-gold" id="cr-start" style="flex:1;" onclick="AdvMini.crStart()">START</button>
+</div>
+<div style="display:flex; gap:6px;">
+<button class="btn btn-cyan" id="cr-jump" style="flex:1;" disabled onclick="AdvMini.crJump()">JUMP ➜ (<span id="cr-next-mult">1.92</span>×)</button>
+<button class="btn btn-crimson" id="cr-cash" style="flex:1;" disabled onclick="AdvMini.crCash()">CASH OUT</button>
+</div>
+</div>
+<div id="adv-view-pachinko" style="display:none;">
+<div class="adv-bal">Balance: <span id="bal-pachinko">0 GC</span></div>
+<div class="adv-info" style="margin-bottom:6px;">Buy balls, drop them. Pick your risk: <b>LOW</b> pays often, <b>HIGH</b> has <b>500×</b> edges. RTP: <b id="pc-rtp">--</b></div>
+<div class="pc-risk" id="pc-risk">
+<button class="btn" data-r="low" onclick="AdvMini.pcRisk('low')">🟢 LOW</button>
+<button class="btn" data-r="medium" onclick="AdvMini.pcRisk('medium')">🟡 MEDIUM</button>
+<button class="btn" data-r="high" onclick="AdvMini.pcRisk('high')">🔴 HIGH</button>
+</div>
+<div class="pc-canvas-wrap"><canvas id="pc-canvas"></canvas><div class="pc-pops" id="pc-pops"></div></div>
+<div class="pc-live" id="pc-live"></div>
+<div class="adv-row">
+<span style="font-size:11px;">BALL VALUE:</span>
+<select class="adv-select" id="pc-value" onchange="AdvMini.pcRefresh()">${PC_VALUES.map(v => `<option value="${v}">${v} GC</option>`).join("")}</select>
+<span class="adv-info">In stock: <b id="pc-stock">0</b> · in play: <b id="pc-play">0</b></span>
+</div>
+<div class="adv-row">
+<button class="btn btn-gold" style="flex:1;" onclick="AdvMini.pcBuy(1)">BUY 1</button>
+<button class="btn btn-gold" style="flex:1;" onclick="AdvMini.pcBuy(10)">BUY 10</button>
+<button class="btn btn-gold" style="flex:1;" onclick="AdvMini.pcBuy(50)">BUY 50</button>
+</div>
+<div class="adv-row">
+<button class="btn btn-crimson" style="flex:1;" onclick="AdvMini.pcDrop(1)">DROP 1</button>
+<button class="btn btn-crimson" style="flex:1;" onclick="AdvMini.pcDrop(5)">DROP 5</button>
+<button class="btn btn-cyan" style="flex:1;" onclick="AdvMini.pcDrop(10)">DROP 10</button>
+<button class="btn btn-gold" style="flex:1;" id="pc-auto" onclick="AdvMini.pcAuto()">AUTO ▶</button>
+</div>
+<div class="cr-msg" id="pc-msg">Buy some balls to start.</div>
+</div>
+<div id="adv-view-climb" style="display:none;"><div id="jk-mount"></div></div>
+<div id="adv-view-prsi" style="display:none;"><div id="prs-mount" class="pr-wrap"></div></div>
+<div id="adv-view-checkers" style="display:none;"><div id="ck-mount"></div></div>
+<div id="adv-view-showdown" style="display:none;">
+<div class="adv-bal">Balance: <span id="bal-showdown">0 GC</span></div>
+<div class="adv-info" style="margin-bottom:6px;">Rock-paper-scissors, <b>best of 3</b>. Set your 3 moves, then <b>create a challenge</b> or <b>accept</b> one. Winner gets <b>95%</b> of the pot, a draw refunds both.</div>
+<div class="sd-picker" id="sd-picker"></div>
+<div class="adv-row">
+<span style="font-size:11px;">STAKE:</span>
+<input type="number" class="adv-input" id="sd-stake" min="${SD_MIN}" step="10" value="100">
+<button class="btn btn-gold" style="flex:1;" onclick="AdvMini.sdCreate()">CREATE CHALLENGE</button>
+</div>
+<div class="cr-msg" id="sd-msg">Pick your moves.</div>
+<div class="panel-header" style="font-size:10px;margin-bottom:6px;"><span>OPEN CHALLENGES</span><span id="sd-stats" style="color:var(--text-dim);"></span></div>
+<div class="sd-list" id="sd-list"><div class="adv-info">Loading...</div></div>
+<div class="panel-header" style="font-size:10px;margin-bottom:6px;"><span>YOUR RECENT MATCHES</span></div>
+<div id="sd-hist"><div class="adv-info">-</div></div>
+</div>
+</div>`;
+return true;
+}
+const cr = { phase: "idle", jumps: 0, bet: 0, deadAt: -1 };
+function crRender() {
+const road = $("cr-road");
+if (!road) return;
+let html = "";
+for (let i = 0; i <= CR_MAX_JUMPS; i++) {
+let cls = "cr-cell", content = "";
+if (i === 0) cls += " curb";
+if (i > 0 && i <= cr.jumps) cls += " done";
+if (cr.phase === "run" && i === cr.jumps + 1) cls += " next";
+if (cr.phase === "dead") {
+if (i === cr.deadAt) { cls += " dead"; content = "💥"; }
+else if (i > 0 && i <= cr.jumps) content = "✔";
+else if (i > cr.deadAt) content = `<span class="cr-car" style="left:${6 + (i * 7) % 18}px">${i % 2 ? "🚗" : "🚚"}</span>`;
+} else {
+if (i === cr.jumps) content = `<span class="cr-chicken" id="cr-chicken">🐔</span>`;
+else if (i > 0 && i < cr.jumps) content = "✔";
+else if (i > cr.jumps) content = `<span class="cr-car" style="left:${6 + (i * 7) % 18}px">${i % 2 ? "🚗" : "🚚"}</span>`;
+}
+html += `<div class="${cls}">${content}<span class="cr-lbl">${i === 0 ? "START" : crMult(i) + "×"}</span></div>`;
+}
+road.innerHTML = html;
+const idx = cr.phase === "dead" ? cr.deadAt : cr.jumps;
+const here = road.children[idx];
+if (here) road.scrollLeft = Math.max(0, here.offsetLeft - road.clientWidth / 2 + 23);
+const m = cr.phase === "dead" ? 0 : crMult(cr.jumps);
+$("cr-jumps").innerText = cr.phase === "dead" ? cr.jumps : cr.jumps;
+$("cr-mult").innerText = m.toFixed(2) + "×";
+$("cr-payout").innerText = cr.phase === "run" ? fmt(cr.bet * m) : "0";
+$("cr-next-mult").innerText = crMult(Math.min(CR_MAX_JUMPS, cr.jumps + 1)).toFixed(2);
+$("cr-start").disabled = cr.phase === "run";
+$("cr-jump").disabled = cr.phase !== "run";
+$("cr-cash").disabled = cr.phase !== "run" || cr.jumps < 1;
+}
+function crStart() {
+if (cr.phase === "run") return;
+const input = $("cr-bet");
+const bet = TT.cleanBet(input.value, 10, TT.maxBet ? TT.maxBet() : CR_MAX_BET);
+input.value = bet;
+if (!TT.spend(bet)) { $("cr-msg").style.color = "var(--crimson)"; $("cr-msg").innerText = "Not enough GC."; return; }
+cr.phase = "run"; cr.jumps = 0; cr.bet = bet; cr.deadAt = -1;
+$("cr-msg").style.color = "var(--cyan)";
+$("cr-msg").innerText = "The road is open. Jump!";
+crRender();
+}
+function crJump() {
+if (cr.phase !== "run") return;
+if (TT.rnd() < 0.5) {                                   // 50 % smrt
+cr.phase = "dead"; cr.deadAt = cr.jumps + 1;
+$("cr-msg").style.color = "var(--crimson)";
+$("cr-msg").innerText = `SPLAT! Hit on jump ${cr.deadAt}. Lost ${fmt(cr.bet)} GC.`;
+TT.log(`CHICKEN ROAD: hit by a car on jump ${cr.deadAt}. Lost ${fmt(cr.bet)} GC.`, "error");
+crRender();
+return;
+}
+cr.jumps += 1;
+crRender();
+const ch = $("cr-chicken");
+if (ch) { ch.classList.remove("hop"); void ch.offsetWidth; ch.classList.add("hop"); }
+$("cr-msg").style.color = "var(--emerald)";
+$("cr-msg").innerText = `Safe! ${crMult(cr.jumps).toFixed(2)}× (${fmt(cr.bet * crMult(cr.jumps))} GC)`;
+if (cr.jumps >= CR_MAX_JUMPS) crCash(true);
+}
+function crCash(auto) {
+if (cr.phase !== "run" || cr.jumps < 1) return;
+const mult = crMult(cr.jumps);
+const payout = Math.floor(cr.bet * mult);
+const jumps = cr.jumps, bet = cr.bet;
+cr.phase = "idle"; cr.jumps = 0;
+TT.win(payout);
+TT.log(`CHICKEN ROAD CASH OUT: ${jumps} jumps, ${mult.toFixed(2)}× → +${fmt(payout)} GC${auto ? " (max jumps!)" : ""}`, "special");
+if (mult >= CR_JACKPOT_MULT) TT.announce("CHICKEN x" + mult.toFixed(0), "ROAD", bet, payout);
+crRender();
+$("cr-msg").style.color = "var(--amber)";
+$("cr-msg").innerText = `CASHED OUT ${mult.toFixed(2)}× = +${fmt(payout)} GC!`;
+}
+const pc = { balls: [], raf: 0, ctx: null, flash: [], pegHits: {}, binHits: {}, seq: 0, batches: {}, auto: false, autoT: 0, risk: "high", dpr: 1, session: { n: 0, spent: 0, back: 0 } };
+function pcStock() {
+const g = TT.state();
+if (!g.pachinko) g.pachinko = {};
+PC_VALUES.forEach(v => { if (typeof g.pachinko[v] !== "number") g.pachinko[v] = 0; });
+return g.pachinko;
+}
+function pcValue() { return $("pc-value").value; }
+function pcRefresh() {
+const a = $("pc-stock"), b = $("pc-play");
+if (a) a.innerText = fmt(pcStock()[pcValue()] || 0);
+if (b) b.innerText = pc.balls.length;
+const l = $("pc-live");
+if (l) {
+const s = pc.session, net = s.back - s.spent;
+l.innerHTML = s.n ? `<span>SESSION: <b>${s.n}</b> balls</span><span>spent <b>${fmt(s.spent)}</b></span><span>back <b>${fmt(s.back)}</b></span><span style="color:${net >= 0 ? "var(--emerald)" : "var(--crimson)"};">${net >= 0 ? "+" : ""}${fmt(net)}</span>` : "";
+}
+}
+function pcRisk(r) {
+if (!PC_RISKS[r]) return;
+pc.risk = r; PC_MULTS = PC_RISKS[r];
+try { localStorage.setItem("ir_pc_risk", r); } catch (e) {}
+document.querySelectorAll("#pc-risk .btn").forEach(b => b.classList.toggle("sel", b.getAttribute("data-r") === r));
+const el = $("pc-rtp"); if (el) el.innerText = (pcRtp() * 100).toFixed(1) + "%";
+if (pc.ctx && !pc.raf) pcDrawBoard(pc.ctx, performance.now());
+}
+function pcBuy(n) {
+const v = Number(pcValue());
+if (!TT.spend(v * n)) { $("pc-msg").style.color = "var(--crimson)"; $("pc-msg").innerText = `Need ${fmt(v * n)} GC for ${n} ball(s).`; return; }
+pcStock()[pcValue()] += n;
+$("pc-msg").style.color = "var(--cyan)";
+$("pc-msg").innerText = `Bought ${n} ball(s) @ ${v} GC.`;
+pcRefresh();
+}
+function pcDrop(n) {
+const key = pcValue(), stock = pcStock();
+let dropped = 0;
+const batch = n > 1 ? "b" + (pc.seq++) : null;
+for (let i = 0; i < n; i++) {
+if (stock[key] <= 0 || pc.balls.length >= PC_MAX_ACTIVE) break;
+stock[key] -= 1;
+pcLaunch(Number(key), batch, i * 110);
+dropped++;
+}
+if (batch && dropped > 1) pc.batches[batch] = { n: dropped, left: dropped, spent: dropped * Number(key), back: 0, best: 0 };
+if (dropped === 0) {
+$("pc-msg").style.color = "var(--amber)";
+$("pc-msg").innerText = stock[key] <= 0 ? "No balls in stock - buy some!" : `Max ${PC_MAX_ACTIVE} balls in play at once.`;
+if (pc.auto && stock[key] <= 0) pcAuto();
+}
+pcRefresh();
+TT.saveSoon();
+return dropped;
+}
+function pcAuto() {
+pc.auto = !pc.auto;
+const b = $("pc-auto");
+if (b) { b.innerText = pc.auto ? "STOP ■" : "AUTO ▶"; b.className = "btn " + (pc.auto ? "btn-crimson" : "btn-gold"); }
+clearInterval(pc.autoT);
+if (pc.auto) pc.autoT = setInterval(() => { if (pc.balls.length < PC_MAX_ACTIVE - 2) pcDrop(1); }, 380);
+}
+function pegX(row, k) { return W / 2 + k * HS; }      // k = posun (-row..row po 2)
+function pegY(row) { return TOP + row * DY; }
+function pcLaunch(value, batch, delay) {
+const R = () => TT.rnd();
+const offs = [0];
+let o = 0;
+for (let i = 0; i < PC_ROWS; i++) { o += (R() < 0.5) ? -1 : 1; offs.push(o); }
+const bin = (o + PC_ROWS) / 2;
+const pts = [{ x: W / 2 + (R() - 0.5) * 4, y: 6, peg: null }];
+for (let i = 0; i < PC_ROWS; i++) pts.push({ x: pegX(i, offs[i]) + (offs[i + 1] - offs[i]) * (PEG_R + BALL_R - 2) * 0.55 + (R() - 0.5) * 1.6, y: pegY(i) - PEG_R - BALL_R + 1, peg: i + ":" + offs[i] });
+pts.push({ x: W / 2 + (2 * bin - PC_ROWS) * HS, y: BIN_Y + BIN_H - BALL_R - 4, peg: null, bin: bin });
+const id = Date.now() + "_" + (pc.seq++);
+const risk = pc.risk;
+TT.state().pcPending.push({ id: id, value: value, bin: bin, risk: risk });     // míček v letu je v savu
+pc.session.n++; pc.session.spent += value;
+const t0 = performance.now() + (delay || 0);
+const segs = pts.length - 1;
+const durs = [];
+for (let i = 0; i < segs; i++) durs.push(i === 0 ? 260 : (i === segs - 1 ? 300 : SEG_MS * (0.9 + R() * 0.2)));
+pc.balls.push({ id: id, value: value, bin: bin, risk: risk, pts: pts, durs: durs, t0: t0, dur: durs.reduce((a, b) => a + b, 0), batch: batch, trail: [], lastSeg: -1, hue: 40 + R() * 20 });
+pcKick();
+}
+function pcKick() { if (!pc.raf) pc.raf = requestAnimationFrame(pcFrame); }
+/** pozice míčku: vodorovně plynule, svisle parabola (vyskočí a gravitací spadne na další kolík) */
+function pcBallPos(b, now) {
+let el = now - b.t0;
+if (el < 0) return null;
+let seg = 0;
+while (seg < b.durs.length - 1 && el > b.durs[seg]) { el -= b.durs[seg]; seg++; }
+const f = Math.min(1, el / b.durs[seg]);
+const p = b.pts[seg], q = b.pts[seg + 1];
+const ex = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+const x = p.x + (q.x - p.x) * (seg === 0 ? f : ex);
+const hop = seg === 0 ? 0 : (seg === b.durs.length - 1 ? 10 : 9);
+const y = p.y + (q.y - p.y) * f * f - hop * 4 * f * (1 - f) * (1 - f * 0.3);
+return { x: x, y: y, seg: seg };
+}
+/** Logika přistání - nezávislá na vykreslování (běží i v neviditelném tabu přes watchdog). */
+function pcTick() {
+const now = performance.now();
+const rest = [];
+for (const b of pc.balls) {
+if (now - b.t0 >= b.dur) { try { pcLand(b); } catch (e) { console.error(e); } }
+else rest.push(b);
+}
+pc.balls = rest;
+pc.flash = pc.flash.filter(f => now - f.t < 700);
+if (!pc.balls.length && !pc.flash.length) pc.raf = 0;
+pcRefresh();
+}
+function pcFrame(now) {
+try {
+pcTick();
+const ctx = pc.ctx;
+pcDrawBoard(ctx, now);
+for (const b of pc.balls) {
+const pos = pcBallPos(b, now);
+if (!pos) continue;
+if (pos.seg !== b.lastSeg) {               // nový segment = náraz do kolíku
+b.lastSeg = pos.seg;
+const pg = b.pts[pos.seg].peg;
+if (pg) pc.pegHits[pg] = now;
+}
+b.trail.push([pos.x, pos.y]); if (b.trail.length > 7) b.trail.shift();
+for (let i = 0; i < b.trail.length - 1; i++) {
+const t = b.trail[i], a = (i + 1) / b.trail.length;
+ctx.beginPath(); ctx.arc(t[0], t[1], BALL_R * a * 0.8, 0, Math.PI * 2);
+ctx.fillStyle = `hsla(${b.hue},100%,60%,${0.25 * a})`; ctx.fill();
+}
+const g = ctx.createRadialGradient(pos.x - 1.6, pos.y - 1.8, 0.5, pos.x, pos.y, BALL_R);
+g.addColorStop(0, "#fffbe6"); g.addColorStop(0.45, `hsl(${b.hue},100%,58%)`); g.addColorStop(1, `hsl(${b.hue - 15},90%,32%)`);
+ctx.beginPath(); ctx.arc(pos.x, pos.y, BALL_R, 0, Math.PI * 2);
+ctx.shadowColor = `hsla(${b.hue},100%,60%,.8)`; ctx.shadowBlur = 10;
+ctx.fillStyle = g; ctx.fill(); ctx.shadowBlur = 0;
+}
+} catch (e) { console.error(e); }
+if (pc.balls.length || pc.flash.length) pc.raf = requestAnimationFrame(pcFrame);
+else { pc.raf = 0; try { pcDrawBoard(pc.ctx, performance.now()); } catch (e) {} }
+}
+function pcPop(bin, text, color, big) {
+const box = $("pc-pops"); if (!box || document.hidden) return;
+const el = document.createElement("div");
+el.className = "pc-pop" + (big ? " big" : "");
+el.style.left = ((W / 2 + (2 * bin - PC_ROWS) * HS) / W * 100) + "%";
+el.style.top = (BIN_Y / H * 100 - 6) + "%";
+el.style.color = color; el.textContent = text;
+box.appendChild(el);
+setTimeout(() => el.remove(), 1250);
+}
+function pcLand(b) {
+const st = TT.state();
+st.pcPending = (st.pcPending || []).filter(p => p.id !== b.id);
+const table = PC_RISKS[b.risk] || PC_RISKS.high;
+const mult = table[b.bin];
+const payout = Math.floor(b.value * mult);
+pc.flash.push({ bin: b.bin, t: performance.now(), mult: mult });
+pc.binHits[b.bin] = performance.now();
+pc.session.back += payout;
+if (payout > 0) TT.win(payout);
+pcPop(b.bin, mult + "×", pcColor(mult), mult >= 25);
+const msg = $("pc-msg");
+if (mult >= 1) {
+msg.style.color = mult >= 25 ? "var(--amber)" : "var(--emerald)";
+msg.innerText = `Ball @${b.value} → ${mult}× = +${fmt(payout)} GC!`;
+if (mult >= 10) TT.log(`PACHINKO: ball (${b.value} GC) hit ${mult}× → +${fmt(payout)} GC`, mult >= 25 ? "special" : "success");
+} else {
+msg.style.color = "var(--text-dim)";
+msg.innerText = `Ball @${b.value} → ${mult}× (${fmt(payout)} GC back).`;
+}
+if (mult >= 25) TT.announce("PACHINKO x" + mult, "BALL", b.value, payout);
+const bt = b.batch && pc.batches[b.batch];
+if (bt) {
+bt.left--; bt.back += payout; bt.best = Math.max(bt.best, mult);
+if (bt.left <= 0) {
+delete pc.batches[b.batch];
+const net = bt.back - bt.spent;
+msg.style.color = net >= 0 ? "var(--emerald)" : "var(--crimson)";
+msg.innerText = `${bt.n} BALLS: spent ${fmt(bt.spent)} → got ${fmt(bt.back)} GC (${net >= 0 ? "+" : ""}${fmt(net)}) · best ${bt.best}×`;
+TT.log(`PACHINKO ×${bt.n}: spent ${fmt(bt.spent)}, got back ${fmt(bt.back)} GC → net ${net >= 0 ? "+" : ""}${fmt(net)}.`, net >= 0 ? "success" : "error");
+}
+}
+}
+function pcResolvePending() {
+const st = TT.state();
+const list = st.pcPending || [];
+if (!list.length) return;
+let total = 0;
+list.forEach(p => { total += Math.floor(p.value * ((PC_RISKS[p.risk] || PC_RISKS.high)[p.bin] || 0)); });
+st.pcPending = [];
+if (total > 0) TT.win(total);
+TT.log(`Pachinko: ${list.length} ball(s) from your last session were resolved (+${fmt(total)} GC).`, "special");
+}
+function pcColor(m) { return m >= 100 ? "#ff4dff" : m >= 20 ? "#f43f5e" : m >= 4 ? "#fbbf24" : m >= 1.5 ? "#22c55e" : m >= 1 ? "#2563eb" : "#3b4560"; }
+function setupCanvas() {
+const cv = $("pc-canvas"); if (!cv) return null;
+const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+pc.dpr = dpr;
+cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+const ctx = cv.getContext("2d");
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+return ctx;
+}
+function pcDrawBoard(ctx, now) {
+if (!ctx) return;
+now = now || performance.now();
+ctx.clearRect(0, 0, W, H);
+ctx.strokeStyle = "rgba(0,240,255,.25)"; ctx.lineWidth = 2;
+ctx.beginPath(); ctx.moveTo(W / 2 - 22, 0); ctx.lineTo(W / 2 - 8, 18); ctx.moveTo(W / 2 + 22, 0); ctx.lineTo(W / 2 + 8, 18); ctx.stroke();
+for (let r = 0; r < PC_ROWS; r++) {
+for (let k = -r; k <= r; k += 2) {
+const x = pegX(r, k), y = pegY(r);
+const hit = pc.pegHits[r + ":" + k];
+const a = hit ? Math.max(0, 1 - (now - hit) / 350) : 0;
+if (a > 0) {
+ctx.beginPath(); ctx.arc(x, y, PEG_R + 6 * a, 0, Math.PI * 2);
+ctx.fillStyle = `rgba(255,220,120,${0.35 * a})`; ctx.fill();
+}
+ctx.beginPath(); ctx.arc(x, y, PEG_R + a, 0, Math.PI * 2);
+ctx.fillStyle = a > 0 ? `rgb(${180 + 75 * a},${200 + 40 * a},${230 - 80 * a})` : "#8b9bb4";
+ctx.fill();
+ctx.beginPath(); ctx.arc(x - 0.9, y - 0.9, 1, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fill();
+}
+}
+ctx.textAlign = "center"; ctx.textBaseline = "middle";
+for (let k = 0; k <= PC_ROWS; k++) {
+const x = W / 2 + (2 * k - PC_ROWS) * HS;
+const hit = pc.binHits[k];
+const a = hit ? Math.max(0, 1 - (now - hit) / 600) : 0;
+const bounce = a > 0 ? Math.sin(a * Math.PI) * 5 : 0;
+const c = pcColor(PC_MULTS[k]);
+ctx.fillStyle = c;
+ctx.shadowColor = c; ctx.shadowBlur = a > 0 ? 18 * a : 0;
+roundRect(ctx, x - HS + 1.5, BIN_Y + bounce, HS * 2 - 3, BIN_H - 6, 4);
+ctx.fill(); ctx.shadowBlur = 0;
+if (a > 0) { ctx.fillStyle = `rgba(255,255,255,${0.45 * a})`; roundRect(ctx, x - HS + 1.5, BIN_Y + bounce, HS * 2 - 3, BIN_H - 6, 4); ctx.fill(); }
+ctx.fillStyle = "#fff";
+const lbl = PC_MULTS[k] >= 100 ? PC_MULTS[k] + "" : PC_MULTS[k] + "×";
+ctx.font = (PC_MULTS[k] >= 100 ? "bold 8.5px " : "bold 8px ") + "Orbitron, monospace";
+ctx.fillText(lbl, x, BIN_Y + bounce + (BIN_H - 6) / 2);
+}
+}
+function roundRect(ctx, x, y, w, h, r) {
+ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+setInterval(pcTick, 700);     // watchdog: míčky se vždy dopočítají i když rAF stojí
+const sd = { moves: [null, null, null], busy: false, timer: null, started: Date.now(), seen: {}, open: [], hist: [], stats: null };
+const SD_ERR = { busy: "Server busy, try again.", limit: "You already have 3 open challenges.", stake: "Invalid stake.", moves: "Invalid moves.", taken: "Someone was faster - challenge already taken.", own: "That's your own challenge.", missing: "Challenge not found.", state: "Challenge no longer open.", error: "Server error." };
+function sdMsg(t, color) { const el = $("sd-msg"); if (el) { el.style.color = color || "var(--text-main)"; el.innerText = t; } }
+function sdMovesStr() { return sd.moves.every(Boolean) ? sd.moves.join("") : null; }
+function sdRenderPicker() {
+const box = $("sd-picker");
+if (!box) return;
+box.innerHTML = [0, 1, 2].map(i => `<div class="sd-pick-row"><span class="lbl">ROUND ${i + 1}</span>` +
+["R", "P", "S"].map(m => `<button class="btn sd-mv ${sd.moves[i] === m ? "sel" : ""}" onclick="AdvMini.sdSet(${i},'${m}')">${SD_ICON[m]}</button>`).join("") + `</div>`).join("") +
+`<button class="btn btn-cyan" style="width:100%;margin-top:4px;" onclick="AdvMini.sdRandom()">🎲 RANDOM MOVES</button>`;
+}
+function sdSet(i, m) { sd.moves[i] = m; sdRenderPicker(); }
+function sdRandom() { sd.moves = [0, 1, 2].map(() => ["R", "P", "S"][Math.floor(TT.rnd() * 3)]); sdRenderPicker(); }
+function sdAge(ts) {
+const m = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+return m < 60 ? m + "m" : Math.floor(m / 60) + "h";
+}
+function sdRenderLists() {
+const list = $("sd-list");
+if (list) {
+list.innerHTML = sd.open.length ? sd.open.map(c => `<div class="sd-item ${c.mine ? "mine" : ""}">
+<span><b>${escapeHtml(c.creator)}</b> · ${fmt(c.stake)} GC · ${sdAge(c.created)}</span>
+${c.mine ? `<button class="btn btn-crimson" onclick="AdvMini.sdCancel('${c.id}')">CANCEL</button>`
+: `<button class="btn btn-gold" onclick="AdvMini.sdAccept('${c.id}',${c.stake})">ACCEPT</button>`}</div>`).join("")
+: `<div class="adv-info">No open challenges. Create one!</div>`;
+}
+const h = $("sd-hist");
+if (h) {
+h.innerHTML = sd.hist.length ? sd.hist.map(x => {
+const mv = x.myMoves ? ` ${x.myMoves.split("").map(c => SD_ICON[c]).join("")} vs ${x.theirMoves.split("").map(c => SD_ICON[c]).join("")}` : "";
+return `<div class="sd-hist ${x.res}">${x.res} ${escapeHtml(x.score)} vs ${escapeHtml(x.vs)} · ${fmt(x.stake)} GC${mv}</div>`;
+}).join("") : `<div class="adv-info">No matches yet.</div>`;
+}
+const s = $("sd-stats");
+if (s && sd.stats) s.innerText = `W ${sd.stats.w} · L ${sd.stats.l} · D ${sd.stats.d} · net ${sd.stats.net >= 0 ? "+" : ""}${fmt(sd.stats.net)}`;
+}
+function sdCreate() {
+if (sd.busy) return;
+const moves = sdMovesStr();
+if (!moves) { sdMsg("Pick all 3 moves first.", "var(--amber)"); return; }
+const stake = TT.cleanBet($("sd-stake").value, SD_MIN, Math.min(10000000, TT.maxBet ? TT.maxBet() : SD_MAX));
+$("sd-stake").value = stake;
+if (!TT.spend(stake)) { sdMsg("Not enough GC.", "var(--crimson)"); return; }
+sd.busy = true;
+google.script.run
+.withSuccessHandler(res => {
+sd.busy = false;
+if (res && res.ok) { sdMsg(`Challenge created (${fmt(stake)} GC). Waiting for a rival...`, "var(--cyan)"); TT.log(`SHOWDOWN: challenge created for ${fmt(stake)} GC.`, "special"); }
+else { TT.win(stake); sdMsg(SD_ERR[res && res.reason] || "Failed.", "var(--crimson)"); }
+sdPoll(true);
+})
+.withFailureHandler(() => { sd.busy = false; TT.win(stake); sdMsg("Connection error - stake refunded.", "var(--crimson)"); })
+.pvpCreate(stake, moves);
+}
+function sdAccept(id, stake) {
+if (sd.busy) return;
+const moves = sdMovesStr();
+if (!moves) { sdMsg("Pick all 3 moves first.", "var(--amber)"); return; }
+if (!TT.spend(stake)) { sdMsg("Not enough GC for that stake.", "var(--crimson)"); return; }
+sd.busy = true;
+google.script.run
+.withSuccessHandler(res => {
+sd.busy = false;
+if (!res || !res.ok) { TT.win(stake); sdMsg(SD_ERR[res && res.reason] || "Failed.", "var(--crimson)"); sdPoll(true); return; }
+sd.seen[id] = 1;
+if (res.payout > 0) TT.win(res.payout);
+const theirs = res.theirMoves.split("").map(c => SD_ICON[c]).join("");
+const mine = moves.split("").map(c => SD_ICON[c]).join("");
+if (res.result === "WIN") {
+sdMsg(`WIN ${res.score} vs ${res.creator}! +${fmt(res.payout - stake)} GC  (${mine} vs ${theirs})`, "var(--emerald)");
+TT.log(`SHOWDOWN WIN vs ${escapeHtml(res.creator)} (${res.score}): +${fmt(res.payout - stake)} GC`, "special");
+if (res.payout >= 5000) TT.announce("SHOWDOWN vs " + res.creator, "PVP", stake, res.payout);
+} else if (res.result === "DRAW") {
+sdMsg(`DRAW ${res.score} vs ${res.creator}. Stake returned.  (${mine} vs ${theirs})`, "var(--amber)");
+TT.log(`SHOWDOWN DRAW vs ${escapeHtml(res.creator)}.`);
+} else {
+sdMsg(`LOSS ${res.score} vs ${res.creator}. -${fmt(stake)} GC  (${mine} vs ${theirs})`, "var(--crimson)");
+TT.log(`SHOWDOWN LOSS vs ${escapeHtml(res.creator)} (${res.score}): -${fmt(stake)} GC`, "error");
+}
+TT.saveNow();
+sdPoll(true);
+})
+.withFailureHandler(() => { sd.busy = false; TT.win(stake); sdMsg("Connection error - stake refunded.", "var(--crimson)"); })
+.pvpAccept(id, moves, stake);
+}
+function sdCancel(id) {
+if (sd.busy) return;
+sd.busy = true;
+google.script.run
+.withSuccessHandler(res => { sd.busy = false; sdMsg(res && res.ok ? "Challenge cancelled, stake returns shortly." : (SD_ERR[res && res.reason] || "Failed."), "var(--amber)"); sdPoll(true); })
+.withFailureHandler(() => { sd.busy = false; })
+.pvpCancel(id);
+}
+function sdGlow(on) {
+const t = $("adv-tab-showdown");
+if (t) t.classList.toggle("glow", !!on);
+document.documentElement.classList.toggle("sd-glow", !!on);
+}
+function sdVisible() { const v = $("adv-view-showdown"); return v && v.style.display !== "none"; }
+function sdPoll(forceList) {
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+const wantList = !!forceList || sdVisible() || (Date.now() - (sd.lastList || 0) > 60000);
+if (wantList) sd.lastList = Date.now();
+google.script.run.withSuccessHandler(res => {
+if (!res || !res.ok) return;
+if (res.claimed && res.claimed.length) {
+let total = 0;
+res.claimed.forEach(c => {
+total += c.amount;
+TT.log(`SHOWDOWN payout (${c.reason}): +${fmt(c.amount)} GC`, c.reason === "WIN" ? "special" : "success");
+});
+TT.win(total);
+TT.saveNow();
+}
+if (res.open) {
+sd.open = res.open; sd.hist = res.history || []; sd.stats = res.stats;
+sd.hist.forEach(x => {
+if (x.res !== "WIN" && x.res !== "LOSE" && x.res !== "DRAW") return;
+if (x.at > sd.started && !sd.seen[x.id]) {
+sd.seen[x.id] = 1;
+TT.log(`SHOWDOWN: ${escapeHtml(x.vs)} played your challenge - ${x.res} ${x.score}.`, x.res === "WIN" ? "special" : "normal");
+}
+});
+sdRenderLists();
+const others = sd.open.filter(c => !c.mine).length;
+sdGlow(others > 0 && !sdVisible());
+}
+if (res.claimed && res.claimed.length && !sdVisible()) sdGlow(true);
+}).pvpPoll(wantList);
+}
+function sdLoop() {
+sdPoll(false);
+sd.timer = setTimeout(sdLoop, sdVisible() ? 6000 : 20000);
+}
+function tab(t) {
+["chicken", "pachinko", "showdown", "climb", "prsi", "checkers"].forEach(n => {
+$("adv-view-" + n).style.display = (n === t) ? "block" : "none";
+$("adv-tab-" + n).className = "casino-tab-btn" + (n === t ? " active" : "");
+});
+if (t === "pachinko") pcRefresh();
+if (t === "showdown") { sdGlow(false); sdPoll(true); }
+if (t === "climb" && window.JumpKing) JumpKing.show();
+if (t === "prsi" && window.Prsi) Prsi.show();
+if (t === "checkers" && window.Checkers) Checkers.show();
+}
+function init() {
+if (!buildUi()) return;
+pc.ctx = setupCanvas();
+let r = "high"; try { r = localStorage.getItem("ir_pc_risk") || "high"; } catch (e) {}
+pcRisk(PC_RISKS[r] ? r : "high");
+pcDrawBoard(pc.ctx);
+window.addEventListener("resize", () => { const d = Math.min(2.5, window.devicePixelRatio || 1); if (d !== pc.dpr) { pc.ctx = setupCanvas(); pcDrawBoard(pc.ctx); } });
+crRender();
+pcRefresh();
+sdRenderPicker();
+}
+window.AdvMini = {
+tab: tab,
+crStart: crStart, crJump: crJump, crCash: function () { crCash(false); },
+pcBuy: pcBuy, pcDrop: pcDrop, pcRefresh: pcRefresh, pcRisk: pcRisk, pcAuto: pcAuto,
+sdSet: sdSet, sdRandom: sdRandom, sdCreate: sdCreate, sdAccept: sdAccept, sdCancel: sdCancel,
+isBusy: function () { return cr.phase === "run" || pc.balls.length > 0 || sd.busy; }
+};
+function boot() {
+if (!window.TT) { setTimeout(boot, 50); return; }
+init();
+TT.onLoaded(function () {
+pcResolvePending();
+pcRefresh();
+sd.started = Date.now();
+sdLoop();
+});
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+else boot();
+})();
+</script>
+<style>
+/* ===== CORPORATE CLIMB (Jump King styl) - gold burner, odměna scrap ===== */
+.jk-wrap { display: flex; gap: 10px; flex-wrap: wrap; }
+.jk-side { flex: 1 1 220px; min-width: 0; }
+.jk-canvas-box { flex: 0 0 auto; position: relative; margin: 0 auto; }
+#jk-canvas { display: block; width: 300px; height: 420px; background: #05070b; border: 1px solid var(--border-subtle); border-radius: 6px; touch-action: none; }
+.jk-tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0; }
+.jk-tiers .btn { padding: 8px 2px; font-size: 10px; line-height: 1.3; }
+.jk-tiers .btn small { display: block; font-size: 9px; opacity: .8; font-family: inherit; }
+.jk-ctrl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+.jk-ctrl .btn { padding: 14px 0; font-size: 18px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.jk-hud { position: absolute; left: 6px; right: 6px; top: 6px; display: flex; justify-content: space-between; font: 800 11px 'Orbitron', monospace; color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
+.jk-zone { font-size: 10px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.05); display: flex; justify-content: space-between; }
+@media (max-width: 700px) { #jk-canvas { width: 270px; height: 378px; } }
+</style>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const W = 360, H = 504, PXM = 20;                      // 1 metr = 20 px
+const ZONE_M = 40, TOP_M = 280;                        // v9.5: 7 zón (dřív 5 a 200 m)
+const ZONES = [["Helpdesk", "#0b1220", "#3b82f6"], ["Server Room", "#0a1a14", "#22c55e"], ["Security Floor", "#1a0b14", "#ef4444"], ["Cloud Level", "#0d1426", "#a5b4fc"], ["Executive Floor", "#1a120a", "#d4a373"], ["Boardroom", "#0b1418", "#2dd4bf"], ["The Roof", "#1a1405", "#ffd700"]];
+const TIERS = [{ id: "A", s: 60, cost: 1e6, chests: 12 }, { id: "B", s: 120, cost: 15e6, chests: 40 }, { id: "C", s: 300, cost: 200e6, chests: 120 }];   // v9.5: víc beden, plynulejší křivka
+const G = 1500, CHARGE_MS = 600, DT = 1 / 120;
+const jk = { built: false, plat: null, run: null, raf: 0, keys: {}, charge: 0, charging: false, dir: 0, last: 0, acc: 0, fx: [], t: 0 };
+const MAPS = [[[0,24,360,24,0],[55,124,99,12,1],[137,244,101,12,1],[242,320,84,12,1],[124,404,89,12,1],[273,452,32,12,2],[218,494,91,12,1],[216,564,30,12,2],[101,610,95,12,1],[191,692,44,12,2],[209,724,89,12,1],[111,797,84,12,1],[229,901,82,12,1],[104,1016,92,12,1],[229,1159,86,12,1],[139,1263,67,12,1],[66,1316,38,12,2],[240,1372,71,12,1],[111,1501,80,12,1],[242,1556,57,12,2],[6,1604,75,12,1],[76,1670,30,12,2],[103,1734,84,12,1],[235,1779,69,12,2],[249,1811,69,12,1],[193,1916,64,12,1],[233,1982,63,12,2],[54,2034,69,12,1],[148,2125,57,12,2],[168,2162,78,12,1],[72,2253,56,12,2],[46,2307,64,12,1],[127,2472,72,12,1],[194,2518,69,12,2],[53,2559,47,12,1],[109,2686,54,12,2],[175,2721,45,12,1],[39,2804,65,12,1],[180,2888,51,12,1],[44,2984,60,12,1],[182,3079,38,12,2],[138,3142,55,12,1],[254,3223,57,12,1],[182,3324,54,12,1],[54,3396,34,12,1],[148,3544,35,12,2],[202,3580,52,12,1],[295,3726,46,12,1],[243,3801,48,12,1],[109,4017,35,12,1],[252,4095,45,12,1],[166,4264,30,12,1],[287,4347,33,12,1],[138,4514,33,12,2],[122,4551,33,12,1],[246,4664,40,12,1],[165,4808,32,12,1],[57,4920,69,12,2],[313,4951,32,12,1],[13,5063,53,12,2],[153,5106,30,12,1],[36,5184,32,12,1],[287,5281,52,12,2],[103,5345,30,12,1],[254,5459,33,12,2],[260,5509,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[76,145,89,12,1],[146,275,94,12,1],[254,403,91,12,1],[176,474,95,12,1],[319,521,38,12,2],[90,586,81,12,1],[192,661,95,12,1],[32,705,49,12,2],[115,748,80,12,1],[220,867,86,12,1],[106,988,67,12,1],[281,1047,61,12,2],[221,1078,83,12,1],[27,1160,57,12,2],[98,1207,76,12,1],[205,1326,85,12,1],[118,1416,79,12,1],[220,1493,84,12,1],[153,1618,90,12,1],[271,1784,69,12,1],[130,1957,74,12,1],[259,2128,83,12,1],[142,2233,79,12,1],[63,2312,63,12,1],[132,2433,32,12,2],[126,2485,82,12,1],[264,2589,52,12,1],[53,2638,45,12,2],[168,2672,45,12,1],[261,2761,59,12,1],[146,2894,42,12,1],[73,2999,33,12,2],[256,3034,44,12,1],[187,3132,60,12,1],[229,3268,40,12,2],[45,3327,50,12,1],[200,3403,51,12,2],[104,3458,48,12,1],[222,3537,31,12,1],[66,3610,57,12,2],[286,3646,35,12,1],[151,3726,39,12,1],[248,3843,67,12,2],[12,3885,30,12,1],[89,4021,52,12,1],[32,4152,35,12,2],[231,4183,46,12,1],[159,4285,34,12,1],[6,4367,31,12,1],[139,4518,55,12,2],[74,4581,30,12,1],[147,4632,70,12,2],[205,4694,30,12,1],[39,4805,31,12,1],[278,4863,53,12,2],[189,4907,30,12,1],[51,4974,36,12,2],[50,5032,30,12,1],[132,5190,66,12,2],[221,5253,30,12,1],[83,5413,30,12,1],[165,5504,34,12,2],[21,5537,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[61,123,86,12,1],[183,220,80,12,1],[57,331,105,12,1],[149,421,82,12,1],[259,493,92,12,1],[188,610,81,12,1],[59,730,100,12,1],[181,807,80,12,1],[107,871,53,12,2],[277,912,70,12,1],[187,1019,89,12,1],[98,1108,69,12,1],[241,1160,34,12,2],[203,1206,69,12,1],[74,1341,84,12,1],[168,1477,72,12,1],[257,1572,93,12,1],[149,1694,73,12,1],[255,1761,50,12,2],[20,1792,56,12,1],[113,1935,74,12,1],[245,2008,66,12,1],[158,2123,70,12,1],[58,2226,67,12,1],[141,2355,69,12,1],[267,2494,65,12,1],[133,2603,61,12,1],[275,2735,59,12,1],[192,2911,64,12,1],[297,2984,51,12,2],[61,3016,59,12,1],[220,3170,47,12,2],[153,3205,55,12,1],[6,3337,55,12,1],[93,3432,30,12,1],[219,3503,46,12,1],[112,3625,45,12,1],[71,3686,31,12,2],[225,3748,42,12,1],[76,3954,39,12,1],[225,4077,61,12,2],[192,4113,57,12,1],[72,4216,30,12,1],[145,4355,42,12,2],[195,4417,31,12,1],[272,4504,69,12,2],[47,4570,35,12,1],[158,4656,30,12,1],[307,4747,34,12,1],[190,4913,41,12,1],[272,4965,59,12,2],[27,5033,31,12,1],[182,5144,31,12,1],[214,5226,33,12,2],[20,5290,30,12,1],[231,5342,39,12,2],[151,5385,30,12,1],[277,5518,31,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[42,152,108,12,1],[130,245,89,12,1],[21,332,94,12,1],[92,449,89,12,1],[208,569,89,12,1],[91,693,91,12,1],[209,809,90,12,1],[158,933,86,12,1],[28,1005,96,12,1],[113,1140,91,12,1],[215,1247,73,12,1],[124,1386,97,12,1],[48,1457,78,12,1],[172,1563,68,12,1],[64,1668,76,12,1],[191,1738,80,12,1],[63,1867,79,12,1],[121,2000,80,12,1],[244,2126,31,12,2],[246,2169,82,12,1],[125,2300,81,12,1],[31,2397,57,12,1],[143,2554,78,12,1],[8,2639,69,12,1],[173,2721,34,12,2],[69,2755,48,12,1],[186,2847,63,12,1],[258,2901,51,12,2],[72,2943,42,12,1],[176,3104,61,12,1],[94,3183,48,12,1],[201,3255,42,12,1],[56,3338,68,12,2],[81,3379,32,12,1],[247,3518,42,12,2],[190,3572,45,12,1],[82,3671,42,12,1],[16,3763,30,12,2],[193,3798,52,12,1],[80,3888,53,12,1],[228,3931,58,12,2],[182,3999,40,12,1],[129,4079,53,12,2],[283,4120,49,12,1],[163,4294,42,12,1],[285,4390,30,12,1],[125,4456,55,12,2],[225,4490,45,12,1],[89,4654,31,12,1],[29,4730,51,12,2],[237,4776,32,12,1],[14,4877,37,12,2],[92,4943,35,12,1],[259,5086,32,12,1],[59,5177,52,12,2],[147,5237,30,12,1],[316,5333,32,12,1],[240,5414,32,12,1],[323,5554,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[276,104,49,12,2],[209,146,97,12,1],[153,261,92,12,1],[40,352,106,12,1],[134,464,103,12,1],[237,565,87,12,1],[162,668,90,12,1],[51,756,85,12,1],[117,832,103,12,1],[216,908,75,12,1],[75,954,70,12,2],[114,1004,86,12,1],[38,1088,71,12,1],[142,1218,72,12,1],[231,1314,82,12,1],[150,1444,85,12,1],[50,1542,89,12,1],[177,1638,62,12,2],[127,1686,80,12,1],[27,1745,70,12,2],[249,1776,76,12,1],[115,1946,74,12,1],[52,2013,56,12,2],[249,2060,81,12,1],[131,2143,54,12,1],[20,2227,73,12,1],[74,2358,73,12,1],[248,2429,48,12,2],[131,2464,69,12,1],[265,2606,60,12,1],[141,2767,58,12,1],[3,2918,49,12,2],[295,2952,42,12,1],[220,3095,43,12,1],[28,3142,54,12,2],[77,3179,62,12,1],[14,3300,65,12,2],[204,3338,62,12,1],[285,3421,55,12,1],[238,3614,38,12,1],[21,3715,54,12,2],[141,3751,42,12,1],[51,3820,40,12,2],[257,3873,39,12,1],[119,4019,56,12,1],[166,4093,45,12,2],[31,4147,30,12,1],[188,4245,44,12,1],[290,4376,44,12,1],[176,4515,30,12,1],[320,4593,33,12,1],[153,4686,40,12,2],[197,4755,33,12,1],[65,4812,66,12,2],[27,4845,36,12,1],[190,4932,30,12,1],[246,5061,43,12,2],[44,5126,30,12,1],[192,5345,30,12,1],[13,5454,30,12,1],[216,5500,67,12,2],[79,5531,30,12,1],[105,5624,150,12,3]],[[0,24,360,24,0],[230,138,82,12,1],[121,232,81,12,1],[219,315,108,12,1],[161,406,103,12,1],[79,477,85,12,1],[165,555,102,12,1],[47,643,107,12,1],[176,736,85,12,1],[77,810,93,12,1],[203,923,81,12,1],[83,997,74,12,1],[191,1109,84,12,1],[31,1161,40,12,2],[87,1194,87,12,1],[196,1284,84,12,1],[140,1358,45,12,2],[79,1414,94,12,1],[199,1484,72,12,1],[70,1635,72,12,1],[154,1732,78,12,1],[247,1810,83,12,1],[64,1878,36,12,2],[157,1935,69,12,1],[62,1982,64,12,2],[70,2012,58,12,1],[209,2111,42,12,2],[124,2159,76,12,1],[254,2233,79,12,1],[101,2306,55,12,2],[149,2362,66,12,1],[16,2474,62,12,1],[143,2598,62,12,1],[296,2741,56,12,1],[244,2865,44,12,1],[75,2930,63,12,2],[100,2969,47,12,1],[223,3087,55,12,1],[258,3151,68,12,2],[104,3190,70,12,1],[39,3285,57,12,2],[247,3338,63,12,1],[129,3481,63,12,2],[166,3536,49,12,1],[36,3626,32,12,1],[83,3772,48,12,1],[223,3847,58,12,1],[27,3902,54,12,2],[90,3962,46,12,1],[217,4122,48,12,1],[109,4214,30,12,1],[218,4326,44,12,1],[76,4373,55,12,2],[101,4419,38,12,1],[187,4576,47,12,2],[261,4625,31,12,1],[99,4724,36,12,2],[126,4772,30,12,1],[62,4896,58,12,2],[281,4953,43,12,1],[139,5122,31,12,1],[309,5192,46,12,2],[270,5232,30,12,1],[137,5316,49,12,2],[153,5361,31,12,1],[6,5525,32,12,1],[105,5624,150,12,3]]];
+function buildMap(v) {
+v = v || jk.variant || { k: 0, flip: false }; jk.variant = v;
+return MAPS[v.k % MAPS.length].map((a, i) => ({ x: v.flip && a[4] !== 0 ? W - a[0] - a[2] : a[0], y: a[1], w: a[2], h: a[3], ground: a[4] === 0, main: a[4] === 1, decoy: a[4] === 2, top: a[4] === 3, z: Math.min(ZONES.length - 1, Math.floor(a[1] / (ZONE_M * PXM))), i: i }));
+}
+function rollVariant() { return { k: Math.floor(Math.random() * MAPS.length), flip: Math.random() < 0.5 }; }
+function physStep(r, P) {
+r.vy -= G * DT;
+const oy = r.y;
+r.x += r.vx * DT; r.y += r.vy * DT;
+if (r.x < 8) { r.x = 8; r.vx = -r.vx * 0.6; } else if (r.x > W - 8) { r.x = W - 8; r.vx = -r.vx * 0.6; }
+for (let k = 0; k < P.length; k++) {
+const p = P[k];
+if (r.x + 7 < p.x || r.x - 7 > p.x + p.w) continue;
+if (r.vy <= 0 && oy >= p.y && r.y <= p.y) { const fall = -r.vy; r.y = p.y; r.vy = 0; r.vx = 0; r.ground = true; return { k: k, fall: fall }; }   // přistání
+if (r.vy > 0 && oy + 22 <= p.y - p.h && r.y + 22 > p.y - p.h) { r.y = p.y - p.h - 22; r.vy = 0; r.bonk = 1; }      // hlavou o stůl
+}
+if (r.y < 24) { const fall = -r.vy; r.y = 24; r.vy = 0; r.vx = 0; r.ground = true; return { k: 0, fall: fall }; }
+return null;
+}
+function launch(r, dir, c) { r.vy = 380 + 520 * c; r.vx = dir * (140 + 70 * c); r.ground = false; }
+/** simulace skoku bez vykreslení (pro bota / testy): kam dopadne skok z (x, y) */
+function simJump(x, y, dir, c) {
+const P = jk.plat || (jk.plat = buildMap()), r = { x: x, y: y, vx: 0, vy: 0, ground: false };
+launch(r, dir, c);
+for (let i = 0; i < 900; i++) { const L = physStep(r, P); if (L) return { x: r.x, y: r.y, k: L.k }; }
+return null;
+}
+function scrapBase() { return Math.max(1, getChestScrapCost() / 20); }
+function heightValue(m) {                                // každá zóna má 3× cennější metry
+let v = 0;
+for (let z = 0; z < ZONES.length; z++) { const a = z * ZONE_M, b = Math.min(m, a + ZONE_M); if (b > a) v += (b - a) * Math.pow(3, z); }
+return v;
+}
+/** v9.5: podíl odměny = (výška / střecha)^1.4 - plynulejší než dřív (60 % výšky ≈ 49 % odměny) */
+function reward(m, tier) { return Math.floor(Math.pow(Math.max(0, Math.min(TOP_M, m)) / TOP_M, 1.4) * Math.max(1, getChestScrapCost()) * tier.chests); }
+function show() {
+const mount = $("jk-mount"); if (!mount) return;
+if (!jk.built) {
+jk.built = true; jk.plat = buildMap();
+mount.innerHTML = `<div class="jk-wrap">
+<div class="jk-canvas-box"><canvas id="jk-canvas" width="${W}" height="${H}"></canvas><div class="jk-hud"><span id="jk-h">0 m</span><span id="jk-t"></span></div>
+<div class="jk-ctrl"><button class="btn btn-cyan" data-d="-1">◀</button><button class="btn btn-gold" data-d="0">▲</button><button class="btn btn-cyan" data-d="1">▶</button></div></div>
+<div class="jk-side"><div class="adv-info"><b>CORPORATE CLIMB</b> - climb the office tower Jump King style. <b>Hold</b> a button (or Space + ←/→) to charge the jump, release to jump.
+You can fall all the way down. Buy climbing time with GC, the reward is <b>Scrap</b> based on your <b>highest point</b>. The higher you get, the more it pays, and longer runs pay more chests.
+Every run gets a <b>random floor plan</b> (12 variants), so no memorising. Every desk can be reached - if you are standing right under the next one, hop sideways first.</div>
+<div class="jk-tiers">${TIERS.map((t, i) => `<button class="btn ${i === 2 ? "btn-crimson" : i === 1 ? "btn-gold" : "btn-cyan"}" id="jk-buy-${t.id}" onclick="JumpKing.start(${i})">${t.s / 60} MIN<small>${fmtShort(t.cost)} GC · up to ${t.chests} chests</small></button>`).join("")}</div>
+<div id="jk-info" class="adv-info"></div>
+<div id="jk-zones" style="margin-top:6px;"></div></div></div>`;
+const cv = $("jk-canvas");
+mount.querySelectorAll(".jk-ctrl .btn").forEach(b => {
+const d = Number(b.dataset.d);
+b.addEventListener("pointerdown", (e) => { e.preventDefault(); startCharge(d); });
+b.addEventListener("pointerup", (e) => { e.preventDefault(); release(d); });
+b.addEventListener("pointerleave", () => { if (jk.charging && jk.dir === d) release(d); });
+b.addEventListener("contextmenu", (e) => e.preventDefault());
+});
+cv.addEventListener("pointerdown", (e) => { e.preventDefault(); const r = cv.getBoundingClientRect(); const x = (e.clientX - r.left) / r.width; startCharge(x < 0.33 ? -1 : x > 0.67 ? 1 : 0); });
+cv.addEventListener("pointerup", (e) => { e.preventDefault(); release(jk.dir); });
+}
+info(); draw(performance.now());
+if (!jk.run && !jk.idleRaf) idleLoop();
+}
+function idleLoop() {                                     // animované pozadí i bez běhu (jen když je vidět)
+const cv = $("jk-canvas");
+if (jk.run || !cv || !cv.offsetParent || document.hidden) { jk.idleRaf = 0; return; }
+draw(performance.now());
+jk.idleRaf = setTimeout(idleLoop, 80);
+}
+function fmtShort(n) { return n >= 1e9 ? (n / 1e9) + "B" : n >= 1e6 ? (n / 1e6) + "M" : n >= 1e3 ? (n / 1e3) + "K" : String(n); }
+function stats() { const d = window.Dungeon ? Dungeon.state() : (gameState.hs = gameState.hs || {}); if (!d.jk || typeof d.jk !== "object") d.jk = { best: 0, runs: 0, scrap: 0 }; return d.jk; }
+function info() {
+const s = stats(), el = $("jk-info"); if (!el) return;
+TIERS.forEach(t => { const b = $("jk-buy-" + t.id); if (b) b.disabled = !!jk.run || gameState.coins < t.cost; });
+el.innerHTML = jk.run ? `Climbing... reward so far: <b style="color:var(--amber);">${fmtShort(reward(jk.run.best, jk.run.tier))} scrap</b>` :
+`Your record: <b>${s.best.toFixed(1)} m</b> / ${TOP_M} m · runs ${s.runs} · scrap earned ${fmtShort(s.scrap)}<br>The roof pays the scrap of ${TIERS.map(t => t.chests).join(" / ")} chest openings (1 / 2 / 5 min). Halfway up pays about 38 % of that.`;
+const z = $("jk-zones");
+if (z) z.innerHTML = ZONES.map((zz, i) => `<div class="jk-zone"><span style="color:${zz[2]};">${i * ZONE_M}-${(i + 1) * ZONE_M} m · ${zz[0]}</span><span>${Math.round(Math.pow((i + 1) * ZONE_M / TOP_M, 1.4) * 100)} %</span></div>`).join("");
+}
+function start(i) {
+const t = TIERS[i]; if (!t || jk.run) return;
+if (gameState.coins < t.cost) { log(`CORPORATE CLIMB: ${t.s / 60} min costs ${fmtShort(t.cost)} GC.`, "warning"); return; }
+gameState.coins -= t.cost;
+jk.plat = buildMap(rollVariant());
+jk.run = { tier: t, end: performance.now() + t.s * 1000, x: W / 2, y: 24, vx: 0, vy: 0, ground: true, best: 0, face: 1, land: 0, bonk: 0 };
+jk.charge = 0; jk.charging = false; jk.last = performance.now(); jk.acc = 0; jk.fx = [];
+log(`🧗 CORPORATE CLIMB: ${t.s / 60} min bought for ${fmtShort(t.cost)} GC. Floor plan #${jk.variant.k + 1}${jk.variant.flip ? " (mirrored)" : ""}. Go!`, "special");
+updateUI(); TT.saveSoon(); info();
+cancelAnimationFrame(jk.raf); jk.raf = requestAnimationFrame(loop);
+}
+function startCharge(d) { const r = jk.run; if (!r || !r.ground) return; jk.charging = true; jk.charge = 0; jk.dir = d; jk.cs = performance.now(); }
+function release(d) {
+const r = jk.run; if (!r || !jk.charging) return;
+jk.charging = false;
+if (!r.ground) return;
+const c = Math.min(1, (performance.now() - jk.cs) / CHARGE_MS);
+const dir = jk.keys.left ? -1 : jk.keys.right ? 1 : d;
+launch(r, dir, c); if (dir) r.face = dir;
+puff(r.x, r.y, 4, 0.6);
+}
+;(window.__TT_FILES = window.__TT_FILES || {})["minigames"] = 1;
+// END-OF-FILE: minigames (the script continues in the next file)
