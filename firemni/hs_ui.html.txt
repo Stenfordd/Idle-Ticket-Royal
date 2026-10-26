@@ -2,6 +2,11 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "10.1", d: "2026-10-27", i: [
+"🎰 High Stakes is playable again after a prestige: the +25% per prestige now only kicks in once you outlevel a mission or tower floor (on your level it's as hard as at prestige 0)",
+"⚒ Season 2 starter kit: a Rare weapon and armor (LV 5) for everyone, and chapter 1 is gentler for fresh characters (first mission -25%)",
+"⚖ Season 2 compensation is now the same rule for everyone (some players got billions because it counted 6 hours of Auto GC - the extra was taken back)"
+] },
 { v: "10.0", d: "2026-10-26", i: [
 "🎰 HIGH STAKES SEASON 2: three new classes - 🛡 Firewall Warden (STR: damage + damage reduction), 🧙 Code Wizard (INT: damage + auto-shield) and 🗡 Shadow Admin (AGI: damage + dodge). Your main stat now does both",
 "⚒ New gear: 4 slots (weapon, armor, helmet, trinket) that DROP from fights - Common, Rare, Epic, Legendary, Mythic. Bosses always drop, deeper content drops higher levels. Upgrade +1 to +10 with GC, salvage the rest",

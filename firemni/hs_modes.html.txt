@@ -82,6 +82,13 @@ const BASE_HP = 1.06, BASE_ATK = 1.08;
 let PRESTIGE = 0;
 function setPrestige(p) { PRESTIGE = Math.max(0, Math.floor(Number(p) || 0)); }
 function prestigeMult() { return 1 + 0.25 * PRESTIGE; }
+/** v10.1: prestiž přitvrzuje jen když misi přerosteš - na jejím levelu je stejně těžká na P0 i P9, plný bonus +25 %/prestiž o 20 levelů výš */
+let LEVEL = 1;
+function setLevel(L) { LEVEL = Math.max(1, Math.floor(Number(L) || 1)); }
+function refAt(x) { x = Math.max(0, x); return x <= 50 ? REF[Math.min(50, Math.floor(x))] : REF[50] + (x - 50) / 0.6; }
+/** v10.1: první kapitola je mírnější pro čerstvé postavy (mise 0 ×0.75 -> mise 10 ×1) */
+function ease(id) { return 0.75 + 0.25 * Math.min(1, id / 10); }
+function pmAt(ref) { return 1 + 0.25 * PRESTIGE * Math.max(0, Math.min(1, (LEVEL - ref) / 20)); }
 function all() {
 const out = [];
 CH.forEach((c, ci) => c.missions.forEach((m, mi) => out.push(Object.assign({ ch: ci, idx: mi, id: ci * 10 + mi }, m))));
@@ -97,7 +104,7 @@ return {
 id: id, ch: m.ch, idx: m.idx, name: m.n, intro: m.t, kind: m.k || "normal", bonus: m.b,
 survive: m.survive || 0, surviveMsg: "",
 energy: m.k === "boss" || m.k === "secret" ? 2 : 1,
-enemy: { name: m.e, icon: m.i, hp: Math.round(s[0] * BASE_HP * prestigeMult() * (m.x ? m.x[0] : 1)), atk: Math.round(s[1] * BASE_ATK * prestigeMult() * (m.x ? m.x[1] : 1) * 10) / 10, pattern: Object.assign({}, PAT[m.p] || PAT.normal), mech: m.mech || "", sprite: id }
+enemy: { name: m.e, icon: m.i, hp: Math.round(s[0] * BASE_HP * pmAt(REF[id]) * ease(id) * (m.x ? m.x[0] : 1)), atk: Math.round(s[1] * BASE_ATK * pmAt(REF[id]) * ease(id) * (m.x ? m.x[1] : 1) * 10) / 10, pattern: Object.assign({}, PAT[m.p] || PAT.normal), mech: m.mech || "", sprite: id }
 };
 }
 function xpFor(id, first) { return Math.round((40 + 25 * id) * (first ? 1 : 0.4)); }
@@ -141,7 +148,7 @@ const x = (f - 1) * 0.55, boss = !!TOWER_BOSS[f], elite = !boss && f % 5 === 0;
 const pool = LIST.filter(m => (m.k || "normal") === "normal" || m.k === "elite");
 const src = boss ? srcOf(TOWER_BOSS[f]) : pool[(f * 7) % pool.length];
 const kind = boss ? "boss" : elite ? "elite" : "normal";
-const pm = prestigeMult(), adm = f === 100;
+const pm = pmAt(refAt(x)), adm = f === 100;
 const e = enemyFrom(src, x, (adm ? 2.5 : boss ? 2.6 : elite ? 1.35 : 1) * pm, (adm ? 1.15 : boss ? 1.1 : elite ? 1.1 : 1) * pm);
 if (boss) { e.name = adm ? "The Administrator" : "Floor " + f + " Guardian: " + src.e; e.pattern = Object.assign({}, P.boss); }
 if (!boss && src.mech === "compliance") e.mech = "";
@@ -243,7 +250,7 @@ const name = boss ? "POOL BOSS: " + src.e : "Ticket #" + ticket + ": " + src.e;
 return { id: 4000 + n, floor: n, name: name, intro: src.t, kind: boss ? "boss" : elite ? "elite" : "normal", bonus: {}, survive: 0, enemy: e };
 }
 const api = { CHAPTERS: CH, LIST: LIST, mission: mission, setStats: setStats, xpFor: xpFor, gcFor: gcFor, xpToNext: xpToNext, COUNT: 51,
-BOSS_SLOT: BOSS_SLOT, setPrestige: setPrestige, prestigeMult: prestigeMult, ADMIN: ADMIN, THEMED: THEMED, TOWER_BOSS: TOWER_BOSS, poolFloor: poolFloor, srcOf: srcOf, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, shiftEnemy: shiftEnemy, refHero: refHero, WB: WB, worldBoss: worldBoss, mkName: mkName };
+BOSS_SLOT: BOSS_SLOT, setPrestige: setPrestige, setLevel: setLevel, pmAt: pmAt, prestigeMult: prestigeMult, ADMIN: ADMIN, THEMED: THEMED, TOWER_BOSS: TOWER_BOSS, poolFloor: poolFloor, srcOf: srcOf, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, shiftEnemy: shiftEnemy, refHero: refHero, WB: WB, worldBoss: worldBoss, mkName: mkName };
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 else root.HSCampaign = api;
 })(typeof window !== "undefined" ? window : this);

@@ -1,4 +1,25 @@
-<script type="text/plain" data-tt="ttbig2" data-i="2">const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
+<script type="text/plain" data-tt="ttbig2" data-i="2"><div class="hs-parry ${style}" id="hs-pr"><div class="tgt"></div><div class="ring fake" id="hs-fake" style="display:none"></div><div class="ring" id="hs-ring" style="display:none"></div></div>
+<div class="hs-pdots" id="hs-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="hs-ovt" id="hs-pq">&nbsp;</div></div>`;
+const res = [];
+let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, untap = null, finished = false;
+const ringEl = () => $("hs-ring"), fakeEl = () => $("hs-fake");
+function place(el, sz, dx, dy) { if (!el) return; el.style.width = el.style.height = sz + "px"; el.style.margin = (-sz / 2 + (dy || 0)) + "px 0 0 " + (-sz / 2 + (dx || 0)) + "px"; }
+function mark(q) {
+res.push(q);
+const d = $("hs-pd"); if (d && d.children[idx]) d.children[idx].className = q;
+const pq = $("hs-pq");
+if (pq) { pq.textContent = q === "perfect" ? "PERFECT!" : q === "good" ? "GOOD" : "MISS"; pq.style.color = q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"; }
+cancelAnimationFrame(raf); clearTimeout(timer);
+const r = ringEl(); if (r) r.style.display = "none";
+const fk = fakeEl(); if (fk) fk.style.display = "none"; fakeOn = false;
+idx++;
+if (idx >= n) return done();
+phase = "wait"; timer = setTimeout(startRing, 150 + Math.random() * 400);   // nepravidelný rytmus mezi kroužky
+}
+function done() {
+if (finished) return; finished = true;
+document.removeEventListener("keydown", key, true); if (untap) untap();
+const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
 const txt = n > 1 ? `${res.filter(r => r !== "none").length}/3 blocked` + (best === "perfect" ? " - FULL PARRY! counter + stun" : "")
 : best === "perfect" ? "PARRY! 0 damage + counter + stun" : best === "good" ? (k === "withdraw" ? "GOOD - she only gets half" : "GOOD BLOCK! -90% damage") : "Normal block";
 const pq = $("hs-pq"); if (pq) { pq.textContent = txt; pq.style.color = best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)"; }
@@ -332,7 +353,7 @@ gearTxt: window.Gear ? ["w", "a", "h", "t"].map(k => { const p = Gear.st().eq[k]
 tier: 1, artifacts: {}, equipped: [], promos: {}, mode: "highstakes" };
 }
 function hsPayload() { const d = HS(); return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), stats: d.stats, energy: d.energy, energyAt: d.energyAt, stars: d.stars, wins: d.wins, losses: d.losses, arenaStance: d.arenaStance,
-t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk, pool: d.pool, bt: d.bt, tsel: d.tsel, tut: d.tut, col: d.col, gear: d.gear, season: d.season, s2: d.s2, br: d.br }; }
+t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk, pool: d.pool, bt: d.bt, tsel: d.tsel, tut: d.tut, col: d.col, gear: d.gear, season: d.season, s2: d.s2, br: d.br, kit: d.kit }; }
 /** vnitřek pro další soubory (aréna, tower, směna, world boss) */
 window.HS_API = { HS: HS, hero: hero, gear: gear, player: player, fmt: fmt, fmtT: fmtT, anim: anim, float: float, sprite: sprite, enemySprite: enemySprite,
 playerSprite: playerSprite, gearDR: gearDR, render: render, registerMode: registerMode, isOpen: () => open, view: () => view, beginFight: beginFight, spendEnergy: spendEnergy,

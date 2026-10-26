@@ -45,28 +45,45 @@ if (d.pool.run !== undefined) delete d.pool.run;                       // v9.0: 
 if (d.tower.best >= 100) d.pool.unlocked = true;                       // v8.6: Clear The Pool se odemyká Administratorem (patro 100), navždy
 if (!d.bt || typeof d.bt !== "object") d.bt = {};
 if (d.tsel && !d.bt[d.tsel]) d.tsel = "";
-C.setPrestige(gameState.prestige || 0);                                   // v8.6.1: kampaň + tower +25 % za prestiž
+C.setPrestige(gameState.prestige || 0); C.setLevel(d.level);                // v10.1: prestiž přitvrzuje až nad levelem mise                                   // v8.6.1: kampaň + tower +25 % za prestiž
 if (d.legacyBest == null) { const old = g.dungeon || {}; d.legacyBest = old.mode === "highstakes" ? 0 : Math.max(0, Math.floor(Number(old.best) || 0)); }
 d.tier = 1; d.branch = ""; d.artifacts = {}; d.equipped = []; d.promos = {}; d.exec = false;
 if (d.season !== SEASON && typeof gameLoaded !== "undefined" && gameLoaded) seasonReset(d);
+if (d.season === SEASON && typeof gameLoaded !== "undefined" && gameLoaded) {
+if (d.s2 && !d.s2.fix) s2Fix(d);
+if (d.cls && !d.kit && window.Gear && Gear.starter) { d.kit = 1; setTimeout(() => { try { Gear.starter(); } catch (e) {} }, 0); }
+}
 return d;
 }
 /** v10: HIGH STAKES SEASON 2 - nové třídy a gear => celý High Stakes od nuly. Kancelář, achievementy, Climb a Prismatic zůstávají.
 *  Za smazaný postup jednorázová kompenzace v GC. */
+/** v10.1: kompenzace v10.0 brala i "6 h Auto GC" -> bohatí hráči dostali miliardy. Srovnáme na férový vzorec (jen jednou). */
+function s2Fix(d) {
+const s = d.s2, P = s.p != null ? s.p : (gameState.prestige || 0);
+const fair = s.cl != null ? Math.round((20000 * Math.pow(s.lvl, 1.5) + 30000 * s.cl + 15000 * s.tw + 40000 * s.pl) * (1 + 0.25 * P))
+: Math.round(20000 * Math.pow(s.lvl || 1, 1.5) * (1 + 0.25 * P) * 1.5);                       // starý záznam bez detailu: velkorysý odhad
+const excess = Math.max(0, (s.gc || 0) - fair);
+s.fix = 1;
+if (excess > 0) {
+const take = Math.min(excess, Math.max(0, Math.floor(gameState.coins)));
+gameState.coins -= take; s.taken = take; s.gc = fair;
+log(`⚖ SEASON 2 FIX: the High Stakes compensation was way too high for some players (it counted 6 h of your Auto GC). It's now the same rule for everyone: ${fmt(fair)} GC for your old LV ${s.lvl}. ${fmt(take)} GC were taken back.`, "warning");
+}
+if (window.TT && TT.saveSoon) TT.saveSoon();
+}
 function seasonReset(d) {
 const lvl = d.level || 1, cl = Object.keys(d.stars || {}).filter(k => d.stars[k] > 0).length, tw = (d.tower && d.tower.best) || 0, pl = (d.pool && d.pool.best) || 0;
 const played = !!d.cls || lvl > 1 || cl > 0;
 let gc = 0;
 if (played) {
 gc = Math.round((20000 * Math.pow(lvl, 1.5) + 30000 * cl + 15000 * tw + 40000 * pl) * (1 + 0.25 * (gameState.prestige || 0)));
-try { if (typeof calculateAutoGcRate === "function") gc = Math.max(gc, Math.round(calculateAutoGcRate() * 3600 * 6)); } catch (e) {}
 }
 d.season = SEASON;
 d.cls = null; d.level = 1; d.xp = 0; d.stats = {}; d.pts = 0; d.stars = {}; d.sm = {}; d.bt = {}; d.tsel = "";
 d.tower = { best: 0 }; d.pool = { best: 0, unlocked: false }; d.shift = { best: 0, asc: 0, runs: 0, clears: 0 }; d.gear = { v: 2, eq: {}, bag: [] }; d.col = {};
 d.energy = EMAX(); d.energyAt = Date.now(); d.wins = 0; d.losses = 0; d.legacyBest = 0;
 if (played) {
-gameState.coins += gc; d.s2 = { gc: gc, lvl: lvl, at: Date.now() };
+gameState.coins += gc; d.s2 = { gc: gc, lvl: lvl, cl: cl, tw: tw, pl: pl, p: gameState.prestige || 0, at: Date.now(), fix: 1 };
 log(`🎰 HIGH STAKES SEASON 2: new classes (Firewall Warden, Code Wizard, Shadow Admin) and loot gear - High Stakes starts from zero. You got +${fmt(gc)} GC for your old progress (LV ${lvl}).`, "special");
 if (window.TT && TT.saveSoon) TT.saveSoon();
 }
@@ -270,7 +287,7 @@ if (d.tower.best >= 100) d.pool.unlocked = true;
 d.stars = {}; d.sm = {}; d.t6 = {}; d.tower = { best: 0 }; chSel = 0;
 HS();
 if (window.Gear) Gear.onPrestige();
-log(`🎰 HIGH STAKES: campaign and tower reset - enemies are now ×${C.prestigeMult().toFixed(2)} stronger. Level and stats stay.`, "special");
+log(`🎰 HIGH STAKES: campaign and tower reset - enemies get up to ×${C.prestigeMult().toFixed(2)} stronger once you outlevel them. Level and stats stay.`, "special");
 }
 function respecCost() { return 50000 * (1 + (gameState.prestige || 0)); }
 function pickClass(k) {
@@ -281,7 +298,8 @@ if (gameState.coins < cost) { log(`Changing class costs ${fmt(cost)} GC.`, "warn
 gameState.coins -= cost; d.stats = {}; log(`HIGH STAKES: class changed to ${H.CLASSES[k].name}. Your stat points were refunded.`, "special");
 } else if (!d.cls) log(`🎰 HIGH STAKES: welcome, ${escapeHtml(gameState.ldap)} the ${H.CLASSES[k].name}!`, "special");
 if (d.s2) d.s2.seen = 1;
-d.cls = k; view = "camp"; HS(); TT.saveSoon(); updateUI(); render();
+d.cls = k; view = "camp"; HS(); if (window.Gear && Gear.starter && !d.kit) { d.kit = 1; Gear.starter(); }
+TT.saveSoon(); updateUI(); render();
 if (!d.tut) setTimeout(tutStart, 300);                                    // v8.7.5: nový hráč -> rovnou trénink
 }
 function respec() { $("dg-inner").innerHTML = classPickHtml(true); }
@@ -544,27 +562,6 @@ const easy = (((f.h.perks || {}).parryEasy) ? 1.7 : 1) * (f.h.parryWin || 1), wP
 const from = 150, to = 14, target = 46;
 const box = $("hs-ov-slot");
 const title = k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one";
-box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">${title}</div>
-<div class="hs-parry ${style}" id="hs-pr"><div class="tgt"></div><div class="ring fake" id="hs-fake" style="display:none"></div><div class="ring" id="hs-ring" style="display:none"></div></div>
-<div class="hs-pdots" id="hs-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="hs-ovt" id="hs-pq">&nbsp;</div></div>`;
-const res = [];
-let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, untap = null, finished = false;
-const ringEl = () => $("hs-ring"), fakeEl = () => $("hs-fake");
-function place(el, sz, dx, dy) { if (!el) return; el.style.width = el.style.height = sz + "px"; el.style.margin = (-sz / 2 + (dy || 0)) + "px 0 0 " + (-sz / 2 + (dx || 0)) + "px"; }
-function mark(q) {
-res.push(q);
-const d = $("hs-pd"); if (d && d.children[idx]) d.children[idx].className = q;
-const pq = $("hs-pq");
-if (pq) { pq.textContent = q === "perfect" ? "PERFECT!" : q === "good" ? "GOOD" : "MISS"; pq.style.color = q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"; }
-cancelAnimationFrame(raf); clearTimeout(timer);
-const r = ringEl(); if (r) r.style.display = "none";
-const fk = fakeEl(); if (fk) fk.style.display = "none"; fakeOn = false;
-idx++;
-if (idx >= n) return done();
-phase = "wait"; timer = setTimeout(startRing, 150 + Math.random() * 400);   // nepravidelný rytmus mezi kroužky
-}
-function done() {
-if (finished) return; finished = true;
-document.removeEventListener("keydown", key, true); if (untap) untap();</script>
+box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">${title}</div></script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part14"] = 1;</script>
 <!-- END-OF-FILE: part14 -->

@@ -127,6 +127,13 @@ if (it.u >= UMAX) TT.holdStop = true;
 after();
 }
 function after() { st(); TT.saveSoon(); if (typeof updateUI === "function") updateUI(); if (A.isOpen()) A.render(); }
+/** v10.1: startovní výbava Season 2 (Rare zbraň + brnění LV 5) do prázdných slotů */
+function starter() {
+const g = st(); let n = 0;
+["w", "a"].forEach(k => { if (!g.eq[k]) { g.eq[k] = { id: "kit" + k + Date.now().toString(36), s: k, r: 1, lv: 5, u: 0 }; n++; } });
+if (n) { st(); log("⚒ Starter kit: a Rare weapon and armor (LV 5) are waiting in your HIGH STAKES gear.", "special"); TT.saveSoon(); }
+return n;
+}
 function onPrestige() { /* v10: gear přežívá prestiž, nové dropy jsou ale silnější (+4 LV itemů za prestiž) */ }
 function affordable() { const g = st(); return g.bag.some(it => score(it) > score(g.eq[it.s])) || KEYS.some(k => g.eq[k] && g.eq[k].u < UMAX && gameState.coins >= upCost(g.eq[k]) * 4); }
 function cmp(it, cur) {
@@ -160,7 +167,7 @@ return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span
 ${bagHtml()}
 <div class="dg-dim" style="margin-top:8px;">Gear drops from fights: higher chapters, tower floors and Pool floors drop higher-level items (+4 levels per prestige). Rarity: Common → Rare → Epic → Legendary → Mythic. "Main stat" goes to your class's main stat (STR / INT / AGI). Upgrade up to +${UMAX} with GC; your old pieces go to your colleague when they're better than theirs.</div></div>`;
 }
-window.Gear = { st: st, mult: mult, multOf: multOf, vis: vis, up: up, equip: equip, salvage: salvage, salvageWorse: salvageWorse, drop: drop, card: card, onPrestige: onPrestige, affordable: affordable,
+window.Gear = { st: st, mult: mult, multOf: multOf, vis: vis, up: up, equip: equip, salvage: salvage, salvageWorse: salvageWorse, drop: drop, starter: starter, card: card, onPrestige: onPrestige, affordable: affordable,
 convert: () => ({}), score: score, fx: fx, name: name, MATS: MATS, RAR: RAR, PIECES: PIECES, upCost: upCost, POOL_QUANTUM: POOL_QUANTUM, lvFor: lvFor };
 (function boot() {
 if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }

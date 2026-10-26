@@ -1,4 +1,7 @@
-NÁVOD v6 - firemní verze v10 (= hra Office Royale v10)
+NÁVOD v6.1 - firemní verze v10.1 (= hra Office Royale v10.1)
+
+v10.1 (oprava): High Stakes jde zase hrát i po prestiži, startovní výbava, férová kompenzace.
+Pokud už máš v10 nasazenou: soubory se zase změnily všechny - zkopíruj znovu všech 27 (žádný nový soubor nepřibyl).
 
 Kancelář bez wipe. High Stakes začíná znovu (Season 2) - hráči dostanou za starý postup GC.
 
