@@ -1,0 +1,46 @@
+NÁVOD v5.1 - firemní verze v9.5.1 (= hra Office Royale v9.5)
+
+v9.5.1: oprava chyby "Obsah s nesprávným formátem HTML" (Apps Script nesnese soubor, který začíná uprostřed skriptu).
+Soubory se teď dělí jinak a je jich víc - zkopíruj znovu VŠECHNY.
+
+Bez wipe. Savy hráčů zůstávají (starý gear se sám převede, LP z Legacy shopu se vrátí do kytky).
+
+======================================================
+KDE JSOU SOUBORY
+======================================================
+
+Všech 25 souborů je na téhle stránce, každý s tlačítkem KOPÍROVAT:
+https://stenfordd.github.io/Idle-Ticket-Royal/firemni/
+
+(Kdyby tlačítko nešlo, klikni u souboru na „otevřít“, Ctrl+A, Ctrl+C.)
+
+======================================================
+SOUBORY V APPS SCRIPT PROJEKTU (25)
+======================================================
+
+.gs:   code, engine
+HTML:  index, style, office, casino, system, minigames, special, meta, hs_core, hs_ui, hs, prsi, hs_modes, mobile,
+       part13, part14, part15, part16, part17, part18, part19, part20, part21   <- NOVÉ
+
+1) V editoru vytvoř nové HTML soubory part13, part14, part15, part16, part17, part18, part19, part20, part21 (+ > HTML > jméno bez .html). Které už máš, jen přepiš.
+2) Do KAŽDÉHO z 25 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Obsah se změnil všude, i ve style a index.
+3) Ctrl+S
+4) Deploy > Manage deployments > tužka (edit) > Version: New version > Deploy
+5) V tabulce: menu Ticket Tycoon > Bump version (klienti se sami obnoví)
+
+Každý soubor končí řádkem END-OF-FILE. Když se ve hře nahoře objeví červená lišta COPY ERROR, vypíše, který soubor chybí nebo je uříznutý - zkopíruj ho znovu.
+
+======================================================
+CO JE NOVÉHO (od v9.2)
+======================================================
+
+- Nový vzhled (klidnější tmavý styl, bez CAPS LOCKu), přepínač na starý vzhled (paleta nahoře).
+- Kancelář jako místnost: postavička chodí k předmětům (stůl, skříň, bedna, TV s konzolí = High Stakes...). 9 prostředí podle prestiže.
+- HIGH STAKES: chibi postavičky s animacemi, combat gear (zbraň, brnění, talisman: Paper -> Quantum), Clear the Pool jako nekonečná věž, Kolega (Colleague) po Administratorovi.
+- Shift a týdenní boss: nepřátelé podle tvých statů (typy tank / glass cannon / specialista), už se nenafukují s levelem.
+- Office Plant místo Legacy shopu, achievementy, týdenní žebříčky.
+- Corporate Climb: 280 m, 2 nové zóny, 12 náhodných půdorysů, férovější odměny v bednách.
+- Consult: výhry max 4 h Auto GC za den. RESTART RUN pod tlačítkem prestiže.
+- Na mobilu dolní lišta, místnost, opravy scrollu.
+
+POZOR: na GitHubu je i "index.html" - to je jen stránka s tlačítky. Do Apps Scriptu patří "index.html.txt" (soubor index).
