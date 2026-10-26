@@ -348,10 +348,10 @@ for (let f = from; f < from + 20; f++) cells.push(`<div class="${f <= P.best ? "
 box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>♾ Clear the Pool</span><span>best: floor ${fmt(P.best)}</span></div>
 <div class="dg-dim">An endless tower of tickets. Every floor is its own fight with <b>full HP</b> and your progress is saved - lose and just try the same floor again.
 Floors get <b>+6%</b> harder, every 5th is an elite, every 25th one of the company's bosses. ⚡${POOL_COST} per fight, rewards for every new floor.
-${P.best < q ? `<br>🎯 Clear <b>floor ${q}</b> to unlock <b>⚛ Quantum</b> gear.` : ""}</div></div>
+<br>🎁 Pool floors drop the highest-level gear in the game (40% per floor).</div></div>
 <div class="dg-card"><div class="dg-h"><span>Next: ${esc(m.name)}</span><span>⚡${POOL_COST}</span></div>
 <div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}${m.enemy.mech ? " · ⚙ " + esc(m.enemy.mech) : ""}<br>
-Reward: ${fmt(poolXp(n))} XP, ${fmt(poolGc(n))} GC${m.kind === "boss" ? " + GC bonus" : ""}${n === q ? " + <b>⚛ Quantum gear</b>" : ""}<br>Your stats: ${A.statLine()}</div></div>
+Reward: ${fmt(poolXp(n))} XP, ${fmt(poolGc(n))} GC${m.kind === "boss" ? " + GC bonus" : ""}<br>Your stats: ${A.statLine()}</div></div>
 <button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.poolGo()">⚔ Fight floor ${n} (⚡${POOL_COST})</button></div>
 <div class="dg-card"><div class="dg-h">Floors</div><div class="tw-grid">${cells.join("")}</div></div>
 <div class="dg-card"><div class="dg-h">Deepest pool</div><div class="wb-lb">${lb}</div></div>`;
@@ -374,7 +374,6 @@ A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
 if (m.kind === "boss") A.dropItem(lines);
 lines.push(`🏆 New best: floor ${n}`);
 if (n % 25 === 0) TT.announce("REACHED POOL FLOOR " + n, "HIGH STAKES", 0, gc);
-if (window.Gear && n === Gear.POOL_QUANTUM) { lines.push("⚛ QUANTUM gear unlocked!"); Gear.st(); }
 log(`♾ POOL floor ${n} cleared - ${lines.join(", ")}`, "special");
 }
 TT.saveSoon(); poolBoardLoad(true);
@@ -404,7 +403,7 @@ setInterval(() => { if (A.isOpen() && A.view() === "boss" && !document.querySele
 .cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
 .cl-name { font: 900 14px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
 .cl-quip { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
-.cl-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
+.cl-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
 .cl-slot { padding: 5px; border-radius: 6px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); font-size: 10px; text-align: center; min-width: 0; }
 .cl-slot b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-boss { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 5px; cursor: pointer; }

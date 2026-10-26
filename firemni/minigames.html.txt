@@ -52,7 +52,7 @@
 'use strict';
 const CR_MAX_JUMPS = 15, CR_GROWTH = 1.92, CR_MAX_BET = 100000, CR_JACKPOT_MULT = 50;
 const PC_ROWS = 12;
-const PC_VALUES = ["10", "50", "100", "500"];
+const PC_VALUES = ["10", "50", "100", "500", "1000", "10000", "100000", "1000000", "10000000"];   // v9.6: vyšší hodnoty (odemykají se podle max betu)
 const PC_RISKS = {
 low:    [10, 3, 1.6, 1.4, 1.1, 1, 0.4, 1, 1.1, 1.4, 1.6, 3, 10],
 medium: [33, 11, 4, 2, 1.2, 0.5, 0.2, 0.5, 1.2, 2, 4, 11, 33],
@@ -82,6 +82,9 @@ mount.innerHTML = `
 <button class="casino-tab-btn" id="adv-tab-climb" onclick="AdvMini.tab('climb')">🧗 CLIMB</button>
 <button class="casino-tab-btn" id="adv-tab-prsi" onclick="AdvMini.tab('prsi')">♣ PRŠÍ</button>
 <button class="casino-tab-btn" id="adv-tab-checkers" onclick="AdvMini.tab('checkers')">⛀ CHECKERS</button>
+<button class="casino-tab-btn" id="adv-tab-mines" onclick="AdvMini.tab('mines')">🐞 MINES</button>
+<button class="casino-tab-btn" id="adv-tab-lotto" onclick="AdvMini.tab('lotto')">🎟 LOTTERY</button>
+<button class="casino-tab-btn" id="adv-tab-stocks" onclick="AdvMini.tab('stocks')">📈 STOCKS</button>
 </div>
 <div id="adv-view-chicken">
 <div class="adv-bal">Balance: <span id="bal-chicken">0 GC</span></div>
@@ -115,7 +118,7 @@ mount.innerHTML = `
 <div class="pc-live" id="pc-live"></div>
 <div class="adv-row">
 <span style="font-size:11px;">BALL VALUE:</span>
-<select class="adv-select" id="pc-value" onchange="AdvMini.pcRefresh()">${PC_VALUES.map(v => `<option value="${v}">${v} GC</option>`).join("")}</select>
+<select class="adv-select" id="pc-value" onchange="AdvMini.pcRefresh()">${PC_VALUES.map(v => `<option value="${v}">${pcLbl(v)} GC</option>`).join("")}</select>
 <span class="adv-info">In stock: <b id="pc-stock">0</b> · in play: <b id="pc-play">0</b></span>
 </div>
 <div class="adv-row">
@@ -134,6 +137,9 @@ mount.innerHTML = `
 <div id="adv-view-climb" style="display:none;"><div id="jk-mount"></div></div>
 <div id="adv-view-prsi" style="display:none;"><div id="prs-mount" class="pr-wrap"></div></div>
 <div id="adv-view-checkers" style="display:none;"><div id="ck-mount"></div></div>
+<div id="adv-view-mines" style="display:none;"></div>
+<div id="adv-view-lotto" style="display:none;"></div>
+<div id="adv-view-stocks" style="display:none;"></div>
 <div id="adv-view-showdown" style="display:none;">
 <div class="adv-bal">Balance: <span id="bal-showdown">0 GC</span></div>
 <div class="adv-info" style="margin-bottom:6px;">Rock-paper-scissors, <b>best of 3</b>. Set your 3 moves, then <b>create a challenge</b> or <b>accept</b> one. Winner gets <b>95%</b> of the pot, a draw refunds both.</div>
@@ -236,7 +242,12 @@ PC_VALUES.forEach(v => { if (typeof g.pachinko[v] !== "number") g.pachinko[v] = 
 return g.pachinko;
 }
 function pcValue() { return $("pc-value").value; }
+function pcLbl(v) { v = Number(v); return v >= 1e6 ? v / 1e6 + "M" : v >= 1e3 ? v / 1e3 + "K" : String(v); }
+/** v9.6: míček je povolený, když je jeho cena ≤ max bet / 10 (nebo ho už máš koupený) */
+function pcAllowed(v) { const mb = TT.maxBet ? TT.maxBet() : 1e5; return Number(v) <= Math.max(500, mb / 10) || (pcStock()[v] || 0) > 0; }
 function pcRefresh() {
+const sel = $("pc-value");
+if (sel) { [...sel.options].forEach(o => { o.disabled = !pcAllowed(o.value); o.textContent = pcLbl(o.value) + " GC" + (o.disabled ? " 🔒" : ""); }); if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled) sel.value = "10"; }
 const a = $("pc-stock"), b = $("pc-play");
 if (a) a.innerText = fmt(pcStock()[pcValue()] || 0);
 if (b) b.innerText = pc.balls.length;
@@ -256,10 +267,11 @@ if (pc.ctx && !pc.raf) pcDrawBoard(pc.ctx, performance.now());
 }
 function pcBuy(n) {
 const v = Number(pcValue());
+if (!pcAllowed(pcValue())) { $("pc-msg").style.color = "var(--crimson)"; $("pc-msg").innerText = `${pcLbl(v)} GC balls unlock with a higher max bet (prestige).`; return; }
 if (!TT.spend(v * n)) { $("pc-msg").style.color = "var(--crimson)"; $("pc-msg").innerText = `Need ${fmt(v * n)} GC for ${n} ball(s).`; return; }
 pcStock()[pcValue()] += n;
 $("pc-msg").style.color = "var(--cyan)";
-$("pc-msg").innerText = `Bought ${n} ball(s) @ ${v} GC.`;
+$("pc-msg").innerText = `Bought ${n} ball(s) @ ${pcLbl(v)} GC.`;
 pcRefresh();
 }
 function pcDrop(n) {
@@ -610,7 +622,7 @@ sdPoll(false);
 sd.timer = setTimeout(sdLoop, sdVisible() ? 6000 : 20000);
 }
 function tab(t) {
-["chicken", "pachinko", "showdown", "climb", "prsi", "checkers"].forEach(n => {
+["chicken", "pachinko", "showdown", "climb", "prsi", "checkers", "mines", "lotto", "stocks"].forEach(n => {
 $("adv-view-" + n).style.display = (n === t) ? "block" : "none";
 $("adv-tab-" + n).className = "casino-tab-btn" + (n === t ? " active" : "");
 });
@@ -619,6 +631,7 @@ if (t === "showdown") { sdGlow(false); sdPoll(true); }
 if (t === "climb" && window.JumpKing) JumpKing.show();
 if (t === "prsi" && window.Prsi) Prsi.show();
 if (t === "checkers" && window.Checkers) Checkers.show();
+if ((t === "mines" || t === "lotto" || t === "stocks") && window.Extras) Extras.show(t);
 }
 function init() {
 if (!buildUi()) return;

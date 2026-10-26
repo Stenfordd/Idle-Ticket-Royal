@@ -25,6 +25,7 @@ function onOpen() {
     SpreadsheetApp.getUi()
       .createMenu('Idle Royale')
       .addItem('Bump version (donutí klienty k obnovení)', 'bumpAppVersionUi_')
+      .addItem('Spustit firemní globální event', 'triggerGlobalEventUi_')
       .addItem('Zobrazit pozvánkový kód', 'showInviteUi_')
       .addItem('Reset PINu hráče', 'resetPlayerUi_')
       .addSeparator()
@@ -744,7 +745,14 @@ var API_ALLOWED_ = {
   ckLeave: function (a) { return ckLeave(a[0]); },
   ckPoll: function (a) { return ckPoll(a[0], a[1]); },
   ckMove: function (a) { return ckMove(a[0], a[1]); },
-  ckDraw: function (a) { return ckDraw(a[0], a[1]); }
+  ckDraw: function (a) { return ckDraw(a[0], a[1]); },
+  metaPoll: function () { return metaPoll(); },
+  lottoBuy: function (a) { return lottoBuy(a[0]); },
+  lottoFeed: function (a) { return lottoFeed(a[0]); },
+  lottoClaim: function () { return lottoClaim(); },
+  officeView: function (a) { return officeView(a[0]); },
+  officeAct: function (a) { return officeAct(a[0], a[1]); },
+  officeInbox: function () { return officeInbox(); }
 };
 
 function doPost(e) {
@@ -1331,6 +1339,7 @@ function prsPlaceOut_(t, nick, why) {
   t.fin.push(nick);
   if (t.fin.length === 1) {
     t.winner = nick; t.win = Math.floor(t.pot * (1 - PRS_RAKE));
+    m96PoolAdd_(t.pot - t.win);                                  // v9.6: cut jde do loterie
     prsPay_(nick, t.win, 'WIN', t.id);
     prsLog_(t, '🏆 ' + nick + ' wins ' + t.win.toLocaleString() + ' GC' + (why ? ' (' + why + ')' : '') + '!');
   } else if (t.fin.length === 2) { t.second = nick; prsLog_(t, '🥈 ' + nick + ' finishes second' + (why ? ' (' + why + ')' : '') + '.'); }
@@ -1623,6 +1632,7 @@ function ckEnd_(t, winner, why) {
   t.status = 'done'; t.doneAt = Date.now(); t.deadline = 0; t.winner = winner || ''; t.why = why;
   if (winner) {
     var win = Math.floor(t.stake * 2 * (1 - CK_RAKE)); t.win = win; ckPay_(winner, win, 'WIN', t.id);
+    m96PoolAdd_(t.stake * 2 - win);                              // v9.6: cut jde do loterie
     ckLog_(t, '🏆 ' + winner + ' wins ' + win.toLocaleString() + ' GC (' + why + ')');
     try { getDb_().chat.appendRow([new Date(), '⛀ CHECKERS', '🏆 ' + winner + ' beat ' + (winner === t.white ? t.black : t.white) + ' at checkers (+' + win.toLocaleString() + ' GC, ' + why + ').']); } catch (e) {}
   } else {
@@ -1771,6 +1781,164 @@ function ckDraw(id, what) {
   } finally { lock.releaseLock(); }
 }
 
+
+// ==========================================================================
+// v9.6 META SERVER: firemní event z menu, loterie (Sazka), návštěvy kanceláře (kafe / prank)
+// Stav v Script Properties (JSON), zápisy pod LockService. Funguje stejně v domácí i firemní verzi (getUserLdap).
+// ==========================================================================
+var M96_EVENTS = ['payday', 'coffee', 'audit', 'supply', 'overtime'];
+var LOTTO_PRICE = 50000, LOTTO_MAX = 10, LOTTO_N = 20, LOTTO_K = 3, LOTTO_SMALL_X = 5;
+function m96Get_(k, d) { try { var v = PropertiesService.getScriptProperties().getProperty(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+function m96Put_(k, v) { if (v == null) PropertiesService.getScriptProperties().deleteProperty(k); else PropertiesService.getScriptProperties().setProperty(k, JSON.stringify(v)); }
+function m96Lock_() { var l = LockService.getScriptLock(); if (!l.tryLock(8000)) throw new Error('busy'); return l; }
+
+/** menu v tabulce: ručně odpálit 10minutový firemní event pro všechny */
+function triggerGlobalEventUi_() {
+  var ui = SpreadsheetApp.getUi();
+  var r = ui.prompt('Spustit firemní globální event (10 min pro všechny)',
+    'Napiš jeden z: ' + M96_EVENTS.join(', ') + '\nPrázdné = náhodný · "stop" = zrušit běžící event', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  var id = String(r.getResponseText() || '').trim().toLowerCase();
+  if (id === 'stop') { m96Put_('ir_event', null); ui.alert('Event zrušen.'); return; }
+  if (!id) id = M96_EVENTS[Math.floor(Math.random() * M96_EVENTS.length)];
+  if (M96_EVENTS.indexOf(id) < 0) { ui.alert('Neznámý event: ' + id); return; }
+  var ev = { id: id, start: Date.now(), end: Date.now() + 10 * 60000 };
+  m96Put_('ir_event', ev);
+  ui.alert('Spuštěno: ' + id.toUpperCase() + ' (10 minut). Hráčům se ukáže do ~30 s.');
+}
+function m96Event_() { var e = m96Get_('ir_event', null); return e && e.end > Date.now() ? e : null; }
+
+// ---------- LOTERIE: tiket = 3 různá čísla z 1-20, losování každý den v 18:00 (čas skriptu). 3 shody = jackpot (90 % poolu, dělí se), 2 shody = 5× cena tiketu.
+function lottoNextDraw_(now) {
+  var d = new Date(now); d.setHours(18, 0, 0, 0);
+  if (d.getTime() <= now) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+function lottoLoad_() {
+  var s = m96Get_('ir_lotto', null);
+  if (!s || !s.round) s = { round: 1, drawAt: lottoNextDraw_(Date.now()), pool: 0, t: {}, last: null };
+  if (!s.t) s.t = {};
+  return s;
+}
+function lottoDraw_(s) {
+  var nums = [];
+  while (nums.length < LOTTO_K) { var x = 1 + Math.floor(Math.random() * LOTTO_N); if (nums.indexOf(x) < 0) nums.push(x); }
+  nums.sort(function (a, b) { return a - b; });
+  var pay = m96Get_('ir_lotto_pay', {}), jack = [], small = [];
+  Object.keys(s.t).forEach(function (nick) {
+    (s.t[nick] || []).forEach(function (tk) {
+      var hit = tk.filter(function (n) { return nums.indexOf(n) >= 0; }).length;
+      if (hit === 3) jack.push(nick); else if (hit === 2) small.push(nick);
+    });
+  });
+  var winners = [];
+  small.forEach(function (nick) { var p = LOTTO_PRICE * LOTTO_SMALL_X; s.pool = Math.max(0, s.pool - p); pay[nick] = (pay[nick] || 0) + p; winners.push({ nick: nick, prize: p, kind: 2 }); });
+  if (jack.length) {
+    var pot = Math.floor(s.pool * 0.9), each = Math.floor(pot / jack.length);
+    jack.forEach(function (nick) { pay[nick] = (pay[nick] || 0) + each; winners.push({ nick: nick, prize: each, kind: 3 }); });
+    s.pool -= each * jack.length;
+  }
+  var players = Object.keys(s.t).length, tickets = Object.keys(s.t).reduce(function (a, k) { return a + (s.t[k] || []).length; }, 0);
+  s.last = { round: s.round, nums: nums, winners: winners.slice(0, 30), pool: s.pool, players: players, tickets: tickets, at: s.drawAt };
+  s.round++; s.t = {}; s.drawAt = lottoNextDraw_(Math.max(Date.now(), s.drawAt + 1000));
+  m96Put_('ir_lotto_pay', pay);
+}
+function lottoCheck_() {
+  var s = lottoLoad_();
+  if (Date.now() < s.drawAt) return s;
+  var lock = m96Lock_();
+  try { s = lottoLoad_(); if (Date.now() >= s.drawAt) { lottoDraw_(s); m96Put_('ir_lotto', s); } return s; }
+  finally { lock.releaseLock(); }
+}
+/** hra posílá klientem strhnutý tiket (cenu strhává klient jako u Showdownu) */
+function lottoBuy(nums) {
+  var me = getUserLdap();
+  nums = (Array.isArray(nums) ? nums : []).map(Number).filter(function (n) { return n >= 1 && n <= LOTTO_N && Math.floor(n) === n; });
+  nums = nums.filter(function (n, i) { return nums.indexOf(n) === i; }).sort(function (a, b) { return a - b; });
+  if (nums.length !== LOTTO_K) return { ok: false, reason: 'nums' };
+  lottoCheck_();
+  var lock = m96Lock_();
+  try {
+    var s = lottoLoad_(), mine = s.t[me] || [];
+    if (mine.length >= LOTTO_MAX) return { ok: false, reason: 'max' };
+    mine.push(nums); s.t[me] = mine; s.pool += LOTTO_PRICE;
+    m96Put_('ir_lotto', s);
+    return { ok: true, mine: mine, pool: s.pool };
+  } finally { lock.releaseLock(); }
+}
+/** 40 % prohraných sázek z casina + 5 % cutu Prší (posílá klient po dávkách) */
+function lottoFeed(amount) {
+  amount = Math.max(0, Math.min(5e11, Math.floor(Number(amount) || 0)));
+  if (!amount) return { ok: true };
+  var lock = m96Lock_();
+  try { var s = lottoLoad_(); s.pool += amount; m96Put_('ir_lotto', s); return { ok: true, pool: s.pool }; }
+  finally { lock.releaseLock(); }
+}
+/** přičte do poolu bez vlastního zámku (volá se z míst, která už drží script lock) */
+function m96PoolAdd_(v) { try { v = Math.max(0, Math.floor(Number(v) || 0)); if (!v) return; var s = lottoLoad_(); s.pool += v; m96Put_('ir_lotto', s); } catch (e) {} }
+function lottoClaim() {
+  var me = getUserLdap(), lock = m96Lock_();
+  try { var pay = m96Get_('ir_lotto_pay', {}), v = Number(pay[me]) || 0; if (v) { delete pay[me]; m96Put_('ir_lotto_pay', pay); } return { ok: true, gc: v }; }
+  finally { lock.releaseLock(); }
+}
+
+// ---------- NÁVŠTĚVY KANCELÁŘE: kafe (buff) nebo prank (post-it lístky za scrap), 1× za hodinu u každého kolegy
+function m96SaveOf_(nick) {
+  var db = getDb_(), saves = db.saves.getDataRange().getValues();
+  for (var i = 1; i < saves.length; i++) if (String(saves[i][0]).toLowerCase() === String(nick).toLowerCase()) { try { return JSON.parse(rowToJson_(saves[i])); } catch (e) { return null; } }
+  return null;
+}
+function m96Vis_(eq) {
+  var o = {};
+  ['w', 'a', 't'].forEach(function (k) { var it = eq && eq[k]; o[k] = { m: it && it.lv != null ? Math.max(0, Math.min(7, Math.floor(it.lv / 14) + (it.r >= 3 ? 1 : 0))) : 0 }; });
+  return o;
+}
+function officeView(nick) {
+  var s = m96SaveOf_(nick);
+  if (!s) return { ok: false, reason: 'nobody' };
+  var hs = s.hs || {}, col = hs.col || {}, ach = hs.ach && hs.ach.u ? Object.keys(hs.ach.u).length : 0, pl = s.plant || {};
+  var v = m96Get_('ir_visit', { inbox: {}, cd: {} }), me = getUserLdap(), cdAt = (v.cd || {})[me + '>' + nick] || 0;
+  return { ok: true, nick: String(nick), prestige: Number(s.prestige) || 0, maxChest: Math.max(Number(s.maxChestLevel) || 1, Number(s.chestLevel) || 1),
+    plant: !!pl.seed, plantN: pl.n ? Object.keys(pl.n).length : 0, ach: ach,
+    hs: { cls: hs.cls || '', level: Number(hs.level) || 1, gear: m96Vis_(hs.gear && hs.gear.eq) },
+    col: col.unlocked ? { cls: col.cls || 'engineer', name: String(col.name || ''), gear: m96Vis_(col.gear) } : null,
+    waiting: ((v.inbox || {})[nick] || []).length, cdLeft: Math.max(0, cdAt + 3600000 - Date.now()) };
+}
+function officeAct(nick, kind) {
+  var me = getUserLdap();
+  if (kind !== 'coffee' && kind !== 'prank') return { ok: false, reason: 'kind' };
+  if (!nick || String(nick).toLowerCase() === String(me).toLowerCase()) return { ok: false, reason: 'self' };
+  if (!m96SaveOf_(nick)) return { ok: false, reason: 'nobody' };
+  var lock = m96Lock_();
+  try {
+    var v = m96Get_('ir_visit', { inbox: {}, cd: {} }); v.inbox = v.inbox || {}; v.cd = v.cd || {};
+    var key = me + '>' + nick, at = v.cd[key] || 0;
+    if (Date.now() - at < 3600000) return { ok: false, reason: 'cd', left: at + 3600000 - Date.now() };
+    v.cd[key] = Date.now();
+    Object.keys(v.cd).forEach(function (k) { if (Date.now() - v.cd[k] > 2 * 3600000) delete v.cd[k]; });
+    var box = v.inbox[nick] || [];
+    box.push({ from: me, k: kind, at: Date.now(), n: kind === 'prank' ? 4 + Math.floor(Math.random() * 5) : 0 });
+    v.inbox[nick] = box.slice(-15);
+    m96Put_('ir_visit', v);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+/** moje schránka: vrátí a smaže (kafe = buff, prank = lístky na stole) */
+function officeInbox() {
+  var me = getUserLdap(), lock = m96Lock_();
+  try {
+    var v = m96Get_('ir_visit', { inbox: {}, cd: {} }), box = (v.inbox || {})[me] || [];
+    if (box.length) { delete v.inbox[me]; m96Put_('ir_visit', v); }
+    return { ok: true, list: box };
+  } finally { lock.releaseLock(); }
+}
+/** jedno volání pro klienta (každých ~30 s): event, loterie, kolik mám ve schránce */
+function metaPoll() {
+  var me = getUserLdap(), s = lottoCheck_(), pay = m96Get_('ir_lotto_pay', {}), v = m96Get_('ir_visit', { inbox: {} });
+  return { ok: true, now: Date.now(), ev: m96Event_(),
+    lotto: { round: s.round, drawAt: s.drawAt, pool: s.pool, price: LOTTO_PRICE, max: LOTTO_MAX, n: LOTTO_N, k: LOTTO_K, mine: s.t[me] || [], players: Object.keys(s.t).length, last: s.last, pay: Number(pay[me]) || 0 },
+    inbox: ((v.inbox || {})[me] || []).length };
+}
 
 
 // ===================== DUNGEON ENGINE (vygenerováno build.py ze src/dungeon_engine.js - neupravovat ručně) =====================

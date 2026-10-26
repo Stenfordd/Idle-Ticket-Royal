@@ -1,4 +1,174 @@
 <script>
+(function () {
+"use strict";
+const A = window.HS_API, C = window.HSCampaign;
+const fmt = (n) => Math.floor(n).toLocaleString();
+const short = (n) => { n = Math.floor(n); return n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "K" : n.toLocaleString(); };
+const esc = (t) => (typeof escapeHtml === "function" ? escapeHtml(String(t)) : String(t));
+const MATS = [
+{ n: "Paper", i: "📄", c: "#c9d1dc" }, { n: "Cardboard", i: "📦", c: "#d0a46a" }, { n: "Wood", i: "🪵", c: "#c07a43" }, { n: "Plastic", i: "🧴", c: "#5bb8f0" },
+{ n: "Steel", i: "🔩", c: "#9fb4cc" }, { n: "Titanium", i: "💠", c: "#a9c7ff" }, { n: "Carbon", i: "⬛", c: "#8a93a6" }, { n: "Quantum", i: "⚛", c: "#3fe0c5" }
+];
+const RAR = [
+{ n: "Common", c: "#c9d1dc", k: 1 }, { n: "Rare", c: "#5bb8f0", k: 1.25 }, { n: "Epic", c: "#b37cff", k: 1.55 },
+{ n: "Legendary", c: "#f5b942", k: 1.9 }, { n: "Mythic", c: "#ff5d73", k: 2.4 }
+];
+const PIECES = {
+w: { n: "Weapon", i: "🗡", names: ["Rolled-Up Memo", "Cardboard Tube Sword", "Wooden Ruler", "Plastic Keyboard Blade", "Steel Stapler", "Titanium Letter Opener", "Carbon Monitor Arm", "Quantum Mouse"] },
+a: { n: "Armor", i: "🛡", names: ["Paper Armor", "Cardboard Box Armor", "Wooden Desk Shield", "Plastic Laptop Sleeve", "Steel Filing Cabinet", "Titanium Office Chair", "Carbon Server Rack", "Quantum Firewall"] },
+h: { n: "Helmet", i: "⛑", names: ["Paper Hat", "Cardboard Visor", "Wooden Hard Hat", "Plastic Headset", "Steel Bin Helmet", "Titanium VR Visor", "Carbon Noise-Cancellers", "Quantum Thinking Cap"] },
+t: { n: "Trinket", i: "📎", names: ["Paper Clip", "Cardboard Badge", "Wooden Rubber Stamp", "Plastic Lanyard", "Steel Thermos", "Titanium USB Key", "Carbon Coffee Mug", "Quantum Rubber Duck"] }
+};
+const KEYS = ["w", "a", "h", "t"], UMAX = 10, BAG_MAX = 20, POOL_QUANTUM = 50;
+function tierOf(it) { return Math.max(0, Math.min(7, Math.floor((it.lv || 1) / 14))); }
+function name(k, it) { return it ? RAR[it.r].n + " " + PIECES[it.s || k].names[tierOf(it)] + (it.u ? " +" + it.u : "") : "-"; }
+/** síla kusu: % ATK / HP podle levelu itemu, rarity a +upgradu */
+function pw(it) { return (0.05 + (it.lv || 1) * 0.011) * RAR[it.r].k * (1 + 0.07 * (it.u || 0)); }
+function fx(it) {
+const p = pw(it), k = RAR[it.r].k, lv = it.lv || 1, o = { atk: 0, hp: 0, crit: 0, main: 0, vit: 0, luck: 0 };
+if (it.s === "w") { o.atk = p; o.main = Math.round(lv * 0.25 * k); }
+else if (it.s === "a") { o.hp = p; o.vit = Math.round(lv * 0.3 * k); }
+else if (it.s === "h") { o.hp = p * 0.5; o.main = Math.round(lv * 0.2 * k); }
+else { o.atk = p * 0.3; o.hp = p * 0.3; o.crit = 0.01 + it.r * 0.008; o.luck = Math.round(lv * 0.2 * k); }
+return o;
+}
+function score(it) { if (!it) return 0; const o = fx(it); return o.atk * 100 + o.hp * 90 + o.crit * 400 + o.main * 0.9 + o.vit * 0.6 + o.luck * 0.4; }
+function fxText(it) {
+const o = fx(it), t = [];
+if (o.atk) t.push(`+${Math.round(o.atk * 100)}% ATK`); if (o.hp) t.push(`+${Math.round(o.hp * 100)}% HP`);
+if (o.main) t.push(`+${o.main} main stat`); if (o.vit) t.push(`+${o.vit} VIT`); if (o.luck) t.push(`+${o.luck} LUCK`); if (o.crit) t.push(`+${(o.crit * 100).toFixed(1)}% crit`);
+return t.join(" · ");
+}
+function multOf(eq) {
+const m = { atk: 1, hp: 1, crit: 0, stats: { main: 0, vit: 0, luck: 0 } };
+KEYS.forEach(k => { const it = eq && eq[k]; if (!it || it.lv == null) return; const o = fx(it); m.atk += o.atk; m.hp += o.hp; m.crit += o.crit; m.stats.main += o.main; m.stats.vit += o.vit; m.stats.luck += o.luck; });
+return m;
+}
+function upCost(it) { return Math.round(150 * Math.pow(it.lv || 1, 1.45) * RAR[it.r].k * Math.pow(1.35, it.u || 0)); }
+function salvageGc(it) { return Math.round(80 * Math.pow(it.lv || 1, 1.4) * RAR[it.r].k * (1 + 0.5 * (it.u || 0))); }
+function normIt(it, s) {
+if (!it || typeof it !== "object" || it.lv == null) return null;
+return { id: String(it.id || Math.random().toString(36).slice(2, 9)), s: KEYS.indexOf(it.s) >= 0 ? it.s : s, r: Math.max(0, Math.min(4, it.r | 0)), lv: Math.max(1, Math.min(400, Math.floor(Number(it.lv) || 1))), u: Math.max(0, Math.min(UMAX, it.u | 0)) };
+}
+function st() {
+const d = A.HS();
+if (!d.gear || typeof d.gear !== "object" || d.gear.v !== 2) d.gear = { v: 2, eq: {}, bag: [] };
+const g = d.gear;
+if (!g.eq || typeof g.eq !== "object") g.eq = {};
+KEYS.forEach(k => { g.eq[k] = normIt(g.eq[k], k); if (g.eq[k]) g.eq[k].s = k; });
+g.bag = (Array.isArray(g.bag) ? g.bag : []).map(x => normIt(x)).filter(x => x && KEYS.indexOf(x.s) >= 0).slice(0, BAG_MAX);
+["w", "a", "t"].forEach(k => { const it = g.eq[k]; g[k] = { m: it ? Math.max(0, Math.min(7, tierOf(it) + (it.r >= 3 ? 1 : 0))) : 0 }; });
+return g;
+}
+function vis(eq) { const o = {}; ["w", "a", "t"].forEach(k => { const it = eq && eq[k]; o[k] = { m: it && it.lv != null ? Math.max(0, Math.min(7, tierOf(it) + (it.r >= 3 ? 1 : 0))) : (it && it.m) || 0 }; }); return o; }
+function mult() { return multOf(st().eq); }
+function lvFor(m) {
+const d = A.HS(), P = gameState.prestige || 0, id = m && m.id != null ? m.id : 0;
+if (id < 1000) return Math.round(id + 2 + 4 * P);
+if (id < 2000) return Math.round(10 + (id - 1000) * 0.55 + 4 * P);
+if (id < 3000) return Math.max(1, Math.round(d.level * 0.9));
+if (id < 4000) return Math.max(1, Math.round(d.level * 0.9));
+return Math.round(65 + (id - 4000) * 0.7 + 4 * P);
+}
+function rollR(kind) {
+const w = [56, 27, 12, 4, 1]; let r = 0, x = Math.random() * 100;
+for (let i = 0; i < w.length; i++) { if (x < w[i]) { r = i; break; } x -= w[i]; }
+if (kind === "elite" && Math.random() < 0.5) r++;
+if (kind === "boss" || kind === "secret") { r = Math.max(1, r); if (Math.random() < 0.4) r++; }
+return Math.min(4, r);
+}
+/** volá HIGH STAKES po každé výhře; lines = řádky výsledkového okna */
+function drop(m, lines) {
+if (!m) return null;
+const kind = m.kind || "normal", id = m.id || 0;
+const ch = kind === "boss" || kind === "secret" ? 1 : kind === "elite" ? 0.6 : id >= 4000 ? 0.4 : 0.3;
+if (Math.random() > ch) return null;
+const g = st(), s = KEYS[Math.floor(Math.random() * KEYS.length)];
+const it = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), s: s, r: rollR(kind), lv: lvFor(m), u: 0 };
+let where = "bag";
+if (!g.eq[s]) { g.eq[s] = it; where = "equipped"; }
+else {
+g.bag.unshift(it);
+if (g.bag.length > BAG_MAX) { const worst = g.bag.slice().sort((a, b) => score(a) - score(b))[0]; g.bag.splice(g.bag.indexOf(worst), 1); gameState.coins += salvageGc(worst); }
+}
+const line = `🎁 <span style="color:${RAR[it.r].c};font-weight:700;">${esc(name(s, it))}</span> (${PIECES[s].n.toLowerCase()} · LV ${it.lv})${where === "equipped" ? " - equipped!" : score(it) > score(g.eq[s]) ? " - better than yours, equip it in HERO" : ""}`;
+if (lines) lines.push(line);
+if (it.r >= 3 && window.TT && TT.announce) try { TT.announce("FOUND " + RAR[it.r].n.toUpperCase() + " " + PIECES[s].names[tierOf(it)].toUpperCase(), "HIGH STAKES", 0, 0); } catch (e) {}
+st(); TT.saveSoon();
+return it;
+}
+function give(old) { const g = st(); if (window.Colleague && Colleague.takeGear && Colleague.takeGear(old.s, old)) return; g.bag.unshift(old); if (g.bag.length > BAG_MAX) { const w = g.bag.pop(); gameState.coins += salvageGc(w); } }
+function find(id) { const g = st(); for (const k of KEYS) if (g.eq[k] && g.eq[k].id === id) return { it: g.eq[k], eq: k }; const i = g.bag.findIndex(x => x.id === id); return i >= 0 ? { it: g.bag[i], i: i } : null; }
+function equip(id) {
+const g = st(), f = find(id); if (!f || f.eq) return;
+const it = f.it, old = g.eq[it.s];
+g.bag.splice(f.i, 1); g.eq[it.s] = it;
+if (old) give(old);
+log(`⚒ Equipped ${name(it.s, it)}.`, "success"); after();
+}
+function salvage(id) {
+const g = st(), f = find(id); if (!f || f.eq) return;
+const gc = salvageGc(f.it); g.bag.splice(f.i, 1); gameState.coins += gc;
+log(`♻ Salvaged ${name(f.it.s, f.it)} for +${fmt(gc)} GC.`, "success"); after();
+}
+function salvageWorse() {
+const g = st(); let n = 0, gc = 0;
+g.bag = g.bag.filter(it => { if (score(it) < score(g.eq[it.s])) { n++; gc += salvageGc(it); return false; } return true; });
+gameState.coins += gc;
+log(n ? `♻ Salvaged ${n} weaker item${n === 1 ? "" : "s"} for +${fmt(gc)} GC.` : "Nothing weaker than your equipped gear.", n ? "success" : "warning"); after();
+}
+function up(id) {
+const f = find(id); if (!f) { TT.holdStop = true; return; }
+const it = f.it; if (it.u >= UMAX) { TT.holdStop = true; return; }
+const c = upCost(it);
+if (gameState.coins < c) { TT.holdStop = true; log(`Upgrading costs ${fmt(c)} GC.`, "warning"); return; }
+gameState.coins -= c; it.u++;
+if (it.u >= UMAX) TT.holdStop = true;
+after();
+}
+function after() { st(); TT.saveSoon(); if (typeof updateUI === "function") updateUI(); if (A.isOpen()) A.render(); }
+function onPrestige() { /* v10: gear přežívá prestiž, nové dropy jsou ale silnější (+4 LV itemů za prestiž) */ }
+function affordable() { const g = st(); return g.bag.some(it => score(it) > score(g.eq[it.s])) || KEYS.some(k => g.eq[k] && g.eq[k].u < UMAX && gameState.coins >= upCost(g.eq[k]) * 4); }
+function cmp(it, cur) {
+if (!cur) return `<span class="gr-up">empty slot</span>`;
+const d = score(it) - score(cur);
+return d > 0 ? `<span class="gr-up">▲ better</span>` : `<span class="gr-dn">▼ weaker</span>`;
+}
+function pieceHtml(k) {
+const g = st(), it = g.eq[k], P = PIECES[k];
+if (!it) return `<div class="gr-piece empty" style="--gm:#64748b;"><div class="gr-ic">${P.i}</div><div class="gr-t"><b>No ${P.n.toLowerCase()}</b><span class="gr-fx">Win fights to find one - bosses always drop gear.</span></div><div></div></div>`;
+const c = upCost(it), ok = gameState.coins >= c;
+const act = it.u >= UMAX ? `<div class="dg-dim" style="text-align:right;">+${UMAX} max</div>` :
+`<button class="btn ${ok ? "btn-gold" : ""}" ${ok ? "" : "disabled"} data-hold="gear-${it.id}" onclick="Gear.up('${it.id}')">Upgrade to +${it.u + 1}<small>${short(c)} GC</small></button>`;
+return `<div class="gr-piece" style="--gm:${RAR[it.r].c};"><div class="gr-ic">${P.i}</div>
+<div class="gr-t"><b>${esc(name(k, it))}</b><span class="gr-r">${RAR[it.r].n} ${P.n.toLowerCase()} · LV ${it.lv}</span><br><span class="gr-fx">${fxText(it)}</span></div><div class="gr-act">${act}</div></div>`;
+}
+function bagHtml() {
+const g = st();
+if (!g.bag.length) return `<div class="dg-dim" style="margin-top:6px;">Your gear bag is empty. Every win can drop a piece (30% normal, 60% elite, bosses 100%).</div>`;
+const items = g.bag.slice().sort((a, b) => KEYS.indexOf(a.s) - KEYS.indexOf(b.s) || score(b) - score(a));
+return `<div class="gr-bag">${items.map(it => `<div class="gr-piece" style="--gm:${RAR[it.r].c};"><div class="gr-ic">${PIECES[it.s].i}</div>
+<div class="gr-t"><b>${esc(name(it.s, it))}</b><span class="gr-fx">LV ${it.lv} · ${fxText(it)} · ${cmp(it, g.eq[it.s])}</span></div>
+<div class="gr-act"><button class="btn btn-cyan" onclick="Gear.equip('${it.id}')">Equip</button><button class="btn" onclick="Gear.salvage('${it.id}')">♻ ${short(salvageGc(it))}</button></div></div>`).join("")}</div>`;
+}
+function card() {
+const g = st(), m = multOf(g.eq);
+return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span class="dg-dim">GC: ${short(gameState.coins)}</span></div>
+<div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
+<div class="gr-sum"><span>ATK <b>×${m.atk.toFixed(2)}</b></span><span>HP <b>×${m.hp.toFixed(2)}</b></span><span>Main stat <b>+${m.stats.main}</b></span><span>VIT <b>+${m.stats.vit}</b></span><span>LUCK <b>+${m.stats.luck}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
+<div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()">♻ Salvage all weaker</button>` : ""}</div>
+${bagHtml()}
+<div class="dg-dim" style="margin-top:8px;">Gear drops from fights: higher chapters, tower floors and Pool floors drop higher-level items (+4 levels per prestige). Rarity: Common → Rare → Epic → Legendary → Mythic. "Main stat" goes to your class's main stat (STR / INT / AGI). Upgrade up to +${UMAX} with GC; your old pieces go to your colleague when they're better than theirs.</div></div>`;
+}
+window.Gear = { st: st, mult: mult, multOf: multOf, vis: vis, up: up, equip: equip, salvage: salvage, salvageWorse: salvageWorse, drop: drop, card: card, onPrestige: onPrestige, affordable: affordable,
+convert: () => ({}), score: score, fx: fx, name: name, MATS: MATS, RAR: RAR, PIECES: PIECES, upCost: upCost, POOL_QUANTUM: POOL_QUANTUM, lvFor: lvFor };
+(function boot() {
+if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
+TT.onLoaded(() => { try { st(); } catch (e) { console.error(e); } });
+})();
+})();
+</script>
+<script>
 /* HIGH STAKES - ARÉNA (PvP proti uloženým postavám, počítá server) + karta hráče z leaderboardu */
 (function () {
 "use strict";
@@ -172,7 +342,7 @@ Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 
 ${u.gear ? `<br>Gear: ${u.gear}` : ""}
 ${window.Meta ? Meta.badgesHtml(u.ach) : ""}
 </div></div>
-<div style="text-align:right;margin-top:10px;"><button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
+<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px;">${u.ldap !== gameState.ldap && window.Extras ? `<button class="btn btn-cyan" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();Extras.visit(n)">🏠 VISIT OFFICE</button>` : ""}<button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
 document.body.appendChild(el);
 }
 A.registerMode("arena", { label: "🏟 ARENA", order: 90,

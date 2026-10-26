@@ -1,46 +1,38 @@
-NÁVOD v5.1 - firemní verze v9.5.1 (= hra Office Royale v9.5)
+NÁVOD v6 - firemní verze v10 (= hra Office Royale v10)
 
-v9.5.1: oprava chyby "Obsah s nesprávným formátem HTML" (Apps Script nesnese soubor, který začíná uprostřed skriptu).
-Soubory se teď dělí jinak a je jich víc - zkopíruj znovu VŠECHNY.
-
-Bez wipe. Savy hráčů zůstávají (starý gear se sám převede, LP z Legacy shopu se vrátí do kytky).
+Kancelář bez wipe. High Stakes začíná znovu (Season 2) - hráči dostanou za starý postup GC.
 
 ======================================================
 KDE JSOU SOUBORY
 ======================================================
-
-Všech 25 souborů je na téhle stránce, každý s tlačítkem KOPÍROVAT:
-https://stenfordd.github.io/Idle-Ticket-Royal/firemni/
-
-(Kdyby tlačítko nešlo, klikni u souboru na „otevřít“, Ctrl+A, Ctrl+C.)
+https://stenfordd.github.io/Idle-Ticket-Royal/firemni/   (každý soubor má tlačítko KOPÍROVAT)
+POZOR: "index.html" na GitHubu je jen tahle stránka. Do Apps Scriptu patří "index.html.txt" (soubor index).
 
 ======================================================
-SOUBORY V APPS SCRIPT PROJEKTU (25)
+SOUBORY V APPS SCRIPT PROJEKTU (27)
 ======================================================
-
-.gs:   code, engine
+.gs:   code, server2 (NOVÝ), engine
 HTML:  index, style, office, casino, system, minigames, special, meta, hs_core, hs_ui, hs, prsi, hs_modes, mobile,
-       part13, part14, part15, part16, part17, part18, part19, part20, part21   <- NOVÉ
+       part13, part14, part15, part16, part17, part18, part19, part20, part21, part22
 
-1) V editoru vytvoř nové HTML soubory part13, part14, part15, part16, part17, part18, part19, part20, part21 (+ > HTML > jméno bez .html). Které už máš, jen přepiš.
-2) Do KAŽDÉHO z 25 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Obsah se změnil všude, i ve style a index.
+1) Vytvoř nový .gs soubor server2 (+ > Skript, jméno bez .gs) a nové HTML soubory part18, part19, part20, part21, part22 (+ > HTML).
+   part13 až part17 už máš z minula.
+2) Do KAŽDÉHO z 27 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
 3) Ctrl+S
 4) Deploy > Manage deployments > tužka (edit) > Version: New version > Deploy
-5) V tabulce: menu Ticket Tycoon > Bump version (klienti se sami obnoví)
+5) Obnov tabulku (F5) - v menu Ticket Tycoon přibude "Spustit firemní globální event". Pak Ticket Tycoon > Bump version.
 
-Každý soubor končí řádkem END-OF-FILE. Když se ve hře nahoře objeví červená lišta COPY ERROR, vypíše, který soubor chybí nebo je uříznutý - zkopíruj ho znovu.
+Při prvním spuštění menu "Spustit firemní globální event" se Google zeptá na oprávnění - povol.
+Když se ve hře objeví červená lišta COPY ERROR, vypíše, který soubor se nezkopíroval celý.
 
 ======================================================
-CO JE NOVÉHO (od v9.2)
+CO JE NOVÉHO
 ======================================================
-
-- Nový vzhled (klidnější tmavý styl, bez CAPS LOCKu), přepínač na starý vzhled (paleta nahoře).
-- Kancelář jako místnost: postavička chodí k předmětům (stůl, skříň, bedna, TV s konzolí = High Stakes...). 9 prostředí podle prestiže.
-- HIGH STAKES: chibi postavičky s animacemi, combat gear (zbraň, brnění, talisman: Paper -> Quantum), Clear the Pool jako nekonečná věž, Kolega (Colleague) po Administratorovi.
-- Shift a týdenní boss: nepřátelé podle tvých statů (typy tank / glass cannon / specialista), už se nenafukují s levelem.
-- Office Plant místo Legacy shopu, achievementy, týdenní žebříčky.
-- Corporate Climb: 280 m, 2 nové zóny, 12 náhodných půdorysů, férovější odměny v bednách.
-- Consult: výhry max 4 h Auto GC za den. RESTART RUN pod tlačítkem prestiže.
-- Na mobilu dolní lišta, místnost, opravy scrollu.
-
-POZOR: na GitHubu je i "index.html" - to je jen stránka s tlačítky. Do Apps Scriptu patří "index.html.txt" (soubor index).
+- HIGH STAKES SEASON 2: nové třídy Firewall Warden (STR), Code Wizard (INT), Shadow Admin (AGI) - hlavní stat dává damage i obranu třídy.
+- Nový gear: padá z bojů (zbraň, brnění, helma, talisman; Common -> Mythic), upgrade +1 až +10, salvage za GC.
+- Kolega pomáhá v boji a v kanceláři říká korporátní hlášky. BRIBE u Compliance auditu (+ achievement).
+- VISIT OFFICE: v Top 10 klikni na hráče -> navštiv kancelář, nech kafe (buff) nebo post-it prank (lístky za scrap).
+- Gamble: HOTFIX MINES, LOTERIE (každý den v 18:00, 40 % proher z casina jde do jackpotu), AKCIE (dividendy), Pachinko míčky až 10M.
+- Boss key: ESC nebo tlačítko 📊 = hra se změní na nudnou SLA tabulku (klikání do buněk dál řeší tickety).
+- Menu v tabulce: "Spustit firemní globální event" - vybereš event a běží 10 minut všem.
+- Opravy: falešné "offline", záložky High Stakes na malém okně.

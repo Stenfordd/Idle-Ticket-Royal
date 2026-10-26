@@ -1,4 +1,114 @@
-<script type="text/plain" data-tt="ttbig2" data-i="2">const key = (e) => { if (e.repeat) return; if (e.key === " " || e.key === "Enter" || e.key === "7") { e.preventDefault(); if (phase === "ready") begin(); else if (phase === "run" && cls !== "cyber") count(); } };
+<script type="text/plain" data-tt="ttbig2" data-i="2">const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
+const txt = n > 1 ? `${res.filter(r => r !== "none").length}/3 blocked` + (best === "perfect" ? " - FULL PARRY! counter + stun" : "")
+: best === "perfect" ? "PARRY! 0 damage + counter + stun" : best === "good" ? (k === "withdraw" ? "GOOD - she only gets half" : "GOOD BLOCK! -90% damage") : "Normal block";
+const pq = $("hs-pq"); if (pq) { pq.textContent = txt; pq.style.color = best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)"; }
+setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(n > 1 ? { rings: res } : { parry: best }); }, 520);
+}
+function startRing() {
+if (finished) return;
+if (style === "glitch" && Math.random() < 0.55) {             // Administrator: falešný šedý kroužek - neťukej!
+fakeOn = true; const fk = fakeEl(); if (fk) fk.style.display = "";
+const ft0 = performance.now(), fdur = 420 + Math.random() * 200, stopAt = 0.45 + Math.random() * 0.35;
+const ff = (now) => {
+const t = (now - ft0) / fdur;
+place(fakeEl(), from - (from - to) * Math.min(stopAt, Math.pow(t, 1.5)));
+if (t >= stopAt) { fakeOn = false; const e = fakeEl(); if (e) e.style.display = "none"; timer = setTimeout(realRing, 120 + Math.random() * 250); return; }
+raf = requestAnimationFrame(ff);
+};
+raf = requestAnimationFrame(ff); return;
+}
+realRing();
+}
+function realRing() {
+if (finished) return;
+phase = "ring"; t0 = performance.now(); size = from;
+const r = ringEl(); if (r) r.style.display = "";
+const fr = (now) => {
+let t = Math.min(1, (now - t0) / dur);
+if (style === "lag") t = t < 0.35 ? t : t < 0.55 ? 0.35 : 0.35 + (t - 0.55) * (0.65 / 0.45);
+let e = Math.pow(t, 1.6);                                  // zrychluje k cíli
+if (style === "steps") e = Math.min(1, Math.floor(e * 8 + 0.5) / 8);
+size = from - (from - to) * e;
+let dx = 0, dy = 0;
+if (style === "wobble") dx = Math.sin(t * 22) * 16 * (1 - t * 0.5);
+if (style === "spiral") { const rr = 22 * (1 - t); dx = Math.cos(t * 16) * rr; dy = Math.sin(t * 16) * rr; }
+place(ringEl(), size, dx, dy);
+if (t >= 1) { mark("none"); return; }
+raf = requestAnimationFrame(fr);
+};
+raf = requestAnimationFrame(fr);
+}
+function tap() {
+if (finished) return;
+if (fakeOn || phase !== "ring") { mark("none"); return; }      // moc brzo / na falešný kroužek = pokažený block
+const d = Math.abs(size - target);
+mark(d <= wP ? "perfect" : d <= wG ? "good" : "none");
+}
+const key = (e) => { if (e.repeat) return; if (e.key === " " || e.key === "Enter" || e.key === "5") { e.preventDefault(); tap(); } };
+document.addEventListener("keydown", key, true);
+untap = tapAnywhere(tap);
+timer = setTimeout(startRing, 200 + Math.random() * 600);       // nádech: kroužek přijde náhodně za 0.2 - 0.8 s
+}
+const ULT_MS = 2000, ULT_MIN_GAP = 35;
+function tapsToQ(n) { return n <= 5 ? 0.7 : n <= 16 ? 0.7 + 0.3 * (n - 5) / 11 : Math.min(1.25, 1 + 0.25 * (n - 16) / 8); }
+function ultGame(cb) {
+const f = fight, cls = f.h.cls, sk = H.CLASSES[cls].skill;
+busyAnim = true; fightRefresh();
+const box = $("hs-ov-slot");
+let body = "", hint = "";
+if (cls === "sysadmin") { hint = "TAP AS FAST AS YOU CAN - build the wall!"; body = `<div class="hs-wall" id="hs-ug">${Array(24).fill("<i></i>").join("")}</div>`; }
+else if (cls === "engineer") { hint = "MASH to push the deploy through!"; body = `<div class="hs-deploy"><div id="hs-ug"></div><span id="hs-ugt">deploying... 0%</span></div>`; }
+else { hint = "HIT THE OPEN PORTS!"; body = `<div class="hs-ports" id="hs-ug"></div>`; }
+box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;color:#ff4dff;">✨ ${sk}: ${hint}</div>${body}
+<div class="hs-ulttime"><div id="hs-utb"></div></div><div class="hs-ovt" id="hs-uq">&nbsp;</div>
+<div class="hs-ultgo" id="hs-ugo"><b>TAP TO START</b><small>${cls === "cyber" ? "then tap the ports as they pop up" : "then tap anywhere as fast as you can"} · 2 seconds</small></div></div>`;
+let taps = 0, last = 0, hits = 0, finished = false, raf = 0, phase = "ready", t0 = 0;
+const ports = [];
+function count() {
+const now = performance.now(); if (now - last < ULT_MIN_GAP) return; last = now;
+taps++;
+if (cls === "sysadmin") { const b = $("hs-ug"); if (b && b.children[taps - 1]) b.children[taps - 1].className = "on"; }
+if (cls === "engineer") { const b = $("hs-ug"), t = $("hs-ugt"), p = Math.round(tapsToQ(taps) / 1.25 * 100); if (b) b.style.width = p + "%"; if (t) t.textContent = "deploying... " + Math.round(tapsToQ(taps) * 100) + "%"; }
+const uq = $("hs-uq"); if (uq && cls !== "cyber") uq.textContent = Math.round(tapsToQ(taps) * 100) + "%";
+}
+const PORTS = [22, 80, 443, 3389, 8080, 445];
+function spawnPorts() {
+for (let i = 0; i < 4; i++) setTimeout(() => {
+if (finished) return;
+const g = $("hs-ug"); if (!g) return;
+const el = document.createElement("button");
+el.className = "hs-port"; el.type = "button"; el.textContent = ":" + PORTS[Math.floor(Math.random() * PORTS.length)];
+el.style.left = (8 + Math.random() * 72) + "%"; el.style.top = (8 + Math.random() * 62) + "%";
+g.appendChild(el); ports.push(el);
+setTimeout(() => { if (!el.classList.contains("hit")) el.classList.add("gone"); }, 620);
+}, 120 + i * 430 + Math.random() * 120);
+}
+/** v8.7.5: TAP TO START -> odpočet 3-2-1 -> 2 s mini-hra (ťuknutí během odpočtu se nepočítají) */
+function begin() {
+if (phase !== "ready") return;
+phase = "count";
+const go = $("hs-ugo"); let n = 3;
+const tickC = () => {
+if (finished) return;
+if (n > 0) { if (go) go.innerHTML = `<b class="cd">${n}</b>`; n--; setTimeout(tickC, 380); return; }
+if (go) go.remove();
+phase = "run"; t0 = performance.now();
+if (cls === "cyber") spawnPorts();
+raf = requestAnimationFrame(fr);
+};
+tickC();
+}
+function onDown(e) {
+if (e.button > 0) return;
+e.preventDefault(); e.stopPropagation();
+if (phase === "ready") { begin(); return; }
+if (phase !== "run") return;
+if (cls !== "cyber") { count(); return; }
+const p = e.target && e.target.closest ? e.target.closest(".hs-port") : null;
+if (p && !p.classList.contains("hit") && !p.classList.contains("gone")) { p.classList.add("hit"); hits++; const uq = $("hs-uq"); if (uq) uq.textContent = hits + "/4 ports"; }
+}
+const eat = (e) => { e.preventDefault(); e.stopPropagation(); };
+const key = (e) => { if (e.repeat) return; if (e.key === " " || e.key === "Enter" || e.key === "7") { e.preventDefault(); if (phase === "ready") begin(); else if (phase === "run" && cls !== "cyber") count(); } };
 document.addEventListener("pointerdown", onDown, true);
 document.addEventListener("click", eat, true);
 document.addEventListener("keydown", key, true);
@@ -99,6 +209,9 @@ else if (e.a === "dodge") dlog(T(e) + "💨 You get ready to dodge.", "c");
 else if (e.miss) { dlog(T(e) + `You missed (${H.ACTIONS[e.a].name}).`, "r"); float("MISS", "b", "#8b9bb4"); pose("p", PACT[e.a] || "a-quick"); }
 else { pose("p", PACT[e.a] || "a-quick"); setTimeout(() => { pose("b", "a-hit"); sfx("spark", "b", e.crit ? "#ffb800" : "#fff"); if (e.crit || e.timing === "PERFECT") { sfx("shake"); sfx("cheer"); } }, e.a === "quick" ? 200 : 300); float((e.crit ? "CRIT " : "") + fmt(e.val), "b", e.crit ? "#ffb800" : e.timing === "PERFECT" ? "#ffd700" : "#fff", e.crit || e.timing === "PERFECT");
 dlog(T(e) + `${H.ACTIONS[e.a].name}${e.timing ? " (" + e.timing + ")" : ""} hits for <b>${fmt(e.val)}</b>${e.crit ? " - CRIT!" : ""}`, e.crit || e.timing ? "g" : ""); }
+} else if (e.type === "assist") {
+colRunIn(); setTimeout(() => { pose("b", "a-hit"); sfx("spark", "b", "#22d3ee"); }, 380);
+float(fmt(e.val), "b", "#22d3ee", true); dlog(T(e) + `🧑‍💼 <b>${escapeHtml(e.who)}</b> runs in and hits for <b>${fmt(e.val)}</b>!`, "g");
 } else if (e.type === "gamble") {
 const re = e.respun ? " (re-spun)" : "";
 if (e.bf) { pose("p", "a-hit"); sfx("shake"); float("BACKFIRE", "p", "#ff1744", true); dlog(T(e) + `🎰 ${e.reels.join("")}${re} - 💀 BACKFIRE! You take ${fmt(e.self)}.`, "r"); }
@@ -115,7 +228,7 @@ else if (e.type === "parry") { pose("p", "a-parry"); sfx("slowmo"); sfx("spark",
 else if (e.type === "break") { pose("b", "a-hit"); sfx("shake"); float("BREAK!", "b", "#ffd700", true); dlog(T(e) + `💢 <b>BREAK!</b> ${e.was === "charge" || e.was === "unleash" ? "Charged attack interrupted! " : ""}Enemy staggered - your next hit deals 1.5×.`, "y"); }
 else if (e.type === "eheal") { float("+" + fmt(e.val), "b", "#00ff88"); dlog(T(e) + `Enemy heals ${fmt(e.val)}.`, "y"); }
 else if (e.type === "heal") { float("+" + fmt(e.val), "p", "#00ff88"); dlog(T(e) + `☕ +${fmt(e.val)} HP`, "g"); }
-else if (e.type === "revive") { float("POWER CYCLE!", "p", "#ffb800", true); dlog(T(e) + "🔌 SysAdmin POWER CYCLE - you survive with 10% HP!", "y"); }
+else if (e.type === "revive") { float("POWER CYCLE!", "p", "#ffb800", true); dlog(T(e) + "🔌 Firewall Warden POWER CYCLE - you survive with 10% HP!", "y"); }
 else if (e.type === "form") {
 if (e.txt) { if (e.ok) { pose("b", "a-hit"); float("+" + fmt(e.val), "b", "#00ff88"); } else float("RED TAPE", "p", "#ffb800"); dlog(T(e) + e.txt, e.ok ? "g" : "r"); }
 else if (e.ok) { pose("b", "a-hit"); float("FORM OK " + fmt(e.val), "b", "#00ff88"); dlog(T(e) + `📋 Form ${e.no} approved (${H.ACTIONS[e.a].name}) - stamp for <b>${fmt(e.val)}</b>${e.tape ? " · red tape ×" + e.tape : ""}`, "g"); }
@@ -138,6 +251,7 @@ bossTitle(fight);
 if (fightCtx && fightCtx.onEnd) {
 const r = fightCtx.onEnd(fight) || {};
 result = Object.assign({ win: fight.win, stars: -1, lines: [], m: fightMission, custom: true }, r);
+if (fight.win && window.Gear && Gear.drop && fightCtx.mode !== "boss" && fightCtx.mode !== "tutorial" && fightCtx.mode !== "arena") try { result.lines = result.lines || []; Gear.drop(fightMission, result.lines); } catch (e) { console.error(e); }   // v10: loot
 TT.saveSoon(); updateUI(); showResult(); return;
 }
 const f = fight, m = fightMission, d = HS();
@@ -153,6 +267,7 @@ gameState.coins += gc;
 lines.push(`+${fmt(Math.round(xp * (window.Meta ? Meta.mult("hsxp") : 1)))} XP`, `+${fmt(gc)} GC`);
 d.sm[m.id] = newMask; d.stars[m.id] = total;
 if ((first && TT.rnd() < 0.5) || (total === 3 && prev < 3) || TT.rnd() < 0.12) dropItem(lines);
+if (window.Gear && Gear.drop) try { Gear.drop(first && (m.kind === "boss" || m.kind === "secret") ? Object.assign({}, m, { kind: "boss" }) : m, lines); } catch (e) { console.error(e); }   // v10: loot
 if (first && (m.kind === "boss" || m.kind === "secret")) {
 const slot = C.BOSS_SLOT[m.id] || SLOTS[Math.floor(TT.rnd() * SLOTS.length)];
 if (!d.t6[slot]) { d.t6[slot] = true; lines.push(`🔓 Prismatic ${slot} can now drop from chests`); log(`🌌 PRISMATIC UNLOCK: Quantum ${slot} items can now drop from the Company Chest (chest LV 50+).`, "special"); }
@@ -213,11 +328,11 @@ if (ups) { HS(); lines.push(`⬆ LEVEL ${d.level} (+${ups * 3} stat points)`); l
 function payload() {
 const d = HS();
 return { cls: d.cls, level: d.level, best: Math.max(cleared(d), d.legacyBest || 0), missions: cleared(d), tower: d.tower.best, wins: d.wins, losses: d.losses, title: title(d), arenaStance: d.arenaStance, pool: d.pool.best, gear: (function () { const g = gear(); return { atk: Math.round(g.atk * 100) / 100, hp: Math.round(g.hp * 100) / 100 }; })(),
-gearTxt: window.Gear ? ["w", "a", "t"].map(k => { const p = Gear.st()[k]; return Gear.MATS[p.m].n + "+" + p.l; }).join(" ") : "",
+gearTxt: window.Gear ? ["w", "a", "h", "t"].map(k => { const p = Gear.st().eq[k]; return p ? Gear.RAR[p.r].n[0] + p.lv + (p.u ? "+" + p.u : "") : "-"; }).join(" ") : "",
 tier: 1, artifacts: {}, equipped: [], promos: {}, mode: "highstakes" };
 }
 function hsPayload() { const d = HS(); return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), stats: d.stats, energy: d.energy, energyAt: d.energyAt, stars: d.stars, wins: d.wins, losses: d.losses, arenaStance: d.arenaStance,
-t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk, pool: d.pool, bt: d.bt, tsel: d.tsel, tut: d.tut, col: d.col, gear: d.gear }; }
+t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, ach: d.ach, wk: d.wk, pool: d.pool, bt: d.bt, tsel: d.tsel, tut: d.tut, col: d.col, gear: d.gear, season: d.season, s2: d.s2, br: d.br }; }
 /** vnitřek pro další soubory (aréna, tower, směna, world boss) */
 window.HS_API = { HS: HS, hero: hero, gear: gear, player: player, fmt: fmt, fmtT: fmtT, anim: anim, float: float, sprite: sprite, enemySprite: enemySprite,
 playerSprite: playerSprite, gearDR: gearDR, render: render, registerMode: registerMode, isOpen: () => open, view: () => view, beginFight: beginFight, spendEnergy: spendEnergy,
@@ -333,7 +448,7 @@ Keys on PC: 1-7 = moves, space = timing / parry.</div>
 <div style="margin-top:12px;"><button class="btn btn-cyan" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">GOT IT</button></div></div>`;
 document.body.appendChild(el);
 }
-window.Dungeon = {
+window.Dungeon = { bribe: bribe,
 open: openScreen, close: closeScreen, tab: tab, chapter: chapter, mission: mission, start: start, act: act, flee: flee,
 leave: leave, retry: retry, next: nextM, pickClass: pickClass, respec: respec, tokenEnergy: tokenEnergy, stat: stat, resetStats: resetStats,
 netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, hsPayload: hsPayload, showProfile: function () {},
@@ -367,213 +482,33 @@ if (document.readyState === "loading") document.addEventListener("DOMContentLoad
 </script>
 <script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig2"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
 <style>
-/* ===== v9.0 COMBAT GEAR: 3 kusy (zbraň, brnění, talisman), materiály Paper -> Quantum, +1..+5 a evoluce za GC ===== */
+/* ===== v10 COMBAT GEAR (High Stakes Season 2): loot z bojů, 4 sloty, rarity Common -> Mythic, +0..+10 za GC ===== */
 .gr-list { display: grid; gap: 8px; }
 .gr-piece { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); }
+.gr-piece.empty { opacity: .6; }
 .gr-ic { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; background: color-mix(in srgb, var(--gm) 18%, transparent); border: 1px solid color-mix(in srgb, var(--gm) 55%, transparent); }
 .gr-t { min-width: 0; }
-.gr-t b { display: block; font-size: 14px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gr-t .gr-m { font-size: 12px; color: var(--gm); font-weight: 600; }
+.gr-t b { display: block; font-size: 14px; font-weight: 700; color: var(--gm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gr-t .gr-fx { font-size: 12px; color: var(--text-dim); }
-.gr-pips { display: flex; gap: 3px; margin-top: 5px; }
-.gr-pips i { width: 16px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); }
-.gr-pips i.on { background: var(--gm); }
+.gr-t .gr-r { font-size: 11px; color: var(--text-dim); }
 .gr-act { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 112px; }
-.gr-act .btn { padding: 8px 10px; font-size: 12px; line-height: 1.2; }
+.gr-act .btn { padding: 7px 10px; font-size: 12px; line-height: 1.2; }
 .gr-act .btn small { display: block; font-size: 11px; opacity: .8; font-weight: 500; }
-.gr-act .lock { font-size: 11px; color: var(--text-dim); text-align: right; max-width: 130px; line-height: 1.3; }
-.gr-ladder { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 10px; }
-.gr-ladder div { text-align: center; padding: 6px 2px; border-radius: 8px; font-size: 10px; color: var(--text-muted); background: rgba(255,255,255,.02); border: 1px solid var(--border-subtle); min-width: 0; overflow: hidden; }
-.gr-ladder div span { display: block; font-size: 16px; filter: grayscale(1); opacity: .45; }
-.gr-ladder div.on { color: var(--text-main); border-color: color-mix(in srgb, var(--gm) 50%, transparent); }
-.gr-ladder div.on span { filter: none; opacity: 1; }
-.gr-ladder div.next { border-style: dashed; color: var(--text-dim); }
 .gr-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin-top: 8px; }
 .gr-sum b { color: var(--text-main); font-weight: 700; }
+.gr-bag { display: grid; gap: 6px; margin-top: 8px; max-height: 420px; overflow-y: auto; }
+.gr-bag .gr-piece { padding: 7px 10px; grid-template-columns: 36px 1fr auto; }
+.gr-bag .gr-ic { width: 36px; height: 36px; font-size: 18px; }
+.gr-bag .gr-act { flex-direction: row; min-width: 0; }
+.gr-up { color: var(--emerald); font-weight: 700; }
+.gr-dn { color: var(--crimson); }
 @media (max-width: 700px) {
 .gr-piece { grid-template-columns: 40px 1fr; }
 .gr-ic { width: 40px; height: 40px; font-size: 20px; }
 .gr-act { grid-column: 1 / -1; flex-direction: row; min-width: 0; }
 .gr-act .btn { flex: 1; }
-.gr-act .lock { max-width: none; text-align: left; }
-.gr-ladder { grid-template-columns: repeat(4, 1fr); }
+.gr-bag { max-height: none; }
 }
 </style>
-<script>
-(function () {
-"use strict";
-const A = window.HS_API, C = window.HSCampaign;
-const fmt = (n) => Math.floor(n).toLocaleString();
-const short = (n) => { n = Math.floor(n); return n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "K" : n.toLocaleString(); };
-const MATS = [
-{ n: "Paper", i: "📄", c: "#c9d1dc" },
-{ n: "Cardboard", i: "📦", c: "#d0a46a" },
-{ n: "Wood", i: "🪵", c: "#c07a43" },
-{ n: "Plastic", i: "🧴", c: "#5bb8f0" },
-{ n: "Steel", i: "🔩", c: "#9fb4cc" },
-{ n: "Titanium", i: "💠", c: "#a9c7ff" },
-{ n: "Carbon", i: "⬛", c: "#8a93a6" },
-{ n: "Quantum", i: "⚛", c: "#3fe0c5" }
-];
-const UNLOCK = [null,
-{ t: 'Beat The Great "I" (chapter 1 boss)' },
-{ t: "Beat The Italian Guy (chapter 2 boss)" },
-{ t: "Beat Da Polishen (chapter 3 boss)" },
-{ t: "Beat The Supreme Louis (chapter 4 boss)" },
-{ t: "Beat The Big Massi (final boss)" },
-{ t: "Beat The Administrator (Tower floor 100)" },
-{ t: "Clear Pool floor 50" }];
-const POOL_QUANTUM = 50;
-/** celkový násobič (ATK i HP) při stejné úrovni všech 3 kusů; +5 dojde 5/6 cesty k dalšímu materiálu, evoluce dorovná zbytek */
-const G = [1.10, 1.40, 1.80, 2.20, 2.60, 3.00, 3.45, 3.95, 4.50];
-const COST = [300, 1500, 5000, 15000, 45000, 150000, 450000, 1400000];
-const LMAX = 5, EVOLVE_X = 4;
-const PIECES = {
-w: { n: "Weapon", i: "🗡", fx: "ATK", names: ["Rolled-Up Memo", "Cardboard Tube Sword", "Wooden Ruler", "Plastic Keyboard Blade", "Steel Stapler", "Titanium Letter Opener", "Carbon Monitor Arm", "Quantum Mouse"] },
-a: { n: "Armor", i: "🛡", fx: "HP", names: ["Paper Armor", "Cardboard Box Armor", "Wooden Desk Shield", "Plastic Laptop Sleeve", "Steel Filing Cabinet", "Titanium Office Chair", "Carbon Server Rack", "Quantum Firewall"] },
-t: { n: "Trinket", i: "📎", fx: "ATK + HP + crit", names: ["Paper Clip", "Cardboard Badge", "Wooden Rubber Stamp", "Plastic Lanyard", "Steel Thermos", "Titanium USB Key", "Carbon Coffee Mug", "Quantum Rubber Duck"] }
-};
-const KEYS = ["w", "a", "t"];
-function Gm(m, l) { m = Math.max(0, Math.min(7, m | 0)); l = Math.max(0, Math.min(LMAX, l | 0)); return G[m] + (G[m + 1] - G[m]) * l / 6; }
-function val(p) { return p ? (Gm(p.m, p.l) - 1) / 1.5 : 0; }
-function multOf(g) {
-g = g || {};
-const w = val(g.w), a = val(g.a), t = val(g.t);
-return { atk: 1 + w + t / 2, hp: 1 + a + t / 2, crit: g.t ? 0.005 * (g.t.m | 0) : 0 };
-}
-function upCost(p) { return Math.round(COST[p.m] * (1 + 0.5 * p.l)); }
-function evoCost(p) { return COST[p.m] * EVOLVE_X; }
-function name(k, p) { return PIECES[k].names[p.m] + (p.l ? " +" + p.l : ""); }
-let ready = false;
-function norm(p) { p = p && typeof p === "object" ? p : {}; return { m: Math.max(0, Math.min(7, Math.floor(Number(p.m) || 0))), l: Math.max(0, Math.min(LMAX, Math.floor(Number(p.l) || 0))) }; }
-function st() {
-const d = A.HS();
-if (!d.gear || typeof d.gear !== "object") d.gear = {};
-const g = d.gear;
-KEYS.forEach(k => { g[k] = norm(g[k]); });
-if (g.mig !== 1) migrate(d, g);
-g.unl = Math.max(0, Math.min(7, Math.floor(Number(g.unl) || 0)));
-const before = g.unl;
-let u = g.unl;
-const s = d.stars || {}, bt = d.bt || {};
-if (s[9] > 0) u = Math.max(u, 1);
-if (s[19] > 0 || bt.italian) u = Math.max(u, 2);
-if (s[29] > 0 || bt.polishen) u = Math.max(u, 3);
-if (s[39] > 0 || bt.louis) u = Math.max(u, 4);
-if (s[49] > 0) u = Math.max(u, 5);
-if ((d.tower && d.tower.best >= 100) || (d.pool && d.pool.unlocked) || bt.admin) u = Math.max(u, 6);
-if (d.pool && d.pool.best >= POOL_QUANTUM) u = Math.max(u, 7);
-KEYS.forEach(k => { u = Math.max(u, g[k].m); });
-g.unl = u;
-if (u > before && ready) {
-log(`🔓 New gear material: ${MATS[u].i} ${MATS[u].n}! Evolve your +5 gear in HIGH STAKES → HERO.`, "special");
-if (u >= 5 && window.TT && TT.announce) try { TT.announce("UNLOCKED " + MATS[u].n.toUpperCase() + " GEAR", "HIGH STAKES", 0, 0); } catch (e) {}
-}
-return g;
-}
-/** v9.0: dřív se síla brala z kancelářských itemů -> převedeme ji na nový gear se stejnou silou */
-function oldMult(lo, keys) {
-let x = 1;
-keys.forEach(s => { const it = lo && lo[s]; if (it && window.DungeonEngine) x += DungeonEngine.gearSlotValue(Number(it.tier) || 1, Number(it.lvl) || 0); });
-return A.gearDR(x);
-}
-function fromValue(v) {
-const target = 1 + 1.5 * Math.max(0, v);
-let best = { m: 0, l: 0 };
-for (let m = 0; m < 8; m++) for (let l = 0; l <= LMAX; l++) if (Gm(m, l) <= target + 1e-9) best = { m: m, l: l };
-return best;
-}
-function convert(lo) {
-const oa = oldMult(lo, ["TOOL", "AUGMENT", "RELIC"]), oh = oldMult(lo, ["HEAD", "RIG", "OS"]);
-const vt = ((oa + oh) / 2 - 1) / 1.5;
-return { w: fromValue(oa - 1 - vt / 2), a: fromValue(oh - 1 - vt / 2), t: fromValue(vt) };
-}
-function migrate(d, g) {
-if (typeof gameLoaded !== "undefined" && !gameLoaded) return;              // počkat na načtení savu
-const has = KEYS.some(k => g[k].m || g[k].l);
-if (!has) {
-const n = convert(gameState.loadout || {});
-KEYS.forEach(k => { g[k] = n[k]; });
-const tot = KEYS.reduce((a, k) => a + g[k].m * 10 + g[k].l, 0);
-if (tot > 0) log(`⚒ v9.0: your HIGH STAKES power now comes from COMBAT GEAR. Your old items were converted: ${KEYS.map(k => MATS[g[k].m].n + " +" + g[k].l).join(", ")}.`, "special");
-}
-g.mig = 1;
-}
-function mult() { return multOf(st()); }
-function canUp(k) { const g = st(), p = g[k]; return p.l < LMAX && gameState.coins >= upCost(p); }
-function up(k) {
-const g = st(), p = g[k];
-if (!PIECES[k] || p.l >= LMAX) { TT.holdStop = true; return; }
-const cost = upCost(p);
-if (gameState.coins < cost) { TT.holdStop = true; log(`Upgrading ${PIECES[k].names[p.m]} costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost; p.l++;
-if (p.l >= LMAX) TT.holdStop = true;
-after();
-}
-function evolve(k) {
-const g = st(), p = g[k];
-if (!PIECES[k] || p.l < LMAX || p.m >= 7) return;
-if (g.unl <= p.m) { log(`${MATS[p.m + 1].n} is locked: ${UNLOCK[p.m + 1].t}.`, "warning"); return; }
-const cost = evoCost(p);
-if (gameState.coins < cost) { log(`Evolving to ${MATS[p.m + 1].n} costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost;
-const old = { m: p.m, l: p.l };
-g[k] = { m: p.m + 1, l: 0 };
-log(`⚒ ${PIECES[k].names[old.m]} +5 evolved into ${MATS[p.m + 1].i} ${PIECES[k].names[p.m + 1]}!`, "special");
-if (window.Colleague && Colleague.takeGear) Colleague.takeGear(k, old);
-after();
-}
-function onPrestige() {
-const g = st();
-KEYS.forEach(k => { g[k].l = 0; });
-log("⚒ Gear upgrades reset to +0 (materials stay).", "warning");
-}
-function after() { TT.saveSoon(); if (typeof updateUI === "function") updateUI(); if (A.isOpen()) A.render(); }
-function fxText(k, p) {
-const v = val(p);
-if (k === "w") return `+${Math.round(v * 100)}% ATK`;
-if (k === "a") return `+${Math.round(v * 100)}% HP`;
-return `+${Math.round(v * 50)}% ATK and HP · +${(0.5 * p.m).toFixed(1)}% crit`;
-}
-function pieceHtml(k) {
-const g = st(), p = g[k], M = MATS[p.m], P = PIECES[k];
-let act;
-if (p.l < LMAX) {
-const c = upCost(p), ok = gameState.coins >= c;
-act = `<button class="btn ${ok ? "btn-gold" : ""}" ${ok ? "" : "disabled"} data-hold="gear-${k}" onclick="Gear.up('${k}')">Upgrade to +${p.l + 1} · ${short(c)} GC</button>`;
-} else if (p.m >= 7) act = `<div class="lock">Maxed out. Nothing beats Quantum.</div>`;
-else if (g.unl <= p.m) act = `<div class="lock">🔒 ${MATS[p.m + 1].n}: ${UNLOCK[p.m + 1].t}</div>`;
-else {
-const c = evoCost(p), ok = gameState.coins >= c;
-act = `<button class="btn ${ok ? "btn-crimson" : ""}" ${ok ? "" : "disabled"} onclick="Gear.evolve('${k}')">Evolve to ${MATS[p.m + 1].i} ${MATS[p.m + 1].n} · ${short(c)} GC</button>`;
-}
-let pips = ""; for (let i = 0; i < LMAX; i++) pips += `<i class="${i < p.l ? "on" : ""}"></i>`;
-return `<div class="gr-piece" style="--gm:${M.c};"><div class="gr-ic">${P.i}</div>
-<div class="gr-t"><b>${escapeHtml(name(k, p))}</b><span class="gr-m">${M.i} ${M.n} ${P.n.toLowerCase()}</span> <span class="gr-fx">· ${fxText(k, p)}</span><div class="gr-pips">${pips}</div></div>
-<div class="gr-act">${act}</div></div>`;
-}
-function card() {
-const g = st(), m = multOf(g);
-const ladder = MATS.map((M, i) => `<div class="${i <= g.unl ? "on" : i === g.unl + 1 ? "next" : ""}" style="--gm:${M.c};" title="${i <= g.unl ? "Unlocked" : escapeHtml(UNLOCK[i].t)}"><span>${M.i}</span>${M.n}</div>`).join("");
-const nx = g.unl < 7 ? `Next material: <b>${MATS[g.unl + 1].n}</b> - ${escapeHtml(UNLOCK[g.unl + 1].t)}.` : "Every material unlocked.";
-return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span class="dg-dim">GC: ${short(gameState.coins)}</span></div>
-<div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
-<div class="gr-sum"><span>Gear ATK <b>×${m.atk.toFixed(2)}</b></span><span>Gear HP <b>×${m.hp.toFixed(2)}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
-<div class="gr-ladder">${ladder}</div>
-<div class="dg-dim" style="margin-top:8px;">Upgrade each piece up to +5 with GC, then evolve it into the next material. ${nx} Prestige resets the +levels, your materials stay. When you evolve, your old piece goes to your colleague if it's better than theirs.</div></div>`;
-}
-/** červená tečka na HERO: jde evolvovat, nebo je kus na +0 (po prestiži / evoluci) a na upgrade máš */
-function affordable() {
-const g = st();
-return KEYS.some(k => { const p = g[k]; if (p.l === 0) return gameState.coins >= upCost(p); if (p.l >= LMAX) return p.m < 7 && g.unl > p.m && gameState.coins >= evoCost(p); return false; });
-}
-window.Gear = { st: st, mult: mult, multOf: multOf, up: up, evolve: evolve, canUp: canUp, card: card, onPrestige: onPrestige, affordable: affordable, convert: convert, Gm: Gm, val: val,
-MATS: MATS, PIECES: PIECES, G: G, COST: COST, upCost: upCost, evoCost: evoCost, POOL_QUANTUM: POOL_QUANTUM, name: name };
-(function boot() {
-if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
-TT.onLoaded(() => { try { st(); } catch (e) { console.error(e); } setTimeout(() => { ready = true; }, 1500); });
-})();
-})();
-</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part15"] = 1;</script>
 <!-- END-OF-FILE: part15 -->

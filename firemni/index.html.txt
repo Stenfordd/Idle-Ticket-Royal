@@ -495,10 +495,11 @@ Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose
   <?!= include('part19'); ?>
   <?!= include('part20'); ?>
   <?!= include('part21'); ?>
+  <?!= include('part22'); ?>
 <script>
 /* Kontrola po vložení: když se některý soubor nezkopíroval celý, ukáže se červená lišta s jeho jménem. */
 (function () {
-var need = ["office", "casino", "system", "minigames", "special", "meta", "hs_core", "hs_ui", "hs", "prsi", "hs_modes", "mobile", "part13", "part14", "part15", "part16", "part17", "part18", "part19", "part20", "part21"], got = window.__TT_FILES || {};
+var need = ["office", "casino", "system", "minigames", "special", "meta", "hs_core", "hs_ui", "hs", "prsi", "hs_modes", "mobile", "part13", "part14", "part15", "part16", "part17", "part18", "part19", "part20", "part21", "part22"], got = window.__TT_FILES || {};
 var bad = need.filter(function (k) { return !got[k]; });
 if (bad.length) {
 var d = document.createElement("div");

@@ -2,6 +2,20 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "10.0", d: "2026-10-26", i: [
+"🎰 HIGH STAKES SEASON 2: three new classes - 🛡 Firewall Warden (STR: damage + damage reduction), 🧙 Code Wizard (INT: damage + auto-shield) and 🗡 Shadow Admin (AGI: damage + dodge). Your main stat now does both",
+"⚒ New gear: 4 slots (weapon, armor, helmet, trinket) that DROP from fights - Common, Rare, Epic, Legendary, Mythic. Bosses always drop, deeper content drops higher levels. Upgrade +1 to +10 with GC, salvage the rest",
+"♻ High Stakes starts from zero for everyone (level, campaign, tower, pool, gear). You got GC for your old progress. Office, achievements and the Climb stay",
+"🧑‍💼 Your colleague now runs into fights to help (sometimes after a PARRY or an ultimate) and drops corporate wisdom in your office",
+"💼 BRIBE the Compliance auditor: the form counts as filled (price doubles each time in a fight) + achievement for 10 bribes",
+"🏠 VISIT OFFICE: open a player's card in the Top 10 and look into their office. Once an hour leave them a ☕ coffee (+25% clicks and Auto GC for 30 min) or a 📝 post-it prank (they peel the notes off for scrap)",
+"🐞 HOTFIX MINES (Gamble → Advanced): 5×5, pick 1/3/5/10 bugs, cash out any time (RTP 96%)",
+"🎟 LOTTERY: pick 3 numbers from 1-20, daily draw at 18:00. 40% of casino losses and the Prší / Checkers cut feed the jackpot, and it rolls over until someone wins",
+"📈 STOCKS: six (totally real) companies, prices move the same for everyone, some pay dividends every hour - even while you're away",
+"⚪ Pachinko balls up to 10M GC (unlock with your max bet)",
+"📊 Boss key: press ESC (or the 📊 button) and the game turns into a boring SLA spreadsheet. Clicking cells still resolves tickets. ESC again to come back",
+"🛠 Fixes: \"offline\" no longer shows when the server is just busy; High Stakes tabs wrap into rows on small windows"
+] },
 { v: "9.5", d: "2026-10-26", i: [
 "🧗 Corporate Climb is taller: 280 m and two new zones (Executive Floor and the Boardroom) before the roof",
 "🧗 Every run gets a random floor plan (12 variants), so you can't just memorise the jumps",
@@ -250,6 +264,8 @@ function h32(n) { n = Math.imul(n ^ 0x5bd1e995, 0x27d4eb2d); n ^= n >>> 15; n = 
 function slotEvent(slot) { const h = h32(slot * 7 + 12345); return { ev: EVENTS[h % EVENTS.length], start: slot * HOUR + (h32(slot + 999) % 50) * 60000 }; }
 function current(now) {
 now = now || Date.now();
+const fe = window.__irForcedEv;                                             // v9.6: event odpálený adminem z menu tabulky (přednost)
+if (fe && fe.end > now && (fe.start || 0) <= now) { const ev = EVENTS.find(x => x.id === fe.id); if (ev) return { ev: ev, end: fe.end, forced: true }; }
 const s = slotEvent(Math.floor(now / HOUR));
 return now >= s.start && now < s.start + EV_LEN ? { ev: s.ev, end: s.start + EV_LEN } : null;
 }
@@ -364,7 +380,8 @@ const ACH = [
 ["wb_mk3", "🤖", "Hostile Takeover", "Take down a weekly boss MK.III or higher", () => cnt("wbMaxMk"), 3],
 ["climb_100", "🧗", "Halfway To The Roof", "Climb 100 m in Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 100],
 ["climb_200", "🏙", "Roof Access", "Reach 200 m in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 200],
-["climb_280", "👑", "Top Of The Tower", "Reach the new roof (280 m) in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 280]
+["climb_280", "👑", "Top Of The Tower", "Reach the new roof (280 m) in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 280],
+["bribe_10", "💼", "Creative Accounting", "Bribe the Compliance auditor 10 times", () => Math.floor(hs().br || 0), 10]
 ]],
 ["SOCIAL", [
 ["events_10", "🎉", "Party Animal", "Be online for 10 company events", () => cnt("events"), 10],

@@ -321,7 +321,7 @@ const TUTORIAL_STEPS = [
 <li>Campaign: 5 chapters, 50 missions. Each mission has 3 separate stars: ★ win, ★ win with 50%+ HP, ★ the bonus goal <b>or</b> a win within 3 turns. Stars you earn stay - you can collect them over several runs. Every ★ = <b>+0.5% permanent multiplier</b> for the office. Missions cost energy ⚡ (+1 every 12 min, max 16, or turn a Slot Token into +4 ⚡ with the button at the top)</li>
 <li>📋 <b>Compliance audits</b>: every turn a form asks for one move. Do it = bonus damage. Ignore it = RED TAPE (-ATK, -dodge, stacks). Dodging twice in a row works less often</li>
 <li>🗼 <b>TOWER</b>: 100 floors, every 10 = +1% power. 📟 <b>SHIFT</b>: roguelite run with perks, HP carries over. 📊 <b>BOSS</b>: weekly company-wide boss, 1 attack per hour - kill it together for ×1.10 income next week. Kill it and a stronger MK.II spawns right away (then MK.III...) - the higher the MK, the bigger the weekly reward</li>
-<li>Level up = +3 stat points. ⚒ <b>Combat gear</b> (HERO tab): a weapon (ATK), armor (HP) and a trinket (both + crit). Upgrade them +1 to +5 with GC, then evolve to the next material: Paper → Cardboard → Wood → Plastic → Steel → Titanium → Carbon → Quantum. Chapter bosses, the Administrator and Pool floor 50 unlock the materials. Prestige resets the campaign, the tower and the gear +levels (materials stay). Office items only boost the office</li>
+<li>Level up = +3 stat points. Your class has a ★ <b>main stat</b>: 🛡 Firewall Warden = STR (damage + damage reduction), 🧙 Code Wizard = INT (damage + auto-shield), 🗡 Shadow Admin = AGI (damage + dodge). ⚒ <b>Combat gear</b> (HERO tab) drops from fights: weapon, armor, helmet and trinket in Common → Rare → Epic → Legendary → Mythic. Equip the best, upgrade +1 to +10 with GC, salvage the rest for GC.</li>
 <li>♾ <b>CLEAR THE POOL</b> (after Tower floor 100): an endless tower, every floor is a fresh fight and your progress is saved. 🧑‍💼 <b>COLLEAGUE</b>: farms bosses you beat and clicks for you, even offline</li>
 <li>🏟 <b>ARENA</b>: attack your friends' saved characters (the server simulates the fight), win honor + GC</li></ul>` },
 { t: "9) 🏆 HALL OF FAME", b: `
@@ -432,7 +432,7 @@ focusAutogenActive: g.focusAutogenActive, focusAutogenRemaining: g.focusAutogenR
 tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy,
 lp: g.lp, lpUp: window.Plant ? {} : g.lpUp, plant: window.Plant ? Plant.payload() : g.plant,
 autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
-pachinko: g.pachinko, pcPending: g.pcPending,
+pachinko: g.pachinko, pcPending: g.pcPending, stk: g.stk,
 dungeon: window.Dungeon ? Dungeon.payload() : g.dungeon,
 hs: window.Dungeon && Dungeon.hsPayload ? Dungeon.hsPayload() : g.hs
 });
@@ -444,6 +444,7 @@ function backupWrite(payload, synced) {
 try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ nick: gameState.ldap, season: gameState.season, rev: saveRev, t: Date.now(), synced: !!synced, data: synced ? "" : payload })); } catch (e) {}
 }
 function backupRead() { try { return JSON.parse(localStorage.getItem(BACKUP_KEY) || "null"); } catch (e) { return null; } }
+/** v9.6: "OFFLINE" jen když prohlížeč opravdu nemá síť; jinak "ukládání se zpozdilo" (dřív stačily 2 neúspěšná uložení, např. server busy) */
 function offlineChip(on) {
 let el = document.getElementById("ir-offline");
 if (!el) {
@@ -452,12 +453,14 @@ el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:ca
 el.textContent = "📴 OFFLINE - progress saved on this device";
 document.body.appendChild(el);
 }
+const off = navigator.onLine === false;
+el.textContent = off ? "📴 OFFLINE - progress saved on this device" : "⏳ Saving delayed - retrying…";
 el.style.display = on ? "" : "none";
 }
 window.addEventListener("online", function () { setTimeout(function () { try { saveGame(); } catch (e) {} }, 1500); });
 window.addEventListener("offline", function () { offlineChip(true); try { backupWrite(buildPayload(), false); } catch (e) {} });
 function noteSave(ok) {
-offlineChip(!ok && (saveFails >= 1 || navigator.onLine === false));
+offlineChip(!ok && (saveFails >= 3 || navigator.onLine === false));
 const pill = document.querySelector(".status-pill");
 const label = pill && pill.lastChild;
 if (ok) {
@@ -506,6 +509,7 @@ google.script.run
 .withSuccessHandler(res => {
 if (res && res.ok) { saveRev = Number(res.rev) || saveRev; backupWrite(payload, true); noteSave(true); done(true); return; }
 if (res && res.reason === "conflict") { showConflict(); done(false); return; }
+if (res && res.reason === "busy") { done(false); setTimeout(function () { try { saveGame(); } catch (e) {} }, 1500 + Math.random() * 2500); return; }   // v9.6: zámek obsazený jiným hráčem = zkusit znovu, žádný "offline"
 if (res && res.reason === "season") {
 log("Season changed on server. Reloading...", "special");
 gameLoaded = false;
@@ -593,7 +597,8 @@ g.autoclicker.running = !!l.autoclicker.running;
 }
 sanitizeAc();
 if (g.autoclicker.charge < 1 || g.autoclicker.avgCps <= 0) g.autoclicker.running = false;
-if (l.pachinko) Object.keys(g.pachinko).forEach(k => { g.pachinko[k] = Math.max(0, Math.floor(nv(l.pachinko[k], 0))); });
+if (l.stk && typeof l.stk === "object") g.stk = l.stk;                  // v9.6: akcie
+if (l.pachinko && typeof l.pachinko === "object") Object.keys(l.pachinko).forEach(k => { if (/^\d+$/.test(k)) g.pachinko[k] = Math.max(0, Math.floor(nv(l.pachinko[k], 0))); });   // v9.6: i nové hodnoty míčků
 g.pcPending = Array.isArray(l.pcPending) ? l.pcPending.filter(p => p && nv(p.value, 0) > 0) : [];
 g.dungeon = (l.dungeon && typeof l.dungeon === "object") ? l.dungeon : {};
 g.hs = (l.hs && typeof l.hs === "object") ? l.hs : {};          // HIGH STAKES (nový režim, starý dungeon se nepřenáší)

@@ -1,389 +1,448 @@
-<script type="text/plain" data-tt="ttbig3" data-i="1">
+<style>
+/* ======================= v9.0 NEW LOOK (styl C) =======================
+Klidnější tmavý vzhled: Space Grotesk, žádné CAPS LOCK nadpisy, ploché panely, jedno velké "hmatatelné" tlačítko.
+Vše je pod html.v9 -> přepínač 🎨 vrátí klasický vzhled. */
+html.v9 {
+--bg-core: #10131c;
+--bg-panel: #161b27;
+--bg-panel-elevated: #1e2433;
+--border-subtle: #262d3d;
+--border-glow: rgba(255, 71, 102, .35);
+--crimson: #ff4766;
+--crimson-glow: none;
+--cyan: #63c5ff;
+--cyan-glow: none;
+--amber: #f5b942;
+--emerald: #4fd39a;
+--text-main: #e8ecf3;
+--text-dim: #8a94a8;
+--text-muted: #5b657a;
+--rarity-t2: #4a8cff;
+--rarity-t6: #2fe6c8;
+--v9-line: #262d3d;
+--v9-hi: #262e40;
+--v9-r: 14px;
+color-scheme: dark;
+}
+html.v9 body, html.v9 body * {
+font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
+letter-spacing: normal !important;
+text-transform: none !important;
+text-shadow: none !important;
+}
+html.v9 body { font-size: 13px; line-height: 1.45; background: var(--bg-core); background-image: none; font-variant-numeric: tabular-nums; }
+html.v9 b, html.v9 strong { font-weight: 700; }
+html.v9 ::selection { background: rgba(255, 71, 102, .35); }
+html.v9 * { scrollbar-color: #2b3345 transparent; }
+/* ---------- horní lišta ---------- */
+html.v9 .top-bar { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 10px 18px; }
+html.v9 .brand-title { font-size: 17px; font-weight: 700; color: var(--text-main); }
+html.v9 .brand-title .v9-acc { color: var(--crimson); font-weight: 600; }
+html.v9 .brand-title { display: flex; align-items: center; white-space: nowrap; }
+html.v9 .brand-title .v9-mark { display: inline-flex; width: 28px; height: 19px; margin-right: 9px; flex: none; }
+html.v9 .brand-title .v9-mark svg { width: 100%; height: 100%; }
+html.v9 .brand-title .v9-acc { margin-left: 5px; }
+html.v9 .user-badge { font-size: 12px; color: var(--text-dim); }
+html.v9 .user-badge strong { font-weight: 600; }
+html.v9 .status-pill { background: rgba(79, 211, 154, .1); border: 0; font-weight: 500; }
+html.v9 .status-dot { box-shadow: none; }
+html.v9 #dg-open-btn, html.v9 .btn-help { padding: 5px 10px; font-size: 12px; }
+/* ---------- panely ---------- */
+html.v9 .main-wrapper { gap: 14px; }
+html.v9 .grid-columns, html.v9 .column { gap: 14px; }
+html.v9 .panel { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 18px; padding: 16px; box-shadow: none; }
+html.v9 .panel-header { font-size: 15px; font-weight: 700; color: var(--text-main); border-bottom: 0; padding-bottom: 0; margin-bottom: 12px; gap: 8px; }
+html.v9 .panel-header > span:not(:first-child), html.v9 .panel-header small { font-size: 12px !important; font-weight: 500; color: var(--text-dim); }
+html.v9 .panel-header #multiplier-badge { color: var(--amber) !important; font-weight: 600; }
+/* ---------- tlačítka ---------- */
+html.v9 .btn { font-size: 12px; font-weight: 600; border-radius: 10px; padding: 8px 12px; background: var(--v9-hi); border: 1px solid transparent; color: var(--text-main); transition: background .15s, transform .08s; }
+html.v9 .btn:hover:not(:disabled) { background: #2d3649; border-color: transparent; box-shadow: none; }
+html.v9 .btn:active:not(:disabled) { transform: translateY(1px); }
+html.v9 .btn:disabled { opacity: .38; }
+html.v9 .btn-cyan { background: rgba(99, 197, 255, .13); color: var(--cyan); border-color: transparent; }
+html.v9 .btn-cyan:hover:not(:disabled) { background: rgba(99, 197, 255, .22); box-shadow: none; }
+html.v9 .btn-crimson { background: rgba(255, 71, 102, .14); color: #ff7088; border-color: transparent; }
+html.v9 .btn-crimson:hover:not(:disabled) { background: rgba(255, 71, 102, .24); box-shadow: none; }
+html.v9 .btn-gold { background: rgba(245, 185, 66, .15); color: var(--amber); border-color: transparent; }
+html.v9 .btn-gold:hover:not(:disabled) { background: rgba(245, 185, 66, .25); }
+html.v9 .btn:focus-visible, html.v9 .casino-tab-btn:focus-visible, html.v9 #m-tabs button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* ---------- hlavní tlačítko RESOLVE ---------- */
+html.v9 .btn-primary-action {
+border: 0; border-radius: 22px; padding: 22px 14px; font-size: 20px; font-weight: 700; color: #fff;
+background: radial-gradient(circle at 50% 30%, #ff6580 0%, #e3304f 55%, #c9213f 100%);
+box-shadow: 0 7px 0 #8c1530, 0 14px 26px rgba(0, 0, 0, .45);
+transition: transform .06s, box-shadow .06s;
+}
+html.v9 .btn-primary-action:hover { transform: translateY(-1px); box-shadow: 0 8px 0 #8c1530, 0 16px 28px rgba(0, 0, 0, .45); }
+html.v9 .btn-primary-action:active, html.v9 .btn-primary-action.pressed { transform: translateY(5px) !important; box-shadow: 0 2px 0 #8c1530, 0 6px 14px rgba(0, 0, 0, .45); }
+html.v9 #btn-click .v9-sub { display: block; font-size: 14px; font-weight: 500; opacity: .85; margin-top: 4px; }
+html.v9 #btn-click .v9-main { display: block; }
+html.v9 .click-btn-wrap { margin: 6px 0 16px; }
+html.v9 #click-ring { left: -6px; top: -6px; width: calc(100% + 12px); height: calc(100% + 12px); }
+html.v9 #click-ring .prg { filter: none; }
+html.v9 #click-ring-pop { font-weight: 700; }
+html.v9 #btn-click.overheated { filter: grayscale(.85) brightness(.6); }
+/* ---------- HUD a statistiky ---------- */
+html.v9 .stat-box { background: transparent; border: 0; padding: 4px 2px; }
+html.v9 .stat-label { font-size: 12px; color: var(--text-dim); }
+html.v9 .stat-val { font-size: 18px; font-weight: 700; }
+html.v9 .heat-row { font-size: 12px; }
+html.v9 .heat-bar, html.v9 .ac-bar, html.v9 .ac-bar-next { background: rgba(0, 0, 0, .35); border: 0; border-radius: 99px; height: 6px; }
+html.v9 .ac-bar-fill { background: var(--amber); }
+html.v9 .buff-row { gap: 6px; }
+html.v9 .buff-chip { font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 99px; background: var(--v9-hi); border: 0; color: var(--text-dim); }
+html.v9 .buff-chip.on { background: rgba(79, 211, 154, .12); color: var(--emerald); }
+html.v9 .buff-chip.lp { background: rgba(245, 185, 66, .12); color: var(--amber); }
+html.v9 .buff-chip.bad { background: rgba(255, 71, 102, .14); color: #ff7088; }
+html.v9 .ac-box { background: var(--bg-panel-elevated); border: 0; border-radius: var(--v9-r); padding: 12px; margin-top: 10px; }
+html.v9 .ac-row { font-size: 13px; font-weight: 600; }
+/* ---------- záložky (segmenty) ---------- */
+html.v9 .tab-row { border-bottom: 0; gap: 4px; padding: 3px; background: rgba(0, 0, 0, .25); border-radius: 12px; }
+html.v9 .casino-tab-btn { font-size: 12px; font-weight: 600; background: transparent; border: 0; border-radius: 9px; color: var(--text-dim); padding: 8px 6px; box-shadow: none; }
+html.v9 .casino-tab-btn:hover { color: var(--text-main); }
+html.v9 .casino-tab-btn.active { background: var(--v9-hi); color: var(--text-main); box-shadow: none; border: 0; }
+html.v9 .casino-tab-btn.glow { color: var(--amber) !important; background: rgba(245, 185, 66, .14); animation: none; }
+/* ---------- formuláře ---------- */
+html.v9 input:not([type=checkbox]):not([type=radio]):not([type=range]), html.v9 select, html.v9 textarea, html.v9 .adv-select {
+background: #0d1018 !important; border: 1px solid var(--v9-line) !important; border-radius: 10px !important; color: var(--text-main) !important; padding: 8px 10px; font-size: 13px;
+}
+html.v9 input:focus, html.v9 select:focus, html.v9 textarea:focus { outline: 2px solid rgba(99, 197, 255, .45); outline-offset: 0; }
+html.v9 input[type=checkbox] { accent-color: var(--crimson); }
+/* ---------- bedna, merge, inventář ---------- */
+html.v9 .chest-box { background: var(--bg-panel-elevated); border: 0; border-radius: var(--v9-r); }
+html.v9 .chest-lvl-tag { font-size: 16px; font-weight: 700; }
+html.v9 .odds-table { gap: 6px; }
+html.v9 .odds-cell { background: var(--bg-panel-elevated); border: 0; border-radius: 12px; padding: 8px 10px; }
+html.v9 .odds-name { font-size: 12px; font-weight: 500; }
+html.v9 .odds-val { font-size: 15px; font-weight: 700; }
+html.v9 .odds-table .odds-t6 { background: rgba(47, 230, 200, .07); }
+html.v9 .merge-card { background: var(--bg-panel-elevated); border-radius: 12px; border-left-width: 3px; padding: 10px 12px; }
+html.v9 .merge-card-title { font-size: 13px; }
+html.v9 .loadout-slot { background: var(--bg-panel-elevated); border: 1px dashed #303a4f; border-radius: 12px; }
+html.v9 .loadout-slot.filled { background: var(--bg-panel-elevated); border: 1px solid transparent; }
+html.v9 .loadout-slot-label { font-size: 11px; }
+html.v9 .backpack-container { background: transparent; border: 0; padding: 0; gap: 8px; }
+html.v9 .item-card { background: var(--bg-panel-elevated); border-radius: 12px; padding: 10px 12px; box-shadow: none; }
+html.v9 .item-name { font-size: 13px; }
+html.v9 .item-stats { font-size: 12px; }
+html.v9 .item-count-badge { background: var(--v9-hi); color: var(--amber); font-weight: 600; }
+html.v9 .item-actions button { padding: 6px 0; font-size: 11px; }
+html.v9 .bp-controls { font-size: 12px; }
+/* ---------- log, chat, žebříček ---------- */
+html.v9 .log-container, html.v9 .chat-container { background: rgba(0, 0, 0, .22) !important; border: 0 !important; border-radius: 12px; font-size: 12px; }
+html.v9 table.lb-table th { font-size: 11px; font-weight: 500; color: var(--text-dim); }
+html.v9 table.lb-table td { border-color: var(--v9-line); }
+html.v9.m table.lb-table { font-size: 12px; table-layout: auto; }
+html.v9.m table.lb-table th, html.v9.m table.lb-table td { padding: 7px 3px; white-space: nowrap; }
+html.v9.m table.lb-table td:nth-child(2) { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+html.v9.m table.lb-table th:first-child, html.v9.m table.lb-table td:first-child { padding-left: 0; }
+html.v9.m .panel:has(> .lb-table), html.v9.m .panel:has(table.lb-table) { overflow-x: auto; }
+/* ---------- modaly ---------- */
+html.v9 .tt-overlay { background: rgba(6, 8, 13, .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+html.v9 .tt-modal { background: var(--bg-panel); border: 1px solid var(--v9-line) !important; border-radius: 20px; padding: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+html.v9 .tt-modal h2 { font-size: 18px; font-weight: 700; color: var(--text-main) !important; }
+html.v9 .tt-modal .tt-body b { color: var(--text-main); }
+html.v9 .cl-box { border: 1px solid var(--v9-line); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+html.v9 .cl-head h2 { font-size: 17px; font-weight: 700; color: var(--text-main); }
+html.v9 .update-banner { background: var(--bg-panel-elevated); border: 0; border-radius: 12px; color: var(--amber); font-weight: 600; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+html.v9 #fx-toggle, html.v9 #ir-logout { border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--bg-panel-elevated); border: 0; }
+/* ---------- mobil ---------- */
+html.v9.m .top-bar { padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 4px calc(14px + env(safe-area-inset-left)); background: var(--bg-core); border-bottom: 0; }
+html.v9.m .brand-title { font-size: 17px; }
+html.v9.m #m-hud { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 6px 14px 12px; gap: 10px; grid-template-columns: auto auto auto auto; justify-content: space-between; }
+html.v9.m #m-hud div { text-align: left; }
+html.v9.m #m-hud div:last-child { text-align: right; }
+html.v9.m #m-hud small { font-size: 11px; font-weight: 500; color: var(--text-dim); }
+html.v9.m #m-hud b { font-size: 17px; font-weight: 700; overflow: visible; text-overflow: clip; }
+/* firemní event: na mobilu tenký pruh pod HUDem (nic nepřekrývá) */
+html.v9.m #mt-event { position: static; transform: none; left: auto; bottom: auto; top: auto; flex: none; max-width: none; width: 100%; border-radius: 0; justify-content: center;
+padding: 6px 14px; font-size: 12px; font-weight: 600; animation: none; box-shadow: none; background: linear-gradient(90deg, rgba(255, 71, 102, .9), rgba(245, 185, 66, .9)); }
+html.v9.m #mt-event small { font-size: 11px; font-weight: 500; }
+html.v9.m .main-wrapper { padding: 14px; gap: 14px; }
+html.v9.m .panel { padding: 14px; border-radius: 18px; }
+html.v9.m [data-tab="play"].panel { background: transparent; border: 0; padding: 0; }
+html.v9.m [data-tab="play"] .panel-header { margin-bottom: 8px; }
+html.v9.m [data-tab="play"] #btn-click { border-radius: 26px; font-size: 26px; }
+html.v9.m [data-tab="play"] #btn-click .v9-sub { font-size: 15px; }
+html.v9.m [data-tab="play"] .click-btn-wrap { margin: 4px 0 18px; }
+html.v9.m #m-tabs { background: var(--bg-panel); border-top: 1px solid var(--v9-line); }
+html.v9.m #m-tabs button { font-size: 11px; font-weight: 500; color: var(--text-dim); border-top: 0; padding: 9px 2px 9px; }
+html.v9.m #m-tabs button span { font-size: 19px; margin-bottom: 3px; filter: grayscale(.55); opacity: .75; transition: filter .15s, opacity .15s; }
+html.v9.m #m-tabs button.active { color: var(--text-main); background: transparent; }
+html.v9.m #m-tabs button.active span { filter: none; opacity: 1; }
+html.v9.m #m-tabs button.active::before { content: ""; position: absolute; top: 1px; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: var(--crimson); }
+html.v9.m #m-tabs button[data-go="fight"] { color: var(--text-dim); }
+html.v9.m #m-tabs button[data-go="fight"].active { color: var(--text-main); }
+html.v9 #m-tabs button::after { box-shadow: none !important; }
+/* ---------- HIGH STAKES ---------- */
+html.v9 #dg-screen { background: var(--bg-core); }
+html.v9 .dg-top { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: calc(10px + env(safe-area-inset-top)) 14px 10px; }
+html.v9 .dg-top h1 { font-size: 18px; font-weight: 700; color: var(--text-main); }
+html.v9 .dg-keys { font-size: 13px; font-weight: 600; }
+html.v9 .dg-tabs { padding: 10px 14px 4px; gap: 4px; }
+html.v9 .dg-tabs .casino-tab-btn { background: var(--bg-panel); }
+html.v9 .dg-tabs .casino-tab-btn.active { background: var(--v9-hi); }
+html.v9 .dg-body { padding: 10px 14px calc(16px + env(safe-area-inset-bottom)); }
+html.v9 .dg-card { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
+html.v9 .dg-h { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
+html.v9 .dg-dim { font-size: 12.5px; line-height: 1.55; }
+html.v9 .dg-dim b { color: var(--text-main); }
+html.v9 .dg-xp, html.v9 .hs-bar, html.v9 .dg-bar { border: 0; background: rgba(0, 0, 0, .4); border-radius: 99px; }
+html.v9 .dg-xp div { background: var(--emerald); }
+html.v9 .hs-ch .btn { border-radius: 12px; padding: 8px 2px; font-size: 12px; }
+html.v9 .hs-ch .btn.sel { box-shadow: none; background: var(--v9-hi); color: var(--text-main); outline: 2px solid var(--amber); outline-offset: -2px; }
+html.v9 .hs-m { background: var(--bg-panel-elevated); border: 1px solid transparent; border-radius: 14px; padding: 10px 12px; }
+html.v9 .hs-m:hover { border-color: #33405a; }
+html.v9 .hs-m.boss { border-color: rgba(255, 71, 102, .35); background: linear-gradient(90deg, rgba(255, 71, 102, .10), var(--bg-panel-elevated) 70%); }
+html.v9 .hs-m.compliance { border-color: rgba(245, 185, 66, .3); }
+html.v9 .hs-m .t b { font-size: 13px; font-weight: 600; }
+html.v9 .hs-stars { color: var(--amber); }
+html.v9 .dg-arena { background: linear-gradient(180deg, #151a26, #121620); border: 1px solid var(--v9-line); border-radius: 18px; }
+html.v9 .dg-name { font-size: 13px; font-weight: 700; }
+html.v9 .dg-vs { font-size: 15px; font-weight: 700; color: var(--text-muted); }
+html.v9 .hs-acts .btn { border-radius: 12px; font-size: 12px; padding: 10px 2px; }
+html.v9 .hs-acts .btn small { font-size: 10px; }
+html.v9 .hs-intent { font-size: 12px; font-weight: 700; border-radius: 99px; }
+html.v9 .hs-lbl { font-size: 10px; font-weight: 600; }
+html.v9 .dg-float { text-shadow: 0 2px 0 rgba(0, 0, 0, .8) !important; font-weight: 700; }
+html.v9 .fx-float { text-shadow: 0 2px 0 rgba(0, 0, 0, .7) !important; font-weight: 700; }
+html.v9 .dg-log { background: rgba(0, 0, 0, .25); border: 0; border-radius: 12px; font-size: 12px; }
+html.v9 .hs-ov { border-radius: 18px; }
+html.v9 .hs-res .big { font-size: 26px; font-weight: 700; }
+html.v9 .hs-stat { font-size: 13px; }
+html.v9 .hs-stat b { font-size: 12px; font-weight: 700; }
+html.v9 .hs-coach { border-radius: 14px; }
+html.v9 .tw-grid div { border-radius: 6px; font-size: 10px; font-weight: 600; }
+html.v9 .sh-choice { border-radius: 14px; background: var(--bg-panel-elevated); }
+html.v9 .cl-name { font-size: 17px; font-weight: 700; }
+html.v9 .cl-slot, html.v9 .cl-boss { border-radius: 12px; }
+html.v9 .dg-class { border-radius: 16px; }
+html.v9 .dg-stances button.sel { box-shadow: 0 0 0 2px var(--amber) inset; }
+html.v9 .hs-reel.held::after { content: "Hold"; font-size: 10px; font-weight: 700; }
+html.v9 .bet-grid.cool::after { font-size: 14px; font-weight: 700; }
+html.v9 #ir-login { background: var(--bg-core); }
+html.v9 .ir-card { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .45); }
+html.v9 .ir-title { color: var(--text-main); font-size: 24px; font-weight: 700; }
+html.v9 .ir-card label { font-size: 12px; font-weight: 600; }
+html.v9 .mt-toast { background: var(--bg-panel-elevated); border: 1px solid rgba(245, 185, 66, .45); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); border-radius: 16px; }
+html.v9 .mt-toast b { color: var(--amber); font-size: 12px; font-weight: 700; }
+/* mobil: horní lišta jen s ikonami */
+html.v9.m .user-badge > span { display: none !important; }
+html.v9.m .user-badge { gap: 6px; }
+html.v9.m .user-badge .btn-help { padding: 6px 9px; font-size: 13px; border-radius: 10px; }
+html.v9.m .user-badge .btn-help:not(#cl-btn):not(#th-btn):not(#m-compact) { font-size: 0; }
+html.v9.m .user-badge .btn-help:not(#cl-btn):not(#th-btn):not(#m-compact)::before { content: "?"; font-size: 14px; font-weight: 700; }
+/* HIGH STAKES: lišta a záložky na mobilu */
+html.v9 .dg-top .btn { white-space: nowrap; }
+html.v9 .dg-top h1 { min-width: 0; }
+html.v9 #dg-tokbtn { white-space: nowrap; font-size: 11px !important; }
+html.v9.m .dg-top h1 { font-size: 16px; }
+html.v9.m .dg-keys { font-size: 12px; }
+html.v9.m .dg-kstar, html.v9.m .dg-back-t, html.v9.m .dg-hic { display: none; }
+html.v9.m .dg-top > .btn:first-child { padding: 7px 12px; font-size: 14px; }
+html.v9.m #m-settings .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+html.v9.m #m-settings .btn { padding: 12px 8px; font-size: 13px; }
+html.v9.m .dg-top { gap: 8px; }
+/* v9.6: záložky High Stakes se zalamují do řádků (dřív na úzkém okně / compact UI část zmizela za okrajem) */
+html.v9 .dg-tabs { flex-wrap: wrap; }
+html.v9 .dg-tabs button { flex: 1 1 96px !important; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.v9.m .dg-tabs { padding-bottom: 6px; }
+html.v9.m .dg-tabs button { flex: 1 1 22% !important; padding: 8px 4px; font-size: 12px !important; }
+@media (max-width: 1000px) { html.v9:not(.m) .top-bar { align-items: flex-start; } }
+</style>
+<script>
 (function () {
 "use strict";
-const W = 400, H = 280;
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const ENVS = [
-{ n: "Garage", i: "🏚", wall: "#3b4049", side: "#2d3139", floor: "#4a4f57", floor2: "#41454c", ceil: "#23262c", trim: "#2a2d33" },
-{ n: "Basement", i: "🧱", wall: "#4a3a33", side: "#3a2d28", floor: "#4b3a2c", floor2: "#433427", ceil: "#2a201c", trim: "#2e231e" },
-{ n: "Coworking space", i: "☕", wall: "#45556a", side: "#37455a", floor: "#6b5641", floor2: "#5f4c39", ceil: "#2b3442", trim: "#2c3644" },
-{ n: "Open space", i: "🏢", wall: "#3d4b60", side: "#313d4f", floor: "#39465a", floor2: "#334052", ceil: "#232c39", trim: "#27303d" },
-{ n: "Skyscraper floor", i: "🌆", wall: "#25324a", side: "#1f2a3e", floor: "#2f3747", floor2: "#2a3140", ceil: "#171e2b", trim: "#1b2230" },
-{ n: "Penthouse", i: "🥂", wall: "#3d3029", side: "#30251f", floor: "#a39c93", floor2: "#958e85", ceil: "#241c18", trim: "#c9a227" },
-{ n: "Data center", i: "🗄", wall: "#18212e", side: "#141b26", floor: "#263040", floor2: "#212a38", ceil: "#0f141c", trim: "#1d4ed8" },
-{ n: "Spaceport", i: "🚀", wall: "#2d3140", side: "#242734", floor: "#3a3f4f", floor2: "#343947", ceil: "#1b1e27", trim: "#f97316" },
-{ n: "Space station", i: "🛰", wall: "#1d2436", side: "#171d2c", floor: "#2b3346", floor2: "#262d3f", ceil: "#11151f", trim: "#2fe6c8" }
+var KEY = "ir_theme";
+var root = document.documentElement;
+function classic() { try { return localStorage.getItem(KEY) === "classic"; } catch (e) { return false; } }
+var KEEP = {};
+("GC LP XP HP ATK STA CPS LV OS HUD CPU ID AI LLM IT SME EMEA APAC PVP QA FX OK UI PC CEO CTO HR MK II III IV VI VII VIII IX ASC RNG NPC USB VIP KPI AFK DPS GG LOL OMG ASAP SQL PDF API URL FAQ EU CZ USD EUR BJ TT T1 T2 T3 T4 T5 T6 RIP DM HQ AM PM GO").split(" ").forEach(function (k) { KEEP[k] = 1; });
+var PHRASES = [
+["high stakes", "High Stakes"], ["office royale", "Office Royale"], ["idle royale", "Idle Royale"], ["casino royale", "Casino Royale"], ["hall of fame", "Hall of Fame"],
+["the office plant", "the Office Plant"], ["office plant", "Office Plant"], ["clear the pool", "Clear the Pool"], ["server tower", "Server Tower"],
+["quarterly review", "Quarterly Review"], ["on-call shift", "On-Call Shift"], ["the administrator", "the Administrator"], ["google coins", "Google Coins"],
+["slot token", "Slot Token"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
+["big massi", "Big Massi"], ["da polishen", "Da Polishen"], ["italian guy", "Italian Guy"], ["supreme louis", "Supreme Louis"], ["the cobol", "The Cobol"],
+["company chest", "Company Chest"], ["upgrade station", "Upgrade Station"], ["merge station", "Merge Station"], ["corporate climb", "Corporate Climb"]
 ];
-const ENV_OF = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8];
-const REVEAL = [
-null,
-["You moved to the Basement!", "Your first real desk and an office chair."],
-["Basement upgrade!", "A second monitor, a desk lamp and a rug."],
-["You moved to a Coworking space!", "A rented desk and a coffee machine."],
-["Coworking upgrade!", "A comfier couch and a bigger TV."],
-["You moved to an Open space office!", "A real roulette table and a locker."],
-["Open space upgrade!", "A standing desk, plants and a window."],
-["You moved to a Skyscraper floor!", "Glass walls and a view of the city."],
-["Skyscraper upgrade!", "Leather armchairs and a giant TV."],
-["You moved to the Penthouse!", "A golden roulette and marble floors."],
-["Penthouse upgrade!", "A hot tub and a neon sign."],
-["You moved to a Data center!", "Server racks and blue lights."],
-["Data center upgrade!", "An RGB gaming setup with water cooling."],
-["You moved to the Spaceport!", "There's a rocket outside the window."],
-["Spaceport upgrade!", "Your own spacesuit. The countdown has started..."],
-["You moved to a Space station!", "A holo desk and zero-g roulette."]
-];
-const NEW_ITEM = { 1: "desk", 2: "desk", 3: "desk", 4: "tv", 5: "roul", 6: "desk", 7: "desk", 8: "tv", 9: "roul", 10: "deco", 11: "deco", 12: "desk", 13: "deco", 14: "closet", 15: "desk" };
-function tierOf(p) { return Math.max(0, Math.min(15, p | 0)); }
-function bg(T, P) {
-const E = ENVS[ENV_OF[T]], e = ENV_OF[T];
-let s = `<svg class="rm-bg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`;
-s += `<defs><linearGradient id="rmFl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${E.floor2}"/><stop offset="1" stop-color="${E.floor}"/></linearGradient>
-<linearGradient id="rmSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${e === 7 ? "#f59e0b" : "#0b1630"}"/><stop offset="1" stop-color="${e === 7 ? "#7c2d12" : "#1d2b4f"}"/></linearGradient>
-<radialGradient id="rmVig" cx=".5" cy=".55" r=".8"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient></defs>`;
-s += `<rect width="${W}" height="${H}" fill="${E.ceil}"/>`;
-s += `<polygon points="0,0 400,0 360,18 40,18" fill="${E.ceil}"/>`;
-s += `<rect x="40" y="18" width="320" height="102" fill="${E.wall}"/>`;
-s += `<polygon points="0,0 40,18 40,120 0,280" fill="${E.side}"/><polygon points="400,0 360,18 360,120 400,280" fill="${E.side}"/>`;
-s += `<polygon points="40,120 360,120 400,280 0,280" fill="url(#rmFl)"/>`;
-if (e === 0) s += `<ellipse cx="170" cy="230" rx="28" ry="7" fill="#2b2e33" opacity=".5"/><ellipse cx="300" cy="170" rx="14" ry="4" fill="#2b2e33" opacity=".4"/><path d="M40 180 L360 180" stroke="#3a3e45" stroke-width="1" opacity=".5"/>`;
-else if (e === 1 || e === 2) for (let i = 1; i < 10; i++) { const xb = 40 + i * 32, xf = i * 40; s += `<path d="M${xb} 120 L${xf} 280" stroke="#000" stroke-width="1" opacity=".18"/>`; }
-else if (e === 5) { for (let i = 1; i < 8; i++) { const xb = 40 + i * 40, xf = i * 50; s += `<path d="M${xb} 120 L${xf} 280" stroke="#fff" stroke-width=".8" opacity=".25"/>`; } [150, 185, 225].forEach(y => { s += `<path d="M0 ${y} L400 ${y}" stroke="#fff" stroke-width=".8" opacity=".2"/>`; }); }
-else if (e === 6 || e === 8) { for (let i = 1; i < 8; i++) { const xb = 40 + i * 40, xf = i * 50; s += `<path d="M${xb} 120 L${xf} 280" stroke="#000" stroke-width="1" opacity=".3"/>`; } [145, 175, 215, 260].forEach(y => { s += `<path d="M0 ${y} L400 ${y}" stroke="#000" stroke-width="1" opacity=".3"/>`; }); }
-else s += `<rect x="0" y="120" width="400" height="160" fill="#000" opacity=".06"/>`;
-if (T >= 2 && e < 6) s += `<ellipse cx="292" cy="222" rx="70" ry="22" fill="${e === 5 ? "#7f1d1d" : e >= 3 ? "#2f5d8a" : "#8a3d2f"}" opacity=".55"/>`;
-if (e === 0) { s += `<rect x="150" y="28" width="110" height="88" rx="2" fill="#4a5059"/>`; for (let i = 0; i < 8; i++) s += `<rect x="150" y="${30 + i * 11}" width="110" height="2" fill="#2f343b"/>`; s += `<rect x="198" y="105" width="14" height="4" rx="1" fill="#2f343b"/>`; }
-if (e === 1) { for (let r = 0; r < 9; r++) for (let c = 0; c < 11; c++) s += `<rect x="${42 + c * 29 + (r % 2) * 14}" y="${20 + r * 11}" width="26" height="9" rx="1" fill="#000" opacity=".12"/>`; s += `<rect x="172" y="24" width="56" height="16" rx="2" fill="#7fa6c9" opacity=".6"/><path d="M200 24 v16" stroke="${E.wall}" stroke-width="2"/>`; }
-if (e === 2) { s += `<rect x="232" y="28" width="38" height="46" rx="2" fill="#f5b942" opacity=".85"/><text x="251" y="57" text-anchor="middle" font-size="9" font-weight="700" fill="#45556a" font-family="Space Grotesk,sans-serif">HUSTLE</text>`; }
-if (e === 3 && T >= 6 || e === 2) s += `<rect x="58" y="28" width="${e === 2 ? 0 : 60}" height="44" rx="2" fill="#9cc6e8" opacity=".55"/>`;
-if (e === 3 && T >= 6) s += `<path d="M88 28 v44 M58 50 h60" stroke="${E.wall}" stroke-width="2"/>`;
-if (e === 4) { s += `<rect x="44" y="22" width="312" height="94" fill="#0e1830"/>`; for (let i = 0; i < 16; i++) { const x = 46 + i * 20, h = 26 + ((i * 37) % 50); s += `<rect x="${x}" y="${116 - h}" width="16" height="${h}" fill="#1b2944"/>`; for (let k = 0; k < h / 9 - 1; k++) s += (i + k) % 3 ? `<rect x="${x + 3 + (k % 2) * 6}" y="${118 - h + k * 9}" width="3" height="3" fill="#f5b942" opacity=".55"/>` : ""; } for (let i = 1; i < 4; i++) s += `<path d="M${40 + i * 80} 18 v102" stroke="#3a4a66" stroke-width="2"/>`; }
-if (e === 5) { s += `<rect x="44" y="24" width="312" height="92" fill="#1a1530" opacity=".5"/>`; s += `<path d="M200 18 v10" stroke="#c9a227" stroke-width="1.5"/><path d="M186 34 Q200 26 214 34 L210 38 Q200 33 190 38Z" fill="#f5c542"/><circle cx="200" cy="40" r="3" fill="#fff6c2"/>`; if (T >= 10) s += `<text x="300" y="44" text-anchor="middle" font-size="13" font-weight="700" fill="#ff4dff" style="font-family:Space Grotesk,sans-serif;filter:drop-shadow(0 0 3px #ff4dff)">OFFICE</text><text x="300" y="58" text-anchor="middle" font-size="13" font-weight="700" fill="#63c5ff" style="font-family:Space Grotesk,sans-serif;filter:drop-shadow(0 0 3px #63c5ff)">ROYALE</text>`; }
-if (e === 6) { [52, 330].forEach(x => { s += `<rect x="${x}" y="26" width="22" height="92" rx="1" fill="#0f141c" stroke="#26324a"/>`; for (let k = 0; k < 9; k++) s += `<rect x="${x + 3}" y="${30 + k * 10}" width="16" height="6" fill="#1a2232"/><circle class="rm-led" style="animation-delay:${(k * .17).toFixed(2)}s" cx="${x + 16}" cy="${33 + k * 10}" r="1" fill="${k % 3 ? "#22c55e" : "#3b82f6"}"/>`; }); s += `<rect x="40" y="18" width="320" height="4" fill="#1d4ed8" opacity=".6"/>`; if (T >= 12) s += `<path d="M40 120 L360 120" stroke="#ff4dff" stroke-width="2" opacity=".8"/><path d="M0 280 L40 120 M400 280 L360 120" stroke="#63c5ff" stroke-width="2" opacity=".7"/>`; }
-if (e === 7) { s += `<rect x="150" y="24" width="160" height="90" rx="4" fill="url(#rmSky)"/><path d="M150 100 h160 v14 h-160z" fill="#3f2a1d"/><g transform="translate(232 40)"><path d="M0 0 Q8 12 8 36 L-8 36 Q-8 12 0 0Z" fill="#e5e7eb"/><path d="M-8 36 l-6 10 h6z M8 36 l6 10 h-6z" fill="#dc2626"/><circle cx="0" cy="18" r="3" fill="#63c5ff"/>${T >= 14 ? `<path d="M-5 46 q5 12 10 0" fill="#f97316" opacity=".8"/>` : ""}</g><rect x="252" y="64" width="6" height="40" fill="#6b7280"/>`; if (T >= 14) s += `<rect x="72" y="34" width="54" height="24" rx="3" fill="#0b0f16" stroke="#f97316"/><text x="99" y="51" text-anchor="middle" font-size="12" font-weight="700" fill="#f97316" style="font-family:Space Grotesk,sans-serif">T-10</text>`; }
-if (e === 8) { s += `<rect x="120" y="24" width="190" height="88" rx="40" fill="#050812" stroke="#3a4a66" stroke-width="3"/>`; for (let i = 0; i < 26; i++) s += `<circle cx="${132 + (i * 53) % 170}" cy="${32 + (i * 29) % 74}" r="${i % 4 ? .8 : 1.4}" fill="#fff" opacity=".8"/>`; s += `<circle cx="168" cy="80" r="18" fill="#3b82f6"/><path d="M152 76 q10 -6 22 2 q6 6 10 2" stroke="#22c55e" stroke-width="5" fill="none" opacity=".8"/>`; const extra = Math.max(0, Math.min(8, (P | 0) - 15)); for (let i = 0; i < extra; i++) { const cx = 220 + (i * 31) % 80, cy = 40 + (i * 23) % 56, c = ["#f59e0b", "#a855f7", "#ef4444", "#22c55e", "#e5e7eb", "#f472b6", "#2fe6c8", "#facc15"][i]; s += `<circle cx="${cx}" cy="${cy}" r="${5 + (i % 3) * 2}" fill="${c}"/>`; } s += `<path d="M40 40 h70 M310 40 h50 M40 100 h70 M310 100 h50" stroke="#2c3650" stroke-width="2"/>`; }
-if (e <= 1) s += `<path d="M200 0 v14" stroke="#111" stroke-width="1"/><circle cx="200" cy="17" r="4" fill="#fff6c2"/><circle cx="200" cy="17" r="20" fill="#fff6c2" opacity=".08"/>`;
-else if (e !== 5) s += `<rect x="150" y="4" width="100" height="5" rx="2" fill="#e8ecf3" opacity=".35"/>`;
-s += `<rect x="40" y="117" width="320" height="3" fill="${E.trim}" opacity=".8"/>`;
-s += `<rect width="${W}" height="${H}" fill="url(#rmVig)"/></svg>`;
-return s;
+var UP = /\p{Lu}{3}/u, LOW = /\p{Ll}/u, UNIT = /\d\p{Ll}{1,2}\b/gu, WORD = /[\p{L}\d][\p{L}\d.'’]*/gu, FIRST = /^[^\p{L}\d]*\p{L}/u;
+function hasLow(s) { return LOW.test(s.replace(UNIT, "")); }       // "+1s", "45m" nejsou malá písmena věty
+function conv(s, mid) {
+if (!s || s.length < 3 || !UP.test(s) || hasLow(s)) return s;
+var out = s.replace(WORD, function (w) {
+var core = w.replace(/[.'’]+$/, "");
+if (/\d/.test(core) || core.length === 1 || KEEP[core] || KEEP[core.replace(/\./g, "")]) return w;
+if (/^MK\./.test(core)) return w;
+return w.toLowerCase();
+});
+for (var i = 0; i < PHRASES.length; i++) {
+var p = PHRASES[i][0], k = out.indexOf(p);
+while (k >= 0) {
+var a = k === 0 ? "" : out.charAt(k - 1), z = out.charAt(k + p.length);
+if (!/[\p{L}]/u.test(a) && !/[\p{L}]/u.test(z)) out = out.slice(0, k) + PHRASES[i][1] + out.slice(k + p.length);
+k = out.indexOf(p, k + 1);
 }
-const LOGO = (x, y, k) => `<g transform="translate(${x} ${y}) scale(${k})"><rect x="-14" y="-9.5" width="28" height="19" rx="2.5" fill="#efe9dc"/><path d="M-8 3 L-7 -3 L-4.5 0 L-3 -5 L-1.5 0 L1 -3 L2 3Z" fill="#ff4766"/><rect x="-8" y="4" width="10" height="1.6" fill="#ff4766"/><path d="M7.5 -7 v14" stroke="#b9b1a0" stroke-width=".8" stroke-dasharray="1 1.2"/></g>`;
-function monitor(x, y, kind, w) {
-w = w || 26;
-if (kind === "crt") return `<rect x="${x - 15}" y="${y - 24}" width="30" height="24" rx="3" fill="#d6cfb8"/><rect x="${x - 11}" y="${y - 21}" width="22" height="16" rx="2" fill="#1e3a5f"/><path d="M${x - 8} ${y - 17} h12 M${x - 8} ${y - 13} h9 M${x - 8} ${y - 9} h14" stroke="#63c5ff" stroke-width="1.2" opacity=".8"/>`;
-if (kind === "laptop") return `<path d="M${x - 13} ${y - 1} L${x - 11} ${y - 18} h22 L${x + 13} ${y - 1}Z" fill="#9ca3af"/><rect x="${x - 10}" y="${y - 17}" width="20" height="13" fill="#1e3a5f"/><path d="M${x - 7} ${y - 13} h10 M${x - 7} ${y - 9} h13" stroke="#63c5ff" stroke-width="1.1" opacity=".8"/><rect x="${x - 16}" y="${y - 1}" width="32" height="2.5" rx="1" fill="#6b7280"/>`;
-if (kind === "holo") return `<g class="rm-float"><path d="M${x - w / 2} ${y - 30} h${w} l4 22 h${-w - 8}z" fill="#2fe6c8" opacity=".25" stroke="#2fe6c8"/><path d="M${x - 8} ${y - 24} h14 M${x - 8} ${y - 19} h10 M${x - 8} ${y - 14} h16" stroke="#2fe6c8" stroke-width="1.2"/></g>`;
-const curved = kind === "curved";
-return `<rect x="${x - 2}" y="${y - 8}" width="4" height="8" fill="#374151"/><rect x="${x - 8}" y="${y - 1}" width="16" height="2" rx="1" fill="#374151"/><rect x="${x - w / 2}" y="${y - 26}" width="${w}" height="${curved ? 20 : 18}" rx="${curved ? 6 : 1.5}" fill="#111827"/><rect x="${x - w / 2 + 2}" y="${y - 24}" width="${w - 4}" height="${curved ? 16 : 14}" rx="${curved ? 5 : 1}" fill="#1e3a5f"/><path d="M${x - w / 2 + 5} ${y - 20} h${w * .45} M${x - w / 2 + 5} ${y - 16} h${w * .3} M${x - w / 2 + 5} ${y - 12} h${w * .5}" stroke="#63c5ff" stroke-width="1.1" opacity=".8"/>`;
 }
-function chair(x, y, T) {
-if (T === 0) return `<rect x="${x - 9}" y="${y - 14}" width="18" height="14" fill="#a8743e"/><path d="M${x - 9} ${y - 7} h18" stroke="#7a5228"/>`;
-const c = T >= 15 ? "#e2e8f0" : T >= 11 ? "#111827" : T >= 8 ? "#4a2c1d" : "#1f2937", a = T >= 11 && T < 15 ? "#ff4766" : c;
-return `<rect x="${x - 2}" y="${y - 10}" width="4" height="10" fill="#4b5563"/><path d="M${x - 9} ${y} h18" stroke="#4b5563" stroke-width="2"/><rect x="${x - 10}" y="${y - 16}" width="20" height="6" rx="2" fill="${c}"/><rect x="${x + 4}" y="${y - 36}" width="7" height="22" rx="3" fill="${c}"/><rect x="${x + 5}" y="${y - 34}" width="2" height="16" fill="${a}" opacity=".9"/>`;
-}
-function desk(T) {
-const w = 104, h = 72; let s = "";
-const st = T >= 15 ? { top: "#e2e8f0", fr: "#2fe6c8", leg: "float" } : T >= 13 ? { top: "#f1f5f9", fr: "#cbd5e1", leg: "post" } : T >= 11 ? { top: "#1f2937", fr: "#111827", leg: "post" } : T >= 9 ? { top: "#3b2416", fr: "#2a1a10", leg: "gold" } : T >= 7 ? { top: "#a5d8ff", fr: "#7fb2d9", leg: "post", glass: true } : T >= 5 ? { top: "#9aa5b4", fr: "#6b7280", leg: T >= 6 ? "tall" : "drawers" } : T >= 3 ? { top: "#f1f5f9", fr: "#cbd5e1", leg: "post" } : T >= 1 ? { top: "#8b5a2b", fr: "#6b4423", leg: "drawers" } : { top: "#b8bcc4", fr: "#8b9099", leg: "x" };
-const topY = st.leg === "tall" ? 26 : 34;
-if (st.leg === "x") s += `<path d="M14 ${topY + 4} L36 70 M36 ${topY + 4} L14 70 M66 ${topY + 4} L88 70 M88 ${topY + 4} L66 70" stroke="#6b7280" stroke-width="2.5"/>`;
-else if (st.leg === "drawers") s += `<rect x="10" y="${topY + 4}" width="26" height="${66 - topY}" fill="${st.fr}"/><path d="M14 ${topY + 18} h18 M14 ${topY + 30} h18" stroke="#000" opacity=".25"/><rect x="84" y="${topY + 4}" width="5" height="${66 - topY}" fill="${st.fr}"/>`;
-else if (st.leg === "gold") s += `<rect x="10" y="${topY + 4}" width="84" height="${62 - topY}" fill="${st.fr}"/><rect x="10" y="${topY + 4}" width="84" height="3" fill="#c9a227"/><circle cx="52" cy="${topY + 18}" r="3" fill="#c9a227"/>`;
-else if (st.leg === "float") s += `<ellipse cx="52" cy="68" rx="34" ry="3" fill="#2fe6c8" opacity=".3"/>`;
-else s += `<rect x="14" y="${topY + 4}" width="4" height="${66 - topY}" fill="#4b5563"/><rect x="86" y="${topY + 4}" width="4" height="${66 - topY}" fill="#4b5563"/>`;
-s += `<path d="M6 ${topY} L98 ${topY} L94 ${topY - 6} L10 ${topY - 6} Z" fill="${st.top}" ${st.glass ? 'opacity=".75"' : ""}/><rect x="6" y="${topY}" width="92" height="4" fill="${st.fr}" ${st.glass ? 'opacity=".8"' : ""}/>`;
-if (st.leg === "float") s += `<rect x="6" y="${topY + 3}" width="92" height="1.5" fill="#2fe6c8"/>`;
-const my = topY - 4;
-if (T === 0) s += monitor(36, my, "crt");
-else if (T >= 15) s += monitor(40, my, "holo", 34);
-else if (T >= 13) s += monitor(42, my, "curved", 40);
-else if (T >= 11) { s += monitor(26, my, "flat", 22) + monitor(48, my, "flat", 24) + monitor(70, my, "flat", 22); s += `<path d="M10 ${topY + 1} h84" stroke="#ff4dff" stroke-width="1.2" opacity=".9"/>`; if (T >= 12) s += `<rect x="86" y="${topY - 18}" width="8" height="14" rx="2" fill="#0b0f16" stroke="#63c5ff"/><path d="M90 ${topY - 16} v10" stroke="#63c5ff" stroke-width="2" class="rm-led"/>`; }
-else if (T >= 3 && T < 5) s += monitor(40, my, "laptop");
-else if (T >= 2) s += monitor(32, my, "flat", 24) + monitor(56, my, "flat", 24);
-else s += monitor(40, my, "flat", 28);
-if (T >= 2 && T < 5) s += `<path d="M84 ${topY - 6} L84 ${topY - 20} L76 ${topY - 26}" stroke="#374151" stroke-width="1.6" fill="none"/><path d="M70 ${topY - 26} L82 ${topY - 30} L84 ${topY - 22} Z" fill="#f5b942"/>`;
-s += `<rect x="30" y="${topY - 3}" width="22" height="3" rx="1" fill="#374151"/>`;
-if (T === 0) s += `<rect x="70" y="${topY - 5}" width="14" height="5" fill="#d6a15a"/><text x="77" y="${topY - 1.2}" text-anchor="middle" font-size="3.5" fill="#7a1f1f" font-weight="700">PIZZA</text>`;
-else s += `<rect x="74" y="${topY - 6}" width="6" height="6" rx="1" fill="${T >= 9 ? "#c9a227" : "#e5e7eb"}"/>`;
-s += chair(94, 70, T);
-return { w: w, h: h, svg: s };
-}
-function tvSet(T) {
-const w = 96, h = 96; let s = "";
-const big = T >= 8 ? 1.35 : T >= 4 ? 1.12 : 1;
-if (T === 0) s += `<rect x="28" y="62" width="40" height="32" fill="#a8743e"/><path d="M28 72 h40 M28 82 h40" stroke="#7a5228"/>`;
-else s += `<rect x="12" y="70" width="72" height="24" rx="2" fill="${T >= 15 ? "#e2e8f0" : T >= 11 ? "#111827" : T >= 9 ? "#2a1a10" : "#374151"}"/><path d="M48 70 v24" stroke="#000" opacity=".3"/>${T >= 11 && T < 15 ? `<path d="M12 70 h72" stroke="#ff4dff" stroke-width="1.4"/>` : ""}`;
-s += T >= 15 ? `<rect x="54" y="62" width="20" height="6" rx="3" fill="#f8fafc" stroke="#2fe6c8"/>` : T >= 5 ? `<rect x="56" y="63" width="20" height="7" rx="2" fill="#111827"/><circle cx="72" cy="66.5" r="1.2" fill="#22c55e" class="rm-led"/>` : `<rect x="54" y="${T === 0 ? 55 : 63}" width="18" height="7" rx="1" fill="#9ca3af"/><rect x="57" y="${T === 0 ? 57 : 65}" width="6" height="2" fill="#4b5563"/>`;
-if (T === 0) s += `<rect x="18" y="20" width="44" height="36" rx="5" fill="#3f3a36"/><rect x="22" y="24" width="32" height="27" rx="6" fill="#0b1220"/><g class="rm-tv-logo">${LOGO(38, 37, .85)}</g><circle cx="58" cy="30" r="1.5" fill="#9ca3af"/><circle cx="58" cy="36" r="1.5" fill="#9ca3af"/>`;
-else if (T >= 15) s += `<g class="rm-float"><path d="M14 10 h68 l-4 44 h-60z" fill="#2fe6c8" opacity=".18" stroke="#2fe6c8"/><g class="rm-tv-logo">${LOGO(48, 30, 1.25)}</g><text x="48" y="50" text-anchor="middle" font-size="6" font-weight="700" fill="#2fe6c8" font-family="Space Grotesk,sans-serif">OFFICE ROYALE</text></g>`;
-else { const tw = 60 * big, th = 38 * big, tx = 48 - tw / 2, ty = 64 - th - 6; s += `<rect x="${tx}" y="${ty}" width="${tw}" height="${th}" rx="2" fill="#0b0b0f" ${T >= 11 ? 'stroke="#ff4dff" stroke-width="1.5"' : ""}/><rect x="${tx + 2.5}" y="${ty + 2.5}" width="${tw - 5}" height="${th - 5}" fill="#141a2b"/><g class="rm-tv-logo">${LOGO(48, ty + th / 2 - 3, big)}<text x="48" y="${ty + th - 6}" text-anchor="middle" font-size="${5 * big}" font-weight="700" fill="#e8ecf3" font-family="Space Grotesk,sans-serif">OFFICE <tspan fill="#ff4766">ROYALE</tspan></text></g>${T < 8 ? `<rect x="44" y="${ty + th}" width="8" height="${64 - ty - th}" fill="#374151"/>` : ""}`; }
-return { w: w, h: h, svg: s };
-}
-function couch(T) {
-const w = 118, h = 48; const c = T >= 15 ? "#e2e8f0" : T >= 8 ? "#5b3221" : T >= 4 ? "#64748b" : "#8b5e3c", d = T >= 15 ? "#cbd5e1" : T >= 8 ? "#3f2216" : T >= 4 ? "#475569" : "#6b4429";
-let s = T >= 15 ? `<ellipse cx="59" cy="46" rx="46" ry="3" fill="#2fe6c8" opacity=".35"/>` : `<rect x="12" y="38" width="5" height="9" fill="#2b2b2b"/><rect x="101" y="38" width="5" height="9" fill="#2b2b2b"/>`;
-s += `<g ${T >= 15 ? 'class="rm-float"' : ""}><rect x="4" y="14" width="18" height="28" rx="7" fill="${d}"/><rect x="96" y="14" width="18" height="28" rx="7" fill="${d}"/><rect x="14" y="8" width="90" height="34" rx="9" fill="${c}"/>`;
-if (T >= 8 && T < 15) for (let i = 0; i < 4; i++) s += `<circle cx="${30 + i * 20}" cy="22" r="1.4" fill="${d}"/>`;
-if (T === 0) s += `<rect x="70" y="16" width="14" height="10" rx="1" fill="#a8743e" transform="rotate(8 77 21)"/><path d="M71 18 l12 6 M73 25 l9 -6" stroke="#6b4429" stroke-width=".8"/>`;
-s += `</g>`;
-return { w: w, h: h, svg: s };
-}
-function roulette(T) {
-const w = 80, h = 56; let s = "";
-if (T === 0) return { w: w, h: h, svg: `<rect x="18" y="26" width="44" height="28" fill="#a8743e"/><path d="M18 36 h44 M18 46 h44" stroke="#7a5228"/><rect x="26" y="16" width="11" height="11" rx="2" fill="#f8fafc" transform="rotate(-12 31 21)"/><circle cx="29" cy="20" r="1.2" fill="#111"/><circle cx="33" cy="23" r="1.2" fill="#111"/><rect x="42" y="18" width="10" height="10" rx="2" fill="#ff4766" transform="rotate(14 47 23)"/><circle cx="47" cy="23" r="1.3" fill="#fff"/>` };
-if (T < 5) return { w: w, h: h, svg: `<rect x="16" y="32" width="4" height="22" fill="#374151"/><rect x="60" y="32" width="4" height="22" fill="#374151"/><ellipse cx="40" cy="30" rx="34" ry="11" fill="#1f6f43" stroke="#7a5228" stroke-width="3"/><rect x="26" y="25" width="9" height="12" rx="1" fill="#f8fafc" transform="rotate(-10 30 31)"/><rect x="38" y="24" width="9" height="12" rx="1" fill="#f8fafc" transform="rotate(8 42 30)"/><text x="42.5" y="33" text-anchor="middle" font-size="6" fill="#dc2626">♥</text><circle cx="56" cy="31" r="3" fill="#f5b942"/><circle cx="56" cy="29" r="3" fill="#ff4766"/>` };
-const gold = T >= 9, fl = T >= 15, rim = gold ? "#c9a227" : "#6b4423";
-if (!fl) s += `<rect x="14" y="32" width="4" height="22" fill="${gold ? "#c9a227" : "#374151"}"/><rect x="62" y="32" width="4" height="22" fill="${gold ? "#c9a227" : "#374151"}"/>`;
-else s += `<ellipse cx="40" cy="53" rx="26" ry="3" fill="#2fe6c8" opacity=".35"/>`;
-s += `<g ${fl ? 'class="rm-float"' : ""}><ellipse cx="40" cy="30" rx="38" ry="12" fill="${fl ? "#0f2f2b" : "#1f6f43"}" stroke="${fl ? "#2fe6c8" : rim}" stroke-width="3"/><ellipse cx="28" cy="28" rx="11" ry="5" fill="${rim}"/><ellipse cx="28" cy="27.5" rx="8" ry="3.4" fill="#111"/>`;
-for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; s += `<path d="M28 27.5 L${(28 + Math.cos(a) * 8).toFixed(1)} ${(27.5 + Math.sin(a) * 3.4).toFixed(1)}" stroke="${i % 2 ? "#dc2626" : "#111"}" stroke-width="1.6"/>`; }
-s += `<circle cx="28" cy="27.5" r="1.4" fill="${rim}"/><rect x="44" y="24" width="24" height="10" rx="1" fill="none" stroke="#e5e7eb" stroke-width=".6" opacity=".7"/><path d="M50 24 v10 M56 24 v10 M62 24 v10" stroke="#e5e7eb" stroke-width=".5" opacity=".6"/></g>`;
-return { w: w, h: h, svg: s };
-}
-function closet(T) {
-const w = 60, h = 120; let s = "";
-if (T === 0) return { w: w, h: h, svg: `<rect x="6" y="70" width="46" height="48" fill="#c8955a"/><rect x="12" y="34" width="38" height="36" fill="#b98447"/><rect x="18" y="6" width="30" height="28" fill="#c8955a"/><path d="M6 94 h46 M12 52 h38 M18 20 h30" stroke="#e9d3a6" stroke-width="3"/><text x="29" y="88" text-anchor="middle" font-size="7" fill="#7a5228" font-weight="700">GEAR</text>` };
-if (T < 5) return { w: w, h: h, svg: `<rect x="6" y="8" width="48" height="110" rx="2" fill="#7a4a24"/><rect x="9" y="12" width="20" height="100" fill="#8b5a2b"/><rect x="31" y="12" width="20" height="100" fill="#8b5a2b"/><circle cx="27" cy="62" r="1.6" fill="#f5c542"/><circle cx="33" cy="62" r="1.6" fill="#f5c542"/><rect x="4" y="4" width="52" height="6" rx="1" fill="#6b4423"/>` };
-if (T >= 15) return { w: w, h: h, svg: `<rect x="8" y="6" width="44" height="112" rx="22" fill="#e2e8f0" stroke="#2fe6c8" stroke-width="2"/><rect x="14" y="20" width="32" height="84" rx="16" fill="#0f2f2b" opacity=".85"/><path d="M30 30 v64" stroke="#2fe6c8" stroke-width="1.5" class="rm-led"/><circle cx="30" cy="60" r="7" fill="none" stroke="#2fe6c8"/>` };
-const dark = T >= 11, c = dark ? "#1f2430" : "#8b96a5", d = dark ? "#151922" : "#6b7685";
-s += `<rect x="6" y="6" width="48" height="112" rx="2" fill="${d}"/><rect x="8" y="8" width="21" height="108" fill="${c}"/><rect x="31" y="8" width="21" height="108" fill="${c}"/>`;
-for (let i = 0; i < 4; i++) s += `<path d="M12 ${16 + i * 4} h13 M35 ${16 + i * 4} h13" stroke="${d}" stroke-width="1.2"/>`;
-s += `<rect x="24" y="56" width="3" height="12" rx="1" fill="${dark ? "#63c5ff" : "#e5e7eb"}"/><rect x="33" y="56" width="3" height="12" rx="1" fill="${dark ? "#63c5ff" : "#e5e7eb"}"/>`;
-if (T >= 14) s += `<rect x="31" y="8" width="21" height="108" fill="#0b0f16"/><g transform="translate(41 30)"><circle cx="0" cy="0" r="8" fill="#e5e7eb"/><circle cx="0" cy="0" r="5.5" fill="#63c5ff" opacity=".7"/><rect x="-8" y="8" width="16" height="30" rx="5" fill="#e5e7eb"/><rect x="-7" y="38" width="6" height="22" rx="3" fill="#e5e7eb"/><rect x="1" y="38" width="6" height="22" rx="3" fill="#e5e7eb"/><rect x="-4" y="16" width="8" height="5" rx="1" fill="#f97316"/></g>`;
-return { w: w, h: h, svg: s };
-}
-function chest(T) {
-const w = 56, h = 42;
-if (T < 5) return { w: w, h: h, svg: `<path d="M6 16 L28 10 L50 16 L50 40 L6 40 Z" fill="#c8955a"/><path d="M6 16 L28 22 L50 16" fill="#b98447"/><path d="M28 22 V40" stroke="#9c6d3a"/><rect x="24" y="12" width="8" height="28" fill="#e9d3a6" opacity=".9"/><rect x="34" y="26" width="12" height="8" fill="#f8fafc"/><path d="M36 29 h8 M36 31 h5" stroke="#94a3b8" stroke-width=".8"/>` };
-if (T >= 15) return { w: w, h: h, svg: `<g class="rm-float"><rect x="8" y="12" width="40" height="26" rx="12" fill="#e2e8f0" stroke="#2fe6c8" stroke-width="2"/><path d="M8 25 h40" stroke="#2fe6c8"/><circle cx="28" cy="25" r="4" fill="#2fe6c8" class="rm-led"/></g>` };
-const g = T >= 9, b = g ? "#f5c542" : "#7a4a24", m = g ? "#b8860b" : "#6b7280";
-return { w: w, h: h, svg: `<rect x="6" y="20" width="44" height="20" rx="2" fill="${b}"/><path d="M6 20 Q28 6 50 20 Z" fill="${g ? "#facc15" : "#8b5a2b"}"/><rect x="14" y="10" width="4" height="30" fill="${m}"/><rect x="38" y="10" width="4" height="30" fill="${m}"/><rect x="24" y="22" width="8" height="9" rx="1" fill="${m}"/><circle cx="28" cy="26" r="1.5" fill="#111"/>${g ? `<circle cx="10" cy="14" r="1.6" fill="#fff"/><circle cx="46" cy="12" r="1.2" fill="#fff"/>` : ""}` };
-}
-function bench(T) {
-const w = 66, h = 58; let s = "";
-if (T < 5) return { w: w, h: h, svg: `<path d="M10 30 L16 56 M22 30 L16 56 M44 30 L50 56 M56 30 L50 56" stroke="#a8743e" stroke-width="3"/><rect x="4" y="26" width="58" height="6" fill="#c8955a"/><path d="M14 22 l10 -8" stroke="#6b7280" stroke-width="2.5"/><rect x="22" y="10" width="9" height="6" rx="1" fill="#4b5563" transform="rotate(-38 26 13)"/><rect x="40" y="20" width="14" height="6" rx="1" fill="#ff4766"/>` };
-if (T >= 15) return { w: w, h: h, svg: `<rect x="8" y="28" width="50" height="28" rx="6" fill="#e2e8f0"/><rect x="14" y="6" width="38" height="24" rx="4" fill="#0f2f2b" stroke="#2fe6c8"/><path d="M33 10 v10 M27 16 h12" stroke="#2fe6c8" stroke-width="1.5" class="rm-led"/><rect x="18" y="34" width="30" height="4" rx="2" fill="#2fe6c8" opacity=".6"/>` };
-s += `<rect x="6" y="30" width="54" height="5" fill="#6b4423"/><rect x="8" y="35" width="4" height="22" fill="#4b5563"/><rect x="54" y="35" width="4" height="22" fill="#4b5563"/>`;
-if (T >= 11) s += `<rect x="16" y="6" width="34" height="24" rx="2" fill="#1f2937" stroke="#374151"/><rect x="20" y="10" width="26" height="14" fill="#0b0f16"/><rect x="28" y="18" width="10" height="5" fill="#f97316" opacity=".8"/><path d="M33 10 v8" stroke="#9ca3af"/>`;
-else s += `<rect x="6" y="2" width="54" height="26" fill="#3a3f48"/>${[0, 1, 2, 3, 4].map(i => `<circle cx="${12 + i * 10}" cy="8" r=".9" fill="#1b1e24"/><circle cx="${12 + i * 10}" cy="16" r=".9" fill="#1b1e24"/>`).join("")}<path d="M14 10 v12 M24 10 l6 10 M40 8 v14" stroke="#9ca3af" stroke-width="2"/><rect x="46" y="22" width="12" height="8" fill="#6b7280"/>`;
-return { w: w, h: h, svg: s };
-}
-function plant(T, stg) {
-const w = 40, h = 64; let s = "";
-const pot = T >= 15 ? `<rect x="10" y="44" width="20" height="18" rx="9" fill="#e2e8f0" stroke="#2fe6c8"/>` : T >= 9 ? `<path d="M8 44 h24 l-3 18 h-18z" fill="#f5c542"/>` : T >= 5 ? `<path d="M9 44 h22 l-3 18 h-16z" fill="#f1f5f9"/>` : `<path d="M9 44 h22 l-3 18 h-16z" fill="#c2410c"/><rect x="8" y="42" width="24" height="4" rx="1" fill="#b45309"/>`;
-if (stg <= 0) s += `<ellipse cx="20" cy="44" rx="9" ry="2" fill="#3b2416"/>`;
-else if (stg === 1) s += `<path d="M20 44 v-8" stroke="#22c55e" stroke-width="2"/><path d="M20 38 q-6 -2 -7 -7 q6 0 7 7z M20 37 q6 -3 7 -8 q-6 1 -7 8z" fill="#22c55e"/>`;
-else if (stg === 2) s += `<path d="M20 44 v-20" stroke="#3f7d3a" stroke-width="2.5"/><path d="M20 30 q-10 -2 -12 -10 q10 0 12 10z M20 26 q10 -4 12 -12 q-10 1 -12 12z M20 36 q-8 0 -10 -6 q8 -1 10 6z" fill="#22c55e"/>`;
-else s += `<path d="M20 44 v-18" stroke="#6b4423" stroke-width="3.5"/><circle cx="20" cy="18" r="${stg >= 4 ? 16 : 13}" fill="#16a34a"/><circle cx="12" cy="22" r="${stg >= 4 ? 9 : 7}" fill="#22c55e"/><circle cx="28" cy="16" r="${stg >= 4 ? 9 : 7}" fill="#22c55e"/>${stg >= 4 ? `<circle cx="14" cy="12" r="2" fill="#ef4444"/><circle cx="27" cy="22" r="2" fill="#ef4444"/>` : ""}`;
-return { w: w, h: h, svg: pot + s };
-}
-function colDesk(T) {
-const w = 74, h = 56;
-const top = T >= 15 ? "#e2e8f0" : T >= 11 ? "#1f2937" : T >= 5 ? "#9aa5b4" : T >= 1 ? "#8b5a2b" : "#b8bcc4";
-let s = `<rect x="10" y="30" width="4" height="24" fill="#4b5563"/><rect x="60" y="30" width="4" height="24" fill="#4b5563"/><path d="M4 30 L70 30 L67 25 L7 25 Z" fill="${top}"/><rect x="4" y="30" width="66" height="3" fill="#000" opacity=".25"/>`;
-s += monitor(24, 24, T === 0 ? "crt" : T >= 15 ? "holo" : "flat", 20);
-return { w: w, h: h, svg: s };
-}
-function shelf(T, n) {
-const w = 54, h = 30; let s = `<rect x="2" y="24" width="50" height="4" rx="1" fill="${T >= 9 ? "#c9a227" : T >= 5 ? "#6b7280" : "#8b5a2b"}"/>`;
-for (let i = 0; i < Math.min(6, n); i++) { const x = 8 + i * 8; s += `<path d="M${x} 24 h6 l-1 -3 h-4z" fill="#a16207"/><path d="M${x + .5} 21 h5 q0 -8 -2.5 -8 q-2.5 0 -2.5 8z" fill="${i % 3 === 0 ? "#f5c542" : i % 3 === 1 ? "#cbd5e1" : "#d97706"}"/>`; }
-if (!n) s += `<text x="27" y="20" text-anchor="middle" font-size="6" fill="#8a94a8" font-family="Space Grotesk,sans-serif">no trophies yet</text>`;
-return { w: w, h: h, svg: s };
-}
-function board(T) {
-const w = 56, h = 42, holo = T >= 15;
-return { w: w, h: h, svg: `<rect x="2" y="2" width="52" height="34" rx="2" fill="${holo ? "#0f2f2b" : "#f8fafc"}" stroke="${holo ? "#2fe6c8" : "#9ca3af"}" stroke-width="1.5" ${holo ? 'opacity=".85"' : ""}/><text x="8" y="12" font-size="7" font-weight="700" fill="${holo ? "#2fe6c8" : "#ff4766"}" font-family="Space Grotesk,sans-serif">TOP 10</text><path d="M8 17 h30 M8 23 h24 M8 29 h18" stroke="${holo ? "#2fe6c8" : "#64748b"}" stroke-width="1.6"/><text x="44" y="19" font-size="7" fill="#f5b942">👑</text>${holo ? "" : `<rect x="20" y="36" width="16" height="2" fill="#9ca3af"/>`}` };
-}
-function phone(T) {
-const w = 20, h = 30;
-if (T >= 15) return { w: w, h: h, svg: `<g class="rm-float"><rect x="4" y="4" width="12" height="20" rx="3" fill="#2fe6c8" opacity=".25" stroke="#2fe6c8"/><path d="M7 10 h6 M7 14 h4" stroke="#2fe6c8"/></g>` };
-return { w: w, h: h, svg: `<rect x="3" y="4" width="14" height="22" rx="2" fill="${T >= 5 ? "#1f2937" : "#e5e7eb"}"/><rect x="5" y="6" width="10" height="5" rx="1" fill="${T >= 5 ? "#3b82f6" : "#9ca3af"}"/><path d="M5 2 q5 -3 10 0" stroke="#111" stroke-width="2.5" fill="none"/>${[0, 1, 2].map(r => [0, 1, 2].map(c => `<rect x="${5.5 + c * 3.3}" y="${13 + r * 3.6}" width="2.2" height="2.2" rx=".5" fill="${T >= 5 ? "#9ca3af" : "#6b7280"}"/>`).join("")).join("")}` };
-}
-function decos(T) {
-const out = [];
-if (T === 0) out.push({ x: 160, y: 176, w: 30, h: 16, svg: `<rect x="2" y="8" width="26" height="6" fill="#d6a15a"/><rect x="4" y="3" width="24" height="6" fill="#c9924b"/><text x="16" y="13.2" text-anchor="middle" font-size="3.6" fill="#7a1f1f" font-weight="700">PIZZA</text>` });
-if (T >= 3 && T <= 4) out.push({ x: 158, y: 150, w: 26, h: 40, svg: `<rect x="2" y="16" width="22" height="24" fill="#374151"/><rect x="4" y="2" width="18" height="16" rx="2" fill="#1f2937"/><rect x="8" y="8" width="10" height="6" fill="#0b0f16"/><circle cx="13" cy="11" r="1.5" fill="#22c55e" class="rm-led"/><rect x="9" y="22" width="8" height="8" rx="1" fill="#f8fafc"/>` });
-if (T >= 6 && T <= 8) out.push({ x: 18, y: 158, w: 26, h: 50, svg: `<path d="M7 36 h12 l-2 12 h-8z" fill="#e5e7eb"/><path d="M13 36 v-18" stroke="#3f7d3a" stroke-width="2"/><path d="M13 22 q-10 -4 -10 -16 q10 4 10 16z M13 18 q10 -6 10 -16 q-10 4 -10 16z M13 28 q-8 -2 -10 -10 q8 2 10 10z" fill="#22c55e"/>` });
-if (T >= 8 && T <= 10) out.push({ x: 175, y: 232, w: 40, h: 36, svg: `<rect x="4" y="8" width="32" height="20" rx="8" fill="#5b3221"/><rect x="2" y="16" width="8" height="16" rx="3" fill="#3f2216"/><rect x="30" y="16" width="8" height="16" rx="3" fill="#3f2216"/><rect x="6" y="20" width="28" height="10" rx="3" fill="#6b3a26"/>` });
-if (T >= 10 && T <= 10) out.push({ x: 222, y: 274, w: 74, h: 26, svg: `<ellipse cx="37" cy="14" rx="35" ry="11" fill="#e2e8f0"/><ellipse cx="37" cy="13" rx="30" ry="8" fill="#38bdf8"/><path d="M20 10 q4 -3 8 0 M44 12 q4 -3 8 0" stroke="#e0f2fe" stroke-width="1.2" fill="none"/><path d="M30 2 q2 -4 0 -6 M40 2 q2 -4 0 -6" stroke="#e5e7eb" stroke-width="1" fill="none" opacity=".6"/>` });
-if (T >= 11 && T <= 12) out.push({ x: 160, y: 150, w: 24, h: 52, svg: `<rect x="2" y="2" width="20" height="50" rx="1" fill="#0f141c" stroke="#26324a"/>${[0, 1, 2, 3, 4].map(k => `<rect x="5" y="${6 + k * 9}" width="14" height="5" fill="#1a2232"/><circle class="rm-led" style="animation-delay:${k * .2}s" cx="16" cy="${8.5 + k * 9}" r="1" fill="#22c55e"/>`).join("")}` });
+if (!mid) out = out.replace(FIRST, function (c) { return c.slice(0, -1) + c.slice(-1).toUpperCase(); });
 return out;
 }
-const OBJS = [
-{ id: "desk", lb: "Tickets", x: 100, y: 150, ax: 140, ay: 160, face: "left", z: 0 },
-{ id: "bench", lb: "Upgrade Station", x: 50, y: 196, ax: 88, ay: 200, face: "left" },
-{ id: "closet", lb: "Gear & backpack", x: 34, y: 268, ax: 76, ay: 258, face: "left" },
-{ id: "chest", lb: "Company Chest", x: 116, y: 270, ax: 150, ay: 262, face: "left" },
-{ id: "tv", lb: "High Stakes", x: 290, y: 122, ax: 290, ay: 216, face: "right", sit: true },
-{ id: "couch", lb: "", x: 290, y: 234, deco2: true },
-{ id: "roul", lb: "Casino", x: 342, y: 266, ax: 302, ay: 258, face: "right" },
-{ id: "plant", lb: "Office Plant", x: 350, y: 146, ax: 322, ay: 156, face: "right" },
-{ id: "col", lb: "Colleague", x: 206, y: 148, ax: 240, ay: 160, face: "left" },
-{ id: "shelf", lb: "Hall of Fame", x: 146, y: 78, wall: true, ax: 160, ay: 140, face: "left" },
-{ id: "board", lb: "Top 10", x: 222, y: 72, wall: true, ax: 222, ay: 136, face: "left" },
-{ id: "phone", lb: "Chat", x: 24, y: 120, wall: true, ax: 62, ay: 150, face: "left" }
-];
-const HOME = { x: 200, y: 214 };
-let root = null, me = null, meRig = "", pos = { x: HOME.x, y: HOME.y }, face = "right", walking = null, seat = "", sig = "", T = 0, hintT = 0;
-function P() { return typeof gameState !== "undefined" ? (gameState.prestige || 0) : 0; }
-function hs() { return typeof gameState !== "undefined" && gameState.hs ? gameState.hs : {}; }
-function maxChest() { return typeof gameState === "undefined" ? 1 : Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
-function locked(id) {
-if (id === "roul") return maxChest() < 5 ? "I need chest level 5 to unlock the casino." : "";
-if (id === "tv") return window.Dungeon && Dungeon.unlocked && !Dungeon.unlocked() ? "I need chest level 10 (or Prestige 1) to play High Stakes." : "";
-if (id === "plant") return P() < 1 && !(gameState.lp > 0) ? "The Office Plant grows after my first prestige." : "";
-if (id === "col") return !(hs().col && hs().col.unlocked) ? "No colleague yet. Beat the Administrator on Tower floor 100 to hire one." : "";
-return "";
+var SKIP = "script,style,textarea,input,select,option,#chat-messages,.lb-table tbody,.no-case,[data-nocase],.cl-name,.dg-name";
+function fixNode(t) {
+var v = t.nodeValue;
+if (!v || v.length < 3 || !UP.test(v) || hasLow(v)) return;
+var p = t.parentNode; if (!p || p.nodeType !== 1) return;
+if (p.closest && p.closest(SKIP)) return;
+var prev = t.previousSibling, mid = /^\s/.test(v) && !!prev && !(prev.nodeType === 1 && /^(BR|DIV|SPAN)$/.test(prev.nodeName) && !prev.textContent.trim());
+if (prev && prev.nodeType === 1 && prev.nodeName === "BR") mid = false;
+var n = conv(v, mid);
+if (n !== v) t.nodeValue = n;
 }
-function plantStage() { try { return window.Plant && Plant.stage ? Plant.stage() : 0; } catch (e) { return 0; } }
-function achN() { const a = hs().ach; return a && a.u ? Object.keys(a.u).length : 0; }
-function pct(v, of) { return (v / of * 100).toFixed(3) + "%"; }
-function place(el, x, y, w, h) { el.style.left = pct(x - w / 2, W); el.style.top = pct(y - h, H); el.style.width = pct(w, W); el.style.height = pct(h, H); }
-function art(id) {
-switch (id) {
-case "desk": return desk(T); case "bench": return bench(T); case "closet": return closet(T); case "chest": return chest(T);
-case "tv": return tvSet(T); case "couch": return couch(T); case "roul": return roulette(T); case "plant": return plant(T, plantStage());
-case "col": return colDesk(T); case "shelf": return shelf(T, Math.floor(achN() / 4)); case "board": return board(T); case "phone": return phone(T);
-}
-return { w: 10, h: 10, svg: "" };
-}
-function meSize(y) { const h = 58 + 40 * Math.max(0, Math.min(1, (y - 120) / 160)); return { w: h * 100 / 120, h: h }; }
-function playerRig() {
-const d = hs(), cls = d.cls || "sysadmin";
-return window.HSRig ? HSRig.player(cls, window.Gear && d.cls ? Gear.st() : { w: { m: 0 }, a: { m: 0 }, t: { m: 0 } }) : "";
-}
-function render() {
-if (!root) return;
-T = tierOf(P());
-const E = ENVS[ENV_OF[T]];
-let h = bg(T, P());
-h += `<div class="rm-name">${E.i} ${esc(E.n)} · Prestige ${P()}</div><div class="rm-hint" id="rm-hint"${hintT ? ' style="opacity:0"' : ""}>Tap anything in the room</div>`;
-root.innerHTML = h;
-OBJS.forEach(o => {
-const a = art(o.id), el = document.createElement("div");
-el.className = "rm-o" + (o.deco2 ? " deco" : "") + (locked(o.id) ? " lock" : "") + (o.x < 80 ? " lbl-l" : o.x > 330 ? " lbl-r" : "") + (o.wall ? " lbl-t" : "");
-el.setAttribute("data-o", o.id);
-if (!o.deco2) { el.setAttribute("role", "button"); el.setAttribute("tabindex", "0"); el.setAttribute("aria-label", o.lb); }
-el.style.zIndex = o.wall ? 5 : Math.round(o.y);
-el.innerHTML = `<svg viewBox="0 0 ${a.w} ${a.h}" aria-hidden="true">${a.svg}</svg>` + (o.lb ? `<span class="rm-lb">${esc(o.lb)}</span>` : "") + (locked(o.id) ? `<span class="rm-lk">🔒</span>` : "");
-place(el, o.x, o.y, a.w, a.h);
-root.appendChild(el);
-if (o.id === "col") colleague(el, a);
-});
-decos(T).forEach(d => { const el = document.createElement("div"); el.className = "rm-o deco"; el.style.zIndex = Math.round(d.y); el.innerHTML = `<svg viewBox="0 0 ${d.w} ${d.h}" aria-hidden="true">${d.svg}</svg>`; place(el, d.x, d.y, d.w, d.h); root.appendChild(el); });
-me = document.createElement("div"); me.className = "rm-me"; me.innerHTML = `<div class="rm-fl">${playerRig()}</div>`; root.appendChild(me);
-meRig = sigRig();
-drawMe();
-const sv = me.querySelector(".rig"); if (sv && seat) sv.classList.add(seat === "tv" ? "a-sit" : "a-type");
-}
-function colleague(el, a) {
-const c = hs().col; if (!c || !c.unlocked || !window.HSRig) return;
-const awake = !!(window.Colleague && Colleague.chip && /buff-chip on/.test(Colleague.chip()));
-const box = document.createElement("div"); box.className = "rm-col";
-box.style.cssText = "position:absolute;left:62%;top:-18%;width:46%;height:92%;";
-box.innerHTML = `<div style="position:absolute;inset:0;transform:scaleX(-1);">${HSRig.player(c.cls || "engineer", c.gear)}</div>` + (awake ? "" : `<div style="position:absolute;right:-6px;top:-6px;font-size:12px;">💤</div>`);
-const r = box.querySelector(".rig"); if (r && awake) r.classList.add("a-type");
-el.appendChild(box);
-}
-function drawMe() {
-if (!me) return;
-const s = meSize(pos.y);
-place(me, pos.x, pos.y, s.w, s.h);
-me.style.zIndex = Math.round(pos.y) + (seat === "tv" ? -14 : 1);
-me.classList.toggle("left", face === "left");
-}
-function sigRig() { const d = hs(); const g = window.Gear && d.cls ? Gear.st() : null; return (d.cls || "") + "|" + (g ? [g.w.m, g.a.m, g.t.m].join("") : ""); }
-function sigAll() { const c = hs().col || {}; return [tierOf(P()), P(), plantStage(), Math.floor(achN() / 4), !!c.unlocked, c.cls, JSON.stringify(c.gear || {}), locked("roul"), locked("tv"), locked("plant"), sigRig(), window.Colleague && Colleague.chip ? Colleague.chip().length : 0].join("|"); }
-function walkTo(x, y, f, cb) {
-if (!me) { if (cb) cb(); return; }
-if (walking) cancelAnimationFrame(walking.raf);
-const sv = me.querySelector(".rig"); if (sv) sv.classList.remove("a-sit", "a-type");
-seat = "";
-const x0 = pos.x, y0 = pos.y, dist = Math.hypot(x - x0, (y - y0) * 1.4);
-if (dist < 3) { face = f || face; drawMe(); if (cb) cb(); return; }
-face = x < x0 - 1 ? "left" : x > x0 + 1 ? "right" : face;
-const dur = Math.max(220, Math.min(900, dist / 0.32)), t0 = performance.now();
-if (sv) sv.classList.add("a-walk");
-const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-const step = (now) => {
-let k = reduce ? 1 : Math.min(1, (now - t0) / dur); const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-pos = { x: x0 + (x - x0) * e, y: y0 + (y - y0) * e }; drawMe();
-if (k < 1) walking = { raf: requestAnimationFrame(step) };
-else { walking = null; if (sv) sv.classList.remove("a-walk"); if (f) { face = f; drawMe(); } if (cb) cb(); }
-};
-walking = { raf: requestAnimationFrame(step) };
-}
-function say(t, ms) {
-if (!root || !me) return;
-const old = root.querySelector(".rm-bub"); if (old) old.remove();
-const b = document.createElement("div"); b.className = "rm-bub"; b.textContent = t;
-const s = meSize(pos.y); b.style.left = pct(pos.x, W); b.style.top = pct(pos.y - s.h - 2, H);
-root.appendChild(b); setTimeout(() => b.remove(), ms || 2600);
-}
-function sitAt(kind) { const sv = me && me.querySelector(".rig"); seat = kind; if (sv) { sv.classList.remove("a-walk"); sv.classList.add(kind === "tv" ? "a-sit" : "a-type"); } drawMe(); }
-function isM() { return document.documentElement.classList.contains("m"); }
-function goTab(t) { const b = document.querySelector(`#m-tabs button[data-go="${t}"]`); if (b) b.click(); }
-function showPanel(el, tab) {
+function walk(el) {
 if (!el) return;
-const p = el.closest(".panel") || el;
-if (isM() && tab) goTab(tab);
-setTimeout(() => { try { p.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { p.scrollIntoView(); } p.classList.remove("rm-hl"); void p.offsetWidth; p.classList.add("rm-hl"); }, isM() ? 120 : 0);
+if (el.nodeType === 3) { fixNode(el); return; }
+if (el.nodeType !== 1) return;
+var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n;
+while ((n = w.nextNode())) fixNode(n);
 }
-function act(id) {
-const lk = locked(id); if (lk) { say(lk); return; }
-switch (id) {
-case "desk": sitAt("desk"); if (!isM()) showPanel($("btn-click")); break;
-case "bench": showPanel($("forge-panel") || $("forge-mount"), "bag"); break;
-case "closet": showPanel($("slot-HEAD"), "bag"); break;
-case "chest": showPanel($("btn-open-chest"), "chest"); break;
-case "roul": showPanel($("gamble-panel") || $("view-roulette"), "casino"); break;
-case "tv": sitAt("tv"); setTimeout(() => { if (window.Dungeon) Dungeon.open(); }, 260); break;
-case "plant": if (window.Plant && Plant.open) Plant.open(); break;
-case "col": if (window.Dungeon) { Dungeon.open(); Dungeon.tab("colleague"); } break;
-case "shelf": if (window.Meta) Meta.open("ach"); break;
-case "board": showPanel($("lb-body"), "more"); break;
-case "phone": if (typeof switchBottomLeftTab === "function") switchBottomLeftTab("chat"); showPanel($("chat-messages"), "more"); break;
+var obs = null;
+function startCase() {
+if (obs || !window.MutationObserver) return;
+walk(document.body);
+obs = new MutationObserver(function (ms) {
+for (var i = 0; i < ms.length; i++) {
+var m = ms[i];
+if (m.type === "characterData") fixNode(m.target);
+else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
 }
+});
+obs.observe(document.body, { childList: true, characterData: true, subtree: true });
 }
-function tap(id) {
-const o = OBJS.find(x => x.id === id); if (!o || o.deco2) return;
-hideHint();
-walkTo(o.ax, o.ay, o.face, () => act(id));
+function stopCase() { if (obs) { obs.disconnect(); obs = null; } }
+window.UICase = conv;
+function splitResolve() {
+var b = document.getElementById("btn-click"), cv = document.getElementById("click-val");
+if (!b || !cv || b.querySelector(".v9-main")) return;
+var main = document.createElement("span"); main.className = "v9-main"; main.textContent = "RESOLVE TICKET";
+var sub = document.createElement("span"); sub.className = "v9-sub";
+sub.appendChild(document.createTextNode("+")); sub.appendChild(cv); sub.appendChild(document.createTextNode(" per click"));
+while (b.firstChild) b.removeChild(b.firstChild);
+b.appendChild(main); b.appendChild(sub);
 }
-function hideHint() { if (hintT) return; hintT = 1; const h = $("rm-hint"); if (h) h.style.opacity = "0"; try { localStorage.setItem("ir_room_hint", "1"); } catch (e) {} }
-/** klik na RESOLVE: postava si sedne ke stolu (body se počítají hned, chůze je jen vizuál) */
-function onResolve() {
-if (!me || seat === "desk" || (walking && walking.to === "desk")) return;
-const o = OBJS[0];
-walkTo(o.ax, o.ay, o.face, () => sitAt("desk"));
-if (walking) walking.to = "desk";
+function brand() {
+var t = document.querySelector(".brand-title"); if (!t || t.querySelector(".v9-acc")) return;
+var m = /^(.*?)\s*\/\/\s*(.*)$/.exec(t.textContent || "");
+if (!m) return;
+t.textContent = "";
+var ic = document.createElement("span"); ic.className = "v9-mark"; ic.setAttribute("aria-hidden", "true");
+ic.innerHTML = '<svg viewBox="0 0 112 76"><rect width="112" height="76" rx="10" fill="#efe9dc"/><path d="M24 50 L28 26 L38 38 L44 20 L50 38 L60 26 L64 50 Z" fill="#ff4766"/><rect x="24" y="53" width="40" height="6" rx="2" fill="#ff4766"/></svg>';
+t.appendChild(ic);
+t.appendChild(document.createTextNode(m[1].trim() + " "));
+var a = document.createElement("span"); a.className = "v9-acc"; a.textContent = "/" + m[2].trim().toLowerCase(); t.appendChild(a);
 }
-function key() { return "ir_room_t_" + (typeof gameState !== "undefined" ? gameState.ldap : ""); }
-function checkReveal() {
-const t = tierOf(P()); let last = null;
-try { last = localStorage.getItem(key()); } catch (e) {}
-try { localStorage.setItem(key(), String(P())); } catch (e) {}
-if (last == null || last === "") return;
-const lp = Number(last) | 0;
-if (P() <= lp) return;
-let msg = P() > 15 ? ["A new planet appeared outside your window!", "Space station · Prestige " + P()] : REVEAL[t];
-if (!msg) return;
-reveal(msg, P() > 15 ? "" : NEW_ITEM[t]);
+/** firemní event na mobilu do toku stránky (pod HUD), jinak plovoucí */
+function placeEvent() {
+var ev = document.getElementById("mt-event"), hud = document.getElementById("m-hud"); if (!ev) return;
+var inFlow = root.classList.contains("v9") && root.classList.contains("m") && hud;
+if (inFlow && ev.previousElementSibling !== hud) hud.parentNode.insertBefore(ev, hud.nextSibling);
+else if (!inFlow && ev.parentNode !== document.body) document.body.appendChild(ev);
 }
-function reveal(msg, item) {
-if (!root) return;
-const f = document.createElement("div"); f.className = "rm-flash"; root.appendChild(f); setTimeout(() => f.remove(), 800);
-const r = document.createElement("div"); r.className = "rm-rev"; r.innerHTML = `<b>${esc(msg[0])}</b><span>${esc(msg[1])}</span>`;
-r.onclick = () => r.remove(); root.appendChild(r); setTimeout(() => r.remove(), 6500);
-if (item) { const el = root.querySelector(`.rm-o[data-o="${item === "deco" ? "tv" : item}"]`); if (el) el.classList.add("new"); }
-const sv = me && me.querySelector(".rig"); if (sv) { sv.classList.add("a-wave"); setTimeout(() => sv.classList.remove("a-wave"), 1600); }
-if (typeof log === "function") log(`🏠 ${msg[0]} ${msg[1]}`, "special");
+function apply(on) {
+root.classList.toggle("v9", on);
+if (on) { splitResolve(); brand(); startCase(); } else stopCase();
+placeEvent();
+var b = document.getElementById("th-btn"); if (b) b.title = on ? "Switch to the classic look" : "Switch to the new look";
+var m = document.getElementById("th-more"); if (m) m.textContent = on ? "🎨 Classic look" : "🎨 New look";
 }
-function mount() {
-const btnWrap = document.querySelector(".click-btn-wrap"); if (!btnWrap) return false;
-root = document.createElement("div"); root.className = "rm labels"; root.id = "rm";
-btnWrap.parentNode.insertBefore(root, btnWrap);
-root.addEventListener("click", (e) => { const o = e.target.closest(".rm-o"); if (o && !o.classList.contains("deco")) tap(o.getAttribute("data-o")); else hideHint(); });</script>
+function toggle() {
+var on = !root.classList.contains("v9");
+try { localStorage.setItem(KEY, on ? "new" : "classic"); } catch (e) {}
+if (!on) { location.reload(); return; }                 // návrat ke klasice = čisté texty z kódu
+apply(true);
+}
+window.Theme = { toggle: toggle, conv: conv, isNew: function () { return root.classList.contains("v9"); } };
+if (!classic()) root.classList.add("v9");              // hned, ať se neukáže starý vzhled
+function boot() {
+if (!document.body) { setTimeout(boot, 30); return; }
+apply(!classic());
+var badge = document.querySelector(".user-badge");
+if (badge && !document.getElementById("th-btn")) {
+var b = document.createElement("button"); b.id = "th-btn"; b.className = "btn btn-help"; b.type = "button"; b.textContent = "🎨";
+b.onclick = toggle; b.title = root.classList.contains("v9") ? "Switch to the classic look" : "Switch to the new look";
+var help = badge.querySelector(".btn-help:not(#m-compact)"); badge.insertBefore(b, help || null);
+}
+function addMore() {
+var st = document.getElementById("m-settings");
+if (st && !document.getElementById("th-more")) { var r = st.querySelector(".row"); if (r) { var x = document.createElement("button"); x.id = "th-more"; x.className = "btn"; x.type = "button"; x.onclick = toggle; x.textContent = root.classList.contains("v9") ? "🎨 Classic look" : "🎨 New look"; r.appendChild(x); } }
+}
+addMore(); setTimeout(addMore, 800);
+setInterval(placeEvent, 1500);
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+<style>
+/* ===== v9.3 THE ROOM: tvoje kancelář jako místnost (pohled zepředu, trochu shora), postava chodí k předmětům.
+Vzhled se mění s prestiží: Garáž (P0) -> ... -> Vesmírná stanice (P15). ===== */
+.rm { position: relative; width: 100%; aspect-ratio: 400 / 280; border-radius: 16px; overflow: hidden; margin: 0 0 12px; background: #0d1018; user-select: none; -webkit-user-select: none; touch-action: manipulation; isolation: isolate; }
+.rm .rm-bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.rm .rm-o { position: absolute; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rm .rm-o > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
+.rm .rm-o.deco { pointer-events: none; }
+.rm .rm-o:not(.deco):hover > svg { filter: brightness(1.15) drop-shadow(0 0 4px rgba(255,255,255,.35)); }
+.rm .rm-o.lock > svg { filter: saturate(.35) brightness(.7); }
+.rm .rm-o .rm-lk { position: absolute; right: 0; top: 0; font-size: 11px; line-height: 1; filter: none; }
+.rm .rm-lb { position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); white-space: nowrap; font: 600 9.5px 'Space Grotesk', system-ui, sans-serif; color: #e8ecf3; background: rgba(10,12,18,.72); padding: 1px 6px; border-radius: 99px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 2; }
+.rm.labels .rm-lb, .rm .rm-o:hover .rm-lb { opacity: 1; }
+.rm .rm-o.lbl-l .rm-lb { left: 2px; transform: none; }
+.rm .rm-o.lbl-r .rm-lb { left: auto; right: 2px; transform: none; }
+.rm .rm-o.lbl-t .rm-lb { bottom: auto; top: 100%; }
+.rm .rm-me { position: absolute; pointer-events: none; will-change: left, top; }
+.rm .rm-me .rm-fl { position: absolute; inset: 0; }
+.rm .rm-me.left .rm-fl { transform: scaleX(-1); }
+.rm .rm-me .dg-sprite.rig { position: absolute; inset: 0; width: 100% !important; height: 100% !important; margin: 0 !important; }
+.rm .rm-col .dg-sprite.rig { position: absolute; width: 100% !important; height: 100% !important; margin: 0 !important; }
+.rig.a-walk .rg-legF { animation: rgStepF .32s ease-in-out infinite !important; }
+.rig.a-walk .rg-legB { animation: rgStepB .32s ease-in-out infinite !important; }
+.rig.a-walk .rg-bob { animation: rmWalkBob .32s ease-in-out infinite !important; }
+@keyframes rmWalkBob { 50% { transform: translateY(-2px); } }
+.rig.a-type .rg-armF { animation: rmType .22s ease-in-out infinite !important; }
+.rig.a-type .rg-armB { animation: rmType .22s ease-in-out .11s infinite !important; }
+@keyframes rmType { 50% { transform: rotate(-38deg); } }
+.rig.a-sit .rg-legF { transform: rotate(-70deg); animation: none !important; }
+.rig.a-sit .rg-legB { transform: rotate(-62deg); animation: none !important; }
+.rig.a-sit .rg-all { transform: translateY(12px); }
+.rig.a-wave .rg-armF { animation: rmWave .5s ease-in-out 3 !important; }
+@keyframes rmWave { 50% { transform: rotate(-150deg); } }
+.rm .rm-bub { position: absolute; z-index: 400; transform: translate(-50%, -100%); max-width: 70%; background: #f8fafc; color: #10131c; font: 600 11px/1.3 'Space Grotesk', system-ui, sans-serif; padding: 6px 9px; border-radius: 12px; box-shadow: 0 6px 16px rgba(0,0,0,.4); pointer-events: none; animation: rmPop .25s ease-out; }
+.rm .rm-bub::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: #f8fafc; }
+@keyframes rmPop { from { transform: translate(-50%, -80%) scale(.7); opacity: 0; } }
+.rm .rm-name { position: absolute; left: 8px; top: 7px; z-index: 300; font: 600 10.5px 'Space Grotesk', system-ui, sans-serif; color: #e8ecf3; background: rgba(10,12,18,.6); padding: 2px 8px; border-radius: 99px; pointer-events: none; }
+.rm .rm-hint { position: absolute; right: 8px; top: 7px; z-index: 300; font: 500 10px 'Space Grotesk', system-ui, sans-serif; color: #c9d1dc; background: rgba(10,12,18,.6); padding: 2px 8px; border-radius: 99px; pointer-events: none; transition: opacity .5s; }
+.rm .rm-rev { position: absolute; left: 50%; top: 14%; z-index: 500; transform: translateX(-50%); width: max-content; max-width: 88%; text-align: center; background: rgba(10,12,18,.88); border: 1px solid rgba(245,185,66,.55); border-radius: 14px; padding: 10px 14px; color: #e8ecf3; font-family: 'Space Grotesk', system-ui, sans-serif; box-shadow: 0 14px 30px rgba(0,0,0,.5); animation: rmRev .5s cubic-bezier(.2,.8,.2,1); cursor: pointer; }
+.rm .rm-rev b { display: block; font-size: 15px; color: #f5b942; }
+.rm .rm-rev span { font-size: 12px; color: #c9d1dc; }
+@keyframes rmRev { from { transform: translate(-50%, -20px) scale(.9); opacity: 0; } }
+.rm .rm-flash { position: absolute; inset: 0; z-index: 450; background: #fff; pointer-events: none; animation: rmFlash .7s ease-out forwards; }
+@keyframes rmFlash { from { opacity: .85; } to { opacity: 0; } }
+.rm .rm-o.new > svg { animation: rmNew 1.2s ease-in-out 3; }
+@keyframes rmNew { 50% { filter: brightness(1.6) drop-shadow(0 0 8px #f5b942); } }
+.panel.rm-hl { animation: rmHl 1.2s ease-out; }
+@keyframes rmHl { 0%, 40% { box-shadow: 0 0 0 2px var(--amber, #f5b942); } 100% { box-shadow: none; } }
+.rm .rm-tv-logo { animation: rmTv 4s ease-in-out infinite; }
+@keyframes rmTv { 50% { opacity: .8; } }
+.rm .rm-led { animation: rmLed 1.4s steps(2) infinite; }
+@keyframes rmLed { 50% { opacity: .25; } }
+.rm .rm-float { animation: rmFloat 3s ease-in-out infinite; }
+@keyframes rmFloat { 50% { transform: translateY(-3px); } }
+html.m [data-tab="play"] .rm { margin-bottom: 10px; border-radius: 18px; flex: none; }
+/* v9.3.1: Play na mobilu se normálně posouvá (místnost + tlačítko pevné výšky), nic se nemačká přes sebe */
+html.m body[data-mtab="play"] .main-wrapper { overflow-y: auto; }
+html.m body[data-mtab="play"] .grid-columns { flex: none; min-height: auto; }
+html.m body[data-mtab="play"] [data-tab="play"] { display: block; flex: none; min-height: 0; }
+html.m [data-tab="play"] .click-btn-wrap { display: flex; flex: none; height: clamp(130px, 22vh, 190px); min-height: 0; }
+html.m [data-tab="play"] .rm-o, html.m [data-tab="play"] .rm { touch-action: pan-y; }
+@media (prefers-reduced-motion: reduce) { .rm .rm-tv-logo, .rm .rm-led, .rm .rm-float { animation: none; } }
+</style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part20"] = 1;</script>
 <!-- END-OF-FILE: part20 -->

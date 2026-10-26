@@ -27,6 +27,7 @@ try {
 SpreadsheetApp.getUi()
 .createMenu('Ticket Tycoon')
 .addItem('Bump version (po deployi: donutí klienty k obnovení)', 'bumpAppVersionUi_')
+.addItem('Spustit firemní globální event', 'triggerGlobalEventUi_')
 .addSeparator()
 .addItem('Wipe season (nová sezóna)', 'adminSeasonWipeUi_')
 .addToUi();
@@ -983,6 +984,7 @@ if (t.fin.indexOf(nick) >= 0) return;
 t.fin.push(nick);
 if (t.fin.length === 1) {
 t.winner = nick; t.win = Math.floor(t.pot * (1 - PRS_RAKE));
+m96PoolAdd_(t.pot - t.win);                                  // v9.6: cut jde do loterie
 prsPay_(nick, t.win, 'WIN', t.id);
 prsLog_(t, '🏆 ' + nick + ' wins ' + t.win.toLocaleString() + ' GC' + (why ? ' (' + why + ')' : '') + '!');
 } else if (t.fin.length === 2) { t.second = nick; prsLog_(t, '🥈 ' + nick + ' finishes second' + (why ? ' (' + why + ')' : '') + '.'); }
@@ -1082,19 +1084,4 @@ ts.forEach(function (t) { if (t.players.indexOf(me) >= 0 && t.status !== 'gone' 
 return { ok: true, tables: ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).map(prsPublic_), mine: mine, max: PRS_MAX_TABLES, minStake: PRS_MIN_STAKE, maxStake: PRS_MAX_STAKE, pay: prsTakePay_(me) };
 } finally { lock.releaseLock(); }
 }
-function prsCreate(stake, seats) {
-var me = getUserLdap(), lock = prsLock_();
-try {
-stake = Math.floor(Number(stake)); seats = Math.max(2, Math.min(6, Number(seats) || 4));
-if (!(stake >= PRS_MIN_STAKE && stake <= PRS_MAX_STAKE)) return { ok: false, reason: 'stake' };
-var ts = prsLoadAll_();
-if (ts.some(function (t) { return t.players.indexOf(me) >= 0 && (t.status === 'wait' || t.status === 'play') && !(t.seen && t.seen[me]); })) return { ok: false, reason: 'already' };
-if (ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).length >= PRS_MAX_TABLES) return { ok: false, reason: 'full' };
-var t = { id: Utilities.getUuid().slice(0, 8), host: me, stake: stake, seats: seats, players: [me], status: 'wait', created: Date.now(), rev: 1, log: [], pot: 0, out: [], order: [], hands: {}, deck: [], pile: [], miss: {}, seen: {} };
-prsLog_(t, me + ' opened the table');
-prsPut_(t); var idx = prsIndex_(); idx.push(t.id); prsSetIndex_(idx);
-try { getDb_().chat.appendRow([new Date(), '♣ PRŠÍ', me + ' opened a Prší table (' + stake.toLocaleString() + ' GC, ' + seats + ' seats). Join in GAMBLE > SPECIAL!']); } catch (e) {}
-return { ok: true, id: t.id };
-} finally { lock.releaseLock(); }
-}
-// END-OF-FILE: code (continues in engine)
+// END-OF-FILE: code (continues in server2)

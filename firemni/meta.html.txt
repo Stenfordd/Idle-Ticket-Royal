@@ -503,12 +503,13 @@ const $ = (id) => document.getElementById(id);
 const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : n >= 1e9 ? (n / 1e9).toFixed(2) + "B" : n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e4 ? (n / 1e3).toFixed(1) + "K" : n.toLocaleString(); };
 const SECS = {
 basic: { icon: "🎰", name: "BASIC CASINO", games: [["roulette", "🎰 ROULETTE", "c"], ["slots", "🍒 SLOTS", "c"], ["blackjack", "♠ BLACKJACK", "c"]] },
-adv: { icon: "⚡", name: "ADVANCED", games: [["mega", "💰 MEGA 5×5", "c"], ["crash", "🚀 CRASH", "c"], ["chicken", "🐔 CHICKEN", "a"], ["pachinko", "⚪ PACHINKO", "a"]] },
-special: { icon: "👥", name: "SPECIAL", games: [["showdown", "⚔ SHOWDOWN", "a"], ["climb", "🧗 CLIMB", "a"], ["prsi", "♣ PRŠÍ", "a"], ["checkers", "⛀ CHECKERS", "a"]] }
+adv: { icon: "⚡", name: "ADVANCED", games: [["mega", "💰 MEGA 5×5", "c"], ["crash", "🚀 CRASH", "c"], ["chicken", "🐔 CHICKEN", "a"], ["pachinko", "⚪ PACHINKO", "a"], ["mines", "🐞 MINES", "a"]] },
+special: { icon: "👥", name: "SPECIAL", games: [["showdown", "⚔ SHOWDOWN", "a"], ["climb", "🧗 CLIMB", "a"], ["prsi", "♣ PRŠÍ", "a"], ["checkers", "⛀ CHECKERS", "a"]] },
+money: { icon: "📈", name: "LOTTERY & STOCKS", games: [["lotto", "🎟 LOTTERY", "a"], ["stocks", "📈 STOCKS", "a"]] }
 };
 const ALL = []; Object.keys(SECS).forEach(s => SECS[s].games.forEach(g => ALL.push({ id: g[0], label: g[1], kind: g[2], sec: s })));
 const viewOf = (g) => $(g.kind === "c" ? "view-" + g.id : "adv-view-" + g.id);
-let open = "basic", last = { basic: "roulette", adv: "mega", special: "prsi" }, built = false;
+let open = "basic", last = { basic: "roulette", adv: "mega", special: "prsi", money: "lotto" }, built = false;
 try { const o = localStorage.getItem("ir_gb"); if (o !== null) open = o; const l = JSON.parse(localStorage.getItem("ir_gb_last") || "{}"); Object.keys(l).forEach(k => { if (SECS[k] && SECS[k].games.some(g => g[0] === l[k])) last[k] = l[k]; }); } catch (e) {}
 function save() { try { localStorage.setItem("ir_gb", open); localStorage.setItem("ir_gb_last", JSON.stringify(last)); } catch (e) {} }
 function build() {
