@@ -748,6 +748,7 @@ var API_ALLOWED_ = {
   ckDraw: function (a) { return ckDraw(a[0], a[1]); },
   metaPoll: function () { return metaPoll(); },
   lottoBuy: function (a) { return lottoBuy(a[0]); },
+  lottoBuyMany: function (a) { return lottoBuyMany(a[0]); },
   lottoFeed: function (a) { return lottoFeed(a[0]); },
   lottoClaim: function () { return lottoClaim(); },
   officeView: function (a) { return officeView(a[0]); },
@@ -1864,6 +1865,25 @@ function lottoBuy(nums) {
     mine.push(nums); s.t[me] = mine; s.pool += LOTTO_PRICE;
     m96Put_('ir_lotto', s);
     return { ok: true, mine: mine, pool: s.pool };
+  } finally { lock.releaseLock(); }
+}
+/** v10.2: víc tiketů najednou (seznam trojic) - koupí, co se vejde do limitu, zbytek klient vrátí */
+function lottoBuyMany(list) {
+  var me = getUserLdap();
+  list = (Array.isArray(list) ? list : []).slice(0, LOTTO_MAX);
+  lottoCheck_();
+  var lock = m96Lock_();
+  try {
+    var s = lottoLoad_(), mine = s.t[me] || [], n = 0;
+    list.forEach(function (nums) {
+      if (mine.length >= LOTTO_MAX) return;
+      nums = (Array.isArray(nums) ? nums : []).map(Number).filter(function (x) { return x >= 1 && x <= LOTTO_N && Math.floor(x) === x; });
+      nums = nums.filter(function (x, i) { return nums.indexOf(x) === i; }).sort(function (a, b) { return a - b; });
+      if (nums.length !== LOTTO_K) return;
+      mine.push(nums); s.pool += LOTTO_PRICE; n++;
+    });
+    s.t[me] = mine; m96Put_('ir_lotto', s);
+    return { ok: true, bought: n, mine: mine, pool: s.pool };
   } finally { lock.releaseLock(); }
 }
 /** 40 % prohraných sázek z casina + 5 % cutu Prší (posílá klient po dávkách) */

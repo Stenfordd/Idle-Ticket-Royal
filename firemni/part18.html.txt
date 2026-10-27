@@ -1,398 +1,423 @@
 <script>
 (function () {
 "use strict";
-const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;
+const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign;
 const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
+const fmt = A.fmt, fmtT = A.fmtT;
+const R = () => TT.rnd();
+const pick = (arr) => arr[Math.floor(R() * arr.length)];
 const esc = (t) => escapeHtml(String(t));
-const FIGHT_MS = 20 * 60000, CLICK_MS = 30000, AWAY_MAX = 8 * 3600000, POWER_CAP = 0.6, WAKE_BOSS = 29;
-const FIRST = ["David", "Dan", "Gabriel", "Kevin", "Steve", "Mike", "Tom", "Paul", "Martin", "Lukas", "Jakub", "Honza", "Pepa", "Franta", "Jarda", "Ondra", "Filip", "Adam", "Petr", "Vojta",
-"Tereza", "Klara", "Brenda", "Sandra", "Olga", "Zoe", "Nancy", "Linda", "Eva", "Karen"];
-const NICK = ["Hotfix", "Legacy", "Overtime", "Root", "Sudo", "Spaghetti", "Ctrl+C", "The Intern", "Senior", "No Docs", "Rollback", "Merge Master", "404", "Coffee", "Monday", "Burnout", "Rubber Duck", "Ticket Killer"];
-const MEME = [
-["Kevin from Accounting", "I counted the GC twice, it's fine."], ["Steve (Unpaid Intern)", "Do I get paid for this? ...no? Okay."], ["Gary the Printer Whisperer", "The printer and I have an understanding."],
-["Mr. Works On My Machine", "Works on my machine. Ship it."], ["Chad Deploy-on-Friday", "Pushed to prod. On Friday. You're welcome."], ["Legacy Larry", "Don't touch it. It works. Nobody knows why."],
-["Bobby Tables", "'); DROP TABLE bosses;--"], ["Reply-All Randy", "Replying all to confirm I replied all."], ["Copy-Paste Pete", "Found the answer on page 7 of a forum from 2009."],
-["Merge Conflict Mike", "Accept both changes. What could go wrong?"], ["Null Pointer Nancy", "undefined is not a function. Neither is this boss."], ["Stack Overflow Steve", "Marked as duplicate. Boss closed."],
-["Jira Jerry", "Moved the boss to DONE."], ["Hotfix Hank", "Hotfix deployed. Hotfix for the hotfix incoming."], ["Quick Sync Quinn", "Just a quick 5-minute fight."],
-["Synergy Sandra", "Let's leverage our core synergies going forward."], ["Excel Ernie", "I made a pivot table of the boss's weaknesses."], ["Out-Of-Office Olga", "I'm out of office. But also I won."],
-["Ctrl+Z Zoe", "Undid my mistakes. All of them."], ["Sudo Sam", "sudo win"], ["Patch Tuesday Tom", "Rebooting the boss. Please wait."],
-["404 Dave", "Nobody could find me. Including the boss."], ["Dev Null", "Sent the boss to /dev/null."], ["Coffee-Driven Kyle", "Third coffee. Fourth boss."],
-["Lunch Break Luke", "Back from lunch. What did I miss?"], ["Jarda z IT", "Did you try turning it off and on again?"], ["Pepa od tiskárny", "PC LOAD LETTER. Sorted."]
-];
-const QUIPS = ["Another one done.", "Tickets closed, boss closed.", "Coffee was cold, the fight was hot.", "I'll put it in the weekly report.", "Easy. Well, mostly.", "Can I go home now?"];
-function rollName() {
-if (Math.random() < 0.3) { const m = MEME[Math.floor(Math.random() * MEME.length)]; return { name: m[0], quip: m[1] }; }
-let n = FIRST[Math.floor(Math.random() * FIRST.length)];
-if (Math.random() < 0.3) n += " '" + NICK[Math.floor(Math.random() * NICK.length)] + "'";
-return { name: n, quip: "" };
+function towerGc(f) { return Math.round(400 + 60 * Math.pow(f, 1.6)); }
+function towerXp(f) { return Math.round(30 + 14 * f); }
+function towerHtml(box) {
+const d = A.HS(), b = d.tower.best, next = Math.min(100, b + 1), m = C.towerFloor(next);
+const cells = [];
+for (let f = 1; f <= 100; f++) { const bs = !!C.TOWER_BOSS[f]; cells.push(`<div class="${f <= b ? "ok" : f === b + 1 ? "nx" : ""} ${bs ? "bs" : ""}">${f === 100 ? "🕶" : bs ? "☠" : f}</div>`); }
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>🗼 SERVER TOWER</span><span>${b}/100</span></div>
+<div class="dg-dim">Climb 100 floors of the server tower. Every 5th floor is an elite, every 10th floor (and floor 95) a boss. On floor 100 waits <b>THE ADMINISTRATOR</b> - beat him to unlock <b>♾ CLEAR THE POOL</b> forever.
+Every 10 floors = <b>+1% ATK and HP</b> in all HIGH STAKES modes (now <b>+${Math.floor(b / 10)}%</b>). Your progress stays through office prestiges.</div></div>
+${b >= 100 ? `<div class="dg-card dg-lock"><div class="big">🏆</div><div style="font:800 14px Orbitron,monospace;color:var(--amber);">TOWER CONQUERED</div><div class="dg-dim">All 100 floors cleared. Respect.</div></div>` :
+`<div class="dg-card"><div class="dg-h"><span>NEXT: ${esc(m.name)}</span><span>⚡1</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}<br>
+Reward: ${fmt(towerXp(next))} XP, ${fmt(towerGc(next))} GC${next % 10 === 0 ? ", a GC bonus and +1% permanent power" : ""}<br>Your stats: ${A.statLine()}</div></div>
+<button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.towerGo()">⚔ CLIMB TO FLOOR ${next} (⚡1)</button></div>`}
+<div class="dg-card"><div class="dg-h">FLOORS</div><div class="tw-grid">${cells.join("")}</div></div>`;
 }
-function st() {
-const d = A.HS();
-if (!d.col || typeof d.col !== "object") d.col = {};
-const c = d.col;
-c.level = Math.max(1, Math.floor(Number(c.level) || 1)); c.xp = Math.max(0, Number(c.xp) || 0);
-if (!c.gear || typeof c.gear !== "object") c.gear = {};
-if (c.gmig !== 2) { c.gear = {}; c.gmig = 2; }                     // v10: nový gear (loot) - kolega začíná s prázdnou výbavou
-if (!c.stats || typeof c.stats !== "object") c.stats = { w: 0, l: 0, gc: 0, clicks: 0 };
-if (!Array.isArray(c.log)) c.log = [];
-if (c.cls !== "sysadmin" && c.cls !== "engineer" && c.cls !== "cyber") c.cls = "engineer";
-if (!c.unlocked && (d.tower.best >= 100 || (d.pool && d.pool.unlocked))) c.unlocked = true;     // Administrator už padl
-if (c.unlocked && !c.name) { const r = rollName(); c.name = r.name; c.quip = r.quip; }
-return c;
+function towerGo() {
+const d = A.HS(), f = d.tower.best + 1;
+if (f > 100) return;
+if (!A.spendEnergy(1)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
+const m = C.towerFloor(f);
+A.beginFight(m, { mode: "tower", hud: () => `🗼 Floor ${f}/100${f % 10 === 0 ? " · BOSS" : f % 5 === 0 ? " · ELITE" : ""}`,
+onEnd: function (fi) {
+const lines = [], dd = A.HS();
+if (fi.win) {
+dd.wins++;
+if (f > dd.tower.best) dd.tower.best = f;
+gameState.coins += towerGc(f); lines.push(`+${fmt(towerGc(f))} GC`);
+A.gainXp(towerXp(f), lines); lines.unshift(`+${fmt(towerXp(f))} XP`);
+if (f % 10 === 0) { A.dropItem(lines); lines.push(`💪 +1% permanent power`); }
+if (f === 100) { TT.announce("CONQUERED THE SERVER TOWER", "HIGH STAKES", 0, towerGc(f)); if (!dd.pool.unlocked) { dd.pool.unlocked = true; lines.push("♾ CLEAR THE POOL unlocked!"); log("♾ The Administrator is down. CLEAR THE POOL is now unlocked - how deep can you go?", "special"); } }
+log(`🗼 TOWER floor ${f} cleared - ${lines.join(", ")}`, "special");
+} else { dd.losses++; const xp = fi.fled ? 0 : Math.round(towerXp(f) * 0.3); if (xp) A.gainXp(xp, lines); lines.push(xp ? `+${xp} XP` : "no reward"); }
+const btns = [{ label: "◀ TOWER", fn: () => Dungeon.tab("tower") }];
+if (fi.win && f < 100) btns.push({ label: `FLOOR ${f + 1} ▶`, cls: "btn-gold", fn: towerGo });
+else if (!fi.win) btns.push({ label: "↻ RETRY", cls: "btn-cyan", fn: towerGo });
+return { title: fi.win ? `FLOOR ${f} CLEARED` : "FALLEN", lines: lines, buttons: btns };
+} });
 }
-function awake() { const d = A.HS(), c = st(); return !!c.unlocked && (d.stars[WAKE_BOSS] || 0) > 0; }
-function bossesBeaten() {
-const d = A.HS(), out = [];
-C.LIST.forEach(m => { if ((m.k === "boss" || m.k === "mini" || m.k === "secret" || m.k === "elite") && (d.stars[m.id] || 0) > 0) out.push(m.id); });
+const SHIFT_COST = 3, SHIFT_STEPS = 10, ASC_MAX = 10;
+const PERKS = {
+cpu:   { n: "Overclocked CPU", i: "🔥", t: "+12% ATK", st: true },
+ram:   { n: "Extra RAM", i: "🧠", t: "+15% max HP", st: true },
+l7:    { n: "Lucky 7s", i: "7️⃣", t: "Gamble: much better odds for 7️⃣ and ⭐", st: true },
+caff:  { n: "Caffeine Addict", i: "☕", t: "Block gives +6 focus", st: true },
+mon:   { n: "Wide Monitor", i: "🖥", t: "Power Strike zone +5%", st: true },
+duck:  { n: "Rubber Duck", i: "🦆", t: "Once per fight survive a lethal hit with 1 HP" },
+glove: { n: "Rubber Gloves", i: "🧤", t: "💀💀💀 no longer backfires" },
+vamp:  { n: "Vampire Script", i: "🧛", t: "Heal 8% of damage dealt", st: true },
+thorn: { n: "Thorny Firewall", i: "🌵", t: "Reflect 15% of damage taken", st: true },
+hot:   { n: "Hot Reload", i: "♻", t: "Heal 3% max HP every turn", st: true },
+early: { n: "Early Bird", i: "🐦", t: "First hit of every fight ×2" },
+root:  { n: "Root Access", i: "🔑", t: "Break meter fills 30% faster", st: true },
+chair: { n: "Ergonomic Chair", i: "🪑", t: "Start every fight with a 15% HP shield", st: true },
+mm:    { n: "Muscle Memory", i: "🥋", t: "Parry window much bigger" },
+eyes:  { n: "Sharp Eyes", i: "👁", t: "+6% crit", st: true },
+ninja: { n: "Ninja Mode", i: "🥷", t: "+5% dodge", st: true }
+};
+function applyPerks(h, P) {
+const k = (id) => P[id] || 0;
+h.atk *= 1 + 0.12 * k("cpu"); h.maxHp = Math.round(h.maxHp * (1 + 0.15 * k("ram")));
+h.luckReel += 12 * k("l7"); h.zone = Math.min(0.6, h.zone + 0.05 * k("mon")); h.crit = Math.min(0.6, h.crit + 0.06 * k("eyes")); h.dodge = Math.min(0.5, h.dodge + 0.05 * k("ninja"));
+h.perks = { blockFocus: 6 * k("caff"), duck: !!k("duck"), noBackfire: !!k("glove"), vamp: 0.08 * k("vamp"), thorns: 0.15 * k("thorn"), regen: 0.03 * k("hot"),
+firstStrike: !!k("early"), breakBonus: 0.3 * k("root"), shieldStart: 0.15 * k("chair"), parryEasy: !!k("mm") };
+}
+function perkOffer(P, n) {
+const pool = Object.keys(PERKS).filter(id => PERKS[id].st || !P[id]);
+const out = [];
+while (out.length < n && pool.length) out.push(pool.splice(Math.floor(R() * pool.length), 1)[0]);
 return out;
 }
-/** v8.8: kolega má 80 % tvého levelu; v9.0: TRÉNINK se kupuje za GC (+2 % síly za level, max 15) */
-const TRAIN_MAX = 15;
-function trainCost() { return Math.round(25000 * Math.pow(1.55, trainLv())); }
-function colLevel() { return Math.max(1, Math.round(A.HS().level * 0.8)); }
-function xpToNext(L) { return 150 + 90 * L; }
-function trainLv() { return Math.min(TRAIN_MAX, st().level - 1); }
-/** kolega: vlastní výbava + level, nikdy silnější než 60 % tebe */
-function hero() {
-const c = st();
-const g = window.Gear ? Gear.multOf(c.gear) : { atk: 1, hp: 1, crit: 0 };
-const L = colLevel(), pts = H.statPoints(L);
-const mk = (H.CLASSES[c.cls] || {}).main || "str", stats = { vit: Math.round(pts * 0.4), end: pts - 2 * Math.round(pts * 0.4) }; stats[mk] = Math.round(pts * 0.4);
-const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, { atk: g.atk, hp: g.hp, crit: g.crit, stats: g.stats });
-const tb = 1 + 0.02 * trainLv();                                   // trénink z darovaných itemů: +2 % za level
-hh.atk *= tb; hh.maxHp = Math.round(hh.maxHp * tb);
-const me = A.hero();
-hh.atk = Math.min(hh.atk, me.atk * POWER_CAP); hh.maxHp = Math.round(Math.min(hh.maxHp, me.maxHp * POWER_CAP));
-return hh;
+function shiftX() { return C.levelToX(A.HS().level); }
+function stepGc() { return Math.round(C.gcFor(Math.min(50, Math.round(shiftX())), false) * 0.45); }
+function run() { return A.HS().shift.run || null; }
+const NODE = { fight: ["⚔", "INCIDENT", "A normal fight. Win = coins + a perk."], elite: ["💀", "ESCALATION", "Elite enemy. Harder, more coins, better perks."],
+event: ["❓", "SOMETHING WEIRD", "A random office event. Could be great. Could be HR."], shop: ["🛒", "VENDING MACHINE", "Spend shift coins on heals and perks."],
+rest: ["🛋", "BREAK ROOM", "Heal up or grab some coins."], boss: ["☠", "SHIFT BOSS", "The end of the shift. Beat it to clear the run."] };
+function rollChoices(r) {
+if (r.step === SHIFT_STEPS - 1) return ["boss"];
+const w = [["fight", 45], ["elite", 16], ["event", 17], ["shop", r.step >= 2 ? 11 : 0], ["rest", r.step >= 3 && r.last !== "rest" ? 11 : 0]];
+const one = () => { const s = w.reduce((a, x) => a + x[1], 0); let x = R() * s; for (const it of w) { if (x < it[1]) return it[0]; x -= it[1]; } return "fight"; };
+const a = one(); let b = one(), g = 0; while (b === a && g++ < 8) b = one();
+return [a, b];
 }
-/** souboj kolegy = stejný engine, jen hraje počítač (a hůř trefuje parry a ulti než ty) */
-function simFight(id, seed) {
-const PS = H.PARRY_SKILL, US = H.ULT_SKILL, keep = [PS.perfect, PS.good, US.q, US.all];
-PS.perfect = 0.15; PS.good = 0.35; US.q = 0.9; US.all = 0.3;
-try { return H.simulate(hero(), C.mission(id), seed); }
-finally { PS.perfect = keep[0]; PS.good = keep[1]; US.q = keep[2]; US.all = keep[3]; }
+function shiftStart(asc) {
+const d = A.HS();
+if (run()) return;
+asc = Math.max(0, Math.min(d.shift.asc || 0, asc | 0));
+if (!A.spendEnergy(SHIFT_COST)) { log(`ON-CALL SHIFT costs ⚡${SHIFT_COST}.`, "warning"); A.render(); return; }
+const r = { asc: asc, step: 0, hp: 1, coins: 0, perks: {}, choices: null, phase: "map", offer: null, ev: null, last: "", seed: Math.floor(R() * 1e6), log: [] };
+r.choices = rollChoices(r);
+d.shift.run = r; d.shift.runs = (d.shift.runs || 0) + 1;
+TT.saveSoon(); A.render();
 }
-const wrCache = {};
-function winRate(id) {
-const c = st(), key = id + "|" + c.level + "|" + c.cls + "|" + JSON.stringify(c.gear) + "|" + A.HS().level + "|" + (gameState.prestige || 0);
-if (wrCache[id] && wrCache[id].k === key) return wrCache[id].v;
-let w = 0; for (let i = 0; i < 24; i++) if (simFight(id, 777 + i * 131).win) w++;
-const v = w / 24; wrCache[id] = { k: key, v: v }; return v;
+function shiftHtml(box) {
+const d = A.HS(), r = run(), sh = d.shift;
+if (!r) {
+const ascBtns = []; for (let a = 0; a <= Math.min(ASC_MAX, sh.asc || 0); a++) ascBtns.push(`<button class="btn ${a === (sh.asc || 0) ? "btn-gold" : ""}" style="padding:8px 10px;" onclick="HSModes.shiftStart(${a})">${a === 0 ? "NORMAL" : "ASC " + a}</button>`);
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📟 ON-CALL SHIFT</span><span>⚡${SHIFT_COST}</span></div>
+<div class="dg-dim">A roguelite run: ${SHIFT_STEPS} stops, you pick the path. <b>Your HP does NOT reset between fights.</b> After each fight pick 1 of 3 perks -
+build a broken combo (Lucky 7s + Rubber Gloves = gambling machine). Events, a vending machine, a break room and a boss at the end.
+Enemies scale with your level. Clear a shift to unlock the next <b>Ascension</b> (harder, better rewards).</div>
+<div class="dg-dim" style="margin-top:6px;">Runs ${sh.runs || 0} · Clears ${sh.clears || 0} · Best ${sh.best || 0}/${SHIFT_STEPS} · Ascension unlocked ${sh.asc || 0}/${ASC_MAX}</div>
+<div class="dg-row" style="margin-top:10px;">${ascBtns.join("")}</div></div>`;
+return;
 }
-function reward(id) {
-const gc = Math.round(C.gcFor(id, false) * 2 + (typeof calculateAutoGcRate === "function" ? calculateAutoGcRate() : 0) * (120 + 6 * id));   // + 2-7 min autogenu
-const scrap = Math.round((typeof getChestScrapCost === "function" ? getChestScrapCost() : 100) * (1 + id / 20));
-const xp = Math.round(C.xpFor(id, false) * 0.5);
-return { gc: gc, scrap: scrap, xp: xp };
+const pathCells = []; for (let i = 0; i < SHIFT_STEPS; i++) pathCells.push(`<div class="${i < r.step ? "done" : i === r.step ? "cur" : ""}"></div>`);
+const perks = Object.keys(r.perks).map(id => `<span title="${esc(PERKS[id].t)}">${PERKS[id].i} ${esc(PERKS[id].n)}${r.perks[id] > 1 ? " ×" + r.perks[id] : ""}</span>`).join("") || `<span style="opacity:.5;">no perks yet</span>`;
+const hh = shiftHero();
+const head = `<div class="dg-card"><div class="dg-h"><span>📟 SHIFT${r.asc ? " · ASC " + r.asc : ""} · STOP ${r.step + 1}/${SHIFT_STEPS}</span><span>🪙 ${r.coins}</span></div>
+<div class="sh-path">${pathCells.join("")}</div>
+<div class="dg-dim">❤ <b>${fmt(Math.ceil(r.hp * hh.maxHp))}</b> / ${fmt(hh.maxHp)} · ⚔ <b>${fmt(hh.atk)}</b></div>
+<div class="sh-perks">${perks}</div></div>`;
+let body = "";
+if (r.phase === "map") {
+body = `<div class="dg-card"><div class="dg-h">CHOOSE YOUR NEXT STOP</div><div class="sh-choices">${r.choices.map((c, i) => `<div class="sh-choice" onclick="HSModes.shiftGo(${i})"><div class="ic">${NODE[c][0]}</div><b>${NODE[c][1]}</b><div class="dg-dim">${NODE[c][2]}</div></div>`).join("")}</div>
+<div style="text-align:right;margin-top:8px;"><button class="btn" style="padding:5px 10px;font-size:10px;" onclick="HSModes.shiftQuit()">END SHIFT EARLY</button></div></div>`;
+} else if (r.phase === "perk") {
+body = `<div class="dg-card"><div class="dg-h">PICK A PERK</div><div class="sh-choices">${r.offer.map(id => `<div class="sh-choice" onclick="HSModes.shiftPerk('${id}')"><div class="ic">${PERKS[id].i}</div><b>${esc(PERKS[id].n)}${r.perks[id] ? " (" + (r.perks[id] + 1) + ")" : ""}</b><div class="dg-dim">${esc(PERKS[id].t)}</div></div>`).join("")}</div></div>`;
+} else if (r.phase === "event") {
+const e = EVENTS[r.ev];
+body = `<div class="dg-card"><div class="dg-h">${e.i} ${esc(e.n)}</div><div class="dg-dim">${esc(e.t)}</div>
+<div class="sh-choices">${e.o.map((o, i) => `<div class="sh-choice" onclick="HSModes.shiftEvent(${i})"><b>${esc(o[0])}</b><div class="dg-dim">${esc(o[1])}</div></div>`).join("")}</div></div>`;
+} else if (r.phase === "shop") {
+body = `<div class="dg-card"><div class="dg-h">🛒 VENDING MACHINE <span>🪙 ${r.coins}</span></div><div class="sh-choices">
+${SHOP.map((s, i) => `<div class="sh-choice" onclick="HSModes.shiftBuy(${i})" style="${r.coins < s.c || (r.bought || {})[i] ? "opacity:.4;" : ""}"><div class="ic">${s.i}</div><b>${esc(s.n)} - 🪙${s.c}</b><div class="dg-dim">${esc(s.t)}</div></div>`).join("")}</div>
+<button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="HSModes.shiftShopDone()">CONTINUE ▶</button></div>`;
+} else if (r.phase === "rest") {
+body = `<div class="dg-card"><div class="dg-h">🛋 BREAK ROOM</div><div class="sh-choices">
+<div class="sh-choice" onclick="HSModes.shiftRest(0)"><div class="ic">😴</div><b>POWER NAP</b><div class="dg-dim">Heal 40% max HP</div></div>
+<div class="sh-choice" onclick="HSModes.shiftRest(1)"><div class="ic">🎲</div><b>OFFICE POKER</b><div class="dg-dim">+1 random perk, but -10% HP</div></div></div></div>`;
 }
-let lastReport = null;
-function work(silent) {
-if (typeof gameState === "undefined" || !gameLoaded) return null;
-const c = st(), now = Date.now();
-if (!c.unlocked) return null;
-if (!awake()) { c.fightAt = now; c.clickAt = now; return null; }
-if (!c.fightAt) c.fightAt = now; if (!c.clickAt) c.clickAt = now;
-const from = Math.max(c.fightAt, now - AWAY_MAX), fromC = Math.max(c.clickAt, now - AWAY_MAX);
-const nf = Math.floor((now - from) / FIGHT_MS), nc = Math.floor((now - fromC) / CLICK_MS);
-if (!nf && !nc) return null;
-const rep = { w: 0, l: 0, gc: 0, scrap: 0, xp: 0, tok: 0, clicks: nc, tickets: 0, boss: "" };
-if (nc) {
-const t = (typeof calculateClickPower === "function" ? calculateClickPower() : 1) * nc;
-gameState.tickets += t; gameState.lifetimeTickets = (gameState.lifetimeTickets || 0) + t; rep.tickets = t; c.stats.clicks += nc;
+const logH = r.log.length ? `<div class="dg-card"><div class="dg-h">SHIFT LOG</div>${r.log.slice(-6).reverse().map(l => `<div class="dg-dim">${l}</div>`).join("")}</div>` : "";
+box.innerHTML = head + body + logH;
 }
-c.clickAt = fromC + nc * CLICK_MS;
-const ids = bossesBeaten();
-if (nf && c.target != null && ids.indexOf(c.target) >= 0) {
-const id = c.target, m = C.mission(id); rep.boss = m.enemy.name;
-const wr = winRate(id), r = reward(id);
-for (let i = 0; i < nf; i++) {
-if (Math.random() < wr) { rep.w++; rep.gc += r.gc; rep.scrap += r.scrap; rep.xp += r.xp; if (Math.random() < 0.02) rep.tok++; }
-else rep.l++;
+function shiftHero() { const r = run(), h = A.hero(); applyPerks(h, r ? r.perks : {}); return h; }
+function rlog(t) { const r = run(); if (r) { r.log.push(t); if (r.log.length > 20) r.log.shift(); } }
+function heal(p) { const r = run(); r.hp = Math.min(1, r.hp + p); }
+function shiftGo(i) {
+const r = run(); if (!r || r.phase !== "map") return;
+const node = r.choices[i]; if (!node) return;
+r.last = node;
+if (node === "fight" || node === "elite" || node === "boss") return shiftFight(node);
+if (node === "event") { r.ev = Math.floor(R() * EVENTS.length); r.phase = "event"; }
+if (node === "shop") { r.phase = "shop"; r.bought = {}; }
+if (node === "rest") r.phase = "rest";
+TT.saveSoon(); A.render();
 }
-gameState.coins += rep.gc; gameState.scrap += rep.scrap; gameState.slotTokens += rep.tok;
-if (rep.xp) { const lines = []; A.gainXp(rep.xp, lines); }
-c.stats.w += rep.w; c.stats.l += rep.l; c.stats.gc += rep.gc;
+function shiftFight(node) {
+const r = run();
+const m = C.shiftEnemy(A.HS().level, node, r.step, r.asc, r.seed + r.step * 31, A.hero());
+A.beginFight(m, { mode: "shift",
+prepHero: function (h) { applyPerks(h, r.perks); h.startHp = Math.max(1, r.hp * h.maxHp); },
+hud: () => `📟 Shift stop ${r.step + 1}/${SHIFT_STEPS}${r.asc ? " · ASC " + r.asc : ""} · ${node.toUpperCase()} · HP carries over!`,
+onEnd: function (f) {
+const lines = [], d = A.HS();
+if (f.win) {
+d.wins++;
+r.hp = Math.max(0.01, f.hp / f.h.maxHp);
+const coins = node === "boss" ? 0 : node === "elite" ? 45 : 25;
+r.coins += coins;
+const gc = Math.round(stepGc() * (node === "elite" ? 1.5 : 1) * (1 + 0.25 * r.asc));
+gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
+const xp = Math.round(C.xpFor(Math.min(50, Math.round(shiftX())), false) * 0.6 * (1 + 0.15 * r.asc));
+A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`);
+if (coins) lines.push(`+${coins} 🪙`);
+rlog(`${NODE[node][0]} Beat ${esc(f.e.name)} (${Math.round(r.hp * 100)}% HP left)`);
+if (node === "boss") return shiftEnd(true, lines);
+r.step++; r.phase = "perk"; r.offer = perkOffer(r.perks, 3);
+d.shift.best = Math.max(d.shift.best || 0, r.step);
+return { title: node === "elite" ? "ESCALATION HANDLED" : "INCIDENT RESOLVED", lines: lines, buttons: [{ label: "PICK A PERK ▶", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
 }
-c.fightAt = from + nf * FIGHT_MS;
-if (rep.w || rep.l) {
-const line = `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${esc(rep.boss)}: ${rep.w}W ${rep.l}L · +${short(rep.gc)} GC · +${short(rep.scrap)} scrap${rep.tok ? " · +" + rep.tok + " 🎟" : ""}`;
-c.log.unshift(line); c.log = c.log.slice(0, 12);
-if (!silent) log(`🧑‍💼 ${esc(c.name)}: ${rep.w ? "beat " + esc(rep.boss) + (rep.w > 1 ? " " + rep.w + "×" : "") : "lost to " + esc(rep.boss)} → +${short(rep.gc)} GC, +${short(rep.scrap)} scrap${rep.tok ? ", +" + rep.tok + " 🎟" : ""}`, rep.w ? "success" : "warning");
+d.losses++;
+return shiftEnd(false, lines);
+} });
+}
+function shiftEnd(win, lines) {
+const d = A.HS(), r = run();
+const steps = win ? SHIFT_STEPS : r.step;
+d.shift.best = Math.max(d.shift.best || 0, steps);
+if (win) {
+d.shift.clears = (d.shift.clears || 0) + 1;
+const bonus = Math.round(stepGc() * 3 * (1 + 0.25 * r.asc));
+gameState.coins += bonus; lines.push(`🏆 shift bonus +${fmt(bonus)} GC`);
+A.dropItem(lines); A.dropItem(lines);
+if (r.asc >= (d.shift.asc || 0) && (d.shift.asc || 0) < ASC_MAX) { d.shift.asc = (d.shift.asc || 0) + 1; lines.push(`🔓 Ascension ${d.shift.asc} unlocked`); }
+log(`📟 ON-CALL SHIFT CLEARED${r.asc ? " (ASC " + r.asc + ")" : ""}! ${lines.join(", ")}`, "special");
+if (r.asc >= 5) TT.announce("CLEARED ASCENSION " + r.asc + " SHIFT", "HIGH STAKES", 0, bonus);
+} else log(`📟 Shift over at stop ${r.step + 1}/${SHIFT_STEPS}.`, "warning");
+d.shift.run = null;
+if (window.Meta && Meta.onShift) try { Meta.onShift(r.asc, steps); } catch (e) {}
+TT.saveSoon();
+return { title: win ? "SHIFT CLEARED" : "BURNED OUT", sub: `${steps}/${SHIFT_STEPS} stops`, lines: lines.length ? lines : ["Better luck next shift."],
+buttons: [{ label: "◀ SHIFT", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+}
+function shiftPerk(id) {
+const r = run(); if (!r || r.phase !== "perk" || r.offer.indexOf(id) < 0) return;
+r.perks[id] = (r.perks[id] || 0) + 1; rlog(`${PERKS[id].i} Took ${esc(PERKS[id].n)}`);
+shiftNext();
+}
+function shiftNext() { const r = run(); if (!r) return; r.phase = "map"; r.choices = rollChoices(r); TT.saveSoon(); A.render(); }
+function advance() { const r = run(); r.step++; A.HS().shift.best = Math.max(A.HS().shift.best || 0, r.step); }
+function shiftQuit() { const r = run(); if (!r) return; if (!confirm("End this shift? You keep what you earned so far.")) return; A.HS().shift.run = null; TT.saveSoon(); A.render(); }
+const EVENTS = [
+{ i: "☕", n: "Free Coffee", t: "Someone left a full coffee on their desk. Nobody is looking.", o: [["Drink it", "Heal 30% (or is it decaf?)"], ["Leave it", "+15 coins for honesty"]],
+f: [() => { if (R() < 0.75) { heal(0.3); return "☕ Delicious. +30% HP"; } return "☕ It was decaf. Nothing happens."; }, () => { run().coins += 15; return "😇 +15 coins"; }] },
+{ i: "🚪", n: "Open Server Room", t: "The server room door is propped open with a chair.", o: [["Sneak in", "Random perk, -15% HP"], ["Report it", "+25 coins"]],
+f: [() => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; run().hp = Math.max(0.05, run().hp - 0.15); return "🚪 Found " + PERKS[id].n + "! -15% HP"; }, () => { run().coins += 25; return "📋 +25 coins"; }] },
+{ i: "🎰", n: "Break Room Slot Machine", t: "There's a slot machine in the break room. Since when?", o: [["Spin (20 coins)", "50% +60 coins, 15% perk"], ["Walk away", "Nothing happens"]],
+f: [() => { const r = run(); if (r.coins < 20) return "🎰 Not enough coins."; r.coins -= 20; const x = R(); if (x < 0.5) { r.coins += 60; return "🎰 WIN! +60 coins"; } if (x < 0.65) { const id = perkOffer(r.perks, 1)[0]; r.perks[id] = (r.perks[id] || 0) + 1; return "🎰 JACKPOT: " + PERKS[id].n; } return "🎰 Nothing. Classic."; }, () => "🚶 You walk away."] },
+{ i: "📅", n: "Quick Sync?", t: "Your manager wants a 'quick sync'. It will not be quick.", o: [["Accept", "-10% HP, +40 coins"], ["Fake a call", "Nothing happens"]],
+f: [() => { run().hp = Math.max(0.05, run().hp - 0.1); run().coins += 40; return "📅 1 hour later... +40 coins, -10% HP"; }, () => "📞 'Sorry, I'm on a call!'"] },
+{ i: "💾", n: "Mysterious USB Stick", t: "A USB stick labelled 'SALARIES 2026' lies on the floor.", o: [["Plug it in", "50% perk / 50% -25% HP"], ["Throw it away", "+10 coins"]],
+f: [() => { if (R() < 0.5) { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; return "💾 Free perk: " + PERKS[id].n; } run().hp = Math.max(0.05, run().hp - 0.25); return "💾 It was malware. -25% HP"; }, () => { run().coins += 10; return "🗑 +10 coins"; }] },
+{ i: "🍕", n: "Pizza Friday", t: "There's leftover pizza in the kitchen.", o: [["Eat 3 slices", "Heal 50%"], ["Take it to the team", "+35 coins"]],
+f: [() => { heal(0.5); return "🍕 +50% HP"; }, () => { run().coins += 35; return "🍕 The team loves you. +35 coins"; }] }
+];
+const SHOP = [
+{ i: "🩹", n: "First Aid Kit", c: 30, t: "Heal 35% HP", f: () => heal(0.35) },
+{ i: "🎁", n: "Mystery Perk", c: 60, t: "A random perk", f: () => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; rlog("🛒 Bought " + PERKS[id].n); } }
+];
+function shiftEvent(i) {
+const r = run(); if (!r || r.phase !== "event") return;
+const e = EVENTS[r.ev]; const msg = e.f[i] ? e.f[i]() : "";
+rlog(msg); advance(); shiftNext();
+}
+function shiftBuy(i) {
+const r = run(); if (!r || r.phase !== "shop") return;
+r.bought = r.bought || {};
+const s = SHOP[i]; if (!s || r.coins < s.c || r.bought[i]) return;
+r.coins -= s.c; r.bought[i] = true; s.f(); TT.saveSoon(); A.render();
+}
+function shiftRest(i) {
+const r = run(); if (!r || r.phase !== "rest") return;
+if (i === 0) { heal(0.4); rlog("😴 Power nap: +40% HP"); }
+else { const id = perkOffer(r.perks, 1)[0]; r.perks[id] = (r.perks[id] || 0) + 1; r.hp = Math.max(0.05, r.hp - 0.1); rlog("🎲 Won " + PERKS[id].n + " at poker, -10% HP"); }
+advance(); shiftNext();
+}
+function shiftShopDone() { const r = run(); if (!r || r.phase !== "shop") return; advance(); shiftNext(); }
+const wb = { st: null, loading: false, err: "", busy: false, at: 0 };
+function week() { return String(Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000))); }
+function wbLoad(force) {
+if (wb.loading || (!force && wb.st && Date.now() - wb.at < 20000)) return;
+wb.loading = true;
+google.script.run.withSuccessHandler(r => {
+wb.loading = false; wb.at = Date.now();
+if (r && r.ok) { wb.st = r; wb.err = ""; wbClaim(); } else wb.err = "Could not load the boss.";
+if (A.isOpen() && A.view() === "boss") A.render();
+}).withFailureHandler(e => { wb.loading = false; wb.err = String(e && e.message || e); if (A.isOpen() && A.view() === "boss") A.render(); }).wbState();
+}
+/** odměna za minulý týden: když padl a hráč se zúčastnil -> +10 % do kanceláře (+3 % za každý další MK, max +25 %; nejlepší +5 %), GC ×(1 + 0.25 za každý další MK) */
+function wbReward(kills, top) { const k = Math.max(1, kills || 1); return { buff: Math.min(0.25, 0.10 + 0.03 * (k - 1)) + (top ? 0.05 : 0), gcMul: 1 + 0.25 * (k - 1) }; }
+function wbClaim() {
+const l = wb.st && wb.st.last, d = A.HS();
+if (!l || d.wb.claimed === String(l.week)) return;
+d.wb.claimed = String(l.week);
+if (l.killed && l.myDmg > 0) {
+const rw = wbReward(l.kills, l.top === gameState.ldap);
+d.wb.buff = rw.buff; d.wb.buffWeek = week();
+const gc = Math.round(l.myDmg * 4 * rw.gcMul);
+gameState.coins += gc;
+log(`📊 QUARTERLY REVIEW: last week's boss went down${l.kills > 1 ? " " + l.kills + "× (up to " + C.mkName(l.kills) + ")" : ""}! You get ×${(1 + d.wb.buff).toFixed(2)} office income this week and +${fmt(gc)} GC${l.top === gameState.ldap ? " (Employee of the Week!)" : ""}.`, "special");
+updateUI();
 }
 TT.saveSoon();
-return rep;
 }
-/** v9.0: trénink za GC */
-function train() {
-const c = st(); if (!c.unlocked || trainLv() >= TRAIN_MAX) { TT.holdStop = true; return; }
-const cost = trainCost();
-if (gameState.coins < cost) { TT.holdStop = true; log(`Training costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost; c.level++; c.xp = 0; c.named = true;
-log(`🧑‍💼 ${esc(c.name)} reached training level ${trainLv()} (+${2 * trainLv()}% power)!`, "special");
-if (trainLv() >= TRAIN_MAX) TT.holdStop = true;
-after();
+function wbHtml(box) {
+wbLoad(false);
+const s = wb.st;
+if (!s) { box.innerHTML = `<div class="dg-card"><div class="dg-dim">${wb.err ? "⚠ " + esc(wb.err) : "Loading the Quarterly Review..."}</div></div>`; return; }
+const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk, A.hero()), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
+const wait = Math.max(0, c.me.wait - (Date.now() - wb.at)), dead = false, rw = wbReward(kills, false), rwN = wbReward(kills + 1, false);
+const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
+const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
+const l = s.last;
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
+<div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
+<div class="dg-dim">Everyone in the company hits the same boss. 1 attack per hour, 15 turns, no energy needed. HP grows with every new attendee.
+When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.6 HP, +15% ATK).<br>
+${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
+Next kill → <b>×${(1 + rwN.buff).toFixed(2)}</b>.</div></div></div>
+${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING (15 turns)"}</button>`}
+<div class="dg-dim" style="margin-top:6px;">Your damage this week: <b>${fmt(c.me.dmg)}</b> in ${c.me.n} attack${c.me.n === 1 ? "" : "s"}${A.HS().wb.buffWeek === week() ? ` · 🎉 Active bonus: <b>×${(1 + A.HS().wb.buff).toFixed(2)}</b> office income` : ""}</div></div>
+<div class="dg-grid2"><div class="dg-card"><div class="dg-h">DAMAGE LEADERBOARD</div><div class="wb-lb">${lb}</div></div>
+<div class="dg-card"><div class="dg-h">LAST WEEK</div><div class="dg-dim">${l ? `${esc(C.WB[l.idx % C.WB.length].e)} - ${l.killed ? "<b style='color:var(--emerald);'>DEFEATED" + (l.kills > 1 ? " " + l.kills + "× (" + C.mkName(l.kills) + ")" : "") + "</b>" : "<b style='color:var(--crimson);'>SURVIVED</b>"} · ${l.participants} attendees<br>
+${l.top ? `🏅 Employee of the Week: <b>${esc(l.top)}</b><br>` : ""}Your damage: ${fmt(l.myDmg)}` : "No meeting last week."}</div></div></div>`;
 }
-/** v9.0: po evoluci tvůj starý kus dostane kolega (když je lepší než jeho) */
-function takeGear(k, old) {
-const c = st(); if (!c.unlocked || !window.Gear) return false;
-const cur = c.gear[k];
-if (!old || old.lv == null || (cur && cur.lv != null && Gear.score(cur) >= Gear.score(old))) return false;
-c.gear[k] = Object.assign({}, old); c.named = true;
-log(`🧑‍💼 ${esc(c.name)} took your old ${Gear.name(k, old)}.`, "success");
-return true;
+function wbGo() {
+const s = wb.st; if (!s || wb.busy) return;
+const c = s.cur;
+if (c.me.wait - (Date.now() - wb.at) > 0) return;
+const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1, A.hero());
+let atkUsed = 0;
+A.beginFight(m, { mode: "boss", prepHero: (h) => { atkUsed = h.atk; },
+hud: (f) => `📊 Quarterly Review · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,
+onEnd: function (f) {
+const dmg = Math.round(f.emax - Math.max(0, f.ehp));
+wb.busy = true;
+const gc = Math.round(dmg * 3);
+gameState.coins += gc;
+const lines = [`💥 ${fmt(dmg)} damage`, `+${fmt(gc)} GC`];
+const xp = Math.round(C.xpFor(Math.min(50, Math.round(C.levelToX(L))), false) * 0.5);
+A.gainXp(xp, lines); lines.splice(1, 0, `+${fmt(xp)} XP`);
+saveGame(() => google.script.run.withSuccessHandler(r => {
+wb.busy = false;
+if (r && r.ok) { wb.st.cur = r.state; wb.at = Date.now(); if (window.Meta && Meta.onWb) try { Meta.onWb(r.dmg, !!r.kill, r.mk || 1); } catch (e) {}
+if (r.kill) { log(`📊 YOU TOOK DOWN ${C.mkName(r.mk || 1)} of the Quarterly Review boss! ${C.mkName((r.mk || 1) + 1)} just walked in.`, "special"); TT.announce("KILLED THE WEEKLY BOSS " + C.mkName(r.mk || 1), "HIGH STAKES", 0, gc); } }
+else log("QUARTERLY REVIEW: damage not counted (" + (r && r.reason || "error") + ").", "warning");
+if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-res")) A.render();
+}).withFailureHandler(() => { wb.busy = false; log("QUARTERLY REVIEW: could not reach the server.", "warning"); }).wbSubmit(dmg, Math.round(atkUsed)));
+return { title: "MEETING OVER", sub: `💥 ${fmt(dmg)}`, lines: lines, note: "Damage is being submitted to the company-wide total...",
+buttons: [{ label: "◀ QUARTERLY REVIEW", cls: "btn-gold", fn: () => { wbLoad(true); Dungeon.tab("boss"); } }] };
+} });
 }
-function target(id) { const c = st(); if (bossesBeaten().indexOf(id) < 0) return; work(true); c.target = id; c.fightAt = Date.now(); after(); }
-function cls(k) { const c = st(); if (c.named) return; c.cls = k; after(); }
-function reroll() { const c = st(); if (c.named) return; const r = rollName(); c.name = r.name; c.quip = r.quip; after(); }
-function rename() {
-const c = st(); const n = prompt("Name your colleague (max 24 characters):", c.name || "");
-if (n == null) return; const t = String(n).replace(/[<>]/g, "").trim().slice(0, 24); if (!t) return;
-c.name = t; c.quip = ""; after();
+const POOL_COST = 1, POOL_SEED = 90210;                 // stejná patra pro všechny (fér žebříček)
+function poolGc(n) { return Math.round(3 * (2000 + 400 * Math.pow(n, 1.4))); }
+function poolXp(n) { return Math.round(2 * (40 + 12 * n)); }
+const pb = { list: null, at: 0, loading: false };
+function poolBoardLoad(force) {
+if (pb.loading || (!force && pb.list && Date.now() - pb.at < 30000)) return;
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+pb.loading = true;
+google.script.run.withSuccessHandler(r => { pb.loading = false; pb.at = Date.now(); pb.list = r && r.ok ? r.list : []; if (A.isOpen() && A.view() === "pool" && !document.querySelector(".hs-ov")) A.render(); })
+.withFailureHandler(() => { pb.loading = false; pb.at = Date.now(); pb.list = pb.list || []; }).poolBoard();
 }
-function after() { TT.saveSoon(); if (A.isOpen() && A.view() === "colleague") A.render(); if (typeof updateUI === "function") updateUI(); }
-function html(box) {
-const d = A.HS(), c = st();
-if (!c.unlocked) {
-box.innerHTML = `<div class="dg-card dg-lock"><div class="big">🧑‍💼</div><div style="font:800 14px Orbitron,monospace;color:var(--emerald);margin:8px 0;">THE COLLEAGUE - LOCKED</div>
-<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to get a colleague. They farm bosses you have beaten and resolve tickets for you - even while you're away (up to 8 h).<br>Tower: ${d.tower.best}/100</div></div>`;
+function poolHtml(box) {
+const d = A.HS(), P = d.pool;
+if (!P.unlocked) {
+box.innerHTML = `<div class="dg-card dg-lock"><div class="big">♾</div><div style="font:800 14px Orbitron,monospace;color:var(--crimson);margin:8px 0;">Clear the Pool is locked</div>
+<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to unlock it (forever - prestige won't lock it again).<br>Tower: ${d.tower.best}/100</div></div>`;
 return;
 }
-work(false);
-const aw = awake(), h = hero(), me = A.hero();
-const sp = window.HSRig ? HSRig.player(c.cls, window.Gear ? Gear.vis(c.gear) : c.gear) : A.sprite(["sysadmin", "engineer", "cyber"].indexOf(c.cls), "p");
-const head = `<div class="dg-card"><div class="cl-row">${sp}<div style="flex:1;min-width:0;">
-<div class="cl-name">${esc(c.name)}</div>${c.quip ? `<div class="cl-quip">“${esc(c.quip)}”</div>` : ""}
-<div class="dg-dim" style="margin-top:4px;">${H.CLASSES[c.cls].icon} ${H.CLASSES[c.cls].name} · LV ${colLevel()} (80% of yours) · 📚 training ${trainLv()}/${TRAIN_MAX}${trainLv() < TRAIN_MAX ? ` (XP ${fmt(c.xp)}/${fmt(xpToNext(c.level))})` : " MAX"}<br>
-❤ ${fmt(h.maxHp)} · ⚔ ${fmt(h.atk)} <span style="opacity:.7;">(max ${Math.round(POWER_CAP * 100)}% of yours: ❤ ${fmt(me.maxHp * POWER_CAP)} ⚔ ${fmt(me.atk * POWER_CAP)})</span><br>
-Record: ${c.stats.w}W / ${c.stats.l}L · earned ${short(c.stats.gc)} GC · ${fmt(c.stats.clicks)} clicks</div></div></div>
-${c.named ? `<div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Colleague.rename()">✏ RENAME</button></div>` :
-`<div class="dg-row" style="margin-top:8px;flex-wrap:wrap;"><button class="btn btn-cyan" onclick="Colleague.reroll()">🎲 REROLL NAME</button><button class="btn" onclick="Colleague.rename()">✏ CUSTOM NAME</button>
-${["sysadmin", "engineer", "cyber"].map(k => `<button class="btn ${c.cls === k ? "btn-gold" : ""}" onclick="Colleague.cls('${k}')">${H.CLASSES[k].icon}</button>`).join("")}</div>
-<div class="dg-dim" style="margin-top:4px;">Name and class lock in after the first training or gear.</div>`}
-<div class="cl-slots">${["w", "a", "h", "t"].map(k => { const p = c.gear[k] && c.gear[k].lv != null ? c.gear[k] : null, P = window.Gear ? Gear.PIECES[k] : { i: "", n: k }; return `<div class="cl-slot"><span style="opacity:.6;">${P.i} ${P.n}</span><b style="color:${p ? Gear.RAR[p.r].c : "var(--text-muted)"};">${p ? esc(Gear.name(k, p)) : "nothing yet"}</b></div>`; }).join("")}</div></div>`;
-if (!aw) {
-box.innerHTML = head + `<div class="dg-card cl-sleep"><div class="big">💤</div><div style="font:800 13px Orbitron,monospace;color:var(--text-dim);margin:6px 0;">${esc(c.name)} is still sleeping...</div>
-<div class="dg-dim">After every prestige your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS).enemy.name)}</b> (chapter 3 boss) to get them back to work. You can still train them.</div></div>` + trainHtml(c);
-return;
+poolBoardLoad(false);
+const lb = pb.list ? (pb.list.length ? pb.list.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>floor ${fmt(p.best)}</span></div>`).join("") : `<div class="dg-dim">Nobody yet. Be the first!</div>`) : `<div class="dg-dim">Loading...</div>`;
+const n = P.best + 1, m = C.poolFloor(n, POOL_SEED), q = window.Gear ? Gear.POOL_QUANTUM : 50;
+const from = Math.floor(P.best / 10) * 10 + 1, cells = [];
+for (let f = from; f < from + 20; f++) cells.push(`<div class="${f <= P.best ? "ok" : f === n ? "nx" : ""} ${f % 25 === 0 ? "bs" : ""}">${f % 25 === 0 ? "☠" : f}</div>`);
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>♾ Clear the Pool</span><span>best: floor ${fmt(P.best)}</span></div>
+<div class="dg-dim">An endless tower of tickets. Every floor is its own fight with <b>full HP</b> and your progress is saved - lose and just try the same floor again.
+Floors get <b>+6%</b> harder, every 5th is an elite, every 25th one of the company's bosses. ⚡${POOL_COST} per fight, rewards for every new floor.
+<br>🎁 Pool floors drop the highest-level gear in the game (40% per floor).</div></div>
+<div class="dg-card"><div class="dg-h"><span>Next: ${esc(m.name)}</span><span>⚡${POOL_COST}</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}${m.enemy.mech ? " · ⚙ " + esc(m.enemy.mech) : ""}<br>
+Reward: ${fmt(poolXp(n))} XP, ${fmt(poolGc(n))} GC${m.kind === "boss" ? " + GC bonus" : ""}<br>Your stats: ${A.statLine()}</div></div>
+<button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.poolGo()">⚔ Fight floor ${n} (⚡${POOL_COST})</button></div>
+<div class="dg-card"><div class="dg-h">Floors</div><div class="tw-grid">${cells.join("")}</div></div>
+<div class="dg-card"><div class="dg-h">Deepest pool</div><div class="wb-lb">${lb}</div></div>`;
 }
-const ids = bossesBeaten();
-const tgt = c.target != null && ids.indexOf(c.target) >= 0 ? c.target : null;
-const nextF = tgt != null ? Math.max(0, FIGHT_MS - (Date.now() - c.fightAt)) : 0;
-const bosses = ids.slice().reverse().map(id => {
-const m = C.mission(id), wr = winRate(id), r = reward(id), col = wr >= 0.7 ? "var(--emerald)" : wr >= 0.35 ? "var(--amber)" : "var(--crimson)";
-return `<div class="cl-boss ${tgt === id ? "sel" : ""}" onclick="Colleague.target(${id})"><span class="ic">${m.enemy.icon}</span><div class="t"><b>${esc(m.enemy.name)}</b><span class="dg-dim">win: +${short(r.gc)} GC · +${short(r.scrap)} scrap · +${fmt(r.xp)} XP</span></div><span class="wr" style="color:${col};">${Math.round(wr * 100)}%</span></div>`;
-}).join("") || `<div class="dg-dim">Beat some elites or bosses in the campaign first.</div>`;
-box.innerHTML = head + `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>🎯 BOSS TO FARM</span><span class="dg-dim">${tgt != null ? "next fight in " + A.fmtT(nextF) : "pick one"}</span></div>
-<div class="dg-dim" style="margin-bottom:6px;">One fight every 20 min (no energy), win chance on the right. Harder bosses pay more but ${esc(c.name)} wins less often. Every 30 s they also resolve a ticket with your click power. Works while you're away for up to 8 h.</div>${bosses}</div>
-<div><div class="dg-card"><div class="dg-h">📋 WORK LOG</div><div class="cl-log">${c.log.length ? c.log.map(l => `<div>${l}</div>`).join("") : `<div>Nothing yet.</div>`}</div></div>${trainHtml(c)}</div></div>`;
+function poolGo() {
+const d = A.HS(); if (!d.pool.unlocked) return;
+const n = d.pool.best + 1, m = C.poolFloor(n, POOL_SEED);
+if (!A.spendEnergy(POOL_COST)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
+A.beginFight(m, { mode: "pool",
+hud: () => `♾ Pool floor ${n}${m.kind === "boss" ? " · BOSS" : m.kind === "elite" ? " · ELITE" : ""} · best ${A.HS().pool.best}`,
+onEnd: function (fi) {
+const dd = A.HS(), lines = [];
+if (fi.win) {
+dd.wins++;
+if (n > dd.pool.best) {
+dd.pool.best = n;
+const gc = poolGc(n), xp = poolXp(n);
+gameState.coins += gc;
+A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
+if (m.kind === "boss") A.dropItem(lines);
+lines.push(`🏆 New best: floor ${n}`);
+if (n % 25 === 0) TT.announce("REACHED POOL FLOOR " + n, "HIGH STAKES", 0, gc);
+log(`♾ POOL floor ${n} cleared - ${lines.join(", ")}`, "special");
 }
-function trainHtml(c) {
-const L = trainLv(), max = L >= TRAIN_MAX, cost = max ? 0 : trainCost(), ok = !max && gameState.coins >= cost;
-return `<div class="dg-card"><div class="dg-h"><span>📚 Training</span><span class="dg-dim">${L}/${TRAIN_MAX} · +${2 * L}% power</span></div>
-<div class="dg-dim" style="margin-bottom:6px;">Send ${esc(c.name)} to a course: +2% ATK and HP per level (max ${TRAIN_MAX}). Gear comes from you - when you evolve a piece, your old one goes to them if it's better.</div>
-<button class="btn ${ok ? "btn-gold" : ""}" style="width:100%;padding:10px;" ${ok ? "" : "disabled"} data-hold="col-train" onclick="Colleague.train()">${max ? "Fully trained" : `Train to level ${L + 1} · ${short(cost)} GC`}</button></div>`;
+TT.saveSoon(); poolBoardLoad(true);
+return { title: `FLOOR ${n} CLEARED`, lines: lines,
+buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: `FLOOR ${n + 1} ▶`, cls: "btn-gold", fn: poolGo }] };
 }
-function report(rep) {
-const c = st();
-if (!rep || (!rep.w && !rep.l && rep.clicks < 20)) return;
-const el = document.createElement("div");
-el.className = "tt-overlay open"; el.style.zIndex = 9995;
-el.onclick = (e) => { if (e.target === el) el.remove(); };
-const q = c.quip || QUIPS[Math.floor(Math.random() * QUIPS.length)];
-el.innerHTML = `<div class="tt-modal" style="border-color:var(--emerald);"><h2 style="color:var(--emerald);">🧑‍💼 WHILE YOU WERE AWAY</h2>
-<div class="tt-body" style="min-height:0;font-size:13px;line-height:1.6;"><b style="color:var(--emerald);">${esc(c.name)}</b>${rep.boss ? ` fought <b>${esc(rep.boss)}</b> ${rep.w + rep.l}× (${rep.w} won, ${rep.l} lost)` : ""}${rep.boss ? " and" : ""} resolved ${fmt(rep.clicks)} tickets.<br>
-💰 +${short(rep.gc)} GC · ⚙ +${short(rep.scrap)} scrap · 🎫 +${short(rep.tickets)} tickets${rep.xp ? " · +" + fmt(rep.xp) + " XP" : ""}${rep.tok ? " · 🎟 +" + rep.tok : ""}
-<div class="cl-quip" style="margin-top:8px;">“${esc(q)}”</div></div>
-<div style="margin-top:12px;"><button class="btn btn-gold" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">NICE</button></div></div>`;
-document.body.appendChild(el);
+dd.losses++;
+const xp = fi.fled ? 0 : Math.round(poolXp(n) * 0.3); if (xp) A.gainXp(xp, lines);
+lines.push(xp ? `+${xp} XP` : "no reward", "Your progress is saved - try again.");
+return { title: "THE POOL WINS", sub: `floor ${n}`, lines: lines,
+buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: "↻ RETRY", cls: "btn-cyan", fn: poolGo }] };
+} });
 }
-function chip() {
-if (typeof gameState === "undefined" || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return "";
-const c = gameState.hs.col;
-return awake() ? `<span class="buff-chip on" title="Your colleague is farming bosses and clicking for you">🧑‍💼 ${esc(c.name)}</span>` : `<span class="buff-chip" title="Beat the chapter 3 boss to wake them up">💤 ${esc(c.name)}</span>`;
-}
-A.registerMode("colleague", { label: "🧑‍💼 COLLEAGUE", order: 70, render: html });
-window.Colleague = { awake: awake, train: train, takeGear: takeGear, trainCost: trainCost, target: target, cls: cls, reroll: reroll, rename: rename, work: work, chip: chip, hero: hero, winRate: winRate, simFight: simFight, rollName: rollName, MEME: MEME, FIRST: FIRST };
-let wasAwake = null;
-(function boot() {
-if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
-TT.onLoaded(() => setTimeout(() => { try { wasAwake = awake(); const r = work(true); report(r); } catch (e) { console.error(e); } }, 2500));
-setInterval(() => {
-try {
-if (typeof gameState === "undefined" || !gameLoaded || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return;
-const a = awake();
-if (wasAwake === false && a) log(`☕ ${esc(gameState.hs.col.name)} woke up. Back to work!`, "special");
-if (wasAwake === true && !a) log(`💤 ${esc(gameState.hs.col.name)} fell asleep after your prestige. Beat ${esc(C.mission(WAKE_BOSS).enemy.name)} to wake them up.`, "warning");
-wasAwake = a;
-work(false);
-if (A.isOpen() && A.view() === "colleague" && !document.querySelector(".hs-ov") && !document.querySelector(".tt-overlay.open")) A.render();
-} catch (e) { console.error(e); }
-}, 10000);
-})();
+A.registerMode("tower", { label: "🗼 TOWER", order: 20, render: towerHtml });
+A.registerMode("pool", { label: "♾ POOL", order: 25, render: poolHtml });
+A.registerMode("shift", { label: "📟 SHIFT", order: 30, render: shiftHtml });
+A.registerMode("boss", { label: "📊 BOSS", order: 40, render: wbHtml, busy: () => wb.busy });
+window.HSModes = { week: week, towerGo: towerGo, shiftStart: shiftStart, shiftGo: shiftGo, shiftPerk: shiftPerk, shiftEvent: shiftEvent, shiftBuy: shiftBuy,
+shiftRest: shiftRest, shiftShopDone: shiftShopDone, shiftQuit: shiftQuit, wbGo: wbGo, poolGo: poolGo, PERKS: PERKS, applyPerks: applyPerks };
+(function wait() { if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(wait, 200); return; } TT.onLoaded(() => setTimeout(() => wbLoad(true), 4000)); })();
+setInterval(() => { if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-ov")) { const b = document.querySelector('[onclick="HSModes.wbGo()"]'); if (b && b.disabled && wb.st) A.render(); } }, 1000);
 })();
 </script>
 <style>
-/* ===== POSTUPNÉ ODEMYKÁNÍ + ZJEDNODUŠENÍ UI ===== */
-.gate-locked > :not(.gate-card) { display: none !important; }
-.gb-sec.gate-locked { padding: 6px 8px; }
-.gate-card { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
-.gate-card .ic { font-size: 22px; opacity: .7; }
-.gate-card .t { flex: 1; min-width: 0; }
-.gate-card b { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--text-dim); }
-.gate-card .dg-dim, .gate-card small { display: block; font-size: 11px; color: var(--text-muted, #667); margin-top: 2px; }
-.gate-bar { height: 4px; background: #000; border-radius: 2px; overflow: hidden; margin-top: 5px; }
-.gate-bar div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--amber)); }
-.panel.gate-hidden { display: none !important; }
-.pres-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: #3b4252; }
-.pres-dot.on { background: #00ff88; box-shadow: 0 0 6px #00ff88; animation: presPulse 1.6s ease-in-out infinite; }
-.pres-dot.afk { background: #ffb800; box-shadow: 0 0 5px rgba(255,184,0,.7); }
-@keyframes presPulse { 50% { opacity: .45; } }
-/* Telemetry: sbalitelný */
-.tele-toggle { cursor: pointer; user-select: none; }
-.tele-toggle::after { content: " ▾"; color: var(--text-dim); }
-.tele-collapsed .tele-toggle::after { content: " ▸"; }
-.tele-collapsed .stats-grid { display: none; }
-/* Autoclicker + autogen kompaktně */
-.ac-box { padding: 6px 8px; }
-.ac-box > .ac-row:nth-child(3), .ac-box > .ac-bar-next { display: none; }
-.ac-box .ac-bar { margin-bottom: 4px; height: 6px; }
-.ac-box .btn, #btn-autogen { padding: 6px 4px; font-size: 10px; }
-.ag-compact { margin-top: 6px !important; padding: 6px 8px !important; }
-/* Kasino taby ve dvou řadách */
-#tab-btn-roulette { margin-left: 0; }
-.panel .tab-row:has(#tab-btn-roulette) { flex-wrap: wrap; gap: 4px; }
-.panel .tab-row:has(#tab-btn-roulette) .casino-tab-btn { flex: 1 0 30%; }
-</style>
-<script>
-(function () {
-"use strict";
-const $ = (id) => document.getElementById(id);
-const GATES = [
-{ key: "casino", find: () => $("gb-sec-basic") || panelOf("view-roulette"), chest: 5, icon: "🎰", name: "BASIC CASINO", what: "Roulette, Slots, Blackjack" },
-{ key: "adv", find: () => $("gb-sec-adv"), chest: 10, icon: "⚡", name: "ADVANCED", what: "MEGA 5×5, Crash, Chicken Road, Pachinko" },
-{ key: "special", find: () => $("gb-sec-special"), chest: 10, icon: "👥", name: "SPECIAL", what: "Showdown PvP, Corporate Climb, Prší, Checkers" },
-{ key: "consult", find: () => panelOf("btn-consult-launch"), chest: 15, icon: "🐞", name: "SME CONSULT", what: "Escalate tickets for big GC wins (and bugs)" },
-{ key: "legacy", find: () => panelOf("lp-shop"), prestige: 1, icon: "★", name: "THE OFFICE PLANT", what: "A tree of permanent upgrades grown with Legacy Points" }
-];
-function panelOf(id) { const el = $(id); return el ? (el.closest(".panel") || el) : null; }
-function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
-function isOpen(g) {
-if (g.prestige) return (gameState.prestige || 0) >= g.prestige || (gameState.lp || 0) > 0;
-return maxChest() >= g.chest;
-}
-const state = {};
-let booted = false;
-function apply() {
-if (typeof gameState === "undefined" || !gameLoaded) return;
-GATES.forEach(g => {
-const p = g.find(); if (!p) return;
-const open = isOpen(g);
-if (state[g.key] === false && open && booted) {
-log(`🔓 UNLOCKED: ${g.name}! ${g.what}.`, "special");
-const b = $("fx-banner");
-if (b) { b.style.color = "var(--amber)"; b.innerHTML = "UNLOCKED<small>" + g.name + "</small>"; b.classList.remove("go"); void b.offsetWidth; b.classList.add("go"); }
-}
-state[g.key] = open;
-p.classList.toggle("gate-locked", !open);
-let card = p.querySelector(":scope > .gate-card");
-if (!open) {
-const pct = g.prestige ? 0 : Math.min(100, (maxChest() - 1) / (g.chest - 1) * 100);
-const html = `<span class="ic">🔒</span><div class="t"><b>${g.icon} ${g.name}</b><small>${g.what}</small>
-<small>Unlocks at ${g.prestige ? "Prestige " + g.prestige : "chest level " + g.chest + " (you: " + maxChest() + ")"}</small>
-${g.prestige ? "" : `<div class="gate-bar"><div style="width:${pct}%"></div></div>`}</div>`;
-if (!card) { card = document.createElement("div"); card.className = "gate-card"; p.insertBefore(card, p.firstChild); }
-if (card.__h !== html) { card.innerHTML = html; card.__h = html; }
-} else if (card) card.remove();
-});
-const mp = panelOf("merge-list");
-if (mp) {
-const any = gameState.inventory.some(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL);
-mp.classList.toggle("gate-hidden", !any);
-}
-const mt = document.querySelector('#m-tabs button[data-go="casino"] span');
-if (mt) { const t = isOpen(GATES[0]) ? "🎰" : "🔒"; if (mt.textContent !== t) mt.textContent = t; }
-const ft = document.querySelector('#m-tabs button[data-go="fight"] span');
-if (ft && window.Dungeon) { const t = Dungeon.unlocked() ? "⚔" : "🔒"; if (ft.textContent !== t) ft.textContent = t; }
-booted = true;
-}
-function boot() {
-if (typeof gameState === "undefined" || !window.TT) { setTimeout(boot, 50); return; }
-const tp = panelOf("stat-tickets");
-if (tp) {
-const h = tp.querySelector(".panel-header");
-if (h) {
-h.classList.add("tele-toggle");
-let col = true; try { col = localStorage.getItem("ir_tele") !== "open"; } catch (e) {}
-tp.classList.toggle("tele-collapsed", col);
-h.addEventListener("click", () => { const c = tp.classList.toggle("tele-collapsed"); try { localStorage.setItem("ir_tele", c ? "closed" : "open"); } catch (e) {} });
-}
-}
-const ag = $("btn-autogen"); if (ag && ag.parentElement) ag.parentElement.classList.add("ag-compact");
-TT.onLoaded(() => { apply(); setInterval(apply, 1000); });
-}
-window.Gate = { apply: apply };
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
-})();
-</script>
-<style>
-/* ===== v9.6 EXTRAS: Boss key, Hotfix Mines, Loterie, Akcie, návštěvy kanceláře ===== */
-/* --- boss key: nudná tabulka --- */
-#bk-sheet { position: fixed; inset: 0; z-index: 100000; display: none; flex-direction: column; background: #fff; color: #202124; font: 13px Arial, Helvetica, sans-serif; user-select: none; }
-#bk-sheet.open { display: flex; }
-#bk-sheet .bk-top { display: flex; align-items: center; gap: 10px; padding: 8px 12px 4px; }
-#bk-sheet .bk-ic { width: 26px; height: 32px; border-radius: 3px; background: #0f9d58; position: relative; flex: none; }
-#bk-sheet .bk-ic::after { content: ""; position: absolute; left: 6px; right: 6px; top: 10px; bottom: 8px; border: 2px solid #fff; border-width: 2px 0; box-shadow: inset 0 6px 0 -4px #fff; }
-#bk-sheet .bk-title { font-size: 18px; color: #202124; }
-#bk-sheet .bk-menu { display: flex; gap: 14px; font-size: 13px; color: #444; padding: 0 12px 6px 48px; }
-#bk-sheet .bk-tool { height: 34px; margin: 0 8px; border-radius: 20px; background: #edf2fa; display: flex; align-items: center; gap: 12px; padding: 0 14px; color: #444; font-size: 13px; }
-#bk-sheet .bk-fx { display: flex; align-items: center; gap: 8px; border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; margin-top: 6px; padding: 3px 8px; font-size: 13px; }
-#bk-sheet .bk-fx .nm { width: 70px; border-right: 1px solid #e0e0e0; color: #444; }
-#bk-sheet .bk-grid { flex: 1; overflow: auto; }
-#bk-sheet table { border-collapse: collapse; table-layout: fixed; }
-#bk-sheet td, #bk-sheet th { border: 1px solid #e2e3e3; height: 21px; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
-#bk-sheet th { background: #f8f9fa; color: #5f6368; font-size: 11px; text-align: center; position: sticky; top: 0; z-index: 1; }
-#bk-sheet th.rn { position: sticky; left: 0; z-index: 2; }
-#bk-sheet td.rn { background: #f8f9fa; color: #5f6368; text-align: center; font-size: 11px; position: sticky; left: 0; }
-#bk-sheet td.sel { outline: 2px solid #1a73e8; outline-offset: -2px; }
-#bk-sheet tr.hd td:not(.rn) { font-weight: 700; background: #f3f3f3; }
-#bk-sheet .ok { color: #188038; } #bk-sheet .bad { color: #d93025; }
-#bk-sheet .bk-tabs { display: flex; gap: 2px; background: #f8f9fa; border-top: 1px solid #e0e0e0; padding: 4px 8px; font-size: 13px; }
-#bk-sheet .bk-tabs span { padding: 4px 14px; color: #444; } #bk-sheet .bk-tabs span.on { background: #e8f0fe; color: #1a73e8; border-radius: 4px 4px 0 0; }
-.bk-btn { padding: 4px 8px !important; font-size: 11px !important; opacity: .55; }
-/* --- mines --- */
-.mn-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 330px; margin: 8px auto; }
-.mn-c { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .12s, background .15s; }
-.mn-c:hover:not(.on) { transform: translateY(-1px); background: #23304a; }
-.mn-c.on { cursor: default; }
-.mn-c.safe { background: rgba(0,255,136,.12); border-color: rgba(0,255,136,.45); }
-.mn-c.bug { background: rgba(255,23,68,.18); border-color: var(--crimson); }
-.mn-c.ghost { opacity: .45; }
-.mn-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: center; }
-.mn-row .btn.sel { outline: 2px solid var(--amber); }
-.mn-info { text-align: center; font-size: 13px; color: var(--text-dim); margin-top: 6px; }
-.mn-info b { color: var(--text-main); }
-/* --- lottery --- */
-.lt-nums { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-width: 420px; margin: 8px auto; }
-.lt-n { aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); font: 700 13px 'Space Grotesk', sans-serif; color: var(--text-main); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.lt-n.on { background: var(--amber); color: #111; border-color: var(--amber); }
-.lt-ball { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center; background: var(--amber); color: #111; font-weight: 700; margin: 0 2px; font-size: 12px; }
-.lt-ball.dim { background: var(--bg-panel-elevated); color: var(--text-main); border: 1px solid var(--border-subtle); }
-.lt-pool { text-align: center; font-size: 28px; font-weight: 700; color: var(--amber); margin: 4px 0; }
-/* --- stocks --- */
-.sk-list { display: grid; gap: 6px; }
-.sk-row { display: grid; grid-template-columns: 1fr 96px auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); }
-.sk-row b { font-size: 14px; } .sk-row .sym { font-size: 11px; color: var(--text-dim); }
-.sk-row svg { width: 96px; height: 34px; }
-.sk-px { text-align: right; font-weight: 700; } .sk-ch { font-size: 11px; text-align: right; }
-.sk-act { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
-.sk-act .btn { padding: 3px 7px; font-size: 11px; }
-.sk-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin: 6px 0; } .sk-sum b { color: var(--text-main); }
-@media (max-width: 600px) { .sk-row { grid-template-columns: 1fr auto; } .sk-row svg { display: none; } }
-/* --- návštěva kanceláře --- */
-#ir-visit .rm { margin: 8px 0; }
-#ir-visit .vs-act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+/* ===== v8.8 THE COLLEAGUE: pomocník, který farmí poražené bosse a kliká za tebe ===== */
+.cl-row { display: flex; gap: 10px; align-items: center; }
+.cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
+.cl-name { font: 900 14px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
+.cl-quip { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
+.cl-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+.cl-slot { padding: 5px; border-radius: 6px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); font-size: 10px; text-align: center; min-width: 0; }
+.cl-slot b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-boss { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 5px; cursor: pointer; }
+.cl-boss.sel { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald) inset; }
+.cl-boss .ic { font-size: 20px; width: 26px; text-align: center; }
+.cl-boss .t { flex: 1; min-width: 0; font-size: 11px; }
+.cl-boss .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-boss .wr { font: 800 11px 'Orbitron', monospace; }
+.cl-give { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px; }
+.cl-give span { flex: 1; min-width: 0; }
+.cl-give .btn { padding: 4px 10px; font-size: 10px; }
+.cl-log div { font-size: 11px; color: var(--text-dim); padding: 2px 0; }
+.cl-sleep { text-align: center; padding: 18px 10px; }
+.cl-sleep .big { font-size: 44px; }
 </style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part18"] = 1;</script>
 <!-- END-OF-FILE: part18 -->

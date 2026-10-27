@@ -1,7 +1,7 @@
-NÁVOD v6.1 - firemní verze v10.1 (= hra Office Royale v10.1)
+NÁVOD v6.2 - firemní verze v10.2 (= hra Office Royale v10.2)
 
-v10.1 (oprava): High Stakes jde zase hrát i po prestiži, startovní výbava, férová kompenzace.
-Pokud už máš v10 nasazenou: soubory se zase změnily všechny - zkopíruj znovu všech 27 (žádný nový soubor nepřibyl).
+v10.2: prestiž už nemaže High Stakes, výbava kolegy ručně, snazší ultimátka assassina, víc tiketů v loterii.
+Máš-li už v10.x: zkopíruj znovu všech 28 souborů a přidej nový HTML soubor part23.
 
 Kancelář bez wipe. High Stakes začíná znovu (Season 2) - hráči dostanou za starý postup GC.
 
@@ -12,15 +12,15 @@ https://stenfordd.github.io/Idle-Ticket-Royal/firemni/   (každý soubor má tla
 POZOR: "index.html" na GitHubu je jen tahle stránka. Do Apps Scriptu patří "index.html.txt" (soubor index).
 
 ======================================================
-SOUBORY V APPS SCRIPT PROJEKTU (27)
+SOUBORY V APPS SCRIPT PROJEKTU (28)
 ======================================================
 .gs:   code, server2 (NOVÝ), engine
 HTML:  index, style, office, casino, system, minigames, special, meta, hs_core, hs_ui, hs, prsi, hs_modes, mobile,
-       part13, part14, part15, part16, part17, part18, part19, part20, part21, part22
+       part13, part14, part15, part16, part17, part18, part19, part20, part21, part22, part23
 
-1) Vytvoř nový .gs soubor server2 (+ > Skript, jméno bez .gs) a nové HTML soubory part18, part19, part20, part21, part22 (+ > HTML).
+1) Vytvoř nový .gs soubor server2 (+ > Skript, jméno bez .gs) a nové HTML soubory part18 až part23 (+ > HTML).
    part13 až part17 už máš z minula.
-2) Do KAŽDÉHO z 27 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
+2) Do KAŽDÉHO z 28 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
 3) Ctrl+S
 4) Deploy > Manage deployments > tužka (edit) > Version: New version > Deploy
 5) Obnov tabulku (F5) - v menu Ticket Tycoon přibude "Spustit firemní globální event". Pak Ticket Tycoon > Bump version.

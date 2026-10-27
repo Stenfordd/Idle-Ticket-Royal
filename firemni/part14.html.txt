@@ -1,567 +1,113 @@
-<script type="text/plain" data-tt="ttbig2" data-i="1">
-(function () {
-"use strict";
-const H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;   // E = starý engine (jen aréna na serveru)
-const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-const ENERGY_BASE = 16, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
-function EMAX() { return ENERGY_BASE + (window.Plant ? Plant.fx("energy") : 0); }   // v8.7: Office Plant Sap Reserve
-const WEAPON = ["TOOL", "AUGMENT", "RELIC"], ARMOR = ["HEAD", "RIG", "OS"];
-const STAT_INFO = { str: ["STR", "Firewall Warden: damage + damage reduction"], int: ["INT", "Code Wizard: damage + auto-shield chance"], agi: ["AGI", "Shadow Admin: damage + dodge"],
-vit: ["VIT", "max HP"], luck: ["LUCK", "crit, hit chance, slot machine, timing zone"], end: ["END", "max stamina + stamina from QUICK / BLOCK"] };
-const SEASON = 2;
-/** v8.6: tituly za první zabití tematických bossů */
-const BOSS_TITLES = { louis: "Siesta Survivor", italian: "Ate the Spaghetti", cobol: "Bryndza Approved", polishen: "Survived the Withdrawal", admin: "Root Access" };
-let view = "camp", chSel = 0, open = false, fight = null, fightMission = null, fightCtx = null, busyAnim = false, result = null, flog = [];
-function HS() {
-const g = gameState;
-if (!g.hs || typeof g.hs !== "object") g.hs = {};
-const d = g.hs;
-if (d.cls !== "sysadmin" && d.cls !== "engineer" && d.cls !== "cyber") d.cls = null;
-d.level = Math.max(1, Math.floor(Number(d.level) || 1));
-d.xp = Math.max(0, Number(d.xp) || 0);
-if (!d.stats || typeof d.stats !== "object") d.stats = {};
-["str", "int", "vit", "agi", "luck", "end"].forEach(k => { d.stats[k] = Math.max(0, Math.floor(Number(d.stats[k]) || 0)); });
-const spent = Object.values(d.stats).reduce((a, b) => a + b, 0);
-d.pts = Math.max(0, H.statPoints(d.level) - spent);
-if (typeof d.energy !== "number" || !isFinite(d.energy)) { d.energy = EMAX(); d.energyAt = Date.now(); }
-if (!d.energyAt) d.energyAt = Date.now();
-if (!d.stars || typeof d.stars !== "object") d.stars = {};
-if (!d.sm || typeof d.sm !== "object") d.sm = {};
-Object.keys(d.stars).forEach(id => { const n = Number(d.stars[id]) || 0, old = n >= 3 ? 7 : n === 2 ? 3 : n === 1 ? 1 : 0; d.sm[id] = (Number(d.sm[id]) || 0) | old; });
-Object.keys(d.sm).forEach(id => { d.sm[id] = (Number(d.sm[id]) || 0) & 7; d.stars[id] = H.starCount(d.sm[id]); });
-delete d.items;                                                           // v8.5: consumables (coffee, energy drink...) jsou pryč
-d.wins = Math.max(0, Number(d.wins) || 0); d.losses = Math.max(0, Number(d.losses) || 0);
-if (d.arenaStance !== "safe" && d.arenaStance !== "normal" && d.arenaStance !== "allin") d.arenaStance = "normal";
-if (!d.t6 || typeof d.t6 !== "object") d.t6 = {};                        // prismatic: odemčené části těla (přežije prestiž)
-if (d.stars && typeof d.stars === "object") Object.keys(C.BOSS_SLOT).forEach(id => { if (d.stars[id] > 0) d.t6[C.BOSS_SLOT[id]] = true; });
-if (!d.tower || typeof d.tower !== "object") d.tower = { best: 0 };
-d.tower.best = Math.max(0, Math.min(100, Math.floor(Number(d.tower.best) || 0)));
-if (!d.shift || typeof d.shift !== "object") d.shift = { best: 0, asc: 0, runs: 0, clears: 0 };
-if (!d.wb || typeof d.wb !== "object") d.wb = {};
-if (!d.pool || typeof d.pool !== "object") d.pool = { best: 0, unlocked: false, run: null };
-d.pool.best = Math.max(0, Math.floor(Number(d.pool.best) || 0));
-if (d.pool.run !== undefined) delete d.pool.run;                       // v9.0: Pool je nekonečná věž, staré běhy (HP se přenášelo) končí
-if (d.tower.best >= 100) d.pool.unlocked = true;                       // v8.6: Clear The Pool se odemyká Administratorem (patro 100), navždy
-if (!d.bt || typeof d.bt !== "object") d.bt = {};
-if (d.tsel && !d.bt[d.tsel]) d.tsel = "";
-C.setPrestige(gameState.prestige || 0); C.setLevel(d.level);                // v10.1: prestiž přitvrzuje až nad levelem mise                                   // v8.6.1: kampaň + tower +25 % za prestiž
-if (d.legacyBest == null) { const old = g.dungeon || {}; d.legacyBest = old.mode === "highstakes" ? 0 : Math.max(0, Math.floor(Number(old.best) || 0)); }
-d.tier = 1; d.branch = ""; d.artifacts = {}; d.equipped = []; d.promos = {}; d.exec = false;
-if (d.season !== SEASON && typeof gameLoaded !== "undefined" && gameLoaded) seasonReset(d);
-if (d.season === SEASON && typeof gameLoaded !== "undefined" && gameLoaded) {
-if (d.s2 && !d.s2.fix) s2Fix(d);
-if (d.cls && !d.kit && window.Gear && Gear.starter) { d.kit = 1; setTimeout(() => { try { Gear.starter(); } catch (e) {} }, 0); }
+<style>
+/* ===== HIGH STAKES (akční souboj) - doplňky k dg-* stylům ===== */
+.dg-top h1 { min-width: 120px; }
+.hs-ch { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.hs-ch .btn { flex: 1 0 18%; padding: 6px 2px; font-size: 10px; line-height: 1.2; }
+.hs-ch .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.hs-ms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.hs-m { display: flex; gap: 8px; align-items: center; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; cursor: pointer; min-width: 0; }
+.hs-m:hover { border-color: var(--cyan); }
+.hs-m.locked { opacity: .4; cursor: default; }
+.hs-m.boss { border-color: rgba(255,23,68,.5); background: linear-gradient(90deg, rgba(255,23,68,.12), transparent); }
+.hs-m.compliance { border-color: rgba(255,184,0,.45); }
+.hs-m .ic { font-size: 22px; width: 30px; text-align: center; flex: none; }
+.hs-m .t { flex: 1; min-width: 0; }
+.hs-m .t b { display: block; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-stars { color: #ffd700; font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
+.hs-stars .off { color: #3b4252; }
+.hs-fight { position: relative; }
+.hs-bars { display: grid; gap: 3px; margin-top: 4px; }
+.hs-bar { height: 8px; background: #000; border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden; position: relative; }
+.hs-bar > div { height: 100%; transition: width .25s; }
+.hs-bar .hp { background: linear-gradient(90deg, #00c070, #00ff88); }
+.hs-bar .ehp { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
+.hs-bar .sta { background: linear-gradient(90deg, #f59e0b, #fde047); }
+.hs-bar .foc { background: linear-gradient(90deg, #a855f7, #ff4dff); }
+.hs-bar .brk { background: linear-gradient(90deg, #64748b, #e2e8f0); }
+.hs-bar.full .brk { background: #ffd700; }
+.hs-intent.charge { background: rgba(255,184,0,.2); border-color: var(--amber); color: var(--amber); animation: tabGlow .4s ease-in-out infinite alternate; }
+.hs-intent.unleash { background: rgba(255,23,68,.4); border-color: #ff1744; color: #fff; animation: tabGlow .25s ease-in-out infinite alternate; }
+.hs-intent.stun { color: #ffd700; }
+.hs-parry { position: relative; width: 150px; height: 150px; cursor: pointer; touch-action: none; }
+.hs-parry .tgt { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 4px solid #ffd700; box-shadow: 0 0 12px #ffd700; }
+.hs-parry .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 4px solid #ff1744; box-shadow: 0 0 10px #ff1744; }
+.hs-parry .ring.fake { border-color: #94a3b8; box-shadow: 0 0 8px #94a3b8; opacity: .8; border-style: dashed; }
+.hs-parry.spiral .ring { border-style: dashed; }
+.hs-pdots { display: flex; gap: 6px; margin-top: 8px; min-height: 12px; }
+.hs-pdots span { width: 12px; height: 12px; border-radius: 50%; background: #1e2636; border: 1px solid #334155; }
+.hs-pdots span.perfect { background: #ffd700; } .hs-pdots span.good { background: var(--emerald); } .hs-pdots span.none { background: var(--crimson); }
+.hs-wall { display: grid; grid-template-columns: repeat(6, 26px); gap: 3px; }
+.hs-wall i { height: 16px; border-radius: 2px; background: #1e2636; border: 1px solid #334155; }
+.hs-wall i.on { background: linear-gradient(180deg, #ff7849, #c2410c); border-color: #fdba74; box-shadow: 0 0 6px rgba(255,120,73,.6); }
+.hs-deploy { width: 86%; height: 26px; background: #0b1220; border: 2px solid var(--cyan); border-radius: 6px; position: relative; overflow: hidden; }
+.hs-deploy > div { height: 100%; width: 0; background: linear-gradient(90deg, #0891b2, #00f0ff); transition: width .08s; }
+.hs-deploy span { position: absolute; inset: 0; text-align: center; font: 800 11px/22px 'Orbitron', monospace; color: #fff; text-shadow: 0 1px 2px #000; }
+.hs-ports { position: relative; width: 86%; height: 130px; background: #050a08; border: 1px solid #14532d; border-radius: 6px; overflow: hidden; }
+.hs-port { position: absolute; padding: 6px 10px; font: 800 12px 'Orbitron', monospace; color: #00ff88; background: rgba(0,255,136,.12); border: 1px solid #00ff88; border-radius: 6px; cursor: pointer; animation: portIn .15s ease-out; }
+.hs-port.hit { background: #00ff88; color: #000; } .hs-port.gone { opacity: 0; pointer-events: none; transition: opacity .15s; }
+@keyframes portIn { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.hs-help-btn { padding: 1px 8px; font-size: 11px; border-radius: 50%; min-width: 22px; }
+.hs-hsec { font: 800 10px 'Orbitron', monospace; color: var(--amber); letter-spacing: 1px; margin: 10px 0 4px; }
+.hs-hrow { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.hs-hrow .i { width: 22px; flex: none; text-align: center; }
+.hs-hrow b { color: var(--text-main); font-family: 'Orbitron', monospace; font-size: 10.5px; }
+.hs-coach { margin-top: 8px; padding: 9px 10px; border-radius: 8px; background: linear-gradient(180deg, rgba(0,240,255,.10), rgba(0,240,255,.03)); border: 1px solid rgba(0,240,255,.45); font-size: 12px; line-height: 1.45; color: var(--text-main); }
+.hs-coach-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font: 800 11px 'Orbitron', monospace; color: var(--cyan); letter-spacing: 1px; }
+.hs-coach-h .btn { padding: 3px 8px; font-size: 9px; }
+.hs-coach-ok { color: var(--emerald); font-weight: 700; margin-bottom: 3px; }
+.hs-ultgo { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: rgba(5,7,11,.94); border-radius: 8px; cursor: pointer; z-index: 2; }
+.hs-ultgo b { font: 900 22px 'Orbitron', monospace; color: #ff4dff; letter-spacing: 2px; text-shadow: 0 0 14px rgba(255,77,255,.6); animation: tabGlow .6s ease-in-out infinite alternate; }
+.hs-ultgo b.cd { font-size: 54px; animation: none; }
+.hs-ultgo small { font-size: 11px; color: var(--text-dim); }
+.hs-ulttime { width: 86%; height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.hs-ulttime div { height: 100%; width: 100%; background: #ff4dff; }
+.hs-reel { cursor: pointer; color: inherit; font-family: inherit; padding: 0; }
+.hs-reel.held { border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan) inset, 0 0 8px var(--cyan); position: relative; }
+.hs-reel.held::after { content: "HOLD"; position: absolute; bottom: -15px; left: 0; right: 0; font: 800 9px 'Orbitron', monospace; color: var(--cyan); }
+.hs-gbtns { display: flex; gap: 6px; margin-top: 14px; }
+.hs-gbtns .btn { padding: 9px 12px; font-size: 11px; }
+.hs-bar .sh { position: absolute; top: 0; left: 0; background: rgba(0,240,255,.55); }
+.hs-lbl { display: flex; justify-content: space-between; font: 700 9px 'Orbitron', monospace; color: var(--text-dim); }
+.hs-intent { display: inline-flex; align-items: center; gap: 4px; margin: 4px auto 0; padding: 3px 10px; border-radius: 12px; font: 800 12px 'Orbitron', monospace; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); }
+.hs-intent.heavy { background: rgba(255,23,68,.25); border-color: var(--crimson); color: #ff8fa3; animation: tabGlow .5s ease-in-out infinite alternate; }
+.hs-intent.defend { color: var(--cyan); }
+.hs-intent.special { color: #ff4dff; }
+.hs-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+.hs-acts .btn { padding: 9px 2px; font-size: 11px; line-height: 1.2; }
+.hs-acts .btn small { display: block; font-size: 8.5px; opacity: .75; font-family: inherit; letter-spacing: 0; }
+.hs-acts .btn.off { opacity: .32; }
+.hs-acts .btn.lock { text-decoration: line-through; }
+.hs-items { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.hs-items .btn { flex: 1; padding: 6px 2px; font-size: 10px; }
+.hs-ov { position: absolute; inset: 0; background: rgba(5,7,11,.82); display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 5; border-radius: 8px; }
+.hs-timing { width: 86%; height: 34px; background: #111827; border: 2px solid #fff; border-radius: 6px; position: relative; overflow: hidden; cursor: pointer; }
+.hs-timing .g { position: absolute; top: 0; bottom: 0; background: rgba(0,255,136,.45); }
+.hs-timing .p { position: absolute; top: 0; bottom: 0; background: rgba(255,215,0,.85); }
+.hs-timing .n { position: absolute; top: -4px; bottom: -4px; width: 4px; background: #ff1744; box-shadow: 0 0 8px #ff1744; }
+.hs-reels { display: flex; gap: 8px; }
+.hs-reel { width: 64px; height: 64px; background: #111827; border: 2px solid var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+.hs-reel.spin { animation: megaSpin .08s linear infinite; }
+.hs-ovt { font: 800 13px 'Orbitron', monospace; color: var(--amber); margin-top: 10px; text-align: center; }
+.hs-stat { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12px; }
+.hs-stat b { width: 54px; font-family: 'Orbitron', monospace; font-size: 11px; }
+.hs-stat .v { width: 34px; text-align: right; font-family: 'Orbitron', monospace; color: var(--amber); }
+.hs-stat .d { flex: 1; font-size: 10px; color: var(--text-dim); }
+.hs-res { text-align: center; padding: 14px 8px; }
+.hs-res .big { font: 900 24px 'Orbitron', monospace; letter-spacing: 2px; }
+.hs-res .st { font-size: 30px; color: #ffd700; letter-spacing: 4px; margin: 6px 0; }
+.hs-res .st .off { color: #2a3245; }
+.hs-goals { text-align: left; display: inline-block; font-size: 12px; margin: 2px 0 8px; line-height: 1.6; }
+.hs-goals .ok { color: var(--emerald); } .hs-goals .no { color: var(--text-dim); }
+.hs-goals .new { color: #ffd700; font: 800 9px 'Orbitron', monospace; } .hs-goals .had { color: #8b6f00; font-size: 10px; }
+.hs-form { margin-top: 6px; padding: 6px 10px; border: 1px dashed var(--amber); border-radius: 6px; font-size: 11px; color: var(--amber); background: rgba(255,184,0,.06); text-align: center; }
+.hs-form b { color: #fff; } .hs-form .rt { display: block; color: var(--crimson); font-weight: 700; }
+.hs-acts .btn.want { box-shadow: 0 0 0 2px var(--amber) inset; }
+.dg-tabs .casino-tab-btn.tdot { position: relative; }
+.dg-tabs .casino-tab-btn.tdot::after { content: ""; position: absolute; top: 4px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); }
+@media (max-width: 700px) {
+.hs-ms { grid-template-columns: 1fr; }
+.hs-acts .btn { font-size: 10px; padding: 8px 1px; }
 }
-return d;
-}
-/** v10: HIGH STAKES SEASON 2 - nové třídy a gear => celý High Stakes od nuly. Kancelář, achievementy, Climb a Prismatic zůstávají.
-*  Za smazaný postup jednorázová kompenzace v GC. */
-/** v10.1: kompenzace v10.0 brala i "6 h Auto GC" -> bohatí hráči dostali miliardy. Srovnáme na férový vzorec (jen jednou). */
-function s2Fix(d) {
-const s = d.s2, P = s.p != null ? s.p : (gameState.prestige || 0);
-const fair = s.cl != null ? Math.round((20000 * Math.pow(s.lvl, 1.5) + 30000 * s.cl + 15000 * s.tw + 40000 * s.pl) * (1 + 0.25 * P))
-: Math.round(20000 * Math.pow(s.lvl || 1, 1.5) * (1 + 0.25 * P) * 1.5);                       // starý záznam bez detailu: velkorysý odhad
-const excess = Math.max(0, (s.gc || 0) - fair);
-s.fix = 1;
-if (excess > 0) {
-const take = Math.min(excess, Math.max(0, Math.floor(gameState.coins)));
-gameState.coins -= take; s.taken = take; s.gc = fair;
-log(`⚖ SEASON 2 FIX: the High Stakes compensation was way too high for some players (it counted 6 h of your Auto GC). It's now the same rule for everyone: ${fmt(fair)} GC for your old LV ${s.lvl}. ${fmt(take)} GC were taken back.`, "warning");
-}
-if (window.TT && TT.saveSoon) TT.saveSoon();
-}
-function seasonReset(d) {
-const lvl = d.level || 1, cl = Object.keys(d.stars || {}).filter(k => d.stars[k] > 0).length, tw = (d.tower && d.tower.best) || 0, pl = (d.pool && d.pool.best) || 0;
-const played = !!d.cls || lvl > 1 || cl > 0;
-let gc = 0;
-if (played) {
-gc = Math.round((20000 * Math.pow(lvl, 1.5) + 30000 * cl + 15000 * tw + 40000 * pl) * (1 + 0.25 * (gameState.prestige || 0)));
-}
-d.season = SEASON;
-d.cls = null; d.level = 1; d.xp = 0; d.stats = {}; d.pts = 0; d.stars = {}; d.sm = {}; d.bt = {}; d.tsel = "";
-d.tower = { best: 0 }; d.pool = { best: 0, unlocked: false }; d.shift = { best: 0, asc: 0, runs: 0, clears: 0 }; d.gear = { v: 2, eq: {}, bag: [] }; d.col = {};
-d.energy = EMAX(); d.energyAt = Date.now(); d.wins = 0; d.losses = 0; d.legacyBest = 0;
-if (played) {
-gameState.coins += gc; d.s2 = { gc: gc, lvl: lvl, cl: cl, tw: tw, pl: pl, p: gameState.prestige || 0, at: Date.now(), fix: 1 };
-log(`🎰 HIGH STAKES SEASON 2: new classes (Firewall Warden, Code Wizard, Shadow Admin) and loot gear - High Stakes starts from zero. You got +${fmt(gc)} GC for your old progress (LV ${lvl}).`, "special");
-if (window.TT && TT.saveSoon) TT.saveSoon();
-}
-}
-const D = HS;                                               // aréna používá D()
-function cleared(d) { d = d || HS(); return Object.keys(d.stars).filter(k => d.stars[k] > 0).length; }
-function totalStars(d) { d = d || HS(); return Object.values(d.stars).reduce((a, b) => a + (Number(b) || 0), 0); }
-function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
-function unlocked() { const d = HS(); return (gameState.prestige || 0) >= 1 || maxChest() >= 10 || !!d.cls; }
-function regenEnergy() {
-const d = HS(), now = Date.now();
-if (d.energy >= EMAX()) { d.energyAt = now; return; }
-const n = Math.floor((now - d.energyAt) / ENERGY_MS);
-if (n > 0) { d.energy = Math.min(EMAX(), d.energy + n); d.energyAt = d.energy >= EMAX() ? now : d.energyAt + n * ENERGY_MS; }
-}
-/** v9.0: síla v HIGH STAKES je z COMBAT GEAR (gear.html), kancelářské itemy jsou jen na Click/Auto/Mult */
-function gear() {
-if (window.Gear) { const m = Gear.mult(); return { atk: m.atk, hp: m.hp, crit: m.crit, stats: m.stats || {} }; }
-const lo = gameState.loadout || {};
-let a = 1, h = 1;
-WEAPON.forEach(s => { const it = lo[s]; if (it) a += E.gearSlotValue(it.tier, it.lvl); });
-ARMOR.forEach(s => { const it = lo[s]; if (it) h += E.gearSlotValue(it.tier, it.lvl); });
-return { atk: gearDR(a), hp: gearDR(h) };
-}
-/** v8.2: klesající přínos gearu - do ×2 lineárně, pak se blíží stropu ×3.2 (dřív T5/T6 gear dal až ×7) */
-function gearDR(x) { const r = x - 1; return r <= 1 ? x : 2 + 1.2 * (1 - Math.exp(-(r - 1) / 1.5)); }
-function towerBonus() { return 0.01 * Math.floor(HS().tower.best / 10); }
-function hero() {
-const d = HS(), h = H.buildHero(Object.assign({}, d, { bonus: towerBonus() }), gear());     // v10: crit z gearu počítá buildHero
-if (window.Plant) { h.startFocus = Plant.fx("focus"); h.parryWin = Plant.fx("parry"); h.wildCherry = Plant.fx("wildCherry"); }   // v8.7: Office Plant
-return h;
-}
-function t6Unlocked(slot) { return !!HS().t6[slot]; }
-function t6Slots() { const t = HS().t6; return SLOTS.filter(s => t[s]); }
-function player() { const d = HS(); return E.buildPlayer({ cls: d.cls, level: d.level, tier: 1 }, gear()); }   // pro arénu
-function title(d) {
-d = d || HS();
-if (!d.cls) return "Rookie";
-if (d.tsel && d.bt && d.bt[d.tsel] && BOSS_TITLES[d.tsel]) return BOSS_TITLES[d.tsel];
-const c = cleared(d);
-const t = c >= 51 ? "Compliance Survivor" : c >= 50 ? "High Roller" : c >= 40 ? "Boardroom Brawler" : c >= 30 ? "Cloud Crusher" : c >= 20 ? "Breach Buster" : c >= 10 ? "Server Room Survivor" : "Helpdesk Hero";
-return t;
-}
-function wbBuff() { const w = HS().wb; return w.buffWeek && w.buffWeek === (window.HSModes && HSModes.week ? HSModes.week() : "") ? (Number(w.buff) || 0) : 0; }
-function netMultBonus() { const d = HS(); return (1 + 0.005 * totalStars(d) + (d.stars[50] ? 0.1 : 0)) * (1 + wbBuff()); }
-function clickCritBonus() { return HS().cls === "engineer" ? 0.03 : 0; }
-const sprite = (i, k) => HSArt.sprite(i, k), enemySprite = (m) => HSArt.enemySprite(m);
-/** v9.2: postava s tvým combat gearem (HSRig), jinak starý pixel sprite */
-function playerSprite() { const cls = HS().cls || "sysadmin"; return window.HSRig ? HSRig.player(cls, window.Gear ? Gear.st() : null) : sprite(["sysadmin", "engineer", "cyber"].indexOf(cls), "p"); }
-const RIG_MAP = { "atk-l": "a-quick", "atk-r": "a-quick", "hit": "a-hit" };
-function anim(id, cls) {
-if (window.HSRig && RIG_MAP[cls] && HSRig.act(id, RIG_MAP[cls])) return;
-const el = $(id); const s = el && el.firstElementChild; if (!s) return; s.classList.remove(cls); void s.getBoundingClientRect(); s.classList.add(cls); setTimeout(() => s.classList.remove(cls), 400);
-}
-/** v9.2: akční animace postav (útok podle akce, blok, úskok, zásah) + efekty arény */
-function pose(side, kind) { if (window.HSRig && HSRig.act(side === "p" ? "dg-ps" : "dg-bs", kind)) return; anim(side === "p" ? "dg-ps" : "dg-bs", kind === "a-hit" ? "hit" : side === "p" ? "atk-l" : "atk-r"); }
-function sfx(kind, side, color) { if (!window.HSRig) return; if (kind === "spark") HSRig.spark(side, color); else if (kind === "shake") HSRig.fx("shake", 320); else if (kind === "cheer") HSRig.fx("cheer", 1500); else if (kind === "slowmo") HSRig.fx("slowmo", 520); }
-function float(txt, side, color, big) {
-const ar = $("dg-arena"); if (!ar || document.hidden) return;
-const el = document.createElement("div");
-el.className = "dg-float" + (big ? " big" : "");
-el.textContent = txt; el.style.color = color;
-el.style.left = (side === "b" ? (big ? 52 : 60) + Math.random() * 10 : 8 + Math.random() * 10) + "%";
-el.style.top = (30 + Math.random() * 20) + "%";
-ar.appendChild(el);
-setTimeout(() => el.remove(), 1150);
-}
-function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); const d = HS(); if (d.cls && !d.tut && !fight) setTimeout(tutStart, 300); }
-/** v8.2.1: v rozehraném boji OFFICE / záložky nabídnou útěk (dřív se nic nestalo a vypadalo to, že hra zamrzla) */
-function askFlee() {
-if (!fight || fight.over) return true;
-if (busyAnim) return false;
-if (!window.confirm("You are in the middle of a fight.\nFlee and leave? (counts as a loss, energy is not refunded)")) return false;
-flee(); return true;
-}
-function closeScreen() { if (fight && !fight.over && !askFlee()) return; open = false; $("dg-screen").classList.remove("open"); if (window.ttRepaint) window.ttRepaint(); }
-const MODES = {};
-function registerMode(id, def) { MODES[id] = def; renderTabs(); }
-function renderTabs() {
-const box = $("dg-tabs"); if (!box) return;
-const ids = Object.keys(MODES).sort((a, b) => (MODES[a].order || 50) - (MODES[b].order || 50));
-const html = ids.map(id => `<button class="casino-tab-btn${id === view ? " active" : ""}${MODES[id].dot && MODES[id].dot() ? " tdot" : ""}" id="dg-t-${id}" onclick="Dungeon.tab('${id}')">${MODES[id].label}</button>`).join("");
-if (box.__h !== html) { box.innerHTML = html; box.__h = html; }
-}
-function tab(t) {
-if (!MODES[t]) return;
-if (fight && !fight.over && !askFlee()) return;
-if (MODES[view] && MODES[view].busy && MODES[view].busy()) return;
-view = t; result = null; fight = null; fightCtx = null;
-renderTabs(); render();
-}
-function renderKeys() {
-const d = HS(), el = $("dg-keys"); if (!el) return;
-const next = d.energy >= EMAX() ? "" : " (" + fmtT(ENERGY_MS - (Date.now() - d.energyAt)) + ")";
-const kh = `⚡${d.energy}/${EMAX()}${next}<span class="dg-kstar"> ⭐${totalStars(d)}</span>`;
-if (el.__h !== kh) { el.innerHTML = kh; el.__h = kh; }
-el.title = "Energy: +1 every 12 min, max " + EMAX();
-const tb = $("dg-tokbtn");
-if (tb) {
-const show = gameState.slotTokens > 0 && d.energy < EMAX() && !(fight && !fight.over);
-const t = `🎟→+${TOKEN_ENERGY}⚡ (${gameState.slotTokens})`;
-tb.style.display = show ? "" : "none"; if (tb.textContent !== t) tb.textContent = t;
-tb.title = "Turn 1 Slot Token into " + TOKEN_ENERGY + " energy";
-}
-}
-function fmtT(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
-function render() {
-if (!open) return;
-regenEnergy(); renderKeys();
-const box = $("dg-inner"), d = HS();
-if (!unlocked()) { box.innerHTML = lockedHtml(); return; }
-if (!d.cls) { box.innerHTML = classPickHtml(false); return; }
-if (fight) { box.innerHTML = fightHtml(); fightRefresh(); restoreLog(); if (result) showResult(); return; }
-renderTabs();
-(MODES[view] || MODES.camp).render(box);
-}
-registerMode("camp", { label: "📖 CAMPAIGN", order: 10, render: function (box) { box.innerHTML = campHtml(); } });
-registerMode("hero", { label: "🧍 HERO", order: 80, render: function (box) { box.innerHTML = heroHtml(); }, dot: function () { try { return !!(window.Gear && Gear.affordable()) || HS().pts > 0; } catch (e) { return false; } } });
-function lockedHtml() {
-return `<div class="dg-card dg-lock"><div class="big">🔒</div>
-<div style="font:800 15px Orbitron,monospace;color:var(--crimson);margin:8px 0;">HIGH STAKES LOCKED</div>
-<div class="dg-dim">Reach <b>chest level 10</b> (you: ${maxChest()}) or <b>Prestige 1</b> to unlock HIGH STAKES:
-an action fighting game - every turn YOU choose: quick hit, power strike with timing, a slot-machine gamble, block or dodge.
-5 chapters of office horror from the Helpdesk to the Boardroom. Your level, stats and gear materials are <b>never reset</b> by prestige.</div></div>`;
-}
-function classPickHtml(respec) {
-return `<div class="dg-card"><div class="dg-h">${respec ? "CHANGE CLASS (" + fmt(respecCost()) + " GC)" : "WELCOME TO HIGH STAKES - CHOOSE YOUR CLASS"}</div>
-${!respec && HS().s2 && !HS().s2.seen ? `<div class="dg-card" style="border-color:var(--amber);margin:0 0 10px;"><b style="color:var(--amber);">🎰 SEASON 2</b><div class="dg-dim">High Stakes was rebuilt: three new classes where your <b>main stat</b> (STR / INT / AGI) gives damage <b>and</b> your class's defence, and gear now <b>drops from fights</b> (Common → Mythic). Everyone starts from level 1. For your old progress (LV ${HS().s2.lvl}) you got <b style="color:var(--amber);">+${fmt(HS().s2.gc)} GC</b>.</div></div>` : ""}
-<div class="dg-dim" style="margin-bottom:8px;">Each turn you pick an action. The enemy shows what it will do next (⚔ attack, 💥 HEAVY, 🛡 defend) - play around it. ${respec ? "Level and stars stay, your stat points are refunded." : ""}</div>
-<div class="dg-classes">${Object.keys(H.CLASSES).map(k => { const c = H.CLASSES[k];
-return `<div class="dg-class" onclick="Dungeon.pickClass('${k}')">${sprite(["sysadmin", "engineer", "cyber"].indexOf(k), "p")}<div class="ic">${c.icon}</div>
-<div style="font:800 12px Orbitron,monospace;margin:4px 0;">${c.name}</div><div class="dg-dim">${c.desc}<br><b>✨ ${c.skill}</b>: ${c.skillTxt}</div></div>`; }).join("")}</div>
-${respec ? `<div style="text-align:right;margin-top:8px;"><button class="btn" onclick="Dungeon.tab('hero')">CANCEL</button></div>` : ""}</div>`;
-}
-function starHtml(n, max) { let s = ""; for (let i = 0; i < (max || 3); i++) s += i < n ? "★" : `<span class="off">★</span>`; return `<span class="hs-stars">${s}</span>`; }
-/** 3 hvězdy mise podle bitmasky (každá je samostatný úkol) */
-function maskHtml(m) { return `<span class="hs-stars">${[1, 2, 4].map(b => m & b ? "★" : `<span class="off">★</span>`).join("")}</span>`; }
-function starGoals(m) { const b = m.bonus || {}; return ["Win the fight", "Win with 50%+ HP left", b.type === "turns" && b.n >= H.QUICK_WIN ? H.bonusText(b) : H.bonusText(b) + " - or win within " + H.QUICK_WIN + " turns"]; }
-function missionOpen(id) {
-const d = HS();
-if (id === 50) return (d.stars[49] || 0) > 0;
-return id === 0 || (d.stars[id - 1] || 0) > 0;
-}
-function chapterOpen(ci) { return ci === 0 || missionOpen(ci * 10); }
-function campHtml() {
-const d = HS(), xpN = C.xpToNext(d.level);
-const chs = C.CHAPTERS.map((c, i) => {
-const got = c.missions.reduce((a, _, mi) => a + (d.stars[i * 10 + mi] || 0), 0);
-return `<button class="btn ${chSel === i ? "sel" : ""}" ${chapterOpen(i) ? "" : "disabled"} onclick="Dungeon.chapter(${i})">${c.icon} ${i + 1}<br><small>${chapterOpen(i) ? got + "/30★" : "🔒"}</small></button>`;
-}).join("") + (missionOpen(50) ? `<button class="btn ${chSel === 5 ? "sel" : ""}" onclick="Dungeon.chapter(5)">📋 ?<br><small>SECRET</small></button>` : "");
-const ch = C.CHAPTERS[chSel];
-const ids = chSel === 5 ? [50] : ch.missions.map((_, mi) => chSel * 10 + mi);
-const ms = ids.map(id => {
-const m = C.mission(id), st = d.sm[id] || 0, op = missionOpen(id);
-return `<div class="hs-m ${op ? "" : "locked"} ${m.kind === "boss" || m.kind === "secret" ? "boss" : ""} ${m.kind === "compliance" ? "compliance" : ""}" ${op ? `onclick="Dungeon.mission(${id})"` : ""}>
-<div class="ic">${op ? m.enemy.icon : "🔒"}</div><div class="t"><b>${m.idx + 1}. ${escapeHtml(m.name)}</b>
-<span class="dg-dim">${m.kind === "normal" ? "" : m.kind.toUpperCase() + " · "}⚡${m.energy}</span></div>${maskHtml(st)}</div>`;
-}).join("");
-return `<div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${escapeHtml(gameState.ldap)} · LV ${d.level} · ${title()}</span><span style="color:var(--text-dim);">${cleared()}/51 · ⭐ ${totalStars()}</span></div>
-<div class="dg-dim">${statLine()} · stars boost the office: <b>×${netMultBonus().toFixed(2)}</b>${d.pts ? ` · <b style="color:var(--emerald);">${d.pts} stat points to spend!</b>` : ""}</div>
-<div class="dg-xp"><div style="width:${Math.min(100, d.xp / xpN * 100)}%"></div></div>
-</div>
-<div class="hs-ch">${chs}</div>
-<div class="dg-card"><div class="dg-h"><span>${chSel === 5 ? "📋 SECRET" : ch.icon + " Chapter " + (chSel + 1) + ": " + ch.name}</span></div>
-<div class="dg-dim" style="margin-bottom:8px;">${chSel === 5 ? "You beat the whole company. One email remains unread..." : ch.desc}</div>
-<div class="hs-ms">${ms}</div></div>`;
-}
-function statLine() { const h = hero(); return `❤ <b>${fmt(h.maxHp)}</b> · ⚔ <b>${fmt(h.atk)}</b> · ⚡ <b>${h.staMax}</b> · 🌀 <b>${Math.round(h.dodge * 100)}%</b> · 💥 crit <b>${Math.round(h.crit * 100)}%</b>` +
-(h.dr ? ` · 🛡 <b>-${Math.round(h.dr * 100)}%</b> dmg` : "") + (h.autoBlock ? ` · 🔮 <b>${Math.round(h.autoBlock * 100)}%</b> auto-shield` : ""); }
-function heroHtml() {
-const d = HS(), h = hero(), g = gear();
-const mk = H.CLASSES[d.cls].main;
-const rows = Object.keys(STAT_INFO).filter(k => k === mk || !(k === "str" || k === "int" || k === "agi")).map(k => `<div class="hs-stat"><b>${STAT_INFO[k][0]}${k === mk ? " ★" : ""}</b><span class="v">${5 + d.stats[k]}${k === mk && h.main > 5 + d.stats[k] ? ` <small style="color:var(--emerald);">+${h.main - 5 - d.stats[k]}</small>` : k === "vit" && h.vit > 5 + d.stats.vit ? ` <small style="color:var(--emerald);">+${h.vit - 5 - d.stats.vit}</small>` : k === "luck" && h.luck > 5 + d.stats.luck ? ` <small style="color:var(--emerald);">+${h.luck - 5 - d.stats.luck}</small>` : ""}</span><span class="d">${k === mk ? "★ your main stat: damage + " + (mk === "str" ? "damage reduction" : mk === "int" ? "auto-shield chance" : "dodge") : STAT_INFO[k][1]}</span>
-<button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} data-hold="stat-${k}" onclick="Dungeon.stat('${k}',1)">+1</button>
-<button class="btn" style="padding:3px 8px;" ${d.pts >= 5 ? "" : "disabled"} onclick="Dungeon.stat('${k}',5)">+5</button></div>`).join("");
-return (window.Gear ? Gear.card() : "") + `<div class="dg-grid2">
-<div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${H.CLASSES[d.cls].name} · LV ${d.level}</span><span>${title()}</span></div>
-<div style="display:flex;gap:10px;align-items:center;">${playerSprite()}<div class="dg-dim">${statLine()}<br>Hit +${Math.round(h.hitBonus * 100)}% · timing zone ${Math.round(h.zone * 100)}% · gear ⚔×${g.atk.toFixed(2)} ❤×${g.hp.toFixed(2)}<br>✨ <b>${H.CLASSES[d.cls].skill}</b>: ${H.CLASSES[d.cls].skillTxt}<br>Wins ${d.wins} · Losses ${d.losses}</div></div>
-${titlesHtml(d)}
-<div class="dg-h" style="margin-top:10px;"><span>STAT POINTS</span><span style="color:${d.pts ? "var(--emerald)" : "var(--text-dim)"};">${d.pts} free</span></div>${rows}
-<div class="dg-dim" style="margin-top:6px;">+3 points every level. ★ = your class's main stat (damage + its defence). Green numbers come from your ⚒ gear.</div>
-<div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 🎟)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmt(respecCost() / 2)} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${fmt(respecCost())} GC)</button></div></div>
-<div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>
-<div class="dg-dim">⚔ QUICK, 🗡 STRIKE - reliable hits. 💥 POWER - stop the needle in the <b style="color:var(--emerald);">green</b> (1.9×) or <b>gold</b> (2.5×) zone, then it needs 2 turns to cool down.
-🎰 GAMBLE - spin 3 reels, <b>HOLD</b> the ones you like and re-spin the rest once (+10 stamina). Every symbol does something: 🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you (7️⃣7️⃣7️⃣ = 6× jackpot).
-🛡 BLOCK when the enemy shows 💥 HEAVY, ☄ UNLEASH or 💸 WITHDRAWAL: the ring comes after a random wind-up and speeds up - tap when it hits the gold ring. <b>PERFECT</b> = 0 damage, counter, stun · <b>GOOD</b> = -90% · miss = normal block. ☄ UNLEASH sends 3 rings, every boss has its own trick (watch out for the Administrator's fake rings).
-✨ Ultimates are a 2-second mini-game: tap fast (Warden, Wizard) or hit the open ports (Shadow Admin) - 70% to 125% power. 💢 Fill the enemy's <b>BREAK</b> bar to stagger it (it loses its turn, your next hit 1.5×) - breaking a ⏳ CHARGING enemy cancels its big attack. 💨 DODGE avoids the hit (dodging again right after is less likely to work).
-✨ SKILL needs 100 focus (you start with 30, QUICK gives the most). <b>Stamina does NOT refill by itself</b> - ⚔ QUICK (+15) and 🛡 BLOCK (+25, parry +35) recharge it for STRIKE and POWER.</div></div></div>`;
-}
-function titlesHtml(d) {
-const keys = Object.keys(BOSS_TITLES);
-return `<div class="dg-h" style="margin-top:10px;"><span>BOSS TITLES</span><span class="dg-dim">${keys.filter(k => d.bt[k]).length}/${keys.length}</span></div><div class="dg-row" style="flex-wrap:wrap;">` +
-keys.map(k => d.bt[k] ? `<button class="btn ${d.tsel === k ? "btn-gold" : ""}" style="padding:3px 8px;" onclick="Dungeon.setTitle('${k}')">${BOSS_TITLES[k]}</button>` : `<span class="dg-dim" style="padding:3px 6px;">🔒 ???</span>`).join("") +
-(d.tsel ? `<button class="btn" style="padding:3px 8px;" onclick="Dungeon.setTitle('')">default</button>` : "") + `</div>`;
-}
-function setTitle(k) { const d = HS(); d.tsel = k && d.bt[k] ? k : ""; TT.saveSoon(); render(); }
-/** v8.6: prestiž resetuje kampaň (hvězdy, prismatic) i tower; Clear The Pool zůstává odemčený */
-function onPrestige() {
-const d = HS();
-if (d.tower.best >= 100) d.pool.unlocked = true;
-d.stars = {}; d.sm = {}; d.t6 = {}; d.tower = { best: 0 }; chSel = 0;
-HS();
-if (window.Gear) Gear.onPrestige();
-log(`🎰 HIGH STAKES: campaign and tower reset - enemies get up to ×${C.prestigeMult().toFixed(2)} stronger once you outlevel them. Level and stats stay.`, "special");
-}
-function respecCost() { return 50000 * (1 + (gameState.prestige || 0)); }
-function pickClass(k) {
-const d = HS();
-if (d.cls && d.cls !== k) {
-const cost = respecCost();
-if (gameState.coins < cost) { log(`Changing class costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost; d.stats = {}; log(`HIGH STAKES: class changed to ${H.CLASSES[k].name}. Your stat points were refunded.`, "special");
-} else if (!d.cls) log(`🎰 HIGH STAKES: welcome, ${escapeHtml(gameState.ldap)} the ${H.CLASSES[k].name}!`, "special");
-if (d.s2) d.s2.seen = 1;
-d.cls = k; view = "camp"; HS(); if (window.Gear && Gear.starter && !d.kit) { d.kit = 1; Gear.starter(); }
-TT.saveSoon(); updateUI(); render();
-if (!d.tut) setTimeout(tutStart, 300);                                    // v8.7.5: nový hráč -> rovnou trénink
-}
-function respec() { $("dg-inner").innerHTML = classPickHtml(true); }
-/** v10: BRIBE u Compliance auditu - formulář je splněný bez vynuceného tahu; cena se v jednom boji pokaždé zdvojnásobí */
-function fmtShort(n) { n = Math.floor(n); return n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "K" : n.toLocaleString(); }
-function bribeCost(f) { return Math.round(Math.max(5000, 400 * Math.pow(HS().level, 1.3)) * (1 + 0.25 * (gameState.prestige || 0)) * Math.pow(2, (f && f.bribes) || 0)); }
-function bribe() {
-const f = fight; if (!f || f.over || !f.demand || f.bribed || f.e.mech !== "compliance") return;
-const c = bribeCost(f); if (gameState.coins < c) { log(`A bribe costs ${fmt(c)} GC.`, "warning"); return; }
-gameState.coins -= c; f.bribes = (f.bribes || 0) + 1; f.bribed = true;
-const d = HS(); d.br = (d.br || 0) + 1;
-log(`💼 Bribed the auditor for ${fmt(c)} GC (${d.br} total).`, "special");
-if (window.Meta && Meta.check) try { Meta.check(); } catch (e) {}
-TT.saveSoon(); updateUI(); render();
-}
-function stat(k, n) { const d = HS(); n = Math.min(n, d.pts); if (n <= 0) return; d.stats[k] += n; HS(); TT.saveSoon(); render(); }
-function resetStats() {
-const d = HS(), cost = Math.floor(respecCost() / 2);
-if (gameState.coins < cost) { log(`Resetting stats costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost; d.stats = {}; HS(); TT.saveSoon(); updateUI(); render();
-}
-function chapter(i) { chSel = i; render(); }
-function tokenEnergy() {
-const d = HS(); regenEnergy();
-if (gameState.slotTokens < 1 || d.energy >= EMAX()) return;
-gameState.slotTokens -= 1; d.energy = Math.min(EMAX(), d.energy + TOKEN_ENERGY);
-if (d.energy >= EMAX()) d.energyAt = Date.now();
-TT.saveSoon(); updateUI(); if (fight) renderKeys(); else render();
-}
-function mission(id) {
-if (!missionOpen(id)) return;
-const m = C.mission(id), d = HS(), st = d.stars[id] || 0, sm = d.sm[id] || 0;
-const el = document.createElement("div");
-el.className = "tt-overlay open"; el.id = "hs-intro"; el.style.zIndex = 10000;
-el.onclick = (e) => { if (e.target === el) el.remove(); };
-el.innerHTML = `<div class="tt-modal" style="border-color:${m.kind === "boss" || m.kind === "secret" ? "var(--crimson)" : "var(--cyan)"};">
-<h2 style="color:${m.kind === "boss" || m.kind === "secret" ? "var(--crimson)" : "var(--cyan)"};">${m.enemy.icon} ${escapeHtml(m.name)}</h2>
-<div style="display:flex;gap:12px;align-items:center;">${enemySprite(m)}<div class="tt-body" style="min-height:0;font-size:13px;">${escapeHtml(m.intro)}<br><br>
-<b>${escapeHtml(m.enemy.name)}</b> · ❤ ${fmt(m.enemy.hp)} · ⚔ ${fmt(m.enemy.atk)}${m.survive ? `<br>🎯 <b>Survive ${m.survive} turns</b>` : ""}</div></div>
-<div class="dg-dim" style="margin-top:8px;line-height:1.6;">${starGoals(m).map((t, i) => `<span style="color:${sm & (1 << i) ? "#ffd700" : "var(--text-dim)"};">${sm & (1 << i) ? "★" : "☆"}</span> ${escapeHtml(t)}`).join("<br>")}</div>
-<div class="dg-dim" style="margin-top:4px;">Each star is its own goal and stays earned - collect them over several runs. Rewards: ${fmt(C.xpFor(id, !st))} XP, ${fmt(C.gcFor(id, !st))} GC${!st ? " (first clear)" : ""}</div>
-<div style="display:flex;gap:8px;margin-top:12px;"><button class="btn btn-gold" style="flex:2;padding:11px;" onclick="Dungeon.start(${id})">⚔ FIGHT (⚡${m.energy})</button>
-<button class="btn" style="flex:1;" onclick="this.closest('.tt-overlay').remove()">BACK</button></div></div>`;
-document.body.appendChild(el);
-}
-function start(id) {
-const intro = $("hs-intro"); if (intro) intro.remove();
-const d = HS(), m = C.mission(id);
-regenEnergy();
-if (d.energy < m.energy && !freeEnergy()) { log(`HIGH STAKES: not enough energy (${m.energy} needed). +1 every 12 min.`, "warning"); render(); return; }
-spendEnergy(m.energy);
-beginFight(m, { mode: "camp" });
-}
-function freeEnergy() { return !!(window.Meta && Meta.mult("energy") === 0); }   // firemní event OVERTIME
-function spendEnergy(n) {
-const d = HS(); regenEnergy();
-if (freeEnergy()) return true;
-if (d.energy < n) return false;
-d.energy -= n;
-if (d.energy < EMAX() && d.energy + n >= EMAX()) d.energyAt = Date.now();
-return true;
-}
-/** ctx: { mode, prepHero(hero), onEnd(f) -> {title, color, lines, buttons:[{label, cls, fn}]}, hud(f) } */
-function beginFight(m, ctx) {
-const d = HS();
-const hh = hero();
-if (ctx && ctx.prepHero) ctx.prepHero(hh);
-fight = H.newFight(hh, m, Math.floor(TT.rnd() * 2147483647) + 1);
-fightMission = m; fightCtx = ctx || { mode: "camp" }; result = null; flog = [];
-if (fightCtx.mode === "camp") view = "camp";
-TT.saveSoon();
-render();
-if (window.HSRig) { HSRig.act("dg-ps", "a-enter"); HSRig.act("dg-bs", "a-enter"); }
-dlog(`⚔ ${escapeHtml(m.enemy.name)} appears!`, "y");
-}
-function intentHtml() {
-const f = fight, it = f.intent;
-if (f.over) return "";
-if (it.fake) return `<span class="hs-intent special">❓ ???</span>`;
-const map = { atk: ["⚔", "ATTACK " + fmt(it.val), ""], heavy: ["💥", "HEAVY " + fmt(it.val), "heavy"], defend: ["🛡", "DEFEND", "defend"], flex: ["💪", "FLEX (heavy next!)", "defend"], special: ["✨", "SPECIAL", "special"],
-siesta: ["😴", "SIESTA (+50% damage!)", "stun"], pasta: ["🍝", "PASTA BREAK (break it!)", "charge"], restart: ["🔄", "FORCE RESTART (break it!)", "charge"], withdraw: ["💸", "WITHDRAWAL " + fmt(it.val) + " (parry/dodge!)", "unleash"],
-charge: ["⏳", "CHARGING...", "charge"], unleash: ["☄", "UNLEASH " + fmt(it.val), "unleash"], stun: ["😵", "STUNNED", "stun"] };
-const x = map[it.k] || map.atk;
-return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}</span>`;
-}
-function fightHtml() {
-const f = fight, m = fightMission, h = f.h;
-const acts = ["quick", "strike", "power", "gamble", "block", "dodge", "skill"].map(a => {
-const A = H.ACTIONS[a];
-return `<button class="btn ${a === "power" || a === "gamble" ? "btn-gold" : a === "block" || a === "dodge" ? "btn-cyan" : a === "skill" ? "btn-crimson" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${a === "skill" ? H.CLASSES[h.cls].skill.split(" ")[0] : A.name}<small id="hs-as-${a}">${a === "skill" ? "100 focus" : (A.gain ? "+" + A.gain + " STA" : A.sta + " STA")}</small></button>`;
-}).join("") + `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">FLEE<small>lose</small></button>`;
-return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span style="display:flex;gap:6px;align-items:center;"><span id="hs-turn">TURN 0</span><button type="button" class="btn hs-help-btn" onclick="Dungeon.help()" title="How to fight">?</button></span></div>
-<div class="dg-dim" id="hs-hud">${fightCtx && fightCtx.hud ? fightCtx.hud(f) : "★ win · ★ 50%+ HP · ★ " + escapeHtml(starGoals(m)[2]) + (m.survive ? " · 🎯 survive " + m.survive + " turns" : "")}</div></div>
-<div class="hs-form" id="hs-form" style="display:none;"></div>
-<div class="hs-fight">
-<div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(fightCtx && fightCtx.mode === "pool" ? 4 : fightCtx && fightCtx.mode === "boss" ? 4 : (m.ch != null ? m.ch : 0)) : ""}
-<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${H.CLASSES[h.cls].name} LV ${h.level}</div>
-<div id="dg-ps">${playerSprite()}</div>
-<div class="hs-bars">
-<div class="hs-lbl"><span>HP</span><span id="hs-hpt"></span></div><div class="hs-bar"><div class="hp" id="hs-hp"></div><div class="sh" id="hs-sh"></div></div>
-<div class="hs-lbl"><span>STAMINA</span><span id="hs-stat"></span></div><div class="hs-bar"><div class="sta" id="hs-sta"></div></div>
-<div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div></div></div>
-<div class="dg-vs">VS</div>
-<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div id="hs-intent">${intentHtml()}</div>
-<div id="dg-bs">${enemySprite(m)}</div>
-<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div>
-<div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div></div></div>
-</div>
-<div class="dg-mech" id="dg-mech"></div>
-<div class="hs-coach" id="hs-coach" style="display:none;"></div>
-<div class="hs-acts">${acts}</div>
-<div id="hs-ov-slot"></div>
-</div>
-<div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>`;
-}
-function fightRefresh() {
-const f = fight; if (!f) return;
-if (tut && fightCtx && fightCtx.tutorial) { const c = $("hs-coach"); if (c && !c.innerHTML) tutCoach(); }
-const h = f.h;
-const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
-const txt = (id, t) => { const el = $(id); if (el) el.textContent = t; };
-set("hs-hp", f.hp / h.maxHp * 100); set("hs-sh", f.shield / h.maxHp * 100); set("hs-sta", f.sta / h.staMax * 100); set("hs-foc", f.focus);
-set("hs-ehp", f.ehp / f.emax * 100); set("hs-brk", f.brk);
-const bb = $("hs-brkb"); if (bb) bb.classList.toggle("full", !!f.vuln); if (f.vuln) set("hs-brk", 100);
-txt("hs-brkt", f.vuln ? "VULNERABLE 1.5×" : Math.floor(f.brk) + " / 100");
-txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
-txt("hs-stat", Math.floor(f.sta) + " / " + h.staMax); txt("hs-foct", Math.floor(f.focus) + " / 100");
-txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
-txt("hs-turn", "TURN " + f.turn + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
-if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
-const it = $("hs-intent"); if (it) it.innerHTML = intentHtml();
-["quick", "strike", "power", "gamble", "block", "dodge", "skill"].forEach(a => {
-const b = $("hs-a-" + a); if (!b) return;
-const ok = H.allowed(f, a) && !f.over && !busyAnim;
-b.disabled = !ok; b.classList.toggle("off", !ok); b.classList.toggle("lock", !!f.disabled[a]);
-b.classList.toggle("want", !!f.demand && f.demand === a && !f.over);
-const sm = $("hs-as-" + a), A = H.ACTIONS[a];
-if (sm && a !== "skill") { const t = f.cd[a] > 0 ? "COOLDOWN " + f.cd[a] : (A.gain ? "+" + A.gain + " STA" : A.sta + " STA"); if (sm.textContent !== t) sm.textContent = t; }
-});
-const fb = $("hs-form");
-if (fb) {
-fb.style.display = f.demand && !f.over ? "" : (f.redTape ? "" : "none");
-fb.innerHTML = (f.demand && !f.over ? (f.e.mech === "cobol" ? `🥟 "Do you want a bryndza?" - answer with <b>BLOCK</b> ("yes, thanks") or he gets offended`
-: f.e.mech === "louis" ? `🫅 SUPREME DECREE: this turn use <b>${H.ACTIONS[f.demand].name}</b> - anything else adds red tape`
-: `📋 FORM ${H.FORM_NO[f.demand]}: this turn use <b>${H.ACTIONS[f.demand].name}</b> (bonus damage) - anything else adds red tape` +
-(f.e.mech === "compliance" ? (f.bribed ? ` <b style="color:var(--emerald);">💼 bribed - play anything</b>` : ` <button class="btn btn-gold" style="padding:2px 8px;font-size:11px;margin-left:6px;" ${gameState.coins >= bribeCost(f) ? "" : "disabled"} onclick="Dungeon.bribe()">💼 BRIBE ${fmtShort(bribeCost(f))} GC</button>`) : "")) : "") +
-(f.redTape ? `<span class="rt">RED TAPE ×${f.redTape}: -${8 * f.redTape}% ATK, -${4 * f.redTape}% dodge</span>` : "");
-}
-const fl = $("hs-a-flee"); if (fl) { fl.disabled = f.over || busyAnim; fl.style.visibility = fightCtx && fightCtx.tutorial ? "hidden" : ""; }
-}
-function dlog(t, cls) {
-flog.unshift({ t: t, c: cls || "" }); flog = flog.slice(0, 80);
-const el = $("dg-log"); if (!el) return;
-const div = document.createElement("div"); if (cls) div.className = cls; div.innerHTML = t;
-el.prepend(div); while (el.childNodes.length > 80) el.removeChild(el.lastChild);
-}
-function restoreLog() { const el = $("dg-log"); if (el) el.innerHTML = flog.slice().reverse().map(x => `<div class="${x.c}">${x.t}</div>`).join(""); }
-function act(a) {
-const f = fight; if (!f || f.over || busyAnim || !H.allowed(f, a)) return;
-if (a === "power") { timingGame(q => resolve("power", q)); return; }
-if (a === "gamble") { gambleGame(); return; }
-if (a === "skill") { ultGame(o => resolve("skill", o)); return; }
-if (a === "block" && !f.intent.fake && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) { parryGame(o => resolve("block", o)); return; }
-resolve(a, "none");
-}
-let assistPending = 0;
-function resolve(a, timing) {
-const f = fight;
-if (assistPending && !f.over) {                                  // v9.6: kolega dorazil
-timing = timing && typeof timing === "object" ? Object.assign({}, timing) : { t: timing };
-timing.assist = assistPending; timing.assistName = (A_col() || {}).name || "Your colleague"; assistPending = 0;
-}
-const evs = H.step(f, a, timing);
-if (!f.over && !f.colUsed && fightCtx && fightCtx.mode !== "tutorial" && evs.some(e => e.type === "parry" || e.type === "skill") && window.Colleague && Colleague.awake && Colleague.awake() && TT.rnd() < 0.6) {
-f.colUsed = true; assistPending = Math.max(1, Math.round((Colleague.hero ? Colleague.hero().atk : hero().atk * 0.4) * 1.5));
-dlog(`🧑‍💼 <b>${escapeHtml((A_col() || {}).name || "Your colleague")}</b> saw that and is running in to help - bonus hit on your next move!`, "g");
-}
-if (fightCtx && fightCtx.onStep && !f.over) fightCtx.onStep(f, a, evs);
-else if (fightCtx && fightCtx.onStep && f.over && tut) { f.over = false; f.win = false; fightCtx.onStep(f, a, evs); }
-play(evs); after();
-}
-function A_col() { const d = HS(); return d.col && d.col.unlocked ? d.col : null; }
-/** v9.6: kolega na vteřinu přiběhne do arény ve svém gearu */
-function colRunIn() {
-const c = A_col(), ps = document.getElementById("dg-ps"); if (!c || !ps || !window.HSRig || !ps.parentNode) return;
-const box = document.createElement("div");
-box.style.cssText = "position:absolute;width:" + ps.offsetWidth * 0.8 + "px;height:" + ps.offsetHeight * 0.8 + "px;left:" + (ps.offsetLeft - 30) + "px;top:" + (ps.offsetTop + ps.offsetHeight * 0.2) + "px;z-index:6;pointer-events:none;transition:transform .35s ease-out,opacity .3s;opacity:0;";
-box.innerHTML = HSRig.player(c.cls || "engineer", window.Gear ? Gear.vis(c.gear) : c.gear);
-ps.parentNode.appendChild(box);
-const r = box.querySelector(".rig"); if (r) r.classList.add("a-walk");
-const bs = document.getElementById("dg-bs"), dx = bs ? bs.offsetLeft - ps.offsetLeft - 20 : 160;
-requestAnimationFrame(() => { box.style.opacity = "1"; box.style.transform = "translateX(" + dx * 0.75 + "px)"; });
-setTimeout(() => { if (r) { r.classList.remove("a-walk"); r.classList.add("a-power"); } }, 360);
-setTimeout(() => { box.style.opacity = "0"; box.style.transform = "translateX(0)"; }, 900);
-setTimeout(() => box.remove(), 1300);
-}
-function after() {
-fightRefresh();
-if (fight.over) {
-const f = fight;
-if (window.HSRig && !f.fled) setTimeout(() => {          // v9.2: poražený padne, vítěz se raduje
-const lose = document.querySelector(f.win ? "#dg-bs .rig" : "#dg-ps .rig"), win = document.querySelector(f.win ? "#dg-ps .rig" : "#dg-bs .rig");
-if (lose) lose.classList.add("dead"); if (win) win.classList.add("a-win"); if (f.win) sfx("cheer");
-}, 520);
-setTimeout(endFight, window.HSRig && !f.fled ? 1300 : 700);
-}
-}
-function flee() {
-if (!fight || fight.over || busyAnim) return;
-fight.over = true; fight.win = false; fight.fled = true;
-dlog("🏳 You fled the fight.", "r");
-endFight();
-}
-/** v8.5: během POWER / PARRY stačí ťuknout kamkoli na obrazovku (ne jen na lištu / kolečko) */
-function tapAnywhere(fn) {
-const down = (e) => { if (e.button > 0) return; e.preventDefault(); e.stopPropagation(); fn(); };
-const eat = (e) => { e.preventDefault(); e.stopPropagation(); };
-document.addEventListener("pointerdown", down, true);
-document.addEventListener("click", eat, true);
-return () => { document.removeEventListener("pointerdown", down, true); setTimeout(() => document.removeEventListener("click", eat, true), 350); };
-}
-function timingGame(cb) {
-const f = fight, zone = f.h.zone;
-busyAnim = true; fightRefresh();
-const gStart = 0.15 + Math.random() * (0.85 - zone - 0.15);
-const pW = zone * 0.3, pStart = gStart + (zone - pW) / 2;
-const box = $("hs-ov-slot");
-box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 10px;">💥 STOP THE NEEDLE! (tap anywhere / space)</div>
-<div class="hs-timing" id="hs-tm"><div class="g" style="left:${gStart * 100}%;width:${zone * 100}%"></div><div class="p" style="left:${pStart * 100}%;width:${pW * 100}%"></div><div class="n" id="hs-needle"></div></div></div>`;
-const t0 = performance.now(), period = 820;
-let done = false, raf = 0, pos = 0, untap = null;
-const stop = () => {
-if (done) return; done = true; cancelAnimationFrame(raf);
-document.removeEventListener("keydown", key, true); if (untap) untap();
-const q = pos >= pStart && pos <= pStart + pW ? "perfect" : pos >= gStart && pos <= gStart + zone ? "good" : "none";
-const ov = box.querySelector(".hs-ov");
-if (ov) ov.insertAdjacentHTML("beforeend", `<div class="hs-ovt" style="color:${q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"};">${q === "perfect" ? "PERFECT! 2.5×" : q === "good" ? "GOOD! 1.9×" : "MISSED THE ZONE - normal hit"}</div>`);
-setTimeout(() => { box.innerHTML = ""; busyAnim = false; cb(q); }, 450);
-};
-const key = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); stop(); } };
-document.addEventListener("keydown", key, true);
-untap = tapAnywhere(() => stop());
-const frame = (now) => {
-const t = ((now - t0) % (period * 2)) / period;
-pos = t < 1 ? t : 2 - t;
-const n = $("hs-needle"); if (n) n.style.left = "calc(" + (pos * 100) + "% - 2px)";
-if (now - t0 > period * 4) { stop(); return; }                   // po 2 průjezdech se zastaví sama
-raf = requestAnimationFrame(frame);
-};
-raf = requestAnimationFrame(frame);
-}
-const PARRY_WIN = { perfect: 8, good: 18 };
-const PARRY_STYLE = { louis: "wobble", cobol: "lag", admin: "glitch", polishen: "steps", italian: "spiral" };
-function parryGame(cb) {
-const f = fight, k = f.intent.k, mech = f.e.mech;
-busyAnim = true; fightRefresh();
-const style = k === "withdraw" ? "steps" : PARRY_STYLE[mech] || "";
-const n = k === "unleash" ? 3 : 1, dur = k === "unleash" ? 750 : k === "withdraw" ? 1000 : 1100;
-const easy = (((f.h.perks || {}).parryEasy) ? 1.7 : 1) * (f.h.parryWin || 1), wP = PARRY_WIN.perfect * easy, wG = PARRY_WIN.good * easy;
-const from = 150, to = 14, target = 46;
-const box = $("hs-ov-slot");
-const title = k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one";
-box.innerHTML = `<div class="hs-ov"><div class="hs-ovt" style="margin:0 0 8px;">${title}</div></script>
+</style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part14"] = 1;</script>
 <!-- END-OF-FILE: part14 -->

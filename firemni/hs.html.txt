@@ -1,3 +1,311 @@
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
+const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
+let view = "ach", isOpen = false;
+const EVENTS = [
+{ id: "payday", icon: "💸", name: "PAYDAY", txt: "Auto GC ×2" },
+{ id: "coffee", icon: "☕", name: "COFFEE MACHINE BROKE", txt: "Nobody can relax: clicks ×3, auto GC ×0.5" },
+{ id: "audit", icon: "📋", name: "AUDIT WEEK", txt: "HIGH STAKES: XP ×2, campaign GC ×2" },
+{ id: "supply", icon: "📦", name: "SUPPLY DROP", txt: "Opening chests costs 50% less scrap" },
+{ id: "overtime", icon: "🌙", name: "OVERTIME", txt: "HIGH STAKES fights cost no energy" }
+];
+const HOUR = 3600000, EV_LEN = 10 * 60000;
+function h32(n) { n = Math.imul(n ^ 0x5bd1e995, 0x27d4eb2d); n ^= n >>> 15; n = Math.imul(n, 0x165667b1); n ^= n >>> 13; return n >>> 0; }
+function slotEvent(slot) { const h = h32(slot * 7 + 12345); return { ev: EVENTS[h % EVENTS.length], start: slot * HOUR + (h32(slot + 999) % 50) * 60000 }; }
+function current(now) {
+now = now || Date.now();
+const fe = window.__irForcedEv;                                             // v9.6: event odpálený adminem z menu tabulky (přednost)
+if (fe && fe.end > now && (fe.start || 0) <= now) { const ev = EVENTS.find(x => x.id === fe.id); if (ev) return { ev: ev, end: fe.end, forced: true }; }
+const s = slotEvent(Math.floor(now / HOUR));
+return now >= s.start && now < s.start + EV_LEN ? { ev: s.ev, end: s.start + EV_LEN } : null;
+}
+function upcoming(n, now) {
+now = now || Date.now(); const out = []; let slot = Math.floor(now / HOUR);
+while (out.length < n) { const s = slotEvent(slot); if (s.start + EV_LEN > now) out.push({ ev: s.ev, start: s.start, end: s.start + EV_LEN }); slot++; }
+return out;
+}
+function active(id) { const c = current(); return !!(c && c.ev.id === id); }
+/** násobiče pro ekonomiku: click, auto, chest, hsxp, hsgc, energy (0 = zdarma) */
+function mult(k) {
+const c = current(); if (!c) return 1;
+const id = c.ev.id;
+if (k === "auto") return id === "payday" ? 2 : id === "coffee" ? 0.5 : 1;
+if (k === "click") return id === "coffee" ? 3 : 1;
+if (k === "chest") return id === "supply" ? 0.5 : 1;
+if (k === "hsxp" || k === "hsgc") return id === "audit" ? 2 : 1;
+if (k === "energy") return id === "overtime" ? 0 : 1;
+return 1;
+}
+const fmtT = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+const fmtWhen = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " min"; };
+let lastEv = "";
+function tickEvent() {
+const c = current(), el = $("mt-event"); if (!el) return;
+if (!c) { el.classList.remove("on"); lastEv = ""; return; }
+const html = `<span>${c.ev.icon}</span><span>${c.ev.name}</span><small>${c.ev.txt}</small><b>${fmtT(c.end - Date.now())}</b>`;
+if (el.innerHTML !== html) el.innerHTML = html;
+el.classList.add("on");
+const key = c.ev.id + c.end;
+if (lastEv !== key && typeof gameState !== "undefined" && gameState.ldap) {
+lastEv = key;
+log(`${c.ev.icon} COMPANY EVENT: ${c.ev.name} for 10 minutes - ${c.ev.txt}!`, "special");
+const S = st(); if (S && S.lastEv !== key) { S.lastEv = key; S.c.events = (S.c.events || 0) + 1; TT.saveSoon(); }
+if (typeof updateUI === "function") updateUI();
+}
+}
+function chip() { const c = current(); return c ? `<span class="buff-chip on" title="${esc(c.ev.txt)}">${c.ev.icon} ${c.ev.name} ${fmtT(c.end - Date.now())}</span>` : ""; }
+function st() {
+if (typeof gameState === "undefined") return null;
+const d = window.Dungeon && Dungeon.state ? Dungeon.state() : (gameState.hs = gameState.hs || {});
+if (!d.ach || typeof d.ach !== "object") d.ach = {};
+const a = d.ach;
+if (!a.u || typeof a.u !== "object") a.u = {};
+if (!a.c || typeof a.c !== "object") a.c = {};
+return a;
+}
+function wk() {
+const d = window.Dungeon && Dungeon.state ? Dungeon.state() : (gameState.hs = gameState.hs || {});
+if (!d.wk || typeof d.wk !== "object") d.wk = {};
+const w = d.wk, now = week();
+if (w.week !== now) { w.week = now; w.best = {}; }
+if (!w.best || typeof w.best !== "object") w.best = {};
+if (!w.claimed || typeof w.claimed !== "object") w.claimed = {};
+return w;
+}
+function week() { return Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000)); }
+const lo = () => gameState.loadout || {};
+const eq = () => Object.values(lo()).filter(Boolean);
+const hs = () => (window.Dungeon && Dungeon.state ? Dungeon.state() : {});
+const cnt = (k) => Number((st() || { c: {} }).c[k]) || 0;
+const starsTotal = () => Object.values(hs().stars || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+const cleared = (id) => ((hs().stars || {})[id] || 0) > 0 ? 1 : 0;
+const maxChest = () => Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1);
+const ACH = [
+["OFFICE", [
+["prestige_1", "🔁", "New Hire. Again.", "Prestige once", () => gameState.prestige || 0, 1],
+["prestige_5", "🪜", "Career Ladder", "Reach Prestige 5", () => gameState.prestige || 0, 5],
+["prestige_10", "🏢", "Lifer", "Reach Prestige 10", () => gameState.prestige || 0, 10],
+["chest_20", "📦", "Box Opener", "Chest level 20", maxChest, 20],
+["chest_40", "🎁", "Mythic Hunter", "Chest level 40", maxChest, 40],
+["chest_75", "🗝", "Chest Whisperer", "Chest level 75", maxChest, 75],
+["tokens_10", "🎟", "Token Collector", "Hold 10 Slot Tokens at once", () => gameState.slotTokens || 0, 10]
+]],
+["GEAR", [
+["gear_mythic", "🟥", "Red Alert", "Equip a Mythic (T5) item", () => eq().some(i => i.tier >= 5) ? 1 : 0, 1],
+["gear_quantum", "🌌", "Prismatic", "Equip a Quantum (T6) item", () => eq().some(i => i.tier >= 6) ? 1 : 0, 1],
+["gear_dress", "👔", "Dress Code", "All 6 slots Legendary (T4) or better", () => eq().filter(i => i.tier >= 4).length, 6],
+["forge_10", "⚒", "Blacksmith", "Upgrade an item to ⚒10", () => Math.max(0, ...eq().map(i => (typeof enhOf === "function" ? enhOf(i) : "").length)), 10],
+["forge_15", "🔥", "Perfectionist", "Upgrade an item to ⚒15", () => Math.max(0, ...eq().map(i => (typeof enhOf === "function" ? enhOf(i) : "").length)), 15]
+]],
+["CASINO", [
+["casino_1m", "🍀", "Lucky Break", "Win 1M GC in a single casino payout", () => cnt("casinoBest"), 1e6],
+["casino_1b", "🐋", "Whale", "Win 1B GC in a single casino payout", () => cnt("casinoBest"), 1e9],
+["casino_net", "🏦", "House Always Loses", "Be +10M GC up on gambling overall", () => Math.max(0, gameState.gambleNet || 0), 1e7],
+["prsi_win", "♣", "Prší Champion", "Win 10 Prší tables", () => cnt("prsiWins"), 10],
+["prsi_stack", "7️⃣", "Seven Stack", "Stack sevens up to +6 cards in Prší", () => cnt("prsiStack"), 1],
+["ck_win", "⛀", "Checkers Champion", "Win 5 games of checkers", () => cnt("ckWins"), 5]
+]],
+["HIGH STAKES", [
+["hs_class", "🧍", "Pick A Side", "Choose a HIGH STAKES class", () => hs().cls ? 1 : 0, 1],
+["hs_lv10", "⬆", "Promoted", "HIGH STAKES level 10", () => hs().level || 1, 10],
+["hs_lv30", "🎖", "Veteran", "HIGH STAKES level 30", () => hs().level || 1, 30],
+["hs_ch1", "☎", "Hello Fighters", "Beat The Great \"I\"", () => cleared(9), 1],
+["hs_ch3", "🔓", "Breach Buster", "Beat the Ransomware Executive", () => cleared(29), 1],
+["hs_ch5", "👑", "Massi's Favourite", "Beat The Big Massi", () => cleared(49), 1],
+["hs_secret", "📋", "They Actually Came", "Beat The Compliance Control", () => cleared(50), 1],
+["hs_stars75", "⭐", "Star Collector", "Collect 75 campaign stars", starsTotal, 75],
+["hs_stars153", "🌟", "Perfect Record", "Collect all 153 campaign stars", starsTotal, 153],
+["hs_onehit", "👊", "One Punch", "Win a fight in a single turn", () => cnt("oneTurn"), 1],
+["hs_jackpot", "7️⃣", "Triple Seven", "Hit a 777 jackpot in a fight", () => cnt("jackpots"), 1],
+["hs_parry", "🛡", "Parry God", "Land 25 parries", () => cnt("parries"), 25],
+["hs_break", "💢", "Breaker", "Break enemies 50 times", () => cnt("breaks"), 50],
+["hs_forms", "🖋", "By The Book", "Fill out 30 compliance forms", () => cnt("forms"), 30]
+]],
+["MODES", [
+["tower_50", "🗼", "Halfway Up", "Server Tower floor 50", () => (hs().tower || {}).best || 0, 50],
+["tower_100", "🏁", "Top Floor", "Server Tower floor 100", () => (hs().tower || {}).best || 0, 100],
+["shift_clear", "📟", "Survived The Shift", "Clear an On-Call Shift", () => (hs().shift || {}).clears || 0, 1],
+["shift_asc5", "🔥", "Burnout Proof", "Unlock Shift Ascension 5", () => (hs().shift || {}).asc || 0, 5],
+["wb_kill", "📊", "Quarterly Killer", "Land the final blow on the weekly boss", () => cnt("wbKills"), 1],
+["wb_mk3", "🤖", "Hostile Takeover", "Take down a weekly boss MK.III or higher", () => cnt("wbMaxMk"), 3],
+["climb_100", "🧗", "Halfway To The Roof", "Climb 100 m in Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 100],
+["climb_200", "🏙", "Roof Access", "Reach 200 m in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 200],
+["climb_280", "👑", "Top Of The Tower", "Reach the new roof (280 m) in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 280],
+["bribe_10", "💼", "Creative Accounting", "Bribe the Compliance auditor 10 times", () => Math.floor(hs().br || 0), 10]
+]],
+["SOCIAL", [
+["events_10", "🎉", "Party Animal", "Be online for 10 company events", () => cnt("events"), 10],
+["weekly_top", "🏅", "Employee Of The Week", "Finish top 3 on a weekly board", () => cnt("weeklyTop"), 1]
+]]
+];
+const ALL = []; ACH.forEach(g => g[1].forEach(a => ALL.push({ id: a[0], icon: a[1], name: a[2], desc: a[3], cur: a[4], goal: a[5], cat: g[0] })));
+const BY = {}; ALL.forEach(a => { BY[a.id] = a; });
+const REWARD_TOKENS = 1;
+function prog(a) { let v = 0; try { v = Number(a.cur()) || 0; } catch (e) {} return Math.min(1, v / a.goal); }
+let checking = false;
+function check() {
+const S = st(); if (!S || checking || !gameState.ldap) return;
+checking = true;
+const got = [];
+ALL.forEach(a => { if (!S.u[a.id] && prog(a) >= 1) { S.u[a.id] = Date.now(); got.push(a); } });
+checking = false;
+if (!got.length) return;
+gameState.slotTokens = (gameState.slotTokens || 0) + REWARD_TOKENS * got.length;
+got.forEach((a, i) => { log(`🏆 ACHIEVEMENT UNLOCKED: ${a.icon} ${a.name} - ${a.desc} (+${REWARD_TOKENS} 🎟)`, "special"); setTimeout(() => toast(a), i * 1600); });
+TT.saveSoon(); if (typeof updateUI === "function") updateUI();
+if (isOpen) render();
+}
+function toast(a) {
+if (document.hidden) return;
+const el = document.createElement("div"); el.className = "mt-toast";
+el.innerHTML = `<span class="ic">${a.icon}</span><div><b>ACHIEVEMENT UNLOCKED</b>${esc(a.name)} · +${REWARD_TOKENS} 🎟</div>`;
+el.onclick = () => { el.remove(); open("ach"); };
+const n = document.querySelectorAll(".mt-toast").length;
+if (document.documentElement.classList.contains("m")) { el.style.bottom = "auto"; el.style.top = "calc(" + (58 + n * 58) + "px + env(safe-area-inset-top))"; el.style.left = "8px"; el.style.right = "8px"; }   // v8.8: na mobilu nahoře, ať nepřekrývá tlačítka
+else el.style.bottom = (70 + n * 62) + "px";
+document.body.appendChild(el); setTimeout(() => el.remove(), 4200);
+}
+function badgesHtml(ids) {
+ids = (ids || []).filter(id => BY[id]);
+if (!ids.length) return "";
+return `<div class="mt-dim" style="margin-top:8px;">🏆 Achievements <b>${ids.length}/${ALL.length}</b></div><div class="mt-badges">${ids.map(id => `<span title="${esc(BY[id].name)}: ${esc(BY[id].desc)}">${BY[id].icon}</span>`).join("")}</div>`;
+}
+function bump(k, n) { const S = st(); if (!S || !n) return; S.c[k] = (Number(S.c[k]) || 0) + n; }
+function onFight(f) {
+if (!f || !f.st) return;
+bump("jackpots", f.st.jackpots); bump("parries", f.st.parries); bump("breaks", f.st.breaks); bump("forms", f.st.forms);
+if (f.win && f.turn <= 1) bump("oneTurn", 1);
+setTimeout(check, 300);
+}
+function onWb(dmg, kill, mk) {
+const S = st(); if (!S) return;
+if (kill) { bump("wbKills", 1); S.c.wbMaxMk = Math.max(Number(S.c.wbMaxMk) || 0, mk || 1); }
+setTimeout(check, 300);
+}
+function onClimb(best) { submit("climb", Math.floor(best * 10) / 10); setTimeout(check, 300); }
+function onShift(asc, steps) { submit("shift", (asc | 0) * 11 + Math.min(10, steps | 0)); setTimeout(check, 300); }
+function onCasinoWin(amount) {
+const S = st(); if (!S || !(amount > 0)) return;
+if (amount > (Number(S.c.casinoBest) || 0)) S.c.casinoBest = amount;
+submit("casino", amount);
+setTimeout(check, 300);
+}
+const CATS = {
+climb: { icon: "🧗", name: "CORPORATE CLIMB", unit: (v) => v.toFixed(1) + " m" },
+shift: { icon: "📟", name: "ON-CALL SHIFT", unit: (v) => (Math.floor(v / 11) ? "ASC " + Math.floor(v / 11) + " · " : "") + (v % 11) + "/10" },
+wbdmg: { icon: "📊", name: "WORLD BOSS DAMAGE", unit: (v) => short(v) },
+casino: { icon: "🎰", name: "BIGGEST CASINO WIN", unit: (v) => short(v) + " GC" }
+};
+const PRIZE = [3, 2, 1];
+const wkSt = { data: null, at: 0, loading: false, err: "" };
+function submit(cat, val) {
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+const w = wk(); if (!(val > (Number(w.best[cat]) || 0))) return;
+w.best[cat] = val; TT.saveSoon();
+google.script.run.withSuccessHandler(() => { wkSt.at = 0; }).withFailureHandler(() => {}).weeklySubmit(cat, val);
+}
+function wkLoad(force) {
+if (wkSt.loading || (!force && wkSt.data && Date.now() - wkSt.at < 30000)) return;
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+wkSt.loading = true;
+google.script.run.withSuccessHandler(r => {
+wkSt.loading = false; wkSt.at = Date.now();
+if (r && r.ok) { wkSt.data = r; wkSt.err = ""; claim(); } else wkSt.err = "Could not load the weekly boards.";
+if (isOpen && view === "weekly") render();
+}).withFailureHandler(e => { wkSt.loading = false; wkSt.err = String(e && e.message || e); if (isOpen && view === "weekly") render(); }).weeklyState();
+}
+/** top 3 minulého týdne: 3 / 2 / 1 Slot Token za každý žebříček */
+function claim() {
+const r = wkSt.data, w = wk(); if (!r || !r.last) return;
+const lw = String(r.week - 1); if (w.claimed[lw]) return;
+w.claimed[lw] = 1;
+Object.keys(w.claimed).forEach(k => { if (Number(k) < r.week - 4) delete w.claimed[k]; });
+let tok = 0; const parts = [];
+Object.keys(CATS).forEach(c => { const i = (r.last[c] || []).findIndex(x => x.nick === gameState.ldap); if (i >= 0 && i < 3) { tok += PRIZE[i]; parts.push(`#${i + 1} ${CATS[c].name}`); } });
+if (tok) {
+gameState.slotTokens = (gameState.slotTokens || 0) + tok; bump("weeklyTop", 1);
+log(`🏅 WEEKLY BOARDS: last week you finished ${parts.join(", ")} → +${tok} 🎟 Slot Tokens!`, "special");
+if (typeof updateUI === "function") updateUI();
+setTimeout(check, 300);
+}
+TT.saveSoon();
+}
+const TABS = { ach: "🏆 ACHIEVEMENTS", weekly: "📅 WEEKLY", events: "🎉 EVENTS" };
+function open(v) { if (v && TABS[v]) view = v; isOpen = true; $("mt-screen").classList.add("open"); check(); if (view === "weekly") wkLoad(true); render(); }
+function close() { isOpen = false; $("mt-screen").classList.remove("open"); }
+function tab(v) { view = v; if (v === "weekly") wkLoad(false); render(); }
+function render() {
+if (!isOpen) return;
+const S = st() || { u: {} }, n = Object.keys(S.u).filter(k => BY[k]).length;
+$("mt-count").textContent = `${n}/${ALL.length} 🏆`;
+$("mt-tabs").innerHTML = Object.keys(TABS).map(k => `<button class="casino-tab-btn${k === view ? " active" : ""}" onclick="Meta.tab('${k}')">${TABS[k]}</button>`).join("");
+const box = $("mt-inner");
+if (view === "ach") box.innerHTML = achHtml(S, n);
+else if (view === "weekly") box.innerHTML = weeklyHtml();
+else box.innerHTML = eventsHtml();
+}
+function achHtml(S, n) {
+return `<div class="mt-card"><div class="mt-h"><span>🏆 ACHIEVEMENTS</span><span>${n}/${ALL.length}</span></div>
+<div class="mt-dim">Every achievement gives <b>+${REWARD_TOKENS} 🎟 Slot Token</b> and a badge on your player card. Progress never resets (not even on prestige).</div>
+<div class="mt-pb" style="height:7px;margin-top:6px;"><div style="width:${n / ALL.length * 100}%"></div></div></div>` +
+ACH.map(g => `<div class="mt-cat">${g[0]}</div><div class="mt-grid">${g[1].map(x => { const a = BY[x[0]], done = !!S.u[a.id], p = done ? 1 : prog(a);
+let cur = 0; try { cur = Number(a.cur()) || 0; } catch (e) {}
+return `<div class="mt-a ${done ? "done" : ""}"><div class="ic">${a.icon}</div><div class="t"><b>${esc(a.name)}</b><span>${esc(a.desc)}${done ? " · ✔ " + new Date(S.u[a.id]).toLocaleDateString() : " · " + short(Math.min(cur, a.goal)) + " / " + short(a.goal)}</span>
+<div class="mt-pb"><div style="width:${p * 100}%"></div></div></div></div>`; }).join("")}</div>`).join("");
+}
+function weeklyHtml() {
+const r = wkSt.data;
+const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
+if (!r) return `<div class="mt-card"><div class="mt-dim">${wkSt.err ? "⚠ " + esc(wkSt.err) : "Loading the weekly boards..."}</div></div>`;
+const me = gameState.ldap;
+return `<div class="mt-card"><div class="mt-h"><span>📅 WEEKLY BOARDS</span><span class="mt-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
+<div class="mt-dim">Four boards, new every Monday. Top 3 on each board get <b>3 / 2 / 1 🎟 Slot Tokens</b> (collected automatically next week).</div></div>
+<div class="mt-lb">${Object.keys(CATS).map(c => { const C = CATS[c], rows = r.cur[c] || [], last = r.last[c] || [];
+return `<div class="mt-card"><div class="mt-h"><span>${C.icon} ${C.name}</span><span class="mt-dim">you: ${r.mine[c] ? C.unit(r.mine[c]) : "-"}</span></div>
+${rows.length ? rows.map((x, i) => `<div class="mt-row ${x.nick === me ? "me" : ""}"><span>${i < 3 ? ["🥇", "🥈", "🥉"][i] : (i + 1) + "."} ${esc(x.nick)}</span><span>${C.unit(x.v)}</span></div>`).join("") : `<div class="mt-dim">Nobody yet this week.</div>`}
+<div class="mt-dim" style="margin-top:6px;">Last week: ${last.length ? last.map((x, i) => ["🥇", "🥈", "🥉"][i] + " " + esc(x.nick)).join(" ") : "-"}</div></div>`; }).join("")}</div>`;
+}
+function eventsHtml() {
+const c = current(), up = upcoming(8);
+return `<div class="mt-card"><div class="mt-h"><span>🎉 COMPANY EVENTS</span></div>
+<div class="mt-dim">Every hour there is a 10-minute company event at a random minute - the same time for everyone. Watch for the banner at the top.</div></div>
+${c ? `<div class="mt-card" style="border-color:var(--amber);"><div class="mt-h"><span>${c.ev.icon} NOW: ${c.ev.name}</span><span style="color:var(--amber);">${fmtT(c.end - Date.now())} left</span></div><div class="mt-dim">${esc(c.ev.txt)}</div></div>` : ""}
+<div class="mt-card"><div class="mt-h"><span>SCHEDULE</span></div>${up.map(u => { const now = Date.now() >= u.start;
+return `<div class="mt-ev ${now ? "now" : ""}"><span class="ic">${u.ev.icon}</span><div style="flex:1;"><b>${u.ev.name}</b><br><span class="mt-dim">${esc(u.ev.txt)}</span></div>
+<span class="mt-dim" style="text-align:right;">${new Date(u.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<br>${now ? "<b>NOW</b>" : "in " + fmtWhen(u.start - Date.now())}</span></div>`; }).join("")}</div>
+<div class="mt-card"><div class="mt-h"><span>ALL EVENTS</span></div>${EVENTS.map(e => `<div class="mt-ev"><span class="ic">${e.icon}</span><div><b>${e.name}</b><br><span class="mt-dim">${esc(e.txt)}</span></div></div>`).join("")}</div>`;
+}
+window.Meta = { open: open, close: close, tab: tab, mult: mult, current: current, upcoming: upcoming, active: active, chip: chip, EVENTS: EVENTS,
+count: function (k, n) { bump(k, n); setTimeout(check, 300); }, onFight: onFight, onWb: onWb, onClimb: onClimb, onShift: onShift, onCasinoWin: onCasinoWin, check: check, badgesHtml: badgesHtml, ACH: ALL,
+isOpen: () => isOpen, weeklyLoad: wkLoad };
+function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
+const badge = document.querySelector(".user-badge");
+if (badge && !$("mt-open-btn")) {
+const b = document.createElement("button"); b.id = "mt-open-btn"; b.className = "btn btn-gold"; b.textContent = "🏆 HALL OF FAME"; b.onclick = () => open();
+const hsb = $("dg-open-btn"); if (hsb && hsb.parentNode === badge) badge.insertBefore(b, hsb.nextSibling); else badge.insertBefore(b, badge.firstChild);
+}
+const more = $("m-settings");
+if (more && !$("mt-more")) {
+const p = document.createElement("div"); p.className = "panel"; p.id = "mt-more"; p.setAttribute("data-tab", "more");
+p.innerHTML = `<div class="panel-header">🏆 HALL OF FAME</div><div class="row" style="display:flex;gap:6px;"><button class="btn btn-gold" style="flex:1;" onclick="Meta.open('ach')">ACHIEVEMENTS</button><button class="btn btn-cyan" style="flex:1;" onclick="Meta.open('weekly')">WEEKLY</button><button class="btn" style="flex:1;" onclick="Meta.open('events')">EVENTS</button></div>`;
+more.parentNode.insertBefore(p, more);
+}
+const prevWin = TT.win;
+TT.win = function (amount) { prevWin.apply(this, arguments); try { onCasinoWin(Math.floor(Number(amount)) || 0); } catch (e) {} };
+TT.onLoaded(() => { setTimeout(check, 2500); setTimeout(() => wkLoad(true), 6000); });
+setInterval(tickEvent, 1000); tickEvent();
+setInterval(check, 5000);
+setInterval(() => { if (isOpen && view === "events") render(); }, 1000);
+document.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") close(); });
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
 <style>
 /* ===== FX layer (fx.html) - jen transform/opacity, jednorázové animace, žádná nová smyčka ===== */
 :root { --fx-ease: cubic-bezier(.2,.8,.2,1); }
@@ -240,432 +548,6 @@ banner.innerHTML = "ASCENDED<small>PRESTIGE " + v + "</small>";
 }).observe(pl, { childList: true, characterData: true, subtree: true });
 }
 })();
-</script>
-<script>
-/**
-* IDLE ROYALE - DUNGEON ENGINE (čistá logika bez DOM; stejný kód běží ve hře i v simulaci pro ladění čísel)
-* Tahový souboj: hráč udeří (útok se losuje z tabulky podle třídy a postoje), pak boss.
-* Každý postoj má průměr (EV) přesně 1.00× ATK - postoj mění jen riziko, ne průměrný damage.
-*/
-(function (root) {
-"use strict";
-function rng(seed) {
-let a = (seed >>> 0) || 1;
-return function () {
-a |= 0; a = (a + 0x6D2B79F5) | 0;
-let t = Math.imul(a ^ (a >>> 15), 1 | a);
-t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-}
-const RAW = {
-sysadmin: {
-safe:   [[0.25, 0.70, "low"], [0.55, 1.00, "mid"], [0.20, 1.38, "high"]],
-normal: [[0.15, 0.40, "low"], [0.50, 0.90, "mid"], [0.30, 1.30, "high"], [0.05, 3.00, "jp"]],
-allin:  [[0.03, 0, "bf"], [0.30, 0.15, "low"], [0.30, 0.70, "mid"], [0.32, 1.60, "high"], [0.05, 5.50, "jp"]]
-},
-engineer: {
-safe:   [[0.30, 0.60, "low"], [0.45, 1.00, "mid"], [0.25, 1.55, "high"]],
-normal: [[0.25, 0.30, "low"], [0.40, 0.85, "mid"], [0.28, 1.60, "high"], [0.07, 3.50, "jp"]],
-allin:  [[0.04, 0, "bf"], [0.33, 0.10, "low"], [0.25, 0.60, "mid"], [0.31, 1.80, "high"], [0.07, 8.00, "jp"]]
-},
-cyber: {
-safe:   [[0.25, 0.60, "low"], [0.50, 1.00, "mid"], [0.25, 1.50, "high"]],
-normal: [[0.25, 0.30, "low"], [0.42, 0.90, "mid"], [0.27, 1.50, "high"], [0.06, 3.00, "jp"]],
-allin:  [[0.03, 0, "bf"], [0.30, 0.10, "low"], [0.30, 0.60, "mid"], [0.31, 1.70, "high"], [0.06, 7.00, "jp"]]
-}
-};
-const BACKFIRE_SELF = { sysadmin: 1.2, engineer: 1.5, cyber: 1.2 };   // backfire = tolik × vlastní ATK do sebe
-const TABLES = {};
-Object.keys(RAW).forEach(c => {
-TABLES[c] = {};
-Object.keys(RAW[c]).forEach(s => {
-const rows = RAW[c][s];
-const ev = rows.reduce((a, r) => a + r[0] * r[1], 0);
-TABLES[c][s] = rows.map(r => ({ p: r[0], m: Math.round(r[1] / ev * 1000) / 1000, k: r[2] }));   // normalizace na EV = 1.00
-});
-});
-function tableEV(rows) { return rows.reduce((a, r) => a + r.p * r.m, 0); }
-const CLASSES = {
-sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. Low variance, +4% HP and a small shield (4% HP) at the start of every fight.",
-tiers: ["Junior Helpdesk Agent", "System Administrator", "Senior Infrastructure Engineer"],
-branches: { a: "Site Reliability Engineer", b: "Cloud Infrastructure Architect" },
-perks: ["Power Cycle: once per fight you survive a lethal hit with 10% HP.",
-"Reboot Script: in SAFE stance, hits of 1.0× or more heal 4% max HP.",
-"HA Cluster: backfire self-damage is halved and turns into a shield.",
-"SRE - SLO Breach Counter: after a heavy boss hit (>12% HP) the next one is halved.",
-"Cloud Architect - Elastic Auto-Scaling: jackpots add 2× your current shield as damage, +8% starting shield."] },
-engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. High variance, +18% ATK, +5% HP, big jackpots. +1% click crit chance per career tier.",
-tiers: ["Intern Developer", "Full-Stack Developer", "Lead Software Architect"],
-branches: { a: "Algorithmic Quant Dev", b: "Principal Systems Engineer" },
-perks: ["StackOverflow Copy-Paste: 8% chance to repeat your previous good hit.",
-"Unit Test Coverage: backfire self-damage -30%.",
-"CI Burst: every hit of 1.0× or more in a row adds +1.5% jackpot chance (max +6%).",
-"Quant Dev - HFT: jackpots hit ×1.35 harder, but backfire chance +1%.",
-"Principal - Zero-Cost Abstraction: your weakest hits are never below 0.6×."] },
-cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. 17% dodge, +10% boss loot.",
-tiers: ["Script Kiddie", "SOC Security Analyst", "Senior Red Teamer"],
-branches: { a: "CISO", b: "Black-Hat Mercenary" },
-perks: ["Lucky Port Scan: 4% of your weakest hits become strong hits.",
-"Threat Intel: a dodge reflects 40% of the boss attack back.",
-"Zero-Day Payload: jackpots infect the boss - 0.4× ATK damage for 3 turns.",
-"CISO - Corporate Insurance: boss loot ×1.5 and 35% chance a won fight costs no key.",
-"Black-Hat - Ghost in the Shell: after a dodge your next hit can't backfire and deals +40%."] }
-};
-const ARTIFACTS = [
-{ id: "key",    name: "Master Admin Key",     icon: "🗝", fx: { atk: 0.12, hp: -0.08 } },
-{ id: "token",  name: "Quantum Token",        icon: "🪙", fx: { hp: 0.08, jp: 0.015 } },
-{ id: "pen",    name: "Cyber Pen",            icon: "🖊", fx: { dodge: 0.08, atk: -0.05 } },
-{ id: "drive",  name: "Encrypted Hard Drive", icon: "💽", fx: { hp: 0.15, atk: -0.05 } },
-{ id: "usb",    name: "Zero-Day USB",         icon: "🔌", fx: { atk: 0.08, bf: 0.01 } },
-{ id: "mug",    name: "SME Coffee Mug",       icon: "☕", fx: { hp: 0.10, safeDef: 0.10 } },
-{ id: "gpu",    name: "Overclocked GPU",      icon: "🎛", fx: { atk: 0.15, bfDmg: 0.25 } },
-{ id: "node",   name: "Decentralized Node",   icon: "🛰", fx: { loot: 0.15, atk: 0.03 } },
-{ id: "fw",     name: "Shadow Firewall",      icon: "🧱", fx: { dodge: 0.05, hp: 0.05 } },
-{ id: "coin",   name: "Coin Toss Token",      icon: "🎲", fx: { coin: 1 } },
-{ id: "bounty", name: "Bug Bounty Badge",     icon: "🏅", fx: { loot: 0.20, jp: 0.01 } },
-{ id: "relic",  name: "Mainframe Relic",      icon: "🗄", fx: { hp: 0.20, dodge: -0.06 } }
-];
-const ARTIFACT_BY_ID = {}; ARTIFACTS.forEach(a => { ARTIFACT_BY_ID[a.id] = a; });
-function artifactText(a, lvl) {
-const f = 1 + 0.25 * ((lvl || 1) - 1), o = [];
-const pct = (v) => (v > 0 ? "+" : "") + Math.round(v * f * 1000) / 10 + "%";
-const fx = a.fx;
-if (fx.atk) o.push(pct(fx.atk) + " ATK");
-if (fx.hp) o.push(pct(fx.hp) + " HP");
-if (fx.dodge) o.push(pct(fx.dodge) + " dodge");
-if (fx.jp) o.push(pct(fx.jp) + " jackpot chance");
-if (fx.bf) o.push(pct(fx.bf) + " backfire chance (All-in)");
-if (fx.bfDmg) o.push(pct(fx.bfDmg) + " backfire self-damage");
-if (fx.safeDef) o.push(pct(-fx.safeDef) + " damage taken in SAFE");
-if (fx.loot) o.push(pct(fx.loot) + " boss loot");
-if (fx.coin) o.push("fight start: 50% +25% ATK or 50% -15% ATK");
-return o.join(", ");
-}
-const BOSSES = [
-{ name: "Unplugged Router",          icon: "📡", mech: "router",   txt: "Cable Glitch: every 4th turn the signal drops and it skips its attack." },
-{ name: "The Great \"I\"",          icon: "🅸", mech: "dust",     txt: "The Great I: hits weaker as it loses HP, but dodges more (up to 25%) - it's just one letter, how hard can it be?" },
-{ name: "Printer Spooler Ghost",     icon: "🖨", mech: "printer",  txt: "Paper Jam: its hits have a 25% chance to jam your next attack (0 damage)." },
-{ name: "Rogue Cron Job",            icon: "⏰", mech: "cron",     txt: "Scheduled Run: weak hits, but every 4th turn a massive batch job (×2.6)." },
-{ name: "Memory Leak Java App",      icon: "☕", mech: "leak",     txt: "OutOfMemory: its attack grows +8% every turn. End it fast." },
-{ name: "Legacy COBOL Mainframe",    icon: "🖥", mech: "cobol",    txt: "Tape Backup: every 4th turn it restores 12% of its max HP." },
-{ name: "DDoS Botnet Cluster",       icon: "🕸", mech: "ddos",     txt: "Packet Storm: attacks 3× per turn with weak hits (dodge each one)." },
-{ name: "Shadow IT Spreadsheet",     icon: "📊", mech: "excel",    txt: "VLOOKUP Crash: 15% chance to reflect 30% of your damage back at you." },
-{ name: "Crypto-Miner Trojan",       icon: "⛏", mech: "miner",    txt: "Resource Theft: its hits halve your jackpot chance for 2 turns." },
-{ name: "Rogue LLM Agent",           icon: "🤖", mech: "llm",      txt: "Hallucination Counter: after your strong hit or jackpot it counterattacks instantly." },
-{ name: "Spaghetti Cabling Rack",    icon: "🍝", mech: "spaghetti",txt: "Cable Trap: every 5th turn your stance is locked for 2 turns." },
-{ name: "Zero-Day Broker",           icon: "🕵", mech: "broker",   txt: "Exposed Vulnerability: each of your weak hits makes you take +10% damage (max +50%)." },
-{ name: "Public S3 Leak",            icon: "🪣", mech: "s3",       txt: "Data Siphon: your strong hits give it a shield of 20% of that damage." },
-{ name: "Deprecated API Dependency", icon: "🧩", mech: "api",      txt: "Breaking Change: below 50% HP its attack is ×1.4." },
-{ name: "Ransomware Executive",      icon: "🔒", mech: "ransom",   txt: "Equipment Encryption: every 5th turn your ATK -20% until you land a 1.3×+ hit." },
-{ name: "Corporate Audit Bot",       icon: "📋", mech: "audit",    txt: "Bureaucratic Brake: all your hits are pulled halfway towards average (All-in is weaker)." },
-{ name: "Rogue Microservice Mesh",   icon: "🧬", mech: "mesh",     txt: "Cascade Failure: after hitting you 3 turns in a row its next hit is ×2." },
-{ name: "Unstable Staging Env",      icon: "🧪", mech: "staging",  txt: "Environment Reset: every 4th turn it wipes all shields, buffs and debuffs." },
-{ name: "Legacy Monolith Architect", icon: "🏛", mech: "monolith", txt: "Monolithic Armor: your hits under 1.0× only deal 40% damage." },
-{ name: "The Big Massi",            icon: "👑", mech: "darkweb",  txt: "FINAL BOSS - Executive Override: below 30% HP his attack is ×2, but he burns 5% max HP per turn. The best boss you could ever ask for." }
-];
-const PROMOS = [
-{ id: "lead",  name: "Micromanager Team Lead",   icon: "📣", lvl: 10, mech: "lead",  reward: "tier2",   txt: "Quick Sync: every 4th turn ALL-IN is disabled for 2 turns.", unlock: "Unlocks career tier 2" },
-{ id: "hr",    name: "HR Compliance Specialist", icon: "🧑‍💼", lvl: 15, mech: "hr",   reward: "slot",    txt: "Mandatory Team Building: after your strong hit or jackpot you are forced into SAFE for 1 turn.", unlock: "+1 artifact slot" },
-{ id: "board", name: "Technical Board Review",   icon: "🧾", lvl: 20, mech: "board", reward: "tier3",   txt: "Budget Cuts: below 50% HP it cuts your ATK by 25%.", unlock: "Unlocks career tier 3" },
-{ id: "cto",   name: "The CTO",                  icon: "🎩", lvl: 25, mech: "cto",   reward: "branch",  txt: "AI Paradigm Shift: every 3 turns it demands a stance - if you are not in it, it hits +60% harder.", unlock: "Choose your career branch" },
-{ id: "bod",   name: "Board of Directors",       icon: "🏦", lvl: 30, mech: "bod",   reward: "exec",    txt: "Quarterly Goals: defeat it within 18 turns or the contract is terminated.", unlock: "EXECUTIVE title: +10% ATK/HP, +5% ticket multiplier" }
-];
-function roman(n) { return n <= 1 ? "" : (["", "", " Mk II", " Mk III", " Mk IV", " Mk V", " Mk VI", " Mk VII", " Mk VIII", " Mk IX", " Mk X"][n] || (" Mk " + n)); }
-let BOSS_TABLE = [[215,11.9],[295,14.6],[382,12.2],[477,19.3],[579,18],[688,19.6],[805,28.4],[929,36.3],[1060,43.8],[1199,53],[1345,58.9],[1498,55.7],[1658,71.9],[1826,66.1],[2001,83.7],[2183,99.1],[2372,82.3],[2569,113.2],[2773,85.7],[2985,124.7],[3204,175.9],[3430,173.2],[3663,121.3],[3903,161.4],[4151,127.7],[4406,121.5],[4669,165.3],[4939,194.8],[5216,212.5],[5500,240],[5792,256.4],[6090,220.6],[6397,271.1],[6710,242.1],[7031,286],[7359,328.2],[7694,270.8],[8037,348.2],[8387,261.5],[8744,366.1],[9108,495.2],[9480,473.4],[9859,326.5],[10246,422.9],[10639,325.3],[11040,306.9],[11449,413.5],[11864,461.3],[12287,505.2],[12717,557.3],[13154,573.2],[13599,483.2],[14051,589.4],[14510,523.8],[14977,604.7],[15451,690.8],[15932,558.2],[16420,714.4],[16916,515.2],[17419,720.5],[17929,1004.7],[18447,932],[18972,618.8],[19504,812.5],[20043,621.7],[20590,572.8],[21144,760.9],[21706,855],[22274,900.9],[22850,1003.3],[23433,1031],[24024,891.2],[24622,1033.6],[25227,915.3],[25839,1072.2],[26459,1184],[27086,951.6],[27720,1212],[28361,889.6],[29010,1222],[29666,1637.7],[30330,1552.7],[31000,1031.1],[31678,1326.7],[32364,998.3],[33056,921.1],[33756,1211.2],[34463,1360.1],[35177,1446.6],[35899,1560.7],[36628,1589],[37364,1349.6],[38108,1645.2],[38859,1400],[39617,1606.4],[40383,1816.3],[41155,1421.9],[41935,1865.9],[42723,1318.9],[43517,1807.7]];
-function bossFor(floor) {
-const b = BOSSES[(floor - 1) % 20];
-const t = bossStats(floor);
-return { floor: floor, name: b.name + roman(Math.ceil(floor / 20)), icon: b.icon, mech: b.mech, txt: b.txt, hp: t.hp, atk: t.atk, sprite: (floor - 1) % 20 };
-}
-const EASE = [0.72, 0.8, 0.87, 0.93, 0.97];          // první patra mírnější (nováček ještě nemá gear)
-function bossStats(floor) {
-if (BOSS_TABLE && floor <= BOSS_TABLE.length) { const r = BOSS_TABLE[floor - 1], e = EASE[floor - 1] || 1; return { hp: Math.round(r[0] * e), atk: Math.round(r[1] * e * 10) / 10 }; }
-const N = BOSS_TABLE.length;
-const F0 = N - 20 + ((floor - 1) % 20) + 1;
-const refA = (F) => (15 + 4.5 * (F - 1)) * (1 + 0.06 * F), refH = (F) => (100 + 30 * (F - 1)) * (1 + 0.06 * F);
-const r = BOSS_TABLE[F0 - 1];
-return { hp: Math.round(r[0] * refA(floor) / refA(F0)), atk: Math.round(r[1] * refH(floor) / refH(F0) * 10) / 10 };
-}
-let PROMO_TABLE = {"lead":[1288,51.7],"hr":[2149,86.5],"board":[3206,110.5],"cto":[4459,125.1],"bod":[4481,300.9]};
-function promoBoss(id) {
-const p = PROMOS.find(x => x.id === id);
-const t = (PROMO_TABLE && PROMO_TABLE[id]) ? { hp: PROMO_TABLE[id][0], atk: PROMO_TABLE[id][1] } : bossStats(p.lvl);
-return { floor: 0, promo: p.id, name: p.name, icon: p.icon, mech: p.mech, txt: p.txt, hp: t.hp, atk: t.atk, sprite: 20 + PROMOS.indexOf(p) };
-}
-/** gear: { atk: násobek ze zbraní (TOOL/AUGMENT/RELIC), hp: násobek ze zbroje (HEAD/RIG/OS) } */
-function gearSlotValue(tier, lvl) { return 0.1 * Math.pow(tier, 1.3) * (1 + 0.2 * (lvl || 0)); }
-function buildPlayer(d, gear) {
-const L = Math.max(1, d.level || 1);
-const cls = d.cls || "sysadmin";
-const tier = d.tier || 1, branch = d.branch || "";
-const fx = { atk: 0, hp: 0, dodge: 0, jp: 0, bf: 0, bfDmg: 0, safeDef: 0, loot: 0, coin: 0 };
-(d.equipped || []).forEach(id => {
-const a = ARTIFACT_BY_ID[id]; if (!a) return;
-const f = 1 + 0.25 * (((d.artifacts || {})[id] || 1) - 1);
-Object.keys(a.fx).forEach(k => { fx[k] += a.fx[k] * (k === "coin" ? 1 : f); });
-});
-let atkMul = 1 + fx.atk, hpMul = 1 + fx.hp;
-if (cls === "engineer") { atkMul += 0.18; hpMul += 0.05; }
-if (cls === "sysadmin") hpMul += 0.04;
-if (d.exec) { atkMul += 0.10; hpMul += 0.10; }
-const maxHp = Math.round((100 + 30 * (L - 1)) * (gear ? gear.hp : 1) * hpMul);
-const atk = (15 + 4.5 * (L - 1)) * (gear ? gear.atk : 1) * atkMul;
-let dodge = (cls === "cyber" ? 0.17 : 0) + fx.dodge;
-dodge = Math.max(0, Math.min(0.35, dodge));
-return { cls: cls, tier: tier, branch: branch, level: L, maxHp: maxHp, atk: atk, dodge: dodge, fx: fx,
-shieldPct: cls === "sysadmin" ? 0.04 + (branch === "b" && tier >= 4 ? 0.08 : 0) : 0,
-loot: fx.loot + (cls === "cyber" ? 0.10 : 0) + (cls === "cyber" && tier >= 4 && branch === "a" ? 0.5 : 0) };
-}
-function newFight(player, boss, seed) {
-const R = rng(seed || 1);
-const f = {
-R: R, p: player, b: boss, turn: 0, over: false, win: false, events: [],
-php: player.maxHp, shield: Math.round(player.maxHp * player.shieldPct),
-bhp: boss.hp, bmax: boss.hp, bshield: 0,
-atkBuff: 1, jam: false, jpDebuff: 0, weakStacks: 0, ransom: false, hitStreak: 0, lockLeft: 0, lockedStance: null,
-forceSafe: 0, ctoWant: null, sreHalf: false, revived: false, ciStacks: 0, prevMult: 0, dot: 0, ghost: false, allinBlock: 0,
-coin: 0
-};
-if (player.fx.coin) { f.coin = R() < 0.5 ? 0.25 : -0.15; f.atkBuff *= 1 + f.coin; }
-return f;
-}
-/** Které postoje teď smí hráč použít (zámky bossů). */
-function allowedStances(f) {
-if (f.lockLeft > 0) return [f.lockedStance];
-if (f.forceSafe > 0) return ["safe"];
-if (f.allinBlock > 0) return ["safe", "normal"];
-return ["safe", "normal", "allin"];
-}
-function rollRow(f, stance) {
-const p = f.p, R = f.R;
-let rows = TABLES[p.cls][stance].map(r => ({ p: r.p, m: r.m, k: r.k }));
-const take = (fromK, toK, amt) => {
-const a = rows.find(r => r.k === fromK), b = rows.find(r => r.k === toK);
-if (!a || !b) return;
-const x = Math.min(a.p, amt); a.p -= x; b.p += x;
-};
-let jp = p.fx.jp + (p.cls === "engineer" && p.tier >= 3 ? f.ciStacks * 0.015 : 0);
-if (f.jpDebuff > 0) { const j = rows.find(r => r.k === "jp"); if (j) { const half = j.p / 2; j.p -= half; rows.find(r => r.k === "low").p += half; } }
-if (jp > 0) take("low", "jp", jp);
-if (p.cls === "cyber") take("low", "high", 0.04);
-if (stance === "allin") {
-let bf = p.fx.bf + (p.cls === "engineer" && p.tier >= 4 && p.branch === "a" ? 0.01 : 0);
-if (bf > 0) take("low", "bf", bf);
-}
-let r = R(), row = rows[rows.length - 1];
-for (const x of rows) { if (r < x.p) { row = x; break; } r -= x.p; }
-let m = row.m, k = row.k;
-if (p.cls === "engineer" && f.prevMult >= 1 && R() < 0.08) { m = f.prevMult; k = "copy"; }
-if (k === "jp" && p.cls === "engineer" && p.tier >= 4 && p.branch === "a") m *= 1.35;
-if (k === "low" && p.cls === "engineer" && p.tier >= 4 && p.branch === "b") m = Math.max(m, 0.6);
-if (k === "bf" && f.ghost) { k = "mid"; m = 1; }
-return { m: m, k: k };
-}
-function ev(f, type, val, extra) { const e = { t: f.turn, type: type, val: val }; if (extra) Object.assign(e, extra); f.events.push(e); return e; }
-function damagePlayer(f, dmg, src) {
-const p = f.p;
-if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && f.sreHalf) { dmg *= 0.5; f.sreHalf = false; }
-dmg = Math.round(dmg);
-const s = Math.min(f.shield, dmg); f.shield -= s; dmg -= s;
-f.php -= dmg;
-if (f.php <= 0 && p.cls === "sysadmin" && !f.revived) { f.revived = true; f.php = Math.round(p.maxHp * 0.10); ev(f, "revive", f.php); }
-if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg + s > p.maxHp * 0.12) f.sreHalf = true;
-ev(f, "phit", dmg + s, { src: src, absorbed: s });
-return dmg + s;
-}
-function damageBoss(f, dmg, label) {
-dmg = Math.max(0, Math.round(dmg));
-const s = Math.min(f.bshield, dmg); f.bshield -= s;
-f.bhp -= (dmg - s);
-return dmg;
-}
-/** Jeden tah. stance = "safe" | "normal" | "allin". Vrací nové eventy. */
-function step(f, stance) {
-if (f.over) return [];
-const start = f.events.length;
-const p = f.p, b = f.b, R = f.R;
-f.turn++;
-const allowed = allowedStances(f);
-if (allowed.indexOf(stance) < 0) stance = allowed.indexOf("normal") >= 0 ? "normal" : allowed[0];
-const mech = b.mech;
-if (mech === "staging" && f.turn % 4 === 0) {
-f.shield = 0; f.bshield = 0; f.atkBuff = 1 + f.coin; f.jam = false; f.jpDebuff = 0; f.weakStacks = 0; f.ransom = false; f.dot = 0; f.ghost = false;
-ev(f, "mech", 0, { msg: "ENVIRONMENT RESET - all buffs and shields wiped!" });
-}
-if (mech === "spaghetti" && f.turn % 5 === 0 && f.lockLeft <= 0) { f.lockLeft = 2; f.lockedStance = stance; ev(f, "mech", 0, { msg: "CABLE TRAP - stance locked for 2 turns!" }); }
-if (mech === "ransom" && f.turn % 5 === 0 && !f.ransom) { f.ransom = true; ev(f, "mech", 0, { msg: "EQUIPMENT ENCRYPTED - your ATK -20% until you land a 1.3× hit!" }); }
-if (mech === "lead" && f.turn % 4 === 0) { f.allinBlock = 2; ev(f, "mech", 0, { msg: "QUICK SYNC - ALL-IN disabled for 2 turns!" }); }
-if (mech === "cto" && f.turn % 3 === 1) { f.ctoWant = ["safe", "normal", "allin"][Math.floor(R() * 3)]; ev(f, "mech", 0, { msg: "CTO demands: " + f.ctoWant.toUpperCase() + "!", want: f.ctoWant }); }
-if (f.dot > 0) { const d = damageBoss(f, p.atk * 0.4); f.dot--; ev(f, "dot", d); }
-let mult = 0, kind = "mid", self = 0;
-if (f.jam) { f.jam = false; kind = "jam"; ev(f, "pattack", 0, { kind: "jam", stance: stance }); }
-else {
-const r = rollRow(f, stance);
-mult = r.m; kind = r.k;
-if (mech === "audit") mult = 1 + (mult - 1) * 0.5;
-let atk = p.atk * f.atkBuff * (f.ransom ? 0.8 : 1);
-if (mech === "board" && f.bhp < f.bmax * 0.5) atk *= 0.75;
-if (f.ghost) { atk *= 1.4; f.ghost = false; }
-let dmg = atk * mult;
-if (mech === "monolith" && mult < 1) dmg *= 0.4;
-if (mech === "dust") { const bd = 0.25 * (1 - f.bhp / f.bmax); if (R() < bd) { dmg = 0; kind = "bdodge"; } }
-if (kind === "bf") {
-self = p.atk * BACKFIRE_SELF[p.cls] * (1 + p.fx.bfDmg);
-if (p.cls === "engineer" && p.tier >= 2) self *= 0.7;
-if (p.cls === "sysadmin" && p.tier >= 3) { self *= 0.5; f.shield += Math.round(self); }
-}
-if (kind === "jp" && p.cls === "sysadmin" && p.tier >= 4 && p.branch === "b") dmg += f.shield * 2;
-const dealt = damageBoss(f, dmg);
-ev(f, "pattack", dealt, { kind: kind, mult: Math.round(mult * 100) / 100, stance: stance });
-if (self > 0) damagePlayer(f, self, "backfire");
-if (kind === "jp" && p.cls === "cyber" && p.tier >= 3) { f.dot = 3; ev(f, "mech", 0, { msg: "ZERO-DAY PAYLOAD injected!" }); }
-if (p.cls === "sysadmin" && p.tier >= 2 && stance === "safe" && mult >= 1) { const h = Math.round(p.maxHp * 0.04); f.php = Math.min(p.maxHp, f.php + h); ev(f, "heal", h); }
-if (p.cls === "engineer" && p.tier >= 3) f.ciStacks = mult >= 1 ? Math.min(4, f.ciStacks + 1) : 0;
-f.prevMult = mult >= 1 ? mult : 0;
-if (mech === "excel" && dealt > 0 && R() < 0.15) damagePlayer(f, dealt * 0.3, "reflect");
-if (mech === "broker" && mult < 0.8) f.weakStacks = Math.min(5, f.weakStacks + 1);
-if (mech === "s3" && mult >= 1.5) { f.bshield += Math.round(dealt * 0.2); ev(f, "mech", 0, { msg: "DATA SIPHON - boss gains a shield!" }); }
-if (mech === "ransom" && mult >= 1.3 && f.ransom) { f.ransom = false; ev(f, "mech", 0, { msg: "Decrypted! ATK restored." }); }
-if (mech === "hr" && (kind === "jp" || mult >= 1.6)) { f.forceSafe = 2; ev(f, "mech", 0, { msg: "MANDATORY TEAM BUILDING - forced into SAFE!" }); }
-if (mech === "llm" && (kind === "jp" || mult >= 1.6) && f.bhp > 0) { ev(f, "mech", 0, { msg: "HALLUCINATION COUNTER!" }); bossHit(f, b.atk * (0.5 + R()), "counter", stance); }
-}
-if (f.php <= 0) return finish(f, false, start);
-if (f.bhp <= 0) return finish(f, true, start);
-let skip = false;
-if (mech === "router" && f.turn % 4 === 0) { skip = true; ev(f, "mech", 0, { msg: "Signal dropped - the router skips its attack." }); }
-if (!skip) {
-if (mech === "ddos") { for (let i = 0; i < 3; i++) bossHit(f, b.atk * 0.4, "packet", stance); }
-else {
-let a = b.atk;
-if (mech === "dust") a *= 0.5 + 0.5 * (f.bhp / f.bmax);
-if (mech === "cron") a *= (f.turn % 4 === 0 ? 2.6 : 0.6);
-if (mech === "leak") a *= 1 + 0.08 * (f.turn - 1);
-if (mech === "api" && f.bhp < f.bmax * 0.5) a *= 1.4;
-if (mech === "darkweb" && f.bhp < f.bmax * 0.3) a *= 2;
-if (mech === "mesh" && f.hitStreak >= 3) { a *= 2; f.hitStreak = 0; ev(f, "mech", 0, { msg: "CASCADE FAILURE!" }); }
-if (mech === "cto" && f.ctoWant && stance !== f.ctoWant) a *= 1.6;
-bossHit(f, a, "hit", stance);
-}
-}
-if (mech === "cobol" && f.turn % 4 === 0) { const h = Math.round(f.bmax * 0.12); f.bhp = Math.min(f.bmax, f.bhp + h); ev(f, "bheal", h); }
-if (mech === "darkweb" && f.bhp < f.bmax * 0.3) { const d = Math.round(f.bmax * 0.05); f.bhp -= d; ev(f, "mech", d, { msg: "Self-destruct: the boss burns " + d + " HP." }); }
-if (f.lockLeft > 0) f.lockLeft--;
-if (f.forceSafe > 0) f.forceSafe--;
-if (f.allinBlock > 0) f.allinBlock--;
-if (f.jpDebuff > 0) f.jpDebuff--;
-if (f.php <= 0) return finish(f, false, start);
-if (f.bhp <= 0) return finish(f, true, start);
-if (mech === "bod" && f.turn >= 18) { ev(f, "mech", 0, { msg: "QUARTERLY GOALS MISSED - contract terminated!" }); return finish(f, false, start); }
-if (f.turn >= 60) { ev(f, "mech", 0, { msg: "Overtime - the boss escaped." }); return finish(f, false, start); }
-return f.events.slice(start);
-}
-function bossHit(f, a, src, stance) {
-const p = f.p, R = f.R;
-if (R() < p.dodge) {
-ev(f, "dodge", 0, { src: src });
-if (p.cls === "cyber" && p.tier >= 2) { const d = damageBoss(f, a * 0.4); ev(f, "reflect", d); }
-if (p.cls === "cyber" && p.tier >= 4 && p.branch === "b") f.ghost = true;
-f.hitStreak = 0;
-return;
-}
-let d = a * (0.85 + 0.3 * R());
-if (f.b.mech === "broker") d *= 1 + 0.1 * f.weakStacks;
-if (stance === "safe" && p.fx.safeDef) d *= 1 - p.fx.safeDef;
-damagePlayer(f, d, src);
-f.hitStreak++;
-if (f.b.mech === "printer" && R() < 0.25) { f.jam = true; ev(f, "mech", 0, { msg: "PAPER JAM - your next attack is blocked!" }); }
-if (f.b.mech === "miner") f.jpDebuff = 2;
-}
-function finish(f, win, start) {
-f.over = true; f.win = win;
-f.php = Math.max(0, f.php); f.bhp = Math.max(0, f.bhp);
-ev(f, win ? "win" : "lose", 0);
-return f.events.slice(start);
-}
-/** Celý souboj s pevnou strategií (pro simulace). policy(f) -> stance */
-function simulate(player, boss, seed, policy) {
-const f = newFight(player, boss, seed);
-while (!f.over) step(f, typeof policy === "function" ? policy(f) : (policy || "normal"));
-return f;
-}
-const PVP_HP = 2.0;                       // v aréně mají oba víc HP, ať duel trvá ~10-16 akcí
-function duel(A, B, seed, stA, stB) {
-const R = rng(seed || 1);
-const mk = (p, st) => {
-const hp = Math.round(p.maxHp * PVP_HP);
-return { p: p, R: R, stance: st || "normal", hp: hp, max: hp, shield: Math.round(hp * p.shieldPct), ciStacks: 0, prevMult: 0, ghost: false,
-jpDebuff: 0, revived: false, dot: 0, sreHalf: false, atkBuff: p.fx.coin ? (R() < 0.5 ? 1.25 : 0.85) : 1 };
-};
-const S = [mk(A, stA), mk(B, stB)];
-const events = [];
-const snap = () => [Math.max(0, S[0].hp), Math.max(0, S[1].hp)];
-const shs = () => [S[0].shield, S[1].shield];
-const push = (e) => { e.hp = snap(); e.sh = shs(); events.push(e); };
-const hurt = (side, dmg) => {
-const p = side.p;
-if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && side.sreHalf) { dmg *= 0.5; side.sreHalf = false; }
-dmg = Math.round(dmg);
-const sh = Math.min(side.shield, dmg); side.shield -= sh; side.hp -= dmg - sh;
-let revived = false;
-if (side.hp <= 0 && p.cls === "sysadmin" && !side.revived) { side.revived = true; side.hp = Math.round(side.max * 0.10); revived = true; }
-if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg > side.max * 0.12) side.sreHalf = true;
-return { dmg: dmg, absorbed: sh, revived: revived };
-};
-let turn = 0, cur = R() < 0.5 ? 0 : 1;
-const first = cur;
-while (turn < 60) {
-turn++;
-const a = S[cur], d = S[1 - cur];
-if (d.dot > 0) { d.dot--; const x = hurt(d, a.p.atk * 0.4); push({ t: turn, i: cur, type: "dot", val: x.dmg }); if (d.hp <= 0) break; }
-const r = rollRow(a, a.stance);
-if (r.k === "bf") {
-let self = a.p.atk * BACKFIRE_SELF[a.p.cls] * (1 + a.p.fx.bfDmg);
-if (a.p.cls === "engineer" && a.p.tier >= 2) self *= 0.7;
-if (a.p.cls === "sysadmin" && a.p.tier >= 3) { self *= 0.5; a.shield += Math.round(self); }
-const x = hurt(a, self);
-push({ t: turn, i: cur, type: "bf", val: x.dmg, rev: x.revived });
-a.prevMult = 0; a.ciStacks = 0;
-} else if (r.m > 0 && R() < d.p.dodge) {
-push({ t: turn, i: cur, type: "dodge" });
-if (d.p.cls === "cyber" && d.p.tier >= 2) { const x = hurt(a, a.p.atk * r.m * 0.4); push({ t: turn, i: 1 - cur, type: "reflect", val: x.dmg }); }
-if (d.p.cls === "cyber" && d.p.tier >= 4 && d.p.branch === "b") d.ghost = true;
-} else {
-let atk = a.p.atk * a.atkBuff;
-if (a.ghost) { atk *= 1.4; a.ghost = false; }
-let dmg = atk * r.m;
-if (r.k === "jp" && a.p.cls === "sysadmin" && a.p.tier >= 4 && a.p.branch === "b") dmg += a.shield * 2;
-const x = hurt(d, dmg);
-push({ t: turn, i: cur, type: "hit", val: x.dmg, kind: r.k, mult: Math.round(r.m * 100) / 100, abs: x.absorbed, rev: x.revived });
-if (r.k === "jp" && a.p.cls === "cyber" && a.p.tier >= 3) d.dot = 3;
-if (a.p.cls === "sysadmin" && a.p.tier >= 2 && a.stance === "safe" && r.m >= 1) { const h = Math.round(a.max * 0.04); a.hp = Math.min(a.max, a.hp + h); push({ t: turn, i: cur, type: "heal", val: h }); }
-if (a.p.cls === "engineer" && a.p.tier >= 3) a.ciStacks = r.m >= 1 ? Math.min(4, a.ciStacks + 1) : 0;
-a.prevMult = r.m >= 1 ? r.m : 0;
-}
-if (S[0].hp <= 0 || S[1].hp <= 0) break;
-cur = 1 - cur;
-}
-let winner;
-if (S[0].hp <= 0 && S[1].hp <= 0) winner = 1;              // oba padli (backfire) - vyhrává obránce
-else if (S[0].hp <= 0) winner = 1;
-else if (S[1].hp <= 0) winner = 0;
-else winner = (S[0].hp / S[0].max >= S[1].hp / S[1].max) ? 0 : 1;   // limit tahů: rozhodne % HP
-return { win: winner === 0, winner: winner, first: first, turns: turn, events: events, max: [S[0].max, S[1].max], hp: snap() };
-}
-/** síla postavy (pro řazení soupeřů v aréně) */
-function power(p) { return Math.round(Math.sqrt(p.atk * p.maxHp) * (1 + p.dodge)); }
-function xpToNext(L) { return 75 + 30 * L; }
-function winXp(floor, first) { return Math.round((30 + 12 * floor) * (first ? 2.5 : 1)); }
-function refGear(floor) { return 1 + 0.06 * floor; }
-const api = {
-rng: rng, TABLES: TABLES, tableEV: tableEV, CLASSES: CLASSES, ARTIFACTS: ARTIFACTS, ARTIFACT_BY_ID: ARTIFACT_BY_ID, artifactText: artifactText,
-BOSSES: BOSSES, PROMOS: PROMOS, bossFor: bossFor, bossStats: bossStats, promoBoss: promoBoss, setBossTable: function (t, pt) { BOSS_TABLE = t; if (pt) PROMO_TABLE = pt; },
-gearSlotValue: gearSlotValue, buildPlayer: buildPlayer, newFight: newFight, step: step, allowedStances: allowedStances, simulate: simulate,
-xpToNext: xpToNext, winXp: winXp, refGear: refGear, duel: duel, power: power, PVP_HP: PVP_HP
-};
-if (typeof module !== "undefined" && module.exports) module.exports = api;
-else root.DungeonEngine = api;
-})(typeof window !== "undefined" ? window : this);
 </script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hs"] = 1;</script>
 <!-- END-OF-FILE: hs -->
