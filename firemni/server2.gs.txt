@@ -523,10 +523,27 @@ return null;
 }
 function dlHeroes_(t) {
 var a = HSEngine.fromCard(t.cards[t.host]), b = HSEngine.fromCard(t.cards[t.guest]);
-if (t.mode === 'equal') { var L = Math.max(a.level, b.level); a = HSEngine.stdHero(a.cls, L); b = HSEngine.stdHero(b.cls, L); }
+if (t.mode === 'equal') { var L = Math.max(a.level, b.level), al = t.al || {}; a = HSEngine.stdHero(a.cls, L, al[t.host]); b = HSEngine.stdHero(b.cls, L, al[t.guest]); }
 return [a, b];
 }
+/** v11.2: "rovné podmínky" - před startem si každý rozdělí stejné body (45 s), pak se teprve začne */
+var DL_SETUP_MS = 45000;
+function dlEqualL_(t) { var a = HSEngine.fromCard(t.cards[t.host]), b = HSEngine.fromCard(t.cards[t.guest]); return Math.max(a ? a.level : 1, b ? b.level : 1); }
+function dlStats(id, al) {
+var me = getUserLdap(), lock = prsLock_();
+try {
+var t = dlGet_(id); if (!t || t.status !== 'play' || !t.setup) return { ok: false, reason: 'gone' };
+if (t.host !== me && t.guest !== me) return { ok: false, reason: 'seat' };
+var a = HSEngine.okAlloc(al, dlEqualL_(t)); if (!a) return { ok: false, reason: 'stats' };
+t.al = t.al || {}; t.al[me] = a; t.rev++;
+dlLog_(t, me + ' is ready.');
+if (t.al[t.host] && t.al[t.guest]) dlStart_(t);
+dlPut_(t);
+return { ok: true, view: dlView_(t, me) };
+} finally { lock.releaseLock(); }
+}
 function dlStart_(t) {
+delete t.setup;
 var c = dlHeroes_(t), d = HSEngine.duelNew(c[0], c[1], t.seed);
 delete d.R; delete d.c; d.events = [];
 t.ds = d; t.status = 'play'; t.started = Date.now(); t.moved = Date.now(); t.deadline = Date.now() + DL_TURN_MS + 5000; t.pick = { a: '', r: '' }; t.miss = {}; t.rev++;
@@ -540,13 +557,17 @@ var names = [t.host, t.guest], att = d.atk;
 var opt = {}, ao = t.pick.ao || {}, ro = t.pick.ro || {};
 opt.t = ao.t || 'none'; opt.q = ao.q != null ? ao.q : 0.85;
 if (t.pick.a === 'gamble' && ao.g) { var re = !!ao.g.re && d.sta[att] >= 30; opt.reels = HSEngine.duelReels(c[att], dlRolls_(t), ao.g.hold, re); opt.respin = re; }
-if (ro.parry) opt.parry = ro.parry; if (ro.dq) opt.dq = ro.dq;
+if (ro.parry) opt.parry = ro.parry; if (ro.dq) opt.dq = ro.dq; if (ro.cq) opt.cq = ro.cq; if (ro.rings) opt.rings = ro.rings; if (ro.dqs) opt.dqs = ro.dqs;
+if (t.pick.a === 'ult' && ao.guess) opt.guess = ao.guess;
 var evs = HSEngine.duelHalf(d, t.pick.a || 'strike', t.pick.r || 'brace', opt);
 delete d.R; delete d.c; d.events = [];
 t.lastEv = evs; t.evSeq = (t.evSeq || 0) + 1; t.pick = { a: '', r: '' }; t.moved = Date.now(); t.deadline = Date.now() + DL_TURN_MS; t.rev++;
 evs.forEach(function (e) {
 if (e.type === 'hit') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE ' + Math.round((e.q || 1) * 100) + '%' : (e.label || e.a)) + (e.timing ? ' (' + e.timing + ')' : '') + (e.reels ? ' ' + e.reels.join('') : '') + ' ' + e.val + (e.crit ? ' CRIT' : '') + (e.outcome === 'block' ? ' (blocked)' : e.outcome === 'parry' ? ' (PARRIED!)' : e.outcome === 'dodgefail' ? ' (dodge failed)' : '') + (e.counter ? ', counter ' + e.counter : ''));
 else if (e.type === 'rest') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' catches a breath (+30 stamina)');
+else if (e.type === 'guess') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + (e.ok ? ' guessed right: ' + e.fx : ' guessed wrong'));
+else if (e.type === 'bm') dlLog_(t, names[e.i] + ' Blood Magic +' + e.val + ' HP');
+else if (e.type === 'poison') dlLog_(t, names[e.who] + ' infection -' + e.val + ' HP');
 else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[1 - e.i] + ' dodged');
 else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
 else if (e.type === 'revive') dlLog_(t, names[e.who] + ' rises again!');
@@ -568,9 +589,10 @@ dlLog_(t, '🤝 Draw (' + why + ') - stakes returned');
 }
 function dlTimeouts_(t) {
 var ch = false;
+if (t.status === 'play' && t.setup && t.deadline && Date.now() > t.deadline) { dlLog_(t, '⏱ setup time is up - default stats for anyone not ready'); dlStart_(t); return true; }
 if (t.status === 'play' && t.deadline && Date.now() > t.deadline) {
-var names = [t.host, t.guest], d = t.ds, att = names[d.atk], def = names[1 - d.atk];
-[[att, 'a'], [def, 'r']].forEach(function (x) { if (!t.pick[x[1]]) t.miss[x[0]] = (t.miss[x[0]] || 0) + 1; else t.miss[x[0]] = 0; });
+var names = [t.host, t.guest], d = t.ds, att = names[d.atk], def = names[1 - d.atk], ultWait = d.foc[d.atk] >= 100 && !t.pick.a;
+[[att, 'a'], [def, 'r']].forEach(function (x) { if (x[1] === 'r' && ultWait) return; if (!t.pick[x[1]]) t.miss[x[0]] = (t.miss[x[0]] || 0) + 1; else t.miss[x[0]] = 0; });
 ch = true;
 var out = [att, def].filter(function (n) { return (t.miss[n] || 0) >= DL_MAX_MISS; });
 if (out.length === 2) { dlEnd_(t, '', 'both players left'); t.rev++; }
@@ -639,7 +661,8 @@ if (dlBusy_(ts, me)) return { ok: false, reason: 'already' };
 var card = dlCardOf_(me); if (!card || !HSEngine.fromCard(card)) return { ok: false, reason: 'noclass' };
 t.guest = me; t.cards[me] = card;
 dlLog_(t, me + ' accepted the duel.');
-dlStart_(t);
+if (t.mode === 'equal') { t.status = 'play'; t.setup = true; t.al = {}; t.ds = null; t.pick = { a: '', r: '' }; t.miss = {}; t.moved = Date.now(); t.deadline = Date.now() + DL_SETUP_MS; t.rev++; dlLog_(t, 'Equal terms: both players split their stat points.'); }
+else dlStart_(t);
 dlPut_(t);
 return { ok: true, id: t.id, stake: t.stake };
 } finally { lock.releaseLock(); }
@@ -663,10 +686,13 @@ if (d && t.status === 'play' && you >= 0) {
 role = d.atk === you ? 'atk' : 'react';
 picked = !!t.pick[role === 'atk' ? 'a' : 'r']; oppPicked = !!t.pick[role === 'atk' ? 'r' : 'a'];
 }
+var ultReady = !!(d && t.status === 'play' && d.foc[d.atk] >= 100), su = null;
+if (t.setup && you >= 0) { var Ls = dlEqualL_(t); su = { L: Ls, pts: HSEngine.statPoints(Ls), ready: [!!(t.al || {})[t.host], !!(t.al || {})[t.guest]], mine: (t.al || {})[me] || null }; }
 return { id: t.id, rev: t.rev, status: t.status, host: t.host, guest: t.guest, target: t.target || '', stake: t.stake, mode: t.mode, you: you, names: [t.host, t.guest],
 cls: t.cls || [t.hostCls, ''], lv: t.lv || [t.hostLv, 0], cards: t.cards, max: t.max || null,
 hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh : null, sure: d ? d.sure : null, chan: d ? d.chan : null, atk: d ? d.atk : -1, turn: d ? d.turn : 0, half: d ? d.half : 0,
-cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null,
+cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null, ultReady: ultReady, waitAtk: role === 'react' && ultReady && !t.pick.a, setup: su,
+gu: d ? (d.gu || [false, false]) : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
 role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
 winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-14) };
 }
@@ -693,7 +719,9 @@ var t = dlGet_(id); if (!t || t.status !== 'play') return { ok: false, reason: '
 dlTimeouts_(t);
 if (t.status !== 'play') { dlPut_(t); return { ok: false, reason: 'over', view: dlView_(t, me) }; }
 var you = t.host === me ? 0 : t.guest === me ? 1 : -1; if (you < 0) return { ok: false, reason: 'seat' };
+if (t.setup) return { ok: false, reason: 'setup', view: dlView_(t, me) };
 var d = t.ds, role = d.atk === you ? 'a' : 'r';
+if (role === 'r' && d.foc[d.atk] >= 100 && !t.pick.a) return { ok: false, reason: 'wait', view: dlView_(t, me) };
 choice = String(choice || '');
 var okA = ['strike', 'heavy', 'gamble', 'rest', 'ult'], okR = ['block', 'dodge', 'channel', 'brace'];
 if ((role === 'a' ? okA : okR).indexOf(choice) < 0) return { ok: false, reason: 'choice', view: dlView_(t, me) };
@@ -705,13 +733,19 @@ if (role === 'a') {
 if (choice === 'heavy' && TIER.indexOf(opt.t) >= 0) o.t = opt.t;
 if (choice === 'ult' && isFinite(Number(opt.q))) o.q = Math.max(0.7, Math.min(1.25, Number(opt.q)));
 if (choice === 'gamble' && opt.g && Array.isArray(opt.g.hold)) o.g = { hold: [0, 1, 2].map(function (k) { return !!opt.g.hold[k]; }), re: !!opt.g.re };
+if (choice === 'ult' && ['block', 'dodge', 'channel', 'brace'].indexOf(opt.guess) >= 0) o.guess = opt.guess;
 t.pick.ao = o;
 } else {
+var T3 = function (x) { return Array.isArray(x) ? [0, 1, 2].map(function (k) { return TIER.indexOf(x[k]) >= 0 ? x[k] : 'none'; }) : null; };
 if (choice === 'block' && TIER.indexOf(opt.parry) >= 0) o.parry = opt.parry;
+if (choice === 'block' && T3(opt.rings)) o.rings = T3(opt.rings);
 if (choice === 'dodge' && TIER.indexOf(opt.dq) >= 0) o.dq = opt.dq;
+if (choice === 'dodge' && T3(opt.dqs)) o.dqs = T3(opt.dqs);
+if (choice === 'channel' && TIER.indexOf(opt.cq) >= 0) o.cq = opt.cq;
 t.pick.ro = o;
 }
 t.pick[role] = choice; t.miss[me] = 0; t.rev++;
+if (role === 'a' && d.foc[d.atk] >= 100 && !t.pick.r) t.deadline = Math.max(t.deadline || 0, Date.now() + DL_TURN_MS);   // v11.2: obránce teprve teď vybírá
 if (t.pick.a && t.pick.r) dlResolve_(t, false);
 dlPut_(t);
 return { ok: true, view: dlView_(t, me) };

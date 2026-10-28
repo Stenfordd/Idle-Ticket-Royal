@@ -1,111 +1,497 @@
+<script>
+/* HSQTE - všechny mini-hry High Stakes na jednom místě (kampaň i duel). Každá volá cb(výsledek) a sama po sobě uklidí. */
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const rnd = Math.random, pick = (a) => a[Math.floor(rnd() * a.length)];
+function open(html) {
+const ov = document.createElement("div");
+ov.className = "qte-ov"; ov.innerHTML = `<div class="qte-box">${html}</div>`;
+document.body.appendChild(ov);
+const eat = (e) => { e.stopPropagation(); };
+["click", "pointerdown", "pointerup", "touchstart"].forEach(t => ov.addEventListener(t, eat));
+return ov;
+}
+/** úvod s tlačítkem START (na mobilu se nic nespustí omylem) */
+function intro(title, hint, run) {
+const ov = open(`<div class="qte-t">${title}</div><div class="qte-h">${hint}</div><div id="qte-body" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:10px;"></div>
+<button class="btn btn-gold qte-start" id="qte-go">TAP TO START</button>`);
+const go = ov.querySelector("#qte-go");
+const start = () => { if (!go.isConnected) return; go.remove(); document.removeEventListener("keydown", k, true); run(ov, ov.querySelector("#qte-body")); };
+const k = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); start(); } };
+go.addEventListener("click", start);
+document.addEventListener("keydown", k, true);
+return ov;
+}
+function finish(ov, txt, color, cb, val, ms) {
+const r = ov.querySelector(".qte-res") || (() => { const d = document.createElement("div"); d.className = "qte-res"; ov.querySelector(".qte-box").appendChild(d); return d; })();
+r.innerHTML = txt; r.style.color = color || "#fff";
+setTimeout(() => { ov.remove(); cb(val); }, ms == null ? 650 : ms);
+}
+const qOf = (pts, max) => Math.round((0.7 + 0.55 * Math.max(0, Math.min(1, pts / max))) * 100) / 100;
+const qColor = (q) => q >= 1.1 ? "#ffd700" : q >= 0.95 ? "var(--emerald)" : "var(--text-dim)";
+function timing(zone, cb) {
+const gStart = 0.15 + rnd() * (0.85 - zone - 0.15), pW = zone * 0.3, pStart = gStart + (zone - pW) / 2;
+const ov = open(`<div class="qte-t">💥 STOP THE NEEDLE!</div><div class="qte-h">tap anywhere / space</div>
+<div class="hs-timing" style="width:100%;"><div class="g" style="left:${gStart * 100}%;width:${zone * 100}%"></div><div class="p" style="left:${pStart * 100}%;width:${pW * 100}%"></div><div class="n" id="qte-needle"></div></div><div class="qte-res"></div>`);
+const t0 = performance.now(), period = 820; let done = false, raf = 0, pos = 0;
+const stop = () => {
+if (done) return; done = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", key, true);
+const q = pos >= pStart && pos <= pStart + pW ? "perfect" : pos >= gStart && pos <= gStart + zone ? "good" : "none";
+finish(ov, q === "perfect" ? "PERFECT! 2.2×" : q === "good" ? "GOOD! 1.7×" : "MISSED THE ZONE - 1.3×", q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)", cb, q, 420);
+};
+const key = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); stop(); } };
+document.addEventListener("keydown", key, true);
+ov.addEventListener("pointerdown", (e) => { e.preventDefault(); stop(); });
+const frame = (now) => { const t = ((now - t0) % (period * 2)) / period; pos = t < 1 ? t : 2 - t; const n = $("qte-needle"); if (n) n.style.left = "calc(" + (pos * 100) + "% - 2px)"; if (now - t0 > period * 4) { pos = -1; stop(); return; } raf = requestAnimationFrame(frame); };
+raf = requestAnimationFrame(frame);
+}
+const PARRY_WIN = { perfect: 8, good: 18 };
+function parry(o, cb) {
+o = o || {};
+const k = o.k || "heavy", style = o.style || "", n = k === "unleash" ? 3 : 1, dur = k === "unleash" ? 750 : k === "withdraw" ? 1000 : 1100;
+const wP = PARRY_WIN.perfect * (o.easy || 1), wG = PARRY_WIN.good * (o.easy || 1), from = 150, to = 14, target = 46;
+const title = o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one");
+const ov = open(`<div class="qte-t">${title}</div>
+<div class="hs-parry ${style}" id="qte-pr"><div class="tgt"></div><div class="ring fake" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
+<div class="hs-pdots" id="qte-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="qte-res" id="qte-pq">&nbsp;</div>`);
+const res = []; let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, finished = false;
+const ringEl = () => $("qte-ring"), fakeEl = () => $("qte-fake");
+function place(el, sz, dx, dy) { if (!el) return; el.style.width = el.style.height = sz + "px"; el.style.margin = (-sz / 2 + (dy || 0)) + "px 0 0 " + (-sz / 2 + (dx || 0)) + "px"; }
+function mark(q) {
+res.push(q);
+const d = $("qte-pd"); if (d && d.children[idx]) d.children[idx].className = q;
+const pq = $("qte-pq"); if (pq) { pq.textContent = q === "perfect" ? "PERFECT!" : q === "good" ? "GOOD" : "MISS"; pq.style.color = q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--text-dim)"; }
+cancelAnimationFrame(raf); clearTimeout(timer);
+const r = ringEl(); if (r) r.style.display = "none"; const fk = fakeEl(); if (fk) fk.style.display = "none"; fakeOn = false;
+idx++; if (idx >= n) return done();
+phase = "wait"; timer = setTimeout(startRing, 150 + rnd() * 400);
+}
+function done() {
+if (finished) return; finished = true; document.removeEventListener("keydown", key, true);
+const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
+const txt = n > 1 ? `${res.filter(r => r !== "none").length}/3 blocked` + (best === "perfect" ? " - FULL PARRY!" : "") : best === "perfect" ? "PARRY! 0 damage + counter" : best === "good" ? "GOOD BLOCK!" : "Normal block";
+finish(ov, txt, best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)", cb, n > 1 ? { rings: res } : { parry: best }, 520);
+}
+function startRing() {
+if (finished) return;
+if (style === "glitch" && rnd() < 0.55) {
+fakeOn = true; const fk = fakeEl(); if (fk) fk.style.display = "";
+const ft0 = performance.now(), fdur = 420 + rnd() * 200, stopAt = 0.45 + rnd() * 0.35;
+const ff = (now) => { const t = (now - ft0) / fdur; place(fakeEl(), from - (from - to) * Math.min(stopAt, Math.pow(t, 1.5))); if (t >= stopAt) { fakeOn = false; const e = fakeEl(); if (e) e.style.display = "none"; timer = setTimeout(realRing, 120 + rnd() * 250); return; } raf = requestAnimationFrame(ff); };
+raf = requestAnimationFrame(ff); return;
+}
+realRing();
+}
+function realRing() {
+if (finished) return;
+phase = "ring"; t0 = performance.now(); size = from;
+const r = ringEl(); if (r) r.style.display = "";
+const fr = (now) => {
+let t = Math.min(1, (now - t0) / dur);
+if (style === "lag") t = t < 0.35 ? t : t < 0.55 ? 0.35 : 0.35 + (t - 0.55) * (0.65 / 0.45);
+let e = Math.pow(t, 1.6); if (style === "steps") e = Math.min(1, Math.floor(e * 8 + 0.5) / 8);
+size = from - (from - to) * e;
+let dx = 0, dy = 0;
+if (style === "wobble") dx = Math.sin(t * 22) * 16 * (1 - t * 0.5);
+if (style === "spiral") { const rr = 22 * (1 - t); dx = Math.cos(t * 16) * rr; dy = Math.sin(t * 16) * rr; }
+place(ringEl(), size, dx, dy);
+if (t >= 1) { mark("none"); return; }
+raf = requestAnimationFrame(fr);
+};
+raf = requestAnimationFrame(fr);
+}
+function tap() { if (finished) return; if (fakeOn || phase !== "ring") { mark("none"); return; } const d = Math.abs(size - target); mark(d <= wP ? "perfect" : d <= wG ? "good" : "none"); }
+const key = (e) => { if (e.repeat) return; if (e.key === " " || e.key === "Enter") { e.preventDefault(); tap(); } };
+document.addEventListener("keydown", key, true);
+ov.addEventListener("pointerdown", (e) => { e.preventDefault(); tap(); });
+timer = setTimeout(startRing, 250 + rnd() * 600);
+}
+function dodge(cb, title) {
+const ov = open(`<div class="qte-t">${title || "💨 DODGE! Jump into a SAFE lane"}</div><div class="qte-h">Wait for the red lane(s), then tap a safe one fast · keys 1 2 3 / ← ↓ →</div>
+<div class="qte-lanes" id="qte-lanes">${[0, 1, 2].map(i => `<div class="qte-lane ${i === 1 ? "me" : ""}" data-i="${i}">${i === 1 ? "🧍" : ""}</div>`).join("")}</div><div class="qte-res"></div>`);
+let state = "wait", t0 = 0, danger = [], done = false, timer = 0;
+const lanes = () => [...ov.querySelectorAll(".qte-lane")];
+timer = setTimeout(() => {
+if (done) return;
+const a = Math.floor(rnd() * 3); danger = [a]; if (rnd() < 0.45) danger.push((a + 1 + Math.floor(rnd() * 2)) % 3);
+lanes().forEach((l, i) => l.classList.toggle("danger", danger.indexOf(i) >= 0));
+state = "go"; t0 = performance.now();
+timer = setTimeout(() => end(-1), 900);
+}, 450 + rnd() * 900);
+function end(i) {
+if (done) return; done = true; clearTimeout(timer); document.removeEventListener("keydown", key, true);
+if (state === "wait") { finish(ov, "TOO EARLY! The hit tracked you.", "var(--crimson)", cb, "none", 700); return; }
+const dt = performance.now() - t0, safe = i >= 0 && danger.indexOf(i) < 0;
+lanes().forEach((l, k) => { l.classList.remove("me"); l.textContent = ""; if (k === i) { l.classList.add("me"); l.textContent = "🧍"; } });
+const q = !safe ? "none" : dt < 380 ? "perfect" : "good";
+finish(ov, q === "perfect" ? "PERFECT DODGE! (" + Math.round(dt) + " ms)" : q === "good" ? "Dodged in time (" + Math.round(dt) + " ms)" : i < 0 ? "Too slow!" : "Wrong lane!", q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--crimson)", cb, q, 600);
+}
+ov.querySelector("#qte-lanes").addEventListener("pointerdown", (e) => { const l = e.target.closest(".qte-lane"); if (l) { e.preventDefault(); end(Number(l.dataset.i)); } });
+const key = (e) => { const m = { "1": 0, "2": 1, "3": 2, ArrowLeft: 0, ArrowDown: 1, ArrowRight: 2 }; if (m[e.key] != null) { e.preventDefault(); end(m[e.key]); } };
+document.addEventListener("keydown", key, true);
+}
+/** MÁG: 3 příklady (každý těžší), 3 odpovědi. 0 = 75 %, 1 = 100 %, 2 = 110 %, 3 = 125 % */
+function mathProblem(level) {
+let q, a;
+if (level === 0) { const x = 12 + Math.floor(rnd() * 70), y = 7 + Math.floor(rnd() * 60); if (rnd() < 0.5) { q = x + " + " + y; a = x + y; } else { q = (x + y) + " − " + y; a = x; } }
+else if (level === 1) { const x = 6 + Math.floor(rnd() * 9), y = 7 + Math.floor(rnd() * 12); q = x + " × " + y; a = x * y; }
+else { const x = 3 + Math.floor(rnd() * 8), y = 11 + Math.floor(rnd() * 14), z = 5 + Math.floor(rnd() * 40); if (rnd() < 0.5) { q = x + " × " + y + " + " + z; a = x * y + z; } else { q = "(" + y + " + " + z + ") × " + x; a = (y + z) * x; } }
+const opts = new Set([a]);
+while (opts.size < 3) { const d = (1 + Math.floor(rnd() * (level ? 12 : 9))) * (rnd() < 0.5 ? -1 : 1) * (level && rnd() < 0.4 ? 10 : 1); if (a + d > 0) opts.add(a + d); }
+return { q: q, a: a, opts: [...opts].sort(() => rnd() - 0.5) };
+}
+function ultMath(title, cb) {
+intro(title, "3 problems, pick the right answer. Take your time - you have " + 8 + " s each.", (ov, body) => {
+let i = 0, good = 0, timer = 0, raf = 0, t0 = 0, cur = null;
+body.innerHTML = `<div class="qte-dots" id="qte-d"><span></span><span></span><span></span></div><div class="qte-math"><div class="q" id="qte-q"></div><div class="a" id="qte-a"></div></div><div class="qte-bar"><div id="qte-tb"></div></div>`;
+function next() {
+if (i >= 3) return end();
+cur = mathProblem(i); t0 = performance.now();
+$("qte-q").textContent = cur.q + " = ?";
+$("qte-a").innerHTML = cur.opts.map((o, k) => `<button class="btn btn-cyan" data-v="${o}">${o}<small style="display:block;font-size:9px;opacity:.6;">${k + 1}</small></button>`).join("");
+clearTimeout(timer); timer = setTimeout(() => answer(null), 8000);
+cancelAnimationFrame(raf); const tick = (now) => { const b = $("qte-tb"); if (b) b.style.width = Math.max(0, 100 - (now - t0) / 80) + "%"; raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick);
+}
+function answer(v) {
+if (!cur) return; clearTimeout(timer);
+const ok = v === cur.a; if (ok) good++;
+const d = $("qte-d"); if (d && d.children[i]) d.children[i].className = ok ? "ok" : "no";
+[...$("qte-a").children].forEach(b => { const bv = Number(b.dataset.v); b.disabled = true; if (bv === cur.a) b.classList.add("btn-gold"); });
+cur = null; i++; setTimeout(next, 450);
+}
+function end() { cancelAnimationFrame(raf); document.removeEventListener("keydown", key, true); const q = [0.75, 1, 1.1, 1.25][good]; finish(ov, good + "/3 correct · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: good === 3 }, 700); }
+$("qte-a").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && cur) answer(Number(b.dataset.v)); });
+const key = (e) => { if (/^[123]$/.test(e.key) && cur) { e.preventDefault(); const b = $("qte-a").children[Number(e.key) - 1]; if (b) answer(Number(b.dataset.v)); } };
+document.addEventListener("keydown", key, true);
+next();
+});
+}
+/** WARRIOR: chytej viry 🦠, vyhni se bombám 💣 (bomba = konec) */
+function ultCatch(title, cb) {
+intro(title, "Move the shield (drag / mouse / ← →). Catch 🦠 viruses, NEVER a 💣 bomb - a bomb ends it right away.", (ov, body) => {
+body.innerHTML = `<div class="qte-field" id="qte-f"><div class="qte-paddle" id="qte-p" style="left:50%"></div></div><div class="qte-bar"><div id="qte-tb"></div></div><div class="qte-res" id="qte-sc">0 caught</div>`;
+const F = $("qte-f"), Pd = $("qte-p"), W = () => F.clientWidth, Hh = () => F.clientHeight;
+let px = 0.5, items = [], caught = 0, t0 = performance.now(), last = t0, spawnAt = t0 + 200, over = false, keys = {}, raf = 0;
+const DUR = 6500;
+F.addEventListener("pointermove", (e) => { const r = F.getBoundingClientRect(); px = Math.max(0.06, Math.min(0.94, (e.clientX - r.left) / r.width)); });
+F.addEventListener("pointerdown", (e) => { e.preventDefault(); const r = F.getBoundingClientRect(); px = Math.max(0.06, Math.min(0.94, (e.clientX - r.left) / r.width)); });
+const kd = (e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { keys[e.key] = 1; e.preventDefault(); } }, ku = (e) => { delete keys[e.key]; };
+document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
+function frame(now) {
+if (over) return;
+const dt = Math.min(50, now - last) / 1000; last = now;
+if (keys.ArrowLeft) px = Math.max(0.06, px - dt * 1.4); if (keys.ArrowRight) px = Math.min(0.94, px + dt * 1.4);
+Pd.style.left = (px * 100) + "%";
+const el = now - t0, sp = 0.45 + 0.5 * el / DUR;
+if (now >= spawnAt && el < DUR - 600) {
+const bomb = rnd() < 0.32, d = document.createElement("div"); d.className = "qte-fall"; d.textContent = bomb ? "💣" : "🦠";
+const it = { x: 0.08 + rnd() * 0.84, y: -0.05, v: sp * (0.8 + rnd() * 0.5), bomb: bomb, el: d }; F.appendChild(d); items.push(it);
+spawnAt = now + 260 + rnd() * 260;
+}
+for (const it of items.slice()) {
+it.y += it.v * dt; it.el.style.left = (it.x * 100) + "%"; it.el.style.top = (it.y * Hh()) + "px";
+const py = (Hh() - 16) / Hh();
+if (it.y >= py - 0.02 && it.y <= py + 0.05 && Math.abs(it.x - px) * W() < 46) {
+it.el.remove(); items.splice(items.indexOf(it), 1);
+if (it.bomb) { boom(); return; }
+caught++; const s = $("qte-sc"); if (s) s.textContent = caught + " caught";
+} else if (it.y > 1.05) { it.el.remove(); items.splice(items.indexOf(it), 1); }
+}
+const b = $("qte-tb"); if (b) b.style.width = Math.max(0, 100 - el / DUR * 100) + "%";
+if (el >= DUR) return end("TIME!");
+raf = requestAnimationFrame(frame);
+}
+function boom() { F.style.background = "#3a0b12"; end("💥 BOMB! "); }
+function end(t) { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true);
+const q = qOf(caught, 12); finish(ov, t + caught + " viruses · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
+raf = requestAnimationFrame(frame);
+});
+}
+/** HUNTER (v11.2): zaměřovač vedeš ty (táhni prstem / myší / šipkami), drž = natahuj tětivu (plný nátah = klidná ruka), pusť = výstřel. Terč se pohybuje pokaždé jinak, 3 šípy. */
+function ultBow(title, cb) {
+intro(title, "Drag the crosshair onto the moving target (finger / mouse / arrow keys). HOLD to draw the bow - a full draw steadies your aim - and RELEASE to shoot. 3 arrows.", (ov, body) => {
+body.innerHTML = `<div class="qte-field" id="qte-f" style="cursor:crosshair;"><div class="qte-target" id="qte-tg"></div><div class="qte-cross" id="qte-cx"></div></div><div class="qte-draw"><div id="qte-dr"></div></div><div class="qte-dots" id="qte-d"><span></span><span></span><span></span></div><div class="qte-res" id="qte-sc">0 points</div>`;
+const F = $("qte-f"), Tg = $("qte-tg"), Cx = $("qte-cx");
+let shot = 0, pts = 0, drawing = false, drawT = 0, over = false, raf = 0, last = performance.now(), keys = {};
+const aim = { x: 0.5, y: 0.5 }, sw = { x: 0, y: 0 };
+const path = { x: 0.2 + rnd() * 0.6, y: 0.25 + rnd() * 0.5, vx: 0, vy: 0, t: 9, turn: 0, speed: 0.22 + rnd() * 0.14 };
+const setAim = (e) => { const r = F.getBoundingClientRect(); aim.x = Math.max(0.03, Math.min(0.97, (e.clientX - r.left) / r.width)); aim.y = Math.max(0.03, Math.min(0.97, (e.clientY - r.top) / r.height)); };
+function frame(now) {
+if (over) return;
+const dt = Math.min(50, now - last) / 1000; last = now;
+path.t += dt;
+if (path.t > path.turn) { path.t = 0; path.turn = 0.6 + rnd() * 0.9; const a = rnd() * Math.PI * 2; path.vx = Math.cos(a) * path.speed; path.vy = Math.sin(a) * path.speed; }
+path.x += path.vx * dt; path.y += path.vy * dt;
+if (path.x < 0.12 || path.x > 0.88) { path.vx *= -1; path.x = Math.max(0.12, Math.min(0.88, path.x)); }
+if (path.y < 0.15 || path.y > 0.85) { path.vy *= -1; path.y = Math.max(0.15, Math.min(0.85, path.y)); }
+if (keys.ArrowLeft) aim.x = Math.max(0.03, aim.x - dt * 0.6); if (keys.ArrowRight) aim.x = Math.min(0.97, aim.x + dt * 0.6);
+if (keys.ArrowUp) aim.y = Math.max(0.03, aim.y - dt * 0.6); if (keys.ArrowDown) aim.y = Math.min(0.97, aim.y + dt * 0.6);
+const steady = drawing ? Math.min(1, (now - drawT) / 700) : 0, amp = 0.035 * (1 - 0.85 * steady);       // nenatažená ruka se třese
+sw.x = Math.sin(now / 130) * amp; sw.y = Math.cos(now / 170) * amp;
+Tg.style.left = (path.x * 100) + "%"; Tg.style.top = (path.y * 100) + "%";
+Cx.style.left = ((aim.x + sw.x) * 100) + "%"; Cx.style.top = ((aim.y + sw.y) * 100) + "%";
+const dr = $("qte-dr"); if (dr) dr.style.width = (steady * 100) + "%";
+raf = requestAnimationFrame(frame);
+}
+function down(e) { if (e) { e.preventDefault(); if (e.clientX != null) setAim(e); } if (over || drawing) return; drawing = true; drawT = performance.now(); }
+function up(e) {
+if (e) e.preventDefault(); if (over || !drawing) return; drawing = false;
+const pull = Math.min(1, (performance.now() - drawT) / 700);
+const r = F.getBoundingClientRect(), tr = Tg.getBoundingClientRect(), cr = Cx.getBoundingClientRect();
+const cx = cr.left + cr.width / 2, cy = cr.top + cr.height / 2;
+const dx = (tr.left + tr.width / 2) - cx, dy = (tr.top + tr.height / 2) - cy;
+const dist = Math.sqrt(dx * dx + dy * dy) + (1 - pull) * 14;
+const p = dist < 12 ? 3 : dist < 24 ? 2 : dist < 38 ? 1 : 0;
+pts += p;
+const h = document.createElement("div"); h.className = "qte-hit"; h.style.left = ((cx - r.left) / r.width * 100) + "%"; h.style.top = ((cy - r.top) / r.height * 100) + "%"; F.appendChild(h);
+const d = $("qte-d"); if (d && d.children[shot]) d.children[shot].className = p >= 2 ? "ok" : p === 1 ? "mid" : "no";
+const s = $("qte-sc"); if (s) s.textContent = pts + " points" + (p === 3 ? " · BULLSEYE!" : "");
+shot++; if (shot >= 3) end();
+}
+function end() { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true); const q = qOf(pts, 9); finish(ov, pts + "/9 · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
+F.addEventListener("pointerdown", down); F.addEventListener("pointermove", (e) => { if (e.pointerType !== "touch" || drawing) setAim(e); }); F.addEventListener("pointerup", up); F.addEventListener("pointercancel", up);
+const kd = (e) => { if (/^Arrow/.test(e.key)) { keys[e.key] = 1; e.preventDefault(); } else if (e.key === " " && !e.repeat) { e.preventDefault(); down(); } }, ku = (e) => { if (/^Arrow/.test(e.key)) delete keys[e.key]; else if (e.key === " ") up(e); };
+document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
+raf = requestAnimationFrame(frame);
+setTimeout(() => { if (!over) { while (shot < 3) { const d = $("qte-d"); if (d && d.children[shot]) d.children[shot].className = "no"; shot++; } end(); } }, 20000);
+});
+}
+/** TROJAN: BACKDOOR - zopakuj sekvenci uzlů (4, pak 5) */
+function ultSimon(title, cb) {
+intro(title, "Watch the infected nodes light up, then tap them in the same order. 2 rounds (4 and 5 nodes).", (ov, body) => {
+body.innerHTML = `<div class="qte-grid" id="qte-g">${Array(9).fill(0).map((_, i) => `<div class="qte-node" data-i="${i}">🖥</div>`).join("")}</div><div class="qte-res" id="qte-sc">watch...</div>`;
+const G = $("qte-g"), nodes = () => [...G.children];
+let round = 0, seq = [], input = 0, good = 0, accept = false, over = false, idle = 0;
+const arm = () => { clearTimeout(idle); idle = setTimeout(() => { if (accept && !over) nextRound(); }, 5000); };
+const lens = [4, 5];
+function show() {
+accept = false; input = 0; seq = []; let prev = -1;
+for (let i = 0; i < lens[round]; i++) { let n; do { n = Math.floor(rnd() * 9); } while (n === prev); seq.push(n); prev = n; }
+const s = $("qte-sc"); if (s) s.textContent = "watch... (" + lens[round] + " nodes)";
+seq.forEach((n, i) => { setTimeout(() => { const el = nodes()[n]; el.classList.add("lit"); el.textContent = "🦠"; setTimeout(() => { el.classList.remove("lit"); el.textContent = "🖥"; }, 380); }, 300 + i * 560); });
+setTimeout(() => { accept = true; arm(); const s2 = $("qte-sc"); if (s2) s2.textContent = "your turn!"; }, 300 + seq.length * 560);
+}
+function tap(n) {
+if (!accept || over) return;
+const el = nodes()[n]; arm();
+if (n === seq[input]) { good++; input++; el.classList.add("lit"); setTimeout(() => el.classList.remove("lit"), 180); if (input >= seq.length) nextRound(); }
+else { el.classList.add("bad"); setTimeout(() => el.classList.remove("bad"), 300); nextRound(); }
+}
+function nextRound() { accept = false; clearTimeout(idle); round++; if (round >= lens.length) return end(); setTimeout(show, 500); }
+function end() { over = true; const q = qOf(good, 9); finish(ov, good + "/9 nodes infected · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: good >= 6 }, 750); }
+G.addEventListener("pointerdown", (e) => { const el = e.target.closest(".qte-node"); if (el) { e.preventDefault(); tap(Number(el.dataset.i)); } });
+show();
+});
+}
+/** CAFFEINE ABUSER: DOUBLE ESPRESSO - drž a nalévej, pusť na zelené čáře (3 šálky, pokaždé rychleji) */
+function ultBrew(title, cb) {
+intro(title, "HOLD to pour, RELEASE on the green line. Don't overflow! 3 cups, each one pours faster.", (ov, body) => {
+body.innerHTML = `<div class="qte-cup"><div class="zone" id="qte-z"></div><div class="fill" id="qte-fl"></div><div class="line" id="qte-l"></div></div><div class="qte-dots" id="qte-d"><span></span><span></span><span></span></div><div class="qte-res" id="qte-sc">cup 1/3</div>`;
+let cup = 0, pts = 0, level = 0, pouring = false, target = 0, raf = 0, last = 0, over = false, wait = false, idle = 0;
+const speeds = [0.38, 0.55, 0.75];
+function setup() { level = 0; target = 0.55 + rnd() * 0.3; $("qte-l").style.bottom = (target * 100) + "%"; $("qte-z").style.bottom = ((target - 0.05) * 100) + "%"; $("qte-z").style.height = "10%"; $("qte-fl").style.height = "0%"; wait = false; const s = $("qte-sc"); if (s) s.textContent = "cup " + (cup + 1) + "/3"; clearTimeout(idle); idle = setTimeout(() => { if (!over && !wait && !pouring) score(); }, 5000); }
+function frame(now) { if (over) return; const dt = Math.min(50, now - last) / 1000; last = now; if (pouring && !wait) { level += speeds[cup] * dt; $("qte-fl").style.height = Math.min(100, level * 100) + "%"; if (level >= 1) score(); } raf = requestAnimationFrame(frame); }
+function score() {
+if (wait) return; wait = true; pouring = false; clearTimeout(idle);
+const err = Math.abs(level - target), p = level >= 1 ? 0 : err < 0.03 ? 3 : err < 0.07 ? 2 : err < 0.13 ? 1 : 0;
+pts += p; const d = $("qte-d"); if (d && d.children[cup]) d.children[cup].className = p >= 2 ? "ok" : p === 1 ? "mid" : "no";
+const s = $("qte-sc"); if (s) s.textContent = level >= 1 ? "OVERFLOW! ☕💦" : p === 3 ? "PERFECT CUP!" : p ? "Not bad" : "Way off";
+cup++; if (cup >= 3) return setTimeout(end, 500); setTimeout(setup, 650);
+}
+function down(e) { if (e) e.preventDefault(); if (!over && !wait) pouring = true; }
+function up(e) { if (e) e.preventDefault(); if (!over && pouring && !wait) score(); }
+function end() { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true); const q = qOf(pts, 9); finish(ov, pts + "/9 · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
+const box = ov.querySelector(".qte-box");
+box.addEventListener("pointerdown", down); box.addEventListener("pointerup", up);
+const kd = (e) => { if (e.key === " " && !e.repeat) down(e); }, ku = (e) => { if (e.key === " ") up(e); };
+document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
+setup(); last = performance.now(); raf = requestAnimationFrame(frame);
+});
+}
+const ULT = { engineer: ultMath, sysadmin: ultCatch, hunter: ultBow, cyber: ultSimon, blood: ultBrew };
+function ult(cls, skill, cb) { (ULT[cls] || ultCatch)("✨ " + skill, cb); }
+function gamble(f, H, cb, preview) {
+const reels = H.gambleRoll(f), hold = [false, false, false];
+const ov = open(`<div class="qte-t">🎰 GAMBLE</div><div class="hs-reels">${[0, 1, 2].map(i => `<button type="button" class="hs-reel" id="qte-r${i}">🍒</button>`).join("")}</div>
+<div class="qte-res" id="qte-rt" style="font-size:12px;">SPINNING...</div>
+<div class="hs-gbtns" id="qte-gb" style="visibility:hidden;"><button type="button" class="btn btn-gold" id="qte-take">✔ TAKE IT</button><button type="button" class="btn btn-cyan" id="qte-re">↻ RE-SPIN</button></div>
+<div class="qte-h" id="qte-gh" style="visibility:hidden;">Tap reels to HOLD them, then re-spin the rest once.<br>🍒 heal · 🔔 break · ⭐ focus · 7️⃣ damage · 💀 hurts you</div>`);
+let state = "spin", lastHold = null;
+const sym = ["🍒", "🔔", "⭐", "7️⃣", "💀"];
+function spinTo(rs, which, done) {
+which.forEach(i => { const r = $("qte-r" + i); if (r) r.classList.add("spin"); });
+const iv = setInterval(() => { which.forEach(i => { const r = $("qte-r" + i); if (r && r.classList.contains("spin")) r.textContent = pick(sym); }); }, 70);
+which.forEach((i, k) => setTimeout(() => { const r = $("qte-r" + i); if (r) { r.classList.remove("spin"); r.textContent = rs[i]; } }, 380 + k * 240));
+setTimeout(() => { clearInterval(iv); done(); }, 380 + Math.max(0, which.length - 1) * 240 + 200);
+}
+const show = () => {
+[0, 1, 2].forEach(i => { const r = $("qte-r" + i); if (r) r.classList.toggle("held", hold[i]); });
+const t = $("qte-rt"); if (t) t.innerHTML = preview ? preview(f.gReels) : f.gReels.join(" ");
+const re = $("qte-re"); if (re) { re.disabled = !H.canRespin(f) || hold.every(Boolean); re.textContent = f.gRespun ? "↻ ALREADY RE-SPUN" : `↻ RE-SPIN (${H.RESPIN_STA} STA)`; }
+};
+const take = () => { if (state !== "pick") return; state = "done"; document.removeEventListener("keydown", key, true); const res = H.reelResult(f.gReels); setTimeout(() => { ov.remove(); cb(f.gReels.slice(), { hold: lastHold || [false, false, false], re: !!f.gRespun }); }, res.jp || res.bf ? 700 : 250); };
+const respin = () => { if (state !== "pick" || !H.canRespin(f) || hold.every(Boolean)) return; state = "spin"; lastHold = hold.slice(); const which = [0, 1, 2].filter(i => !hold[i]); const nr = H.gambleRespin(f, hold); spinTo(nr, which, () => { state = "pick"; show(); setTimeout(take, 650); }); };
+const toggle = (i) => { if (state !== "pick" || f.gRespun) return; hold[i] = !hold[i]; show(); };
+const key = (e) => { if (e.repeat) return; if (/^[123]$/.test(e.key)) { e.preventDefault(); toggle(Number(e.key) - 1); } else if (e.key === "r" || e.key === "R") { e.preventDefault(); respin(); } else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); take(); } };
+document.addEventListener("keydown", key, true);
+[0, 1, 2].forEach(i => { const r = $("qte-r" + i); if (r) r.onclick = () => toggle(i); });
+$("qte-take").onclick = take; $("qte-re").onclick = respin;
+spinTo(reels, [0, 1, 2], () => {
+state = "pick";
+const auto = H.reelResult(reels);
+if (auto.jp || (auto.bf && !((f.h || {}).perks || {}).noBackfire && !H.canRespin(f))) { show(); setTimeout(take, 500); return; }
+$("qte-gb").style.visibility = ""; $("qte-gh").style.visibility = ""; show();
+});
+}
+function channel(cb, easy) { parry({ k: "heavy", style: "chan", easy: easy || 1, title: "🔮 CHANNEL! Tap when the purple ring meets the blue one" }, o => cb(o.parry)); }
+function parry3(cb, title) { parry({ k: "unleash", title: title || "☄ ULTIMATE! Parry all 3 rings" }, o => cb(o.rings)); }
+function dodge3(cb, title) {
+const res = [];
+const go = () => dodge(q => { res.push(q); if (res.length < 3) setTimeout(go, 120); else cb(res); }, (title || "☄ ULTIMATE! Dodge 3 times") + " (" + (res.length + 1) + "/3)");
+go();
+}
+/** opts = [{ k, icon, label, sub }] - tip na další tah soupeře; cb(k nebo null) */
+function guess(opts, fx, cb) {
+const ov = open(`<div class="qte-t">🎯 GUESS THEIR NEXT MOVE</div><div class="qte-h">Right guess = <b style="color:var(--amber);">${fx.n}</b>: ${fx.t}. Once per fight.</div>
+<div class="qte-guess">${opts.map((o, i) => `<button class="btn btn-cyan" data-k="${o.k}">${o.icon} ${o.label}<small>${o.sub || ""} · key ${i + 1}</small></button>`).join("")}</div>
+<button class="btn" id="qte-ng" style="margin-top:4px;">Skip</button><div class="qte-bar"><div id="qte-gb2"></div></div>`);
+let done = false; const t0 = performance.now(), LIM = 12000;
+const end = (k) => { if (done) return; done = true; clearInterval(iv); document.removeEventListener("keydown", key, true); ov.remove(); cb(k); };
+ov.querySelector(".qte-guess").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) end(b.dataset.k); });
+ov.querySelector("#qte-ng").onclick = () => end(null);
+const key = (e) => { const n = Number(e.key); if (n >= 1 && n <= opts.length) { e.preventDefault(); end(opts[n - 1].k); } };
+document.addEventListener("keydown", key, true);
+const iv = setInterval(() => { const el = performance.now() - t0, b = $("qte-gb2"); if (b) b.style.width = Math.max(0, 100 - el / LIM * 100) + "%"; if (el >= LIM) end(null); }, 100);
+}
+/** krátká animace ultimátky (2,4 s, ťuknutím přeskočíš) */
+const CINE = {
+engineer: ["#22c55e", (st) => {
+for (let i = 0; i < 26; i++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:${i * 4}%;top:0;color:#22c55e;font:700 14px monospace;writing-mode:vertical-rl;text-shadow:0 0 6px #22c55e;animation:qcRain ${0.9 + rnd() * 0.9}s linear ${rnd() * 0.5}s infinite;`; d.textContent = Array(14).fill(0).map(() => rnd() < 0.5 ? "0" : "1").join(""); st.appendChild(d); }
+const b = document.createElement("div"); b.className = "p"; b.style.cssText = "left:0;right:0;top:52%;height:34px;margin-top:-17px;transform-origin:left;background:linear-gradient(90deg,#fff,#22d3ee 30%,#a855f7);box-shadow:0 0 40px #22d3ee;animation:qcBeam 1.3s ease-out .6s both;"; st.appendChild(b);
+const l = document.createElement("div"); l.className = "p"; l.style.cssText = "left:6%;top:52%;font-size:56px;margin-top:-34px;animation:qcPop .4s ease-out both;"; l.textContent = "💻"; st.appendChild(l);
+}],
+sysadmin: ["#f97316", (st) => {
+for (let row = 0; row < 4; row++) for (let c = 0; c < 6; c++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:calc(50% - 150px + ${c * 50 + (row % 2) * 25}px);bottom:calc(16% + ${row * 29}px);width:46px;height:26px;border-radius:3px;background:linear-gradient(180deg,#ff7849,#9a3412);border:1px solid #fdba74;animation:qcDrop .5s cubic-bezier(.5,0,.8,1) ${(3 - row) * 0.18 + c * 0.04}s both;`; st.appendChild(d); }
+const s = document.createElement("div"); s.className = "p"; s.style.cssText = "left:50%;bottom:calc(16% + 130px);font-size:70px;margin-left:-35px;animation:qcPop .5s ease-out 1s both;filter:drop-shadow(0 0 20px #63c5ff);"; s.textContent = "🛡"; st.appendChild(s);
+st.style.animation = "qcShake .25s linear 1s 3";
+}],
+hunter: ["#facc15", (st) => {
+[0, 1, 2, 3].forEach(i => { const a = document.createElement("div"); a.className = "p"; a.style.cssText = `left:0;top:${38 + i * 7}%;width:170px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#fde68a 40%,#facc15);box-shadow:0 0 12px #facc15;animation:qcArrow 1.4s cubic-bezier(.2,.7,.3,1) ${0.15 + i * 0.22}s both;`; a.innerHTML = '<span style="position:absolute;right:-10px;top:-9px;color:#facc15;font-size:18px;line-height:1;">▶</span>'; st.appendChild(a); });
+const t = document.createElement("div"); t.className = "p"; t.style.cssText = "right:8%;top:42%;font-size:64px;animation:qcPop .4s ease-out both;"; t.textContent = "🎯"; st.appendChild(t);
+}],
+cyber: ["#00ff88", (st) => {
+st.style.animation = "qcGlitch .12s steps(2) infinite";
+for (let i = 0; i < 22; i++) { const v = document.createElement("div"); v.className = "p"; v.style.cssText = `left:${rnd() * 90}%;top:${rnd() * 85}%;font-size:${22 + rnd() * 30}px;animation:qcPop .3s ease-out ${i * 0.07}s both;`; v.textContent = "🦠"; st.appendChild(v); }
+const g = document.createElement("div"); g.className = "p"; g.style.cssText = "left:0;right:0;top:62%;text-align:center;font:900 22px monospace;color:#ff1744;text-shadow:3px 0 #00f0ff,-3px 0 #ff4dff;"; g.textContent = "ACCESS GRANTED"; st.appendChild(g);
+}],
+blood: ["#c8a27a", (st) => {
+const c = document.createElement("div"); c.className = "p"; c.style.cssText = "left:calc(50% - 50px);top:46%;font-size:100px;animation:qcDash 2.2s ease-in both;"; c.textContent = "☕"; st.appendChild(c);
+for (let i = 0; i < 9; i++) { const s = document.createElement("div"); s.className = "p"; s.style.cssText = `left:calc(50% - 20px + ${(i - 4) * 9}px);top:44%;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.55);filter:blur(4px);animation:qcSteam 1.4s ease-out ${i * 0.09}s both;`; st.appendChild(s); }
+}]
+};
+function cine(cls, name, cb) {
+const C0 = CINE[cls] || CINE.engineer, ov = document.createElement("div");
+ov.className = "qcine"; ov.style.setProperty("--qc", C0[0]);
+ov.innerHTML = `<div class="st" style="position:absolute;inset:0;"></div><div class="nm">${name}</div><div class="skip">tap to skip</div>`;
+document.body.appendChild(ov);
+try { C0[1](ov.querySelector(".st")); } catch (e) {}
+let done = false; const end = () => { if (done) return; done = true; ov.remove(); if (cb) cb(); };
+ov.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); end(); });
+setTimeout(end, 2400);
+}
+window.HSQTE = { timing: timing, parry: parry, dodge: dodge, ult: ult, gamble: gamble, mathProblem: mathProblem, ULT: ULT, channel: channel, parry3: parry3, dodge3: dodge3, guess: guess, cine: cine };
+})();
+</script>
 <style>
-/* ===== HIGH STAKES (akční souboj) - doplňky k dg-* stylům ===== */
-.dg-top h1 { min-width: 120px; }
-.hs-ch { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.hs-ch .btn { flex: 1 0 18%; padding: 6px 2px; font-size: 10px; line-height: 1.2; }
-.hs-ch .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
-.hs-ms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-.hs-m { display: flex; gap: 8px; align-items: center; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; cursor: pointer; min-width: 0; }
-.hs-m:hover { border-color: var(--cyan); }
-.hs-m.locked { opacity: .4; cursor: default; }
-.hs-m.boss { border-color: rgba(255,23,68,.5); background: linear-gradient(90deg, rgba(255,23,68,.12), transparent); }
-.hs-m.compliance { border-color: rgba(255,184,0,.45); }
-.hs-m .ic { font-size: 22px; width: 30px; text-align: center; flex: none; }
-.hs-m .t { flex: 1; min-width: 0; }
-.hs-m .t b { display: block; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hs-stars { color: #ffd700; font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
-.hs-stars .off { color: #3b4252; }
-.hs-fight { position: relative; }
-.hs-bars { display: grid; gap: 3px; margin-top: 4px; }
-.hs-bar { height: 8px; background: #000; border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden; position: relative; }
-.hs-bar > div { height: 100%; transition: width .25s; }
-.hs-bar .hp { background: linear-gradient(90deg, #00c070, #00ff88); }
-.hs-bar .ehp { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
-.hs-bar .sta { background: linear-gradient(90deg, #f59e0b, #fde047); }
-.hs-bar .foc { background: linear-gradient(90deg, #a855f7, #ff4dff); }
-.hs-bar .brk { background: linear-gradient(90deg, #64748b, #e2e8f0); }
-.hs-bar.full .brk { background: #ffd700; }
-.hs-intent.charge { background: rgba(255,184,0,.2); border-color: var(--amber); color: var(--amber); animation: tabGlow .4s ease-in-out infinite alternate; }
-.hs-intent.unleash { background: rgba(255,23,68,.4); border-color: #ff1744; color: #fff; animation: tabGlow .25s ease-in-out infinite alternate; }
-.hs-intent.stun { color: #ffd700; }
-.hs-parry { position: relative; width: 150px; height: 150px; cursor: pointer; touch-action: none; }
-.hs-parry .tgt { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 4px solid #ffd700; box-shadow: 0 0 12px #ffd700; }
-.hs-parry .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 4px solid #ff1744; box-shadow: 0 0 10px #ff1744; }
-.hs-parry .ring.fake { border-color: #94a3b8; box-shadow: 0 0 8px #94a3b8; opacity: .8; border-style: dashed; }
-.hs-parry.spiral .ring { border-style: dashed; }
-.hs-pdots { display: flex; gap: 6px; margin-top: 8px; min-height: 12px; }
-.hs-pdots span { width: 12px; height: 12px; border-radius: 50%; background: #1e2636; border: 1px solid #334155; }
-.hs-pdots span.perfect { background: #ffd700; } .hs-pdots span.good { background: var(--emerald); } .hs-pdots span.none { background: var(--crimson); }
-.hs-ports { position: relative; width: 86%; height: 130px; background: #050a08; border: 1px solid #14532d; border-radius: 6px; overflow: hidden; }
-.hs-port { position: absolute; padding: 6px 10px; font: 800 12px 'Orbitron', monospace; color: #00ff88; background: rgba(0,255,136,.12); border: 1px solid #00ff88; border-radius: 6px; cursor: pointer; animation: portIn .15s ease-out; }
-.hs-port.hit { background: #00ff88; color: #000; } .hs-port.gone { opacity: 0; pointer-events: none; transition: opacity .15s; }
-@keyframes portIn { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
-.hs-help-btn { padding: 1px 8px; font-size: 11px; border-radius: 50%; min-width: 22px; }
-.hs-hsec { font: 800 10px 'Orbitron', monospace; color: var(--amber); letter-spacing: 1px; margin: 10px 0 4px; }
-.hs-hrow { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
-.hs-hrow .i { width: 22px; flex: none; text-align: center; }
-.hs-hrow b { color: var(--text-main); font-family: 'Orbitron', monospace; font-size: 10.5px; }
-.hs-coach { margin-top: 8px; padding: 9px 10px; border-radius: 8px; background: linear-gradient(180deg, rgba(0,240,255,.10), rgba(0,240,255,.03)); border: 1px solid rgba(0,240,255,.45); font-size: 12px; line-height: 1.45; color: var(--text-main); }
-.hs-coach-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font: 800 11px 'Orbitron', monospace; color: var(--cyan); letter-spacing: 1px; }
-.hs-coach-h .btn { padding: 3px 8px; font-size: 9px; }
-.hs-coach-ok { color: var(--emerald); font-weight: 700; margin-bottom: 3px; }
-.hs-reel { cursor: pointer; color: inherit; font-family: inherit; padding: 0; }
-.hs-reel.held { border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan) inset, 0 0 8px var(--cyan); position: relative; }
-.hs-reel.held::after { content: "HOLD"; position: absolute; bottom: -15px; left: 0; right: 0; font: 800 9px 'Orbitron', monospace; color: var(--cyan); }
-.hs-gbtns { display: flex; gap: 6px; margin-top: 14px; }
-.hs-gbtns .btn { padding: 9px 12px; font-size: 11px; }
-.hs-bar .sh { position: absolute; top: 0; left: 0; background: rgba(0,240,255,.55); }
-.hs-lbl { display: flex; justify-content: space-between; font: 700 9px 'Orbitron', monospace; color: var(--text-dim); }
-.hs-intent { display: inline-flex; align-items: center; gap: 4px; margin: 4px auto 0; padding: 3px 10px; border-radius: 12px; font: 800 12px 'Orbitron', monospace; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); }
-.hs-intent.heavy { background: rgba(255,23,68,.25); border-color: var(--crimson); color: #ff8fa3; animation: tabGlow .5s ease-in-out infinite alternate; }
-.hs-intent.defend { color: var(--cyan); }
-.hs-intent.special { color: #ff4dff; }
-.hs-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 6px; margin-top: 6px; }
-.hs-phase { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font: 800 11px 'Orbitron', monospace; letter-spacing: 1px; }
-.hs-phase .p-atk { color: var(--amber); } .hs-phase .p-react { color: var(--cyan); animation: tabGlow .5s ease-in-out infinite alternate; }
-.hs-phase small { font: 400 11px sans-serif; letter-spacing: 0; color: var(--text-dim); }
-.hs-acts .btn.react { border-color: var(--cyan); }
-.hs-camps { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.hs-camps .btn { padding: 5px 10px; font-size: 11px; }
-.hs-camps .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
-.hs-asc { border-color: var(--amber) !important; background: linear-gradient(90deg, rgba(255,184,0,.12), transparent); }
-.hs-buy { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; padding: 8px; border-radius: 8px; background: var(--bg-panel-elevated); }
-.hs-acts .btn { padding: 9px 2px; font-size: 11px; line-height: 1.2; }
-.hs-acts .btn small { display: block; font-size: 8.5px; opacity: .75; font-family: inherit; letter-spacing: 0; }
-.hs-acts .btn.off { opacity: .32; }
-.hs-acts .btn.lock { text-decoration: line-through; }
-.hs-items { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-.hs-items .btn { flex: 1; padding: 6px 2px; font-size: 10px; }
-.hs-ov { position: absolute; inset: 0; background: rgba(5,7,11,.82); display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 5; border-radius: 8px; }
-.hs-timing { width: 86%; height: 34px; background: #111827; border: 2px solid #fff; border-radius: 6px; position: relative; overflow: hidden; cursor: pointer; }
-.hs-timing .g { position: absolute; top: 0; bottom: 0; background: rgba(0,255,136,.45); }
-.hs-timing .p { position: absolute; top: 0; bottom: 0; background: rgba(255,215,0,.85); }
-.hs-timing .n { position: absolute; top: -4px; bottom: -4px; width: 4px; background: #ff1744; box-shadow: 0 0 8px #ff1744; }
-.hs-reels { display: flex; gap: 8px; }
-.hs-reel { width: 64px; height: 64px; background: #111827; border: 2px solid var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
-.hs-reel.spin { animation: megaSpin .08s linear infinite; }
-.hs-ovt { font: 800 13px 'Orbitron', monospace; color: var(--amber); margin-top: 10px; text-align: center; }
-.hs-stat { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12px; }
-.hs-stat b { width: 54px; font-family: 'Orbitron', monospace; font-size: 11px; }
-.hs-stat .v { width: 34px; text-align: right; font-family: 'Orbitron', monospace; color: var(--amber); }
-.hs-stat .d { flex: 1; font-size: 10px; color: var(--text-dim); }
-.hs-res { text-align: center; padding: 14px 8px; }
-.hs-res .big { font: 900 24px 'Orbitron', monospace; letter-spacing: 2px; }
-.hs-res .st { font-size: 30px; color: #ffd700; letter-spacing: 4px; margin: 6px 0; }
-.hs-res .st .off { color: #2a3245; }
-.hs-goals { text-align: left; display: inline-block; font-size: 12px; margin: 2px 0 8px; line-height: 1.6; }
-.hs-goals .ok { color: var(--emerald); } .hs-goals .no { color: var(--text-dim); }
-.hs-goals .new { color: #ffd700; font: 800 9px 'Orbitron', monospace; } .hs-goals .had { color: #8b6f00; font-size: 10px; }
-.hs-form { margin-top: 6px; padding: 6px 10px; border: 1px dashed var(--amber); border-radius: 6px; font-size: 11px; color: var(--amber); background: rgba(255,184,0,.06); text-align: center; }
-.hs-form b { color: #fff; } .hs-form .rt { display: block; color: var(--crimson); font-weight: 700; }
-.hs-acts .btn.want { box-shadow: 0 0 0 2px var(--amber) inset; }
-.dg-tabs .casino-tab-btn.tdot { position: relative; }
-.dg-tabs .casino-tab-btn.tdot::after { content: ""; position: absolute; top: 4px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); }
+/* ===================== HIGH STAKES (samostatná obrazovka ve stejné stránce, žádný iframe) ===================== */
+#dg-screen { position: fixed; inset: 0; z-index: 200; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #1a0b14 0%, var(--bg-core, #07090e) 55%); color: var(--text-main); }
+#dg-screen.open { display: flex; }
+html.m #dg-screen { height: var(--app-h, 100%); }
+.dg-top { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
+.dg-top h1 { font: 900 15px 'Orbitron', monospace; letter-spacing: 2px; color: var(--crimson); margin: 0; flex: 1; text-shadow: 0 0 10px rgba(255,23,68,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-keys { font: 700 11px 'Orbitron', monospace; color: var(--amber); white-space: nowrap; }
+.dg-tabs { flex: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px; }
+.dg-tabs button { flex: 1 1 96px; min-width: 0; }
+.dg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
+.dg-inner { max-width: 980px; margin: 0 auto; }
+.dg-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.dg-h { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--cyan); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.dg-dim { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+.dg-dim b { color: var(--amber); }
+.dg-arena { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; padding: 10px 6px; background: linear-gradient(180deg, #0b0f18, #10070c); border: 1px solid rgba(255,23,68,.25); border-radius: 8px; overflow: hidden; }
+.dg-side { text-align: center; min-width: 0; }
+.dg-name { font: 700 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-sub { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-sprite { width: 96px; height: 96px; margin: 6px auto; image-rendering: pixelated; display: block; transition: transform .12s; }
+.dg-sprite.hit { animation: dgHit .3s; }
+.dg-sprite.atk-l { animation: dgAtkL .35s; }
+.dg-sprite.atk-r { animation: dgAtkR .35s; }
+.dg-sprite.dead { filter: grayscale(1) brightness(.4); transform: rotate(8deg) translateY(8px); }
+@keyframes dgHit { 0%,100% { transform: none; filter: none; } 30% { transform: translateX(-5px); filter: brightness(2) sepia(1) hue-rotate(-40deg); } 60% { transform: translateX(4px); } }
+@keyframes dgAtkL { 50% { transform: translateX(26px) scale(1.06); } }
+@keyframes dgAtkR { 50% { transform: translateX(-26px) scale(1.06); } }
+.dg-vs { font: 900 18px 'Orbitron', monospace; color: var(--text-dim); }
+.dg-bar { height: 10px; background: #000; border: 1px solid var(--border-subtle); border-radius: 5px; overflow: hidden; position: relative; }
+.dg-bar > div { height: 100%; transition: width .25s; }
+.dg-bar .hp-p { background: linear-gradient(90deg, #00c070, #00ff88); }
+.dg-bar .hp-b { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
+.dg-bar .sh { position: absolute; top: 0; left: 0; height: 100%; background: rgba(0,240,255,.55); }
+.dg-hpt { font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin-top: 2px; }
+.dg-float { position: absolute; pointer-events: none; font: 900 18px 'Orbitron', monospace; text-shadow: 0 0 8px currentColor, 0 1px 0 #000; animation: dgFloat 1.1s ease-out forwards; white-space: nowrap; z-index: 3; }
+.dg-float.big { font-size: 26px; }
+@keyframes dgFloat { 0% { opacity: 0; transform: translateY(6px) scale(.6); } 15% { opacity: 1; transform: translateY(-6px) scale(1.15); } 100% { opacity: 0; transform: translateY(-46px) scale(1); } }
+.dg-mech { font-size: 11px; color: var(--amber); text-align: center; margin-top: 6px; min-height: 15px; }
+.dg-stances { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+.dg-stances button { padding: 9px 4px; font-size: 11px; line-height: 1.25; }
+.dg-stances button small { display: block; font-size: 9px; opacity: .75; font-family: inherit; }
+.dg-stances button.sel { box-shadow: 0 0 0 2px var(--amber) inset, 0 0 12px rgba(255,184,0,.4); color: var(--amber); }
+.dg-stances button.want { animation: tabGlow .6s ease-in-out infinite alternate; }
+.dg-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dg-row .btn { padding: 8px 10px; }
+.dg-log { height: 150px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,.45); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px 8px; display: flex; flex-direction: column-reverse; gap: 2px; }
+.dg-log div { line-height: 1.25; color: #8b9bb4; }
+.dg-log .g { color: var(--emerald); } .dg-log .r { color: var(--crimson); } .dg-log .y { color: var(--amber); } .dg-log .c { color: var(--cyan); }
+.dg-floor { display: flex; align-items: center; gap: 8px; }
+.dg-floor .num { font: 900 22px 'Orbitron', monospace; color: var(--crimson); min-width: 54px; text-align: center; }
+.dg-xp { height: 6px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.dg-xp div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--emerald)); }
+.dg-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dg-tier { padding: 6px 8px; border-left: 3px solid #2a3245; margin-bottom: 4px; font-size: 11px; background: rgba(255,255,255,.02); border-radius: 0 4px 4px 0; }
+.dg-tier.on { border-left-color: var(--emerald); }
+.dg-tier.next { border-left-color: var(--amber); }
+.dg-tier b { font-family: 'Orbitron', monospace; font-size: 10px; }
+.dg-art { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-panel-elevated); border-radius: 6px; margin-bottom: 4px; font-size: 11px; }
+.dg-art .ic { font-size: 22px; width: 28px; text-align: center; }
+.dg-art .t { flex: 1; min-width: 0; }
+.dg-art.eq { box-shadow: 0 0 0 1px var(--amber) inset; }
+.dg-classes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.dg-class { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; }
+.dg-class:hover { border-color: var(--cyan); }
+.dg-class .ic { font-size: 30px; }
+.dg-lock { text-align: center; padding: 30px 12px; }
+.dg-lock .big { font-size: 46px; }
+.dg-promo { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-panel-elevated); border-radius: 6px; margin-bottom: 4px; font-size: 11px; }
+.dg-promo .ic { font-size: 22px; }
+.dg-promo.done { opacity: .55; }
+#dg-open-btn { padding: 3px 9px; font-size: 11px; }
+html.m #dg-open-btn { display: none; }
+.lb-table tbody tr { cursor: pointer; }
 @media (max-width: 700px) {
-.hs-ms { grid-template-columns: 1fr; }
-.hs-acts { grid-template-columns: repeat(3, 1fr); }
-.hs-acts .btn { font-size: 10px; padding: 8px 1px; }
+.dg-grid2 { grid-template-columns: 1fr; }
+.dg-classes { grid-template-columns: 1fr 1fr; }
+.dg-sprite { width: 76px; height: 76px; }
 }
 </style>
+<div id="dg-screen">
+<div class="dg-top">
+<button class="btn btn-cyan" onclick="Dungeon.close()">◀<span class="dg-back-t"> OFFICE</span></button>
+<h1><span class="dg-hic">🎰 </span>HIGH STAKES</h1>
+<button class="btn btn-cyan" id="dg-tokbtn" style="display:none;padding:3px 8px;font-size:10px;" onclick="Dungeon.tokenEnergy()"></button>
+<span class="dg-keys" id="dg-keys">⚡ -</span>
+</div>
+<div class="dg-tabs" id="dg-tabs"></div>
+<div class="dg-body"><div class="dg-inner" id="dg-inner"></div></div>
+</div>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part15"] = 1;</script>
 <!-- END-OF-FILE: part15 -->

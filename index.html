@@ -6847,6 +6847,17 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "11.2", d: "2026-10-28", i: [
+      "🎯 <b>Guess after your ultimate</b>: after the mini-game you guess the enemy's next move (in a duel: your opponent's reaction). Right guess = a class effect once per fight: 🧙 Blood Magic (next 3 hits heal you), 🛡 Firewall Up (shield + next hit halved), 🦠 Infection (poison), 🏹 Marked for Death (next 2 attacks crit), ☕ Sugar Rush (+40 stamina, HEAVY without cooldown)",
+      "🎬 Short animations for every ultimate (tap to skip)",
+      "⚔ DUEL: when your opponent has the ULTIMATE ready, you wait until they pick (you still don't see what) and BLOCK or DODGE is played 3× - like an UNLEASH. Each success takes off a third of the ultimate",
+      "⚖ DUEL on equal terms: both players split the same stat points before the start (45 s)",
+      "🧙 Mage: enemies still can't dodge your hits and now their BLOCK only works half as well (a perfect parry takes half and gives no counter). CHANNEL is a ring mini-game: -17.5% / -30% / -45% damage, next hit ×1.3 (PERFECT ×1.6)",
+      "🏹 Bug Hunter: you aim the crosshair yourself in the HEADHUNT mini-game (no more waiting for the target to reach the middle). HEAVY now shows both of its hits",
+      "💨 DODGE costs 20 focus (was 30). 🎰 GAMBLE: 🍒 heals 6%, 🍒🍒 15%, 🍒🍒🍒 30%; 7️⃣7️⃣7️⃣ always crits and a 7️⃣ pair gives +20% crit chance",
+      "📈 Stocks: tap a stock for a big chart (1 h / 4 h / 24 h) with your average buy price and your trades, position value and profit/loss in GC, trade history and buying for an exact GC amount",
+      "⚖ Duel classes were re-balanced for the new rules"
+    ] },
     { v: "11.1", d: "2026-10-28", i: [
       "🔺 <b>High Stakes PRESTIGE</b> replaces Campaign 2, 3...: after the Big Massi you restart the campaign. You KEEP your level and stat points, your stars add up - but gear upgrades go back to +0 (colleague's too), campaign, tower and shift reset and enemies get <b>+67% stronger</b> per prestige. The pool stays and scales a bit more",
       "🎨 Loot colors are gated: at first only grey items drop, bosses have a 25% chance for the next color and every prestige unlocks one more color (campaign, tower and pool). New green tier between grey and blue",
@@ -8222,22 +8233,22 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 30, dodge: 0, counter: 0.5, dmgM: 1.25,
       desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 30 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
-    cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 30, dmgM: 1.15,
-      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, only 30 focus) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
+    cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 20, dmgM: 1.15,
+      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 20 focus) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
       skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
-      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL focus: -25% damage now and your next hit ×1.6.",
+      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL focus (a mini-game): up to -45% damage now and your next hit up to ×1.6. Enemies can't dodge your hits and their blocks only work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
     blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 25, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
       desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
       skill: "DOUBLE ESPRESSO", skillTxt: "2.6× hit that heals you for 60% of the damage." },
-    hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4.2, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 30, firstStrike: true, mark: 0.15,
-      desc: "Hits twice (2 × 60%), strikes first in every fight and MARKS the target (+15% damage taken). Only 35% dodge.",
+    hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4.2, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 20, firstStrike: true, mark: 0.15,
+      desc: "Hits twice (2 × 60%, HEAVY too), strikes first in every fight and MARKS the target (+15% damage taken). Only 35% dodge.",
       skill: "HEADHUNT", skillTxt: "4 arrows × 0.9 - every arrow can crit." }
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, dmg: { sysadmin: 0.65, cyber: 0.86, engineer: 0.86, blood: 1.22, hunter: 1.05 } };
+  const PVP = { hp: 2, dmg: { sysadmin: 0.47, cyber: 0.79, engineer: 0.74, blood: 1.15, hunter: 1.0 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -8250,8 +8261,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const REACTS = {
     block: { name: "BLOCK", icon: "🛡", txt: "less damage, PARRY the big ones" },
-    dodge: { name: "DODGE", icon: "💨", foc: 35, txt: "35 focus · avoid the hit completely (not 🔮 spells)" },
-    channel: { name: "CHANNEL", icon: "🔮", foc: 30, txt: "30 focus · -25% damage now, your next hit ×1.6" },
+    dodge: { name: "DODGE", icon: "💨", foc: 20, txt: "20 focus · avoid the hit completely (not 🔮 spells)" },
+    channel: { name: "CHANNEL", icon: "🔮", foc: 30, txt: "30 focus · mini-game: -17.5 / 30 / 45% damage now, next hit ×1.3 (PERFECT ×1.6)" },
     brace: { name: "BREATHE", icon: "😮‍💨", txt: "+15 stamina, +10 focus, cures poison" }
   };
   // starší názvy (save / server / staré odkazy)
@@ -8266,6 +8277,17 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     leech: { n: "🧛 Leech", t: "heals 30% of the damage it deals" },
     brute: { n: "🦍 Brute", t: "more HP, hits harder and swings HEAVY more often" }
   };
+  /** v11.2: TIP U ULTIMÁTKY - když uhodneš další tah soupeře, spustí se efekt tvé třídy (jednou za boj) */
+  const GUESS_FX = {
+    engineer: { n: "🩸 BLOOD MAGIC", t: "your next 3 hits heal you for 25% of their damage (max 8% HP each)" },
+    sysadmin: { n: "🧱 FIREWALL UP", t: "+20% max HP shield and the next hit you take is halved" },
+    cyber: { n: "🦠 INFECTION", t: "poison: 4% of its max HP every round for 3 rounds" },
+    hunter: { n: "🎯 MARKED FOR DEATH", t: "your next 2 attacks always crit" },
+    blood: { n: "☕ SUGAR RUSH", t: "+40 stamina and HEAVY has no cooldown for 2 rounds" }
+  };
+  /** kategorie tahu nepřítele pro tip (kampaň) */
+  const GUESS_PVE = ["atk", "heavy", "guard", "other"];
+  function guessCat(k) { return k === "atk" ? "atk" : k === "heavy" || k === "unleash" ? "heavy" : k === "defend" ? "guard" : "other"; }
   const ITEMS = {}, MAX_ITEMS_PER_FIGHT = 0;
   const REELS = [["🍒", 30], ["🔔", 22], ["⭐", 12], ["7️⃣", 8], ["💀", 14]];
 
@@ -8292,7 +8314,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       wpn: wpn, armor: (Number(gear.armor) || 0) * C.armorM, armorCap: C.armorCap,
       maxHp: Math.max(10, Math.round(vit * C.hpM * (L + 6) * HPK * (1 + bonus))),
       dmgM: C.dmgM || 1, critX: C.critX || 2, critAdd: (C.critAdd || 0) + (Number(gear.crit) || 0),
-      block: C.block || 0, blockCost: C.blockCost || 25, dodge: C.dodge || 0, dodgeCost: C.dodgeCost || 35, canChannel: !!C.channel, spellImmune: !!C.spellImmune,
+      block: C.block || 0, blockCost: C.blockCost || 25, dodge: C.dodge || 0, dodgeCost: C.dodgeCost || 20, canChannel: !!C.channel, spellImmune: !!C.spellImmune,
       lifesteal: C.lifesteal || 0, revive: C.revive || 0, counter: C.counter || 0, double: !!C.double, firstStrike: !!C.firstStrike, mark: C.mark || 0,
       dr: 0, staMax: 100, staGain: 0,
       zone: Math.min(0.42, 0.16 + luck / (luck + 40 + 6 * L) * 0.3 + (cls === "engineer" ? 0.06 : 0)),
@@ -8334,7 +8356,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     let v = a.wpn * (0.88 + R() * 0.24) * (1 + eff / 10) * (a.dmgM || 1) * (o.mult == null ? 1 : o.mult);
     const red = o.ignoreArmor ? 0 : d.armorRed != null ? d.armorRed : clamp((d.armor || 0) / (Math.max(1, a.level) * 100), 0, d.armorCap || 0);
     v *= 1 - red;
-    const cc = o.crit === true ? 1 : o.crit === false ? 0 : Math.min(0.95, critOf(a, d) * (o.critMul || 1));
+    const cc = o.crit === true ? 1 : o.crit === false ? 0 : Math.min(0.95, critOf(a, d) * (o.critMul || 1) + (o.critAdd || 0));
     const crit = o.crit === true || R() < cc;
     if (crit) v *= a.critX || 2;
     return { v: Math.max(1, Math.round(v)), crit: crit };
@@ -8351,7 +8373,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       hp: h.startHp != null ? clamp(Math.round(h.startHp), 1, h.maxHp) : h.maxHp, sta: h.staMax, focus: Math.min(99, 30 + (h.startFocus || 0)),
       shield: Math.round(h.maxHp * (P.shieldStart || 0)), firstHit: !!P.firstStrike, duckUsed: false, revived: false,
       ehp: e.maxHp, emax: e.maxHp, eatk: e.atk, eshield: 0, estacks: 0, eguard: false, estun: false, unleashNext: false,
-      disabled: {}, cd: {}, demand: null, redTape: 0, poison: 0, mgr: 0, sureCrit: false, channel: 0, marked: false, dodgeStreak: 0, lastAct: null,
+      disabled: {}, cd: {}, demand: null, redTape: 0, poison: 0, mgr: 0, bm: 0, halfNext: false, epoison: 0, sureAtk: 0, nocd: 0, guessUsed: false, _sa: false, sureCrit: false, channel: 0, marked: false, dodgeStreak: 0, lastAct: null,
       flamenco: 0, slow: 0, rage: 0, payroll: 0, siesta: false, pastaPending: false, restartPending: false, form: "I", phase2: false,
       intent: null, lastIntent: null, brk: 0, vuln: false, stunNext: false, deceive: Number(mission.deceive) || 0, coin: 0, hotfix: false,
       st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, usedReact: 0, reacts: 0, crits: 0, parries: 0, breaks: 0, forms: 0, maxHit: 0, dodges: 0 }
@@ -8521,10 +8543,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   /** tvoje rána: vrací {val, crit} */
   function myHit(f, mult, o) {
     o = o || {};
-    const sure = f.sureCrit && o.crit !== false; if (sure) f.sureCrit = false;
-    const r = rawHit(f.R, f.h, f.e, { mult: mult, ignoreArmor: o.ignoreArmor, crit: sure ? true : o.crit, critMul: o.critMul });
+    const sure = (f.sureCrit || f._sa) && o.crit !== false; if (sure && !f._sa) f.sureCrit = false;
+    const r = rawHit(f.R, f.h, f.e, { mult: mult, ignoreArmor: o.ignoreArmor, crit: sure ? true : o.crit, critMul: o.critMul, critAdd: o.critAdd });
     if (r.crit) { f.st.crits++; f.focus = Math.min(100, f.focus + 8); }
     const val = hurtEnemy(f, r.v);
+    if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
     if (f.eguard && f.e.ecls === "firewall" && val > 0) { const d = hurtHero(f, val * 0.2, "reflect"); ev(f, "mech", { msg: "🧱 The Firewall reflects " + d + " damage back at you." }); }
     return { val: val, crit: r.crit };
   }
@@ -8533,6 +8556,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function hurtHero(f, dmg, src) {
     const P = f.h.perks || {};
     if (f.h.dr && src !== "backfire" && src !== "withdraw") dmg *= 1 - f.h.dr;
+    if (f.halfNext && src !== "backfire" && src !== "poison" && src !== "reflect" && dmg > 0) { f.halfNext = false; dmg *= 0.5; }
     dmg = Math.max(0, Math.round(dmg));
     const s = Math.min(f.shield, dmg); f.shield -= s;
     f.hp -= dmg - s;
@@ -8552,7 +8576,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const one = () => { let r = f.R() * sum; for (const x of w) { if (r < x[1]) return x[0]; r -= x[1]; } return "🍒"; };
     return [one(), one(), one()];
   }
-  const SYM = { "🍒": { m: 0.2, heal: 0.04 }, "🔔": { m: 0.3, brk: 12 }, "⭐": { m: 0.3, foc: 14 }, "7️⃣": { m: 0.75 }, "💀": { m: 0, self: 0.25 } };
+  const SYM = { "🍒": { m: 0.2, heal: 0.06 }, "🔔": { m: 0.3, brk: 12 }, "⭐": { m: 0.3, foc: 14 }, "7️⃣": { m: 0.75 }, "💀": { m: 0, self: 0.25 } };
   const RESPIN_STA = 10;
   function reelResult(r, opt) {
     opt = opt || {};
@@ -8565,13 +8589,14 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (c["💀"] === 3) return { mult: 0, txt: "BACKFIRE", bf: true, heal: 0, brk: 0, foc: 0, self: 0.9 };
     if (c["⭐"] === 3) return { mult: 3.5, txt: "STARS", heal: 0.15, brk: 15, foc: 60, self: 0 };
     if (c["🔔"] === 3) return { mult: 3, txt: "BELLS", heal: 0, brk: 70, foc: 10, self: 0 };
-    if (c["🍒"] === 3) return { mult: 2.2, txt: "CHERRIES", heal: 0.25, brk: 10, foc: 10, self: 0 };
+    if (c["🍒"] === 3) return { mult: 2.2, txt: "CHERRIES", heal: 0.3, brk: 10, foc: 10, self: 0 };
     let mult = 0, heal = 0, brk = 0, foc = 0, self = 0;
     Object.keys(c).forEach(s => { const x = SYM[s], n = c[s]; mult += x.m * n; heal += (x.heal || 0) * n; brk += (x.brk || 0) * n; foc += (x.foc || 0) * n; self += (x.self || 0) * n; });
     const pair = Object.keys(c).find(s => c[s] === 2 && s !== "💀");
     if (pair) mult += 0.4;
+    if (c["🍒"] === 2) heal = 0.15;                                     // v11.2: pár třešní = 15 % HP
     const txt = c["💀"] === 2 ? "two skulls" : pair ? "pair " + pair + pair : "mixed";
-    return { mult: Math.round(mult * 100) / 100, txt: txt, heal: heal, brk: brk, foc: foc, self: self };
+    return { mult: Math.round(mult * 100) / 100, txt: txt, heal: heal, brk: brk, foc: foc, self: self, critAdd: c["7️⃣"] === 2 ? 0.2 : 0 };
   }
   function gambleRoll(f) { f.gReels = spinReels(f); f.gRespun = false; return f.gReels.slice(); }
   function canRespin(f) { return !!f.gReels && !f.gRespun && f.sta >= ATTACKS.gamble.sta + RESPIN_STA; }
@@ -8609,6 +8634,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     f.sta -= A.sta || 0;
     const q = clamp(opt.q == null ? 1 : Number(opt.q) || 0.7, 0.7, 1.25);
     const wasGuard = f.eguard;
+    f._sa = f.sureAtk > 0 && a !== "rest"; if (f._sa) f.sureAtk--;
     if (a === "strike") {
       const m = myMult(f, "strike");
       if (h.double) {
@@ -8623,18 +8649,19 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       const cured = f.poison > 0; f.poison = 0;
       ev(f, "rest", { cured: cured });
     } else if (a === "heavy") {
-      f.cd.heavy = A.cd + 1;
+      if (!(f.nocd > 0)) f.cd.heavy = A.cd + 1;
       const tm = opt.t === "perfect" ? "PERFECT" : opt.t === "good" ? "GOOD" : opt.t === "auto" ? "" : "";
       const base = opt.t === "perfect" ? 2.2 : opt.t === "good" ? 1.7 : opt.t === "auto" ? 1.7 : 1.3;
       if (tm === "PERFECT") f.st.perfectPower++;
       let m = base * myMult(f, "heavy", tm === "PERFECT");
       if (tm === "PERFECT" && e.mech === "italian") { m *= 1.2; ev(f, "mech", { msg: "🤌 \"Perfetto! Al dente!\" (+20% damage)" }); }
       let val = 0, crit = false;
-      if (h.double) { const r1 = myHit(f, 0.6 * m), r2 = myHit(f, 0.6 * m); val = r1.val + r2.val; crit = r1.crit || r2.crit; }
+      let hits = null;
+      if (h.double) { const r1 = myHit(f, 0.6 * m), r2 = myHit(f, 0.6 * m); val = r1.val + r2.val; crit = r1.crit || r2.crit; hits = [r1.val, r2.val]; }
       else { const r = myHit(f, m); val = r.val; crit = r.crit; }
       consumeBuffs(f); f.marked = f.marked || !!h.mark;
       f.focus = Math.min(100, f.focus + 4);
-      ev(f, "pact", { a: a, val: val, crit: crit, timing: tm });
+      ev(f, "pact", { a: a, val: val, crit: crit, timing: tm, hits: hits });
       addBreak(f, A.brk * (tm === "PERFECT" ? 1.4 : tm === "GOOD" ? 1.2 : 1) + (wasGuard ? 15 : 0));
       if (wasGuard) ev(f, "mech", { msg: "💥 Guard broken! The HEAVY went straight through." });
       if (f.unleashNext) { f.unleashNext = false; f.rmNext = false; f.estun = true; f.st.breaks++; ev(f, "interrupt", {}); }
@@ -8650,7 +8677,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (res.bf) { const self = hurtHero(f, f.h.atk * res.self, "backfire"); ev(f, "gamble", { reels: reels, res: res.txt, val: 0, self: self, bf: true, respun: respun }); }
       else {
         let d = 0, c = false;
-        if (res.mult > 0) { const r = myHit(f, res.mult * myMult(f, "gamble")); d = r.val; c = r.crit; consumeBuffs(f); }
+        if (res.mult > 0) { const r = myHit(f, res.mult * myMult(f, "gamble"), { crit: res.jp ? true : undefined, critAdd: res.critAdd }); d = r.val; c = r.crit; consumeBuffs(f); }
         if (res.jp) f.st.jackpots++;
         addBreak(f, 9 * Math.min(res.mult, 3) + res.brk);
         let hh = 0;
@@ -8687,6 +8714,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         ev(f, "skill", { a: C.skill, q: q, val: sum, crit: crits > 0, msg: "Headhunt (" + pct + "%): 4 arrows for " + sum + (crits ? " - " + crits + " crit" + (crits > 1 ? "s" : "") : "") });
       }
     }
+    f._sa = false;
     f.eguard = false;
     if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
     if (f.ehp <= 0) return finish(f, true, start);
@@ -8697,12 +8725,26 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     // ---------- nepřítel ukáže, co chystá
     pickIntent(f);
     ev(f, "telegraph", { k: f.intent.k, shown: f.intent.shown, val: f.intent.val });
+    if (a === "ult" && opt.guess && !f.guessUsed) {                       // v11.2: tip na další tah nepřítele
+      const real = f.intent.k === "stun" ? opt.guess : guessCat(f.intent.k), ok = real === opt.guess;
+      if (ok) { f.guessUsed = true; guessFx(f); }
+      ev(f, "guess", { ok: ok, g: opt.guess, real: real, fx: ok ? GUESS_FX[h.cls].n : "" });
+    }
     if (!isDmgIntent(f.intent.k)) { enemyAct(f, "none", {}); endRound(f); return f.events.slice(start); }
     f.phase = "react";
     demandReact(f);
     return f.events.slice(start);
   }
 
+  function guessFx(f) {
+    const h = f.h;
+    if (h.cls === "engineer") f.bm = 3;
+    else if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.2); f.halfNext = true; }
+    else if (h.cls === "cyber") f.epoison = 3;
+    else if (h.cls === "hunter") f.sureAtk = 2;
+    else { f.sta = Math.min(h.staMax, f.sta + 40); f.nocd = 2; delete f.cd.heavy; }
+    ev(f, "mech", { msg: GUESS_FX[h.cls].n + "! " + GUESS_FX[h.cls].t.charAt(0).toUpperCase() + GUESS_FX[h.cls].t.slice(1) + "." });
+  }
   // ================================================================== 2) TVOJE REAKCE
   /** opt: { parry: "perfect"|"good"|"none" (BLOCK proti HEAVY / UNLEASH / WITHDRAWAL), rings: [..] UNLEASH 3 kroužky } */
   function react(f, r, opt) {
@@ -8774,7 +8816,10 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
           ev(f, tier === "good" ? "perfect" : "block", { val: ctr, saved: Math.round(dmg * red), taken: taken });
         }
       } else {
-        if (r === "channel") { f.channel = 1.6 * (1 + ((h.perks || {}).channelBonus || 0)); f.st.reacts++; ev(f, "channel", {}); dmg *= 0.75; }
+        if (r === "channel") {                                          // v11.2: CHANNEL mini-hra: -17.5 / 30 / 45 %, další rána ×1.3 (PERFECT ×1.6)
+          const cq = opt.cq === "perfect" || opt.cq === "none" ? opt.cq : "good", red = cq === "perfect" ? 0.45 : cq === "good" ? 0.3 : 0.175;
+          f.channel = (cq === "perfect" ? 1.6 : 1.3) * (1 + ((h.perks || {}).channelBonus || 0)); f.st.reacts++; ev(f, "channel", { q: cq, red: red, x: f.channel }); dmg *= 1 - red;
+        }
         hitHero(f, dmg, src, k);
       }
       if (k === "spell" && it.sub === "cobol") { f.slow = 2; ev(f, "mech", { msg: "🥟 \"Take a Halušky!\" You're stuffed: -20% dodge for 2 rounds." }); }
@@ -8822,6 +8867,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const h = f.h, e = f.e;
     f.sta = Math.min(h.staMax, f.sta + (h.staGain || 0));          // v11.1: stamina se sama NEDOPLŇUJE (STRIKE +10, BREATHE +30 / +15)
     f.focus = Math.min(100, f.focus + 10);
+    if (f.epoison > 0 && f.ehp > 0) { f.epoison--; const d = hurtEnemy(f, f.emax * 0.04); ev(f, "mech", { msg: "🦠 Infection: -" + d + " HP to " + e.name }); }
+    if (f.nocd > 0) f.nocd--;
     if (f.poison > 0 && f.hp > 0) { f.poison--; const d = hurtHero(f, h.maxHp * 0.04, "poison"); ev(f, "mech", { msg: "🦠 Poison: -" + d + " HP" }); }
     if (e.ecls === "manager" && f.turn % 3 === 0 && !f.estun) { f.mgr = (f.mgr || 0) + 1; ev(f, "mech", { msg: "📈 \"Let's go team!\" The Manager motivates itself: +" + 12 * f.mgr + "% damage (BREAK it to reset)." }); }
     const P = h.perks || {};
@@ -8937,7 +8984,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function dodgeRoll(R) { const r = R(), D = PARRY_SKILL.dodge; return r < D.perfect ? "perfect" : r < D.perfect + D.good ? "good" : "none"; }
   function autoOpt(f, a, R, skill) {
     if (a === "heavy") return { t: timingRoll(R, skill == null ? f.h.zone : skill) };
-    if (a === "ult") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all };
+    if (a === "ult") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all, guess: GUESS_PVE[Math.floor(R() * 4)] };
+    if (a === "channel") return { cq: parryRoll(R) };
     if (a === "gamble") { const r = gambleRoll(f), hold = autoHold(r); if (!hold.every(Boolean) && canRespin(f) && R() < 0.85) gambleRespin(f, hold); return {}; }
     if (a === "dodge") return { dq: dodgeRoll(R) };
     if (a === "block" && f.intent && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) {
@@ -8967,10 +9015,19 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     return buildHero({ cls: c.cls, level: L, stats: st }, { wpn: clamp(Number(c.wpn) || 1, 1, 30 + 30 * L), armor: clamp(Number(c.armor) || 0, 0, 120 * L) });
   }
   /** "rovné podmínky": typická postava levelu L s gearem Rare+3 */
-  function stdHero(cls, L) {
+  function stdHero(cls, L, al) {
     const t = typical(L, 1.5), C = CLASSES[cls] || CLASSES.sysadmin, st = {};
     st[C.main] = t.main - BASE; st.vit = t.vit - BASE; st.luck = t.luck - BASE;
+    const a = okAlloc(al, L);
+    if (a) { const k = 1.5, pts = statPoints(L); st[C.main] += a.main - 0.5 * pts; st.vit += a.vit - 0.3 * pts; st.luck += a.luck - 0.2 * pts; }      // v11.2: vlastní rozdělení bodů (rovné podmínky)
     return buildHero({ cls: cls, level: L, stats: st }, { wpn: t.wpn, armor: t.armor });
+  }
+  /** rozdělení bodů pro duel "rovné podmínky": { main, vit, luck } - celá čísla, součet = body levelu L */
+  function okAlloc(al, L) {
+    if (!al || typeof al !== "object") return null;
+    const pts = statPoints(L), v = ["main", "vit", "luck"].map(k => Math.max(0, Math.floor(Number(al[k]) || 0)));
+    const sum = v[0] + v[1] + v[2]; if (sum <= 0 || sum > pts) return null;
+    return { main: v[0], vit: v[1], luck: v[2] + (pts - sum) };
   }
   function power(h) { if (!h) return 0; return Math.round(Math.sqrt(estDmg(h, h.level, h.level * 4.75 + 10) * h.maxHp * (h.cls === "sysadmin" ? 1.5 : h.cls === "engineer" ? 1.1 : 1.25))); }
 
@@ -8984,7 +9041,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     let first = A.firstStrike && !B.firstStrike ? 0 : B.firstStrike && !A.firstStrike ? 1 : (R() < 0.5 ? 0 : 1);
     const mA = Math.round(A.maxHp * PVP.hp), mB = Math.round(B.maxHp * PVP.hp);
     const d = { R: R, c: c, hp: [mA, mB], max: [mA, mB], pv: [pv(A), pv(B)], sta: [100, 100], foc: [30, 30], sh: [0, 0], sure: [false, false], chan: [0, 0], mark: [false, false],
-      rev: [false, false], streak: [0, 0], vuln: [false, false], cd: [0, 0], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
+      rev: [false, false], streak: [0, 0], vuln: [false, false], cd: [0, 0], bm: [0, 0], ep: [0, 0], sa: [0, 0], nocd: [0, 0], gd: [false, false], gu: [false, false], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
     d.armor = [clamp(A.armor / (B.level * 100), 0, A.armorCap), clamp(B.armor / (A.level * 100), 0, B.armorCap)];
     d.dodge = [A.dodge > 0 ? Math.min(0.75, A.dodge + (A.cls === "cyber" ? 0.3 * clamp(A.main / Math.max(1, B.main) - 0.5, 0, 1) : 0)) : 0,
       B.dodge > 0 ? Math.min(0.75, B.dodge + (B.cls === "cyber" ? 0.3 * clamp(B.main / Math.max(1, A.main) - 0.5, 0, 1) : 0)) : 0];
@@ -9012,7 +9069,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     let m = mult * (d.chan[a] || 1) * (d.mark[a] ? 1 + (A.mark || 0) : 1) * (d.vuln[b] ? 1.5 : 1) * ((d.pv && d.pv[a]) || 1);
     d.vuln[b] = false;
     const sure = d.sure[a]; if (sure) d.sure[a] = false;
-    const r = rawHit(d.R, A, Object.assign({}, B, { armorRed: o.ignoreArmor ? 0 : d.armor[b] }), { mult: m, crit: sure ? true : undefined, critMul: o.critMul });
+    const r = rawHit(d.R, A, Object.assign({}, B, { armorRed: o.ignoreArmor ? 0 : d.armor[b] }), { mult: m, crit: sure || o.crit ? true : undefined, critMul: o.critMul, critAdd: o.critAdd });
     return r;
   }
   /** v11.1: válce v duelu z předem daných čísel (server je losuje za každé půlkolo) - klient i server dostanou stejný výsledek */
@@ -9025,22 +9082,31 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   /** jedno půlkolo: útočník d.atk dá útok a, obránce naslepo reaguje r.
    *  opt (v11.1 - quick time eventy v duelu): { t: HEAVY timing, q: síla ulti 0.7-1.25, reels: válce z gamble mini-hry,
    *        parry: tier obránce při BLOCKu (proti HEAVY / GAMBLE / ULTI), dq: dodge mini-hra obránce } */
+  /** jedno půlkolo: útočník d.atk dá útok a, obránce naslepo reaguje r.
+   *  opt: { t: HEAVY timing, q: síla ulti, reels/respin: gamble, parry: tier BLOCKu, dq: dodge mini-hra, cq: CHANNEL mini-hra,
+   *        rings: [3 tiery] BLOCK proti ulti (3× jako UNLEASH), dqs: [3 tiery] DODGE proti ulti, guess: tip útočníka na reakci (ulti) } */
   function duelHalf(d, a, r, opt) {
     if (d.over) return [];
     opt = opt || {};
-    if (!d.cd) d.cd = [0, 0];
+    ["cd", "bm", "ep", "sa", "nocd"].forEach(k => { if (!d[k]) d[k] = [0, 0]; });
+    ["gd", "gu"].forEach(k => { if (!d[k]) d[k] = [false, false]; });
     const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
     if (!duelAtkOk(d, i, a)) a = "strike";
     if (!duelReactOk(d, j, r)) r = "brace";
     const q = clamp(opt.q == null ? 1 : Number(opt.q) || 0.7, 0.7, 1.25);
+    const T3 = (x) => Array.isArray(x) ? [0, 1, 2].map(k => x[k] === "perfect" || x[k] === "good" ? x[k] : "none") : null;
+    const rings = T3(opt.rings), dqs = T3(opt.dqs);
+    const parry = rings ? rings[0] : opt.parry, dq1 = dqs ? dqs[0] : opt.dq;
     if (a === "gamble" && opt.respin && d.sta[i] >= ATTACKS.gamble.sta + RESPIN_STA) d.sta[i] -= RESPIN_STA;
     if (a === "heavy") d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
-    d.cd[i] = a === "heavy" ? 1 : 0;
+    d.cd[i] = a === "heavy" && !(d.nocd[i] > 0) ? 1 : 0;
+    if (d.nocd[i] > 0) d.nocd[i]--;
+    const sure = d.sa[i] > 0 && a !== "rest"; if (sure) d.sa[i]--;
     if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.foc[j] -= B.dodgeCost; if (r === "channel") d.foc[j] -= 30;
     if (r === "brace") { d.sta[j] = Math.min(100, d.sta[j] + 15); d.foc[j] = Math.min(100, d.foc[j] + 10); }
     d.streak[j] = r === "dodge" ? d.streak[j] + 1 : 0;
     // útok
-    let hits = [], label = ATTACKS[a].name, ignoreArmor = false, critMul = 1, gres = null, healSelf = 0, timing = "";
+    let hits = [], label = ATTACKS[a].name, ignoreArmor = false, critMul = 1, critAdd = 0, forceCrit = sure, gres = null, healSelf = 0, timing = "";
     if (a === "strike") { hits = A.double ? [0.6, 0.6] : [1]; d.sta[i] = Math.min(100, d.sta[i] + 10); }
     else if (a === "rest") { d.sta[i] = Math.min(100, d.sta[i] + 30); d.foc[i] = Math.min(100, d.foc[i] + 15); }
     else if (a === "heavy") { const m = opt.t === "perfect" ? 2.2 : opt.t === "none" ? 1.3 : 1.7; timing = opt.t === "perfect" ? "PERFECT" : opt.t === "none" ? "MISS" : "GOOD"; hits = A.double ? [0.6 * m, 0.6 * m] : [m]; }
@@ -9048,7 +9114,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       const reels = okReels(opt.reels) || spinReels({ h: A, R: R });
       gres = reelResult(reels); gres.reels = reels;
       if (gres.bf) { const s = dHurt(d, i, estDmg(A, A.level) * gres.self); dEv(d, "bf", { val: s, reels: reels }); hits = []; }
-      else { hits = gres.mult > 0 ? [gres.mult] : []; if (gres.heal) healSelf = Math.round(d.max[i] * gres.heal); d.foc[i] = Math.min(100, d.foc[i] + gres.foc); }
+      else { hits = gres.mult > 0 ? [gres.mult] : []; if (gres.heal) healSelf = Math.round(d.max[i] * gres.heal); d.foc[i] = Math.min(100, d.foc[i] + gres.foc); if (gres.jp) forceCrit = true; critAdd = gres.critAdd || 0; }
     } else if (a === "ult") {
       d.foc[i] = 0;
       if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3 * q), hh = Math.round(d.max[i] * 0.05 * q); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); hits = [1.4 * q]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh, q: q }); }
@@ -9057,40 +9123,68 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       else if (A.cls === "blood") { hits = [2.6 * q]; }
       else hits = [0.9 * q, 0.9 * q, 0.9 * q, 0.9 * q];
     }
-    // reakce obránce proti každé ráně
-    const magic = A.cls === "engineer", big = a !== "strike";
-    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0;
+    // reakce obránce
+    const magic = A.cls === "engineer", big = a !== "strike", ult3 = a === "ult";
+    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0;
     if (hits.length) {
       if (r === "dodge") {
-        const dq = opt.dq === "perfect" ? 1.6 : opt.dq === "good" ? 1.15 : opt.dq === "none" ? 0.4 : 1;
-        const ch = magic ? 0 : Math.min(0.95, Math.max(0, d.dodge[j] * dq * Math.pow(0.8, d.streak[j] - 1)));
-        if (R() < ch) { outcome = "dodge"; d.foc[j] = Math.min(100, d.foc[j] + 10); if (B.cls === "cyber") d.sure[j] = true; hits = []; }
+        const base = magic ? 0 : d.dodge[j] * Math.pow(0.8, d.streak[j] - 1);
+        const chOf = (x) => Math.min(0.95, Math.max(0, base * (x === "perfect" ? 1.6 : x === "good" ? 1.15 : x === "none" ? 0.4 : 1)));
+        if (ult3 && dqs) {                                                // v11.2: proti ULTI 3 uskoky - každý úspěšný vezme třetinu
+          dodged = dqs.filter(x => R() < chOf(x)).length; scale = 1 - dodged / 3;
+          if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : magic ? "nododge" : "dodgefail";
+        } else if (R() < chOf(dq1)) outcome = "dodge", hits = [];
         else outcome = magic ? "nododge" : "dodgefail";
+        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 10); if (B.cls === "cyber") d.sure[j] = true; }
       }
-      if (r === "channel") { d.chan[j] = 1.6; outcome = "channel"; }
-      let red = r === "block" ? B.block * (a === "strike" ? 1 : 0.5) : r === "channel" ? 0.25 : 0;
-      if (r === "block" && big && opt.parry === "perfect") { red = 1; outcome = "parry"; }
-      else if (r === "block" && big && opt.parry === "good") red = Math.min(0.95, red + 0.35);
+      let red = 0;
+      if (r === "channel") { const cq = opt.cq === "perfect" || opt.cq === "none" ? opt.cq : "good"; red = cq === "perfect" ? 0.45 : cq === "good" ? 0.3 : 0.175; d.chan[j] = cq === "perfect" ? 1.6 : 1.3; outcome = "channel"; }
+      if (r === "block") {
+        const bk = B.block * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
+        if (ult3 && rings) red = rings.reduce((s2, x) => s2 + tierRed(x), 0) / 3;
+        else red = big ? tierRed(parry) : bk;
+        const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
+        if (magic) red *= 0.5;                                            // v11.2: proti Mágovi blok funguje jen z poloviny
+        outcome = full && !magic ? "parry" : "block";
+      }
       hits.forEach(m => {
-        const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul });
-        const v = h0.v * (1 - red); saved += h0.v - v; total += dHurt(d, j, v); if (h0.crit) anyCrit = true;
+        const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul, critAdd: critAdd, crit: forceCrit || undefined });
+        let v = h0.v * scale * (1 - red);
+        if (d.gd[j] && v > 0) { d.gd[j] = false; v *= 0.5; }
+        saved += h0.v - v; const got = dHurt(d, j, v); total += got; hv.push(got); if (h0.crit) anyCrit = true;
       });
       if (hits.length) d.chan[i] = 0;
       if (a === "ult" && A.cls === "cyber") d.vuln[j] = true;
-      if (r === "block" && hits.length) {
-        if (outcome !== "parry") outcome = "block";
-        if ((a === "strike" && B.counter) || outcome === "parry") { const c0 = dHit(d, j, i, outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter, {}); counter = dHurt(d, i, c0.v); }
-      }
+      if (r === "block" && hits.length && ((a === "strike" && B.counter) || outcome === "parry")) { const c0 = dHit(d, j, i, outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter, {}); counter = dHurt(d, i, c0.v); }
       if (A.lifesteal && total) healSelf += Math.round(total * A.lifesteal);
       if (a === "ult" && A.cls === "blood") healSelf += Math.round(total * 0.6);
+      if (d.bm[i] > 0 && total > 0) { d.bm[i]--; const bh = Math.min(Math.round(d.max[i] * 0.08), Math.round(total * 0.25)); healSelf += bh; dEv(d, "bm", { val: bh, left: d.bm[i] }); }
       if (A.mark) d.mark[i] = true;
     }
     if (healSelf) d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf);
-    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined });
+    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined });
+    // v11.2: tip u ulti - uhodl útočník reakci obránce?
+    if (a === "ult" && opt.guess && !d.gu[i]) {
+      const ok = opt.guess === r;
+      if (ok) {
+        d.gu[i] = true;
+        if (A.cls === "engineer") d.bm[i] = 3;
+        else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2); d.gd[i] = true; }
+        else if (A.cls === "cyber") d.ep[j] = 3;
+        else if (A.cls === "hunter") d.sa[i] = 2;
+        else { d.sta[i] = Math.min(100, d.sta[i] + 40); d.nocd[i] = 2; d.cd[i] = 0; }
+      }
+      dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n : "" });
+    }
     // konec půlkola
     if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
     d.half++;
-    if (d.half % 2 === 0) { for (let k = 0; k < 2; k++) d.foc[k] = Math.min(100, d.foc[k] + 10); d.turn++; }      // v11.1: stamina se sama nedoplňuje
+    if (d.half % 2 === 0) {
+      for (let k = 0; k < 2; k++) d.foc[k] = Math.min(100, d.foc[k] + 10);      // v11.1: stamina se sama nedoplňuje
+      for (let k = 0; k < 2; k++) if (d.ep[k] > 0 && d.hp[k] > 0) { d.ep[k]--; const pv = dHurt(d, k, d.max[k] * 0.04); dEv(d, "poison", { who: k, val: pv }); }
+      d.turn++;
+      if (d.hp[0] <= 0 || d.hp[1] <= 0) return duelEnd(d, d.hp[0] > 0 ? 0 : d.hp[1] > 0 ? 1 : (d.hp[0] >= d.hp[1] ? 0 : 1), start);
+    }
     d.atk = j;
     if (d.turn > 30) return duelEnd(d, d.hp[0] / d.max[0] >= d.hp[1] / d.max[1] ? 0 : 1, start, "time");
     return d.events.slice(start);
@@ -9119,7 +9213,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     let g = 0;
     while (!d.over && g++ < 200) {
       const i = d.atk, j = 1 - i;
-      duelHalf(d, duelAiAtk(d, i, R, st[i]), duelAiReact(d, j, R, st[j]), { t: R() < 0.25 ? "perfect" : "good", parry: parryRoll(R), dq: dodgeRoll(R) });
+      const a = duelAiAtk(d, i, R, st[i]), r = duelAiReact(d, j, R, st[j]), rs = reactsOf(d.c[j]);
+      duelHalf(d, a, r, { t: R() < 0.25 ? "perfect" : "good", parry: parryRoll(R), dq: dodgeRoll(R), cq: parryRoll(R), rings: [parryRoll(R), parryRoll(R), parryRoll(R)], dqs: [dodgeRoll(R), dodgeRoll(R), dodgeRoll(R)], guess: rs[Math.floor(R() * rs.length)] });
     }
     return { win: d.win === 0, first: d.first, events: d.events, max: d.max, turns: d.turn };
   }
@@ -9130,7 +9225,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, bonusText: bonusText, FORM_NO: FORM_NO,
     simulate: simulate, autoAttack: autoAttack, autoReact: autoReact, autoPolicy: autoAttack, autoOpt: autoOpt, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, timingRoll: timingRoll,
     reelResult: reelResult, gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM,
-    card: card, fromCard: fromCard, PVP: PVP, ATK_KEYS: ATK_KEYS, ECLS: ECLS, dodgeRoll: dodgeRoll, okReels: okReels, duelReels: duelReels, stdHero: stdHero, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
+    GUESS_FX: GUESS_FX, GUESS_PVE: GUESS_PVE, guessCat: guessCat, card: card, fromCard: fromCard, PVP: PVP, ATK_KEYS: ATK_KEYS, ECLS: ECLS, dodgeRoll: dodgeRoll, okReels: okReels, duelReels: duelReels, stdHero: stdHero, okAlloc: okAlloc, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSEngine = api;
 })(typeof window !== "undefined" ? window : this);
@@ -9835,6 +9930,27 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 .qte-lane.danger::before { content: "⚔"; position: absolute; top: 18px; font-size: 34px; animation: qteSlash .35s ease-in infinite alternate; }
 .qte-lane.me { border-color: var(--cyan); }
 @keyframes qteSlash { from { transform: translateY(-6px) rotate(-12deg); } to { transform: translateY(10px) rotate(12deg); } }
+/* v11.2: CHANNEL, tip u ulti, animace ulti */
+.hs-parry.chan .ring { border-color: #c084fc; box-shadow: 0 0 12px #c084fc; }
+.hs-parry.chan .tgt { border-color: #22d3ee; box-shadow: 0 0 12px #22d3ee; }
+.qte-guess { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 100%; }
+.qte-guess .btn { padding: 14px 6px; font-size: 13px; }
+.qte-guess .btn small { display: block; font-size: 10px; opacity: .7; margin-top: 3px; }
+.qcine { position: fixed; inset: 0; z-index: 10060; overflow: hidden; background: radial-gradient(circle at 50% 55%, #1e0a32, #030408 75%); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.qcine .nm { position: absolute; left: 0; right: 0; top: 18%; text-align: center; font: 900 clamp(22px, 7vw, 46px) 'Orbitron', monospace; letter-spacing: 3px; color: #fff; text-shadow: 0 0 18px var(--qc, #ff4dff); animation: qcName 2.4s ease-out forwards; }
+.qcine .skip { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255,255,255,.45); }
+.qcine .p { position: absolute; pointer-events: none; }
+@keyframes qcName { 0% { transform: scale(2.4); opacity: 0; filter: blur(8px); } 18% { transform: scale(1); opacity: 1; filter: blur(0); } 85% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
+@keyframes qcRain { from { transform: translateY(-120%); } to { transform: translateY(120vh); } }
+@keyframes qcBeam { 0% { transform: scaleX(0); opacity: 0; } 40% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+@keyframes qcDrop { 0% { transform: translateY(-110vh); } 70% { transform: translateY(0); } 80% { transform: translateY(-8px); } 100% { transform: translateY(0); } }
+@keyframes qcArrow { 0% { transform: translateX(-30vw) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateX(130vw); opacity: 1; } }
+@keyframes qcGlitch { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-6px,3px); } 40% { transform: translate(5px,-4px); } 60% { transform: translate(-3px,-2px); } 80% { transform: translate(4px,4px); } }
+@keyframes qcPop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: .9; } }
+@keyframes qcSteam { 0% { transform: translateY(0) scale(.6); opacity: 0; } 30% { opacity: .9; } 100% { transform: translateY(-38vh) scale(2.2); opacity: 0; } }
+@keyframes qcDash { 0%,55% { transform: translateX(0) scale(1); } 100% { transform: translateX(70vw) scale(.6); opacity: 0; } }
+@keyframes qcShake { 0%,100% { transform: translate(0,0); } 25% { transform: translate(-5px,2px); } 50% { transform: translate(4px,-3px); } 75% { transform: translate(-2px,-4px); } }
+@media (prefers-reduced-motion: reduce) { .qcine * { animation-duration: .01s !important; } }
 </style>
 <script>
 /* HSQTE - všechny mini-hry High Stakes na jednom místě (kampaň i duel). Každá volá cb(výsledek) a sama po sobě uklidí. */
@@ -9951,8 +10067,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
 
   // ------------------------------------------------------------------ DODGE: uskoč do bezpečné dráhy (rychle = PERFECT)
-  function dodge(cb) {
-    const ov = open(`<div class="qte-t">💨 DODGE! Jump into a SAFE lane</div><div class="qte-h">Wait for the red lane(s), then tap a safe one fast · keys 1 2 3 / ← ↓ →</div>
+  function dodge(cb, title) {
+    const ov = open(`<div class="qte-t">${title || "💨 DODGE! Jump into a SAFE lane"}</div><div class="qte-h">Wait for the red lane(s), then tap a safe one fast · keys 1 2 3 / ← ↓ →</div>
       <div class="qte-lanes" id="qte-lanes">${[0, 1, 2].map(i => `<div class="qte-lane ${i === 1 ? "me" : ""}" data-i="${i}">${i === 1 ? "🧍" : ""}</div>`).join("")}</div><div class="qte-res"></div>`);
     let state = "wait", t0 = 0, danger = [], done = false, timer = 0;
     const lanes = () => [...ov.querySelectorAll(".qte-lane")];
@@ -10054,46 +10170,53 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       raf = requestAnimationFrame(frame);
     });
   }
-  /** HUNTER: drž = natahuj tětivu, pusť = výstřel; terč se pohybuje pokaždé jinak, 3 šípy */
+  /** HUNTER (v11.2): zaměřovač vedeš ty (táhni prstem / myší / šipkami), drž = natahuj tětivu (plný nátah = klidná ruka), pusť = výstřel. Terč se pohybuje pokaždé jinak, 3 šípy. */
   function ultBow(title, cb) {
-    intro(title, "The target moves around. HOLD to draw the bow (full draw = steady aim), RELEASE when the target is under the crosshair. 3 arrows.", (ov, body) => {
-      body.innerHTML = `<div class="qte-field" id="qte-f"><div class="qte-target" id="qte-tg"></div><div class="qte-cross"></div></div><div class="qte-draw"><div id="qte-dr"></div></div><div class="qte-dots" id="qte-d"><span></span><span></span><span></span></div><div class="qte-res" id="qte-sc">0 points</div>`;
-      const F = $("qte-f"), Tg = $("qte-tg");
-      let shot = 0, pts = 0, drawing = false, drawT = 0, over = false, raf = 0, last = performance.now();
-      const path = { x: 0.5, y: 0.5, vx: (rnd() - 0.5) * 0.9, vy: (rnd() - 0.5) * 0.9, t: 0, turn: 0.4 + rnd() * 0.6, speed: 0.5 + rnd() * 0.3 };
+    intro(title, "Drag the crosshair onto the moving target (finger / mouse / arrow keys). HOLD to draw the bow - a full draw steadies your aim - and RELEASE to shoot. 3 arrows.", (ov, body) => {
+      body.innerHTML = `<div class="qte-field" id="qte-f" style="cursor:crosshair;"><div class="qte-target" id="qte-tg"></div><div class="qte-cross" id="qte-cx"></div></div><div class="qte-draw"><div id="qte-dr"></div></div><div class="qte-dots" id="qte-d"><span></span><span></span><span></span></div><div class="qte-res" id="qte-sc">0 points</div>`;
+      const F = $("qte-f"), Tg = $("qte-tg"), Cx = $("qte-cx");
+      let shot = 0, pts = 0, drawing = false, drawT = 0, over = false, raf = 0, last = performance.now(), keys = {};
+      const aim = { x: 0.5, y: 0.5 }, sw = { x: 0, y: 0 };
+      const path = { x: 0.2 + rnd() * 0.6, y: 0.25 + rnd() * 0.5, vx: 0, vy: 0, t: 9, turn: 0, speed: 0.22 + rnd() * 0.14 };
+      const setAim = (e) => { const r = F.getBoundingClientRect(); aim.x = Math.max(0.03, Math.min(0.97, (e.clientX - r.left) / r.width)); aim.y = Math.max(0.03, Math.min(0.97, (e.clientY - r.top) / r.height)); };
       function frame(now) {
         if (over) return;
         const dt = Math.min(50, now - last) / 1000; last = now;
         path.t += dt;
-        if (path.t > path.turn) { path.t = 0; path.turn = 0.35 + rnd() * 0.7; const a = rnd() * Math.PI * 2; path.vx = Math.cos(a) * path.speed; path.vy = Math.sin(a) * path.speed; }
+        if (path.t > path.turn) { path.t = 0; path.turn = 0.6 + rnd() * 0.9; const a = rnd() * Math.PI * 2; path.vx = Math.cos(a) * path.speed; path.vy = Math.sin(a) * path.speed; }
         path.x += path.vx * dt; path.y += path.vy * dt;
         if (path.x < 0.12 || path.x > 0.88) { path.vx *= -1; path.x = Math.max(0.12, Math.min(0.88, path.x)); }
         if (path.y < 0.15 || path.y > 0.85) { path.vy *= -1; path.y = Math.max(0.15, Math.min(0.85, path.y)); }
-        const sway = drawing ? Math.max(0.15, 1 - Math.min(1, (now - drawT) / 700)) : 1;
-        Tg.style.left = ((path.x + Math.sin(now / 90) * 0.012 * sway) * 100) + "%"; Tg.style.top = ((path.y + Math.cos(now / 110) * 0.012 * sway) * 100) + "%";
-        const dr = $("qte-dr"); if (dr) dr.style.width = (drawing ? Math.min(100, (now - drawT) / 7) : 0) + "%";
+        if (keys.ArrowLeft) aim.x = Math.max(0.03, aim.x - dt * 0.6); if (keys.ArrowRight) aim.x = Math.min(0.97, aim.x + dt * 0.6);
+        if (keys.ArrowUp) aim.y = Math.max(0.03, aim.y - dt * 0.6); if (keys.ArrowDown) aim.y = Math.min(0.97, aim.y + dt * 0.6);
+        const steady = drawing ? Math.min(1, (now - drawT) / 700) : 0, amp = 0.035 * (1 - 0.85 * steady);       // nenatažená ruka se třese
+        sw.x = Math.sin(now / 130) * amp; sw.y = Math.cos(now / 170) * amp;
+        Tg.style.left = (path.x * 100) + "%"; Tg.style.top = (path.y * 100) + "%";
+        Cx.style.left = ((aim.x + sw.x) * 100) + "%"; Cx.style.top = ((aim.y + sw.y) * 100) + "%";
+        const dr = $("qte-dr"); if (dr) dr.style.width = (steady * 100) + "%";
         raf = requestAnimationFrame(frame);
       }
-      function down(e) { if (e) e.preventDefault(); if (over || drawing) return; drawing = true; drawT = performance.now(); }
+      function down(e) { if (e) { e.preventDefault(); if (e.clientX != null) setAim(e); } if (over || drawing) return; drawing = true; drawT = performance.now(); }
       function up(e) {
         if (e) e.preventDefault(); if (over || !drawing) return; drawing = false;
         const pull = Math.min(1, (performance.now() - drawT) / 700);
-        const r = F.getBoundingClientRect(), tr = Tg.getBoundingClientRect();
-        const dx = (tr.left + tr.width / 2) - (r.left + r.width / 2), dy = (tr.top + tr.height / 2) - (r.top + r.height / 2);
-        const dist = Math.sqrt(dx * dx + dy * dy) + (1 - pull) * 30;
-        const p = dist < 9 ? 3 : dist < 21 ? 2 : dist < 37 ? 1 : 0;
+        const r = F.getBoundingClientRect(), tr = Tg.getBoundingClientRect(), cr = Cx.getBoundingClientRect();
+        const cx = cr.left + cr.width / 2, cy = cr.top + cr.height / 2;
+        const dx = (tr.left + tr.width / 2) - cx, dy = (tr.top + tr.height / 2) - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy) + (1 - pull) * 14;
+        const p = dist < 12 ? 3 : dist < 24 ? 2 : dist < 38 ? 1 : 0;
         pts += p;
-        const h = document.createElement("div"); h.className = "qte-hit"; h.style.left = "50%"; h.style.top = "50%"; F.appendChild(h);
+        const h = document.createElement("div"); h.className = "qte-hit"; h.style.left = ((cx - r.left) / r.width * 100) + "%"; h.style.top = ((cy - r.top) / r.height * 100) + "%"; F.appendChild(h);
         const d = $("qte-d"); if (d && d.children[shot]) d.children[shot].className = p >= 2 ? "ok" : p === 1 ? "mid" : "no";
         const s = $("qte-sc"); if (s) s.textContent = pts + " points" + (p === 3 ? " · BULLSEYE!" : "");
         shot++; if (shot >= 3) end();
       }
       function end() { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true); const q = qOf(pts, 9); finish(ov, pts + "/9 · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
-      F.addEventListener("pointerdown", down); F.addEventListener("pointerup", up); F.addEventListener("pointerleave", (e) => { if (drawing) up(e); });
-      const kd = (e) => { if (e.key === " " && !e.repeat) { down(e); } }, ku = (e) => { if (e.key === " ") up(e); };
+      F.addEventListener("pointerdown", down); F.addEventListener("pointermove", (e) => { if (e.pointerType !== "touch" || drawing) setAim(e); }); F.addEventListener("pointerup", up); F.addEventListener("pointercancel", up);
+      const kd = (e) => { if (/^Arrow/.test(e.key)) { keys[e.key] = 1; e.preventDefault(); } else if (e.key === " " && !e.repeat) { e.preventDefault(); down(); } }, ku = (e) => { if (/^Arrow/.test(e.key)) delete keys[e.key]; else if (e.key === " ") up(e); };
       document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
       raf = requestAnimationFrame(frame);
-      setTimeout(() => { if (!over) { while (shot < 3) { const d = $("qte-d"); if (d && d.children[shot]) d.children[shot].className = "no"; shot++; } end(); } }, 15000);
+      setTimeout(() => { if (!over) { while (shot < 3) { const d = $("qte-d"); if (d && d.children[shot]) d.children[shot].className = "no"; shot++; } end(); } }, 20000);
     });
   }
   /** TROJAN: BACKDOOR - zopakuj sekvenci uzlů (4, pak 5) */
@@ -10186,7 +10309,65 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     });
   }
 
-  window.HSQTE = { timing: timing, parry: parry, dodge: dodge, ult: ult, gamble: gamble, mathProblem: mathProblem, ULT: ULT };
+  // ------------------------------------------------------------------ v11.2: CHANNEL, 3× obrana proti ulti, tip, animace ulti
+  function channel(cb, easy) { parry({ k: "heavy", style: "chan", easy: easy || 1, title: "🔮 CHANNEL! Tap when the purple ring meets the blue one" }, o => cb(o.parry)); }
+  function parry3(cb, title) { parry({ k: "unleash", title: title || "☄ ULTIMATE! Parry all 3 rings" }, o => cb(o.rings)); }
+  function dodge3(cb, title) {
+    const res = [];
+    const go = () => dodge(q => { res.push(q); if (res.length < 3) setTimeout(go, 120); else cb(res); }, (title || "☄ ULTIMATE! Dodge 3 times") + " (" + (res.length + 1) + "/3)");
+    go();
+  }
+  /** opts = [{ k, icon, label, sub }] - tip na další tah soupeře; cb(k nebo null) */
+  function guess(opts, fx, cb) {
+    const ov = open(`<div class="qte-t">🎯 GUESS THEIR NEXT MOVE</div><div class="qte-h">Right guess = <b style="color:var(--amber);">${fx.n}</b>: ${fx.t}. Once per fight.</div>
+      <div class="qte-guess">${opts.map((o, i) => `<button class="btn btn-cyan" data-k="${o.k}">${o.icon} ${o.label}<small>${o.sub || ""} · key ${i + 1}</small></button>`).join("")}</div>
+      <button class="btn" id="qte-ng" style="margin-top:4px;">Skip</button><div class="qte-bar"><div id="qte-gb2"></div></div>`);
+    let done = false; const t0 = performance.now(), LIM = 12000;
+    const end = (k) => { if (done) return; done = true; clearInterval(iv); document.removeEventListener("keydown", key, true); ov.remove(); cb(k); };
+    ov.querySelector(".qte-guess").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) end(b.dataset.k); });
+    ov.querySelector("#qte-ng").onclick = () => end(null);
+    const key = (e) => { const n = Number(e.key); if (n >= 1 && n <= opts.length) { e.preventDefault(); end(opts[n - 1].k); } };
+    document.addEventListener("keydown", key, true);
+    const iv = setInterval(() => { const el = performance.now() - t0, b = $("qte-gb2"); if (b) b.style.width = Math.max(0, 100 - el / LIM * 100) + "%"; if (el >= LIM) end(null); }, 100);
+  }
+  /** krátká animace ultimátky (2,4 s, ťuknutím přeskočíš) */
+  const CINE = {
+    engineer: ["#22c55e", (st) => {
+      for (let i = 0; i < 26; i++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:${i * 4}%;top:0;color:#22c55e;font:700 14px monospace;writing-mode:vertical-rl;text-shadow:0 0 6px #22c55e;animation:qcRain ${0.9 + rnd() * 0.9}s linear ${rnd() * 0.5}s infinite;`; d.textContent = Array(14).fill(0).map(() => rnd() < 0.5 ? "0" : "1").join(""); st.appendChild(d); }
+      const b = document.createElement("div"); b.className = "p"; b.style.cssText = "left:0;right:0;top:52%;height:34px;margin-top:-17px;transform-origin:left;background:linear-gradient(90deg,#fff,#22d3ee 30%,#a855f7);box-shadow:0 0 40px #22d3ee;animation:qcBeam 1.3s ease-out .6s both;"; st.appendChild(b);
+      const l = document.createElement("div"); l.className = "p"; l.style.cssText = "left:6%;top:52%;font-size:56px;margin-top:-34px;animation:qcPop .4s ease-out both;"; l.textContent = "💻"; st.appendChild(l);
+    }],
+    sysadmin: ["#f97316", (st) => {
+      for (let row = 0; row < 4; row++) for (let c = 0; c < 6; c++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:calc(50% - 150px + ${c * 50 + (row % 2) * 25}px);bottom:calc(16% + ${row * 29}px);width:46px;height:26px;border-radius:3px;background:linear-gradient(180deg,#ff7849,#9a3412);border:1px solid #fdba74;animation:qcDrop .5s cubic-bezier(.5,0,.8,1) ${(3 - row) * 0.18 + c * 0.04}s both;`; st.appendChild(d); }
+      const s = document.createElement("div"); s.className = "p"; s.style.cssText = "left:50%;bottom:calc(16% + 130px);font-size:70px;margin-left:-35px;animation:qcPop .5s ease-out 1s both;filter:drop-shadow(0 0 20px #63c5ff);"; s.textContent = "🛡"; st.appendChild(s);
+      st.style.animation = "qcShake .25s linear 1s 3";
+    }],
+    hunter: ["#facc15", (st) => {
+      [0, 1, 2, 3].forEach(i => { const a = document.createElement("div"); a.className = "p"; a.style.cssText = `left:0;top:${38 + i * 7}%;width:170px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#fde68a 40%,#facc15);box-shadow:0 0 12px #facc15;animation:qcArrow 1.4s cubic-bezier(.2,.7,.3,1) ${0.15 + i * 0.22}s both;`; a.innerHTML = '<span style="position:absolute;right:-10px;top:-9px;color:#facc15;font-size:18px;line-height:1;">▶</span>'; st.appendChild(a); });
+      const t = document.createElement("div"); t.className = "p"; t.style.cssText = "right:8%;top:42%;font-size:64px;animation:qcPop .4s ease-out both;"; t.textContent = "🎯"; st.appendChild(t);
+    }],
+    cyber: ["#00ff88", (st) => {
+      st.style.animation = "qcGlitch .12s steps(2) infinite";
+      for (let i = 0; i < 22; i++) { const v = document.createElement("div"); v.className = "p"; v.style.cssText = `left:${rnd() * 90}%;top:${rnd() * 85}%;font-size:${22 + rnd() * 30}px;animation:qcPop .3s ease-out ${i * 0.07}s both;`; v.textContent = "🦠"; st.appendChild(v); }
+      const g = document.createElement("div"); g.className = "p"; g.style.cssText = "left:0;right:0;top:62%;text-align:center;font:900 22px monospace;color:#ff1744;text-shadow:3px 0 #00f0ff,-3px 0 #ff4dff;"; g.textContent = "ACCESS GRANTED"; st.appendChild(g);
+    }],
+    blood: ["#c8a27a", (st) => {
+      const c = document.createElement("div"); c.className = "p"; c.style.cssText = "left:calc(50% - 50px);top:46%;font-size:100px;animation:qcDash 2.2s ease-in both;"; c.textContent = "☕"; st.appendChild(c);
+      for (let i = 0; i < 9; i++) { const s = document.createElement("div"); s.className = "p"; s.style.cssText = `left:calc(50% - 20px + ${(i - 4) * 9}px);top:44%;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.55);filter:blur(4px);animation:qcSteam 1.4s ease-out ${i * 0.09}s both;`; st.appendChild(s); }
+    }]
+  };
+  function cine(cls, name, cb) {
+    const C0 = CINE[cls] || CINE.engineer, ov = document.createElement("div");
+    ov.className = "qcine"; ov.style.setProperty("--qc", C0[0]);
+    ov.innerHTML = `<div class="st" style="position:absolute;inset:0;"></div><div class="nm">${name}</div><div class="skip">tap to skip</div>`;
+    document.body.appendChild(ov);
+    try { C0[1](ov.querySelector(".st")); } catch (e) {}
+    let done = false; const end = () => { if (done) return; done = true; ov.remove(); if (cb) cb(); };
+    ov.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); end(); });
+    setTimeout(end, 2400);
+  }
+
+  window.HSQTE = { timing: timing, parry: parry, dodge: dodge, ult: ult, gamble: gamble, mathProblem: mathProblem, ULT: ULT, channel: channel, parry3: parry3, dodge3: dodge3, guess: guess, cine: cine };
 })();
 </script>
 <style>
@@ -10727,11 +10908,11 @@ html.m #dg-open-btn { display: none; }
     const C0 = H.CLASSES[cls || "sysadmin"], h = hero();
     const rx = { block: `🛡 <b>BLOCK</b> (${h.blockCost} stamina): -${Math.round(h.block * 100)}% (half vs 💥 / ☄, less vs 🔮). Against 💥 HEAVY, ☄ UNLEASH and 💸 tap when the red ring hits gold: <b>PERFECT</b> = 0 damage + counter + stun, <b>GOOD</b> = -35% more.${h.counter ? " Blocking a ⚔ attack COUNTERS for half your damage." : ""}`,
       dodge: `💨 <b>DODGE</b> (${h.dodgeCost} focus): jump into a safe lane - a fast jump raises the chance, a wrong lane lowers it. A dodge takes no damage at all${cls === "cyber" ? " - and your next hit is a sure crit" : ""}. Doesn't work on 🔮 spells, dodging again right away is less likely.`,
-      channel: `🔮 <b>CHANNEL</b> (30 focus): -25% damage now and your next hit deals ×1.6. You are immune to 🔮 spells.`,
+      channel: `🔮 <b>CHANNEL</b> (30 focus): tap the ring - -17.5% / GOOD -30% / PERFECT -45% damage now, your next hit ×1.3 (PERFECT ×1.6). You are immune to 🔮 spells.`,
       brace: `😮‍💨 <b>BREATHE</b> (react): +15 stamina, +10 focus and cures 🦠 poison.` };
     return `<div class="dg-dim" style="line-height:1.55;"><b>Every round:</b> 1) you attack, 2) the enemy shows its move, 3) you react.<br>
       Stamina does <b>not</b> refill by itself - focus gets +10 per round.<br>
-      ⚔ <b>STRIKE</b> free, +10 stamina · 💥 <b>HEAVY</b> 30 stamina, 1-round cooldown, stop the needle: 1.3× / green 1.7× / gold 2.2×, breaks a 🛡 guard and interrupts a ⏳ charge · 🎰 <b>GAMBLE</b> 20 stamina, HOLD reels + 1 re-spin · 😮‍💨 <b>BREATHE</b> no attack, +30 stamina +15 focus, cures poison · ✨ <b>${C0.skill}</b> at 100 focus: ${C0.skillTxt} - played as a mini-game (70-125% power)<br>
+      ⚔ <b>STRIKE</b> free, +10 stamina · 💥 <b>HEAVY</b> 30 stamina, 1-round cooldown, stop the needle: 1.3× / green 1.7× / gold 2.2×, breaks a 🛡 guard and interrupts a ⏳ charge · 🎰 <b>GAMBLE</b> 20 stamina, HOLD reels + 1 re-spin · 😮‍💨 <b>BREATHE</b> no attack, +30 stamina +15 focus, cures poison · ✨ <b>${C0.skill}</b> at 100 focus: ${C0.skillTxt} - played as a mini-game (70-125% power). Then 🎯 guess the enemy's next move - right = <b>${H.GUESS_FX[cls || "sysadmin"].n}</b> (${H.GUESS_FX[cls || "sysadmin"].t}, once per fight)<br>
       ${H.reactsOf(h).map(r => rx[r]).join("<br>")}<br>
       💢 Fill the enemy's <b>BREAK</b> bar to stun it for a round (your next hit 1.5×). 🎭 After a few High Stakes prestiges enemies sometimes FAKE their move. Normal enemies have a class (🦠 virus, 🐛 swarm, 🧱 firewall, 📈 manager, 🧛 leech, 🦍 brute) - see ❓ in a fight.</div>`;
   }
@@ -10871,7 +11052,7 @@ html.m #dg-open-btn { display: none; }
   function reactHint(f, r) {
     if (r === "block") return f.h.blockCost + " STA · " + blockHint(f);
     if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " FOC · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
-    if (r === "channel") return "30 FOC · -25%, next ×1.6";
+    if (r === "channel") return "30 FOC · ring: -17-45%";
     return "+15 STA +10 FOC" + (f.poison > 0 ? " · cure" : "");
   }
   function atkHint(f, a) {
@@ -10974,12 +11155,13 @@ html.m #dg-open-btn { display: none; }
     if (f.phase === "atk") {
       if (a === "heavy") { timingGame(q => resolve("heavy", { t: q })); return; }
       if (a === "gamble") { gambleGame(); return; }
-      if (a === "ult") { ultGame(o => resolve("ult", o)); return; }
+      if (a === "ult") { ultGame(o => guessGame(g => cineGame(() => resolve("ult", Object.assign({}, o, g ? { guess: g } : {}))))); return; }
       resolve(a, {}); return;
     }
     const k = f.intent.k;
     if (a === "block" && (k === "heavy" || k === "unleash" || k === "withdraw")) { parryGame(o => resolve("block", o)); return; }
     if (a === "dodge" && f.intent.shown !== "spell") { dodgeGame(o => resolve("dodge", o)); return; }
+    if (a === "channel") { qteRun(done => HSQTE.channel(done, ((f.h.perks || {}).parryEasy ? 1.5 : 1)), cq => resolve("channel", { cq: cq })); return; }
     resolve(a, {});
   }
 
@@ -11042,6 +11224,12 @@ html.m #dg-open-btn { display: none; }
     qteRun(done => HSQTE.parry({ k: k, style: k === "withdraw" ? "steps" : PARRY_STYLE[f.e.mech] || "", easy: (((f.h.perks || {}).parryEasy) ? 1.7 : 1) * (f.h.parryWin || 1) }, done), cb);
   }
   function ultGame(cb) { const f = fight; qteRun(done => HSQTE.ult(f.h.cls, H.CLASSES[f.h.cls].skill, done), cb); }
+  const GUESS_OPTS = [{ k: "atk", icon: "⚔", label: "ATTACK" }, { k: "heavy", icon: "💥", label: "HEAVY", sub: "or unleash" }, { k: "guard", icon: "🛡", label: "GUARD" }, { k: "other", icon: "🔮", label: "SPELL / OTHER", sub: "spell, charge, trick" }];
+  function guessGame(cb) {
+    const f = fight; if (f.guessUsed || (fightCtx && fightCtx.tutorial)) return cb(null);
+    qteRun(done => HSQTE.guess(GUESS_OPTS, H.GUESS_FX[f.h.cls], done), cb);
+  }
+  function cineGame(cb) { const f = fight; qteRun(done => HSQTE.cine(f.h.cls, "✨ " + H.CLASSES[f.h.cls].skill, done), cb); }
   function dodgeGame(cb) { qteRun(done => HSQTE.dodge(done), q => cb({ dq: q })); }
   function gamblePreview(reels) {
     const P = fight.h.perks || {}, r = H.reelResult(reels, { wildCherry: !!(P.wildCherry || fight.h.wildCherry) });
@@ -11068,7 +11256,10 @@ html.m #dg-open-btn { display: none; }
       const float = fl;
       if (e.type === "pact") {
         pose("p", PACT[e.a] || "a-quick"); setTimeout(() => { pose("b", "a-hit"); sfx("spark", "b", e.crit ? "#ffb800" : "#fff"); if (e.crit || e.timing === "PERFECT") { sfx("shake"); sfx("cheer"); } }, e.a === "strike" ? 200 : 300);
-        float((e.crit ? "CRIT " : "") + fmt(e.val), "b", e.crit ? "#ffb800" : e.timing === "PERFECT" ? "#ffd700" : "#fff", e.crit || e.timing === "PERFECT");
+        if (e.hits && e.hits.length > 1) {                                // v11.2: Hunter - dvě rány, dvě čísla
+          e.hits.forEach((v, k) => setTimeout(() => { float(fmt(v), "b", e.crit ? "#ffb800" : e.timing === "PERFECT" ? "#ffd700" : "#fff", !!e.crit); if (k) { pose("p", "a-quick"); setTimeout(() => pose("b", "a-hit"), 150); } }, k * 260));
+          if (e.crit) float("CRIT", "b", "#ffb800", true);
+        } else float((e.crit ? "CRIT " : "") + fmt(e.val), "b", e.crit ? "#ffb800" : e.timing === "PERFECT" ? "#ffd700" : "#fff", e.crit || e.timing === "PERFECT");
         const nm = e.a === "first" ? "🏹 FIRST STRIKE" : H.ATTACKS[e.a].name;
         dlog(T(e) + `${nm}${e.timing ? " (" + e.timing + ")" : ""} hits for <b>${fmt(e.val)}</b>${e.hits ? " (" + e.hits.map(fmt).join(" + ") + ")" : ""}${e.crit ? " - CRIT!" : ""}`, e.crit || e.timing ? "g" : "");
       } else if (e.type === "assist") {
@@ -11095,7 +11286,8 @@ html.m #dg-open-btn { display: none; }
       else if (e.type === "perfect") { later(() => { pose("p", "a-block"); sfx("spark", "p", "#63c5ff"); }); float("GOOD BLOCK", "p", "#00ff88", true); dlog(T(e) + `🛡 <b>GOOD BLOCK!</b> ${fmt(e.saved)} absorbed.`, "g"); }
       else if (e.type === "parry") { later(() => { pose("p", "a-parry"); sfx("slowmo"); sfx("spark", "p", "#ffd700"); setTimeout(() => { pose("b", "a-hit"); sfx("cheer"); }, 260); }); float("PARRY!", "p", "#ffd700", true); float(fmt(e.val), "b", "#ffd700", true); dlog(T(e) + `🛡 <b>PARRY!</b> No damage, counter for ${fmt(e.val)} - enemy stunned next round.`, "y"); }
       else if (e.type === "immune") { float("IMMUNE", "p", "#ff4dff", true); dlog(T(e) + "🔮 The spell fizzles - you are immune to magic.", "c"); }
-      else if (e.type === "channel") { float("CHANNEL ×1.6", "p", "#ff4dff"); dlog(T(e) + "🔮 You channel through the hit (-25%) - next hit ×1.6.", "c"); }
+      else if (e.type === "channel") { float("CHANNEL ×" + (e.x || 1.6).toFixed(1), "p", "#ff4dff", e.q === "perfect"); dlog(T(e) + `🔮 ${e.q === "perfect" ? "<b>PERFECT</b> channel" : e.q === "none" ? "Weak channel" : "You channel"} through the hit (-${Math.round((e.red || 0.25) * 1000) / 10}%) - next hit ×${(e.x || 1.6).toFixed(1)}.`, "c"); }
+      else if (e.type === "guess") { if (e.ok) float(e.fx, "p", "#ffd700", true); dlog(T(e) + (e.ok ? `🎯 <b>Right guess!</b> ${e.fx}` : `🎯 Wrong guess - it went for ${({ atk: "an ATTACK", heavy: "a HEAVY", guard: "GUARD", other: "something else" })[e.real] || "something else"}.`), e.ok ? "y" : ""); }
       else if (e.type === "interrupt") { pose("b", "a-hit"); sfx("shake"); float("INTERRUPTED!", "b", "#ffd700", true); dlog(T(e) + "💥 <b>INTERRUPTED!</b> The charged attack is cancelled - it's stunned this round.", "y"); }
       else if (e.type === "edef") dlog(T(e) + "🛡 Enemy raises its guard - your next STRIKE / GAMBLE deals -60% (HEAVY breaks it).", "");
       else if (e.type === "break") { pose("b", "a-hit"); sfx("shake"); float("BREAK!", "b", "#ffd700", true); dlog(T(e) + `💢 <b>BREAK!</b> Enemy staggered - it loses its move and your next hit deals 1.5×.`, "y"); }
@@ -11226,8 +11418,8 @@ html.m #dg-open-btn { display: none; }
   const TUT_REACT = { sysadmin: "block", blood: "block", cyber: "dodge", hunter: "dodge", engineer: "channel" };
   function tutSteps(cls) {
     const r = TUT_REACT[cls] || "brace", R0 = H.REACTS[r];
-    const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs focus).", channel: "CHANNEL takes 25% less damage and makes your next hit ×1.6." }[r] || "";
-    const heavyR = { block: "Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one: <b>PERFECT</b> = no damage + counter + stun.", dodge: "Tap 💨 <b>DODGE</b>, then jump into a SAFE lane fast (quick = better chance) - a successful dodge avoids the big hit" + (cls === "cyber" ? " and makes your next hit a sure crit." : "."), channel: "Tap 🔮 <b>CHANNEL</b> - you soak 25% and your next hit grows." }[r];
+    const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs focus).", channel: "CHANNEL is a ring mini-game: up to 45% less damage and your next hit up to ×1.6." }[r] || "";
+    const heavyR = { block: "Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one: <b>PERFECT</b> = no damage + counter + stun.", dodge: "Tap 💨 <b>DODGE</b>, then jump into a SAFE lane fast (quick = better chance) - a successful dodge avoids the big hit" + (cls === "cyber" ? " and makes your next hit a sure crit." : "."), channel: "Tap 🔮 <b>CHANNEL</b> and hit the ring - PERFECT soaks 45% and your next hit ×1.6." }[r];
     return [
       { ph: "atk", a: "strike", t: "Every round starts with <b>① YOUR ATTACK</b>. ⚔ <b>STRIKE</b> is free. Tap <b>STRIKE</b>.", setup: f => { f.sta = 70; f.forceIntent = { k: "atk" }; } },
       { ph: "react", a: r, t: "<b>② REACT!</b> After your hit the enemy shows its move - here a normal ⚔ ATTACK. " + why + " Tap " + R0.icon + " <b>" + R0.name + "</b>.", setup: f => { f.focus = Math.max(f.focus, 60); f.sta = Math.max(f.sta, 60); } },
@@ -12310,6 +12502,9 @@ html.m #dg-open-btn { display: none; }
 .du-role small { display: block; font: 400 11px sans-serif; letter-spacing: 0; color: var(--text-dim); margin-top: 2px; }
 .du-timer { height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin: 4px 0 6px; }
 .du-timer div { height: 100%; background: linear-gradient(90deg, var(--crimson), var(--amber)); transition: width .25s linear; }
+.du-al { display: grid; grid-template-columns: 52px 1fr repeat(2, auto) 44px repeat(2, auto); gap: 4px; align-items: center; margin-top: 6px; font-size: 12px; }
+.du-al .btn { padding: 5px 8px; font-size: 11px; }
+.du-al .v { text-align: center; font: 800 14px 'Orbitron', monospace; color: var(--amber); }
 .du-wait { text-align: center; padding: 12px; font-size: 12px; color: var(--text-dim); }
 @media (max-width: 700px) { .du-form { grid-template-columns: 1fr; } }
 </style>
@@ -12403,19 +12598,30 @@ html.m #dg-open-btn { display: none; }
     if (!Q || !h) return cb({});
     if (v.role === "atk") {
       if (choice === "heavy") return Q.timing(h.zone || 0.3, q => cb({ t: q }));
-      if (choice === "ult") return Q.ult(h.cls, H.CLASSES[h.cls].skill, o => cb({ q: o.q }));
+      if (choice === "ult") return Q.ult(h.cls, H.CLASSES[h.cls].skill, o => {
+        const oh = heroesOf(v)[1 - v.you], gu = v.gu && v.gu[v.you];
+        if (gu || !oh) return cb({ q: o.q });
+        // v11.2: tip na reakci soupeře (jednou za duel)
+        Q.guess(H.reactsOf(oh).map(x => ({ k: x, icon: H.REACTS[x].icon, label: H.REACTS[x].name })), H.GUESS_FX[h.cls], g => cb(g ? { q: o.q, guess: g } : { q: o.q }));
+      });
       if (choice === "gamble" && v.gr) {
         let k = 0; const f = { h: h, R: () => Number(v.gr[k++ % v.gr.length]) || 0, sta: v.sta ? v.sta[v.you] : 100, st: {} };
         return Q.gamble(f, H, (reels, g) => cb({ g: g }), (rs) => { const x = H.reelResult(rs); return x.bf ? "💀 BACKFIRE" : (x.jp ? "🎰 JACKPOT! " : "") + "×" + x.mult + " damage"; });
       }
     } else {
-      if (choice === "block") return Q.parry({ k: "any", title: "🛡 BLOCK: hit the ring - a PERFECT parry stops a HEAVY / GAMBLE / ULTIMATE completely", easy: h.parryWin || 1 }, o => cb({ parry: o.parry }));
+      const oh = heroesOf(v)[1 - v.you], vsMage = oh && oh.cls === "engineer";
+      if (v.ultReady) {                                                   // v11.2: soupeř má ULTI - block / dodge se hraje 3× (jako UNLEASH)
+        if (choice === "block") return Q.parry3(rs => cb({ rings: rs }), "🛡 ULTIMATE is ready - parry all 3 rings" + (vsMage ? " (a Mage halves your block)" : ""));
+        if (choice === "dodge") return Q.dodge3(qs => cb({ dqs: qs }), "💨 ULTIMATE is ready - dodge 3 times");
+      }
+      if (choice === "block") return Q.parry({ k: "any", title: "🛡 BLOCK: hit the ring - a PERFECT parry stops a HEAVY / GAMBLE / ULTIMATE" + (vsMage ? " (only half vs a Mage)" : " completely"), easy: h.parryWin || 1 }, o => cb({ parry: o.parry }));
       if (choice === "dodge") return Q.dodge(q => cb({ dq: q }));
+      if (choice === "channel") return Q.channel(q => cb({ cq: q }));
     }
     cb({});
   }
   function pick(choice) {
-    const v = K.view; if (!v || v.status !== "play" || !v.role || v.picked || K.busy || K.qte) return;
+    const v = K.view; if (!v || v.status !== "play" || !v.role || v.picked || v.waitAtk || v.setup || K.busy || K.qte) return;
     const half = v.half, role = v.role;
     K.qte = true;
     qteFor(v, choice, (opt) => {
@@ -12454,15 +12660,51 @@ html.m #dg-open-btn { display: none; }
   function buttons(v, hs) {
     if (v.status !== "play" || !v.role) return "";
     if (v.picked) return `<div class="du-wait">✔ Locked in. Waiting for ${esc(v.names[1 - v.you])}${v.oppPicked ? " (they're ready too)" : "..."}</div>`;
+    if (v.waitAtk) return `<div class="du-wait">⏳ ${esc(v.names[1 - v.you])} has the <b style="color:#ff4dff;">ULTIMATE</b> ready - wait until they pick their move (you still won't see it). BLOCK or DODGE will be played 3× this round.</div>`;
     const d = { c: hs, sta: v.sta, foc: v.foc, cd: v.cd }, i = v.you, h = hs[i];
     if (v.role === "atk") return `<div class="hs-acts">${H.PVP_ATK.map(a => { const ok = H.duelAtkOk(d, i, a) && !K.qte, A0 = H.ATTACKS[a];
       const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
       return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
     return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
-      const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry ring" : r === "dodge" ? h.dodgeCost + " FOC · lanes · not vs magic" : r === "channel" ? "30 FOC · -25%, next ×1.6" : "+15 STA +10 FOC";
+      const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " FOC · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "30 FOC · ring -17-45%" : "+15 STA +10 FOC";
       return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
   }
+  /** v11.2: rovné podmínky - rozdělení bodů před startem */
+  function setupHtml(v) {
+    const su = v.setup, me0 = v.you, cls = (heroesOf(v)[me0] || {}).cls || "sysadmin", C = H.CLASSES[cls], mainNm = { str: "STR", agi: "AGI", int: "INT" }[C.main] || "MAIN";
+    if (!K.al || K.alId !== v.id) { K.alId = v.id; K.al = { main: Math.round(su.pts * 0.5), vit: Math.round(su.pts * 0.3) }; K.al.luck = su.pts - K.al.main - K.al.vit; }
+    const al = K.al, left = Math.max(0, (v.left || 0) - (Date.now() - K.recvAt)), done = su.ready[me0];
+    const prev = H.stdHero(cls, su.L, al);
+    const row = (k, nm, tip) => `<div class="du-al"><b>${nm}</b><span class="dg-dim">${tip}</span><button class="btn" ${done ? "disabled" : ""} onclick="HSDuel.al('${k}',-10)">-10</button><button class="btn" ${done ? "disabled" : ""} onclick="HSDuel.al('${k}',-1)">-</button><b class="v">${al[k]}</b><button class="btn" ${done ? "disabled" : ""} onclick="HSDuel.al('${k}',1)">+</button><button class="btn" ${done ? "disabled" : ""} onclick="HSDuel.al('${k}',10)">+10</button></div>`;
+    return `<div class="dg-card"><div class="dg-h"><span>⚖ EQUAL TERMS · split your stat points</span><span>LV ${su.L} · ${su.pts} points</span></div>
+      <div class="dg-dim">Same level and gear for both of you - only your split and your skill decide. Your opponent sees your split only when the duel starts.</div>
+      ${row("main", mainNm, "damage")}${row("vit", "VIT", "HP")}${row("luck", "LUCK", "crit · leftover points go here")}
+      <div class="dg-dim" style="margin:6px 0;">❤ ${fmt(prev.maxHp * H.PVP.hp)} HP · ⚔ ~${fmt(prev.atk)} · 💥 crit ${Math.round(H.critOf(prev, prev) * 100)}%</div>
+      <div class="du-timer"><div id="du-tbar" style="width:${left / 45000 * 100}%"></div></div>
+      ${done ? `<div class="du-wait">✔ Ready. Waiting for ${esc(v.names[1 - me0])}${su.ready[1 - me0] ? "" : "..."}</div>` : `<button class="btn btn-gold" style="width:100%;padding:10px;margin-top:8px;" ${K.busy ? "disabled" : ""} onclick="HSDuel.ready()">✔ READY</button>`}
+      <div style="text-align:right;margin-top:6px;"><button class="btn" style="padding:4px 10px;font-size:11px;" onclick="HSDuel.leave()">🏳 FLEE</button></div></div>`;
+  }
+  function al(k, n) {
+    const v = K.view; if (!v || !v.setup || !K.al) return;
+    const cur = K.al, pts = v.setup.pts;
+    if (n < 0) cur[k] = Math.max(0, cur[k] + n);
+    else for (let i = 0; i < n; i++) {
+      if (cur.main + cur.vit + cur.luck < pts) { cur[k]++; continue; }
+      const from = ["main", "vit", "luck"].filter(x => x !== k && cur[x] > 0).sort((x, y) => cur[y] - cur[x])[0];
+      if (!from) break; cur[from]--; cur[k]++;
+    }
+    draw();
+  }
+  async function ready() {
+    const v = K.view; if (!v || !v.setup || K.busy) return;
+    const a = Object.assign({}, K.al), free = v.setup.pts - a.main - a.vit - a.luck; if (free > 0) a.luck += free;
+    K.busy = true; draw();
+    try { const r = await run("dlStats", [K.id, a]); if (r && r.view) apply(r.view); else say("Stats not accepted.", "var(--crimson)"); }
+    catch (e) { say("Server error - try again.", "var(--crimson)"); }
+    finally { K.busy = false; draw(); poll(); }
+  }
   function fightHtml(v) {
+    if (v.setup) return setupHtml(v);
     const hs = heroesOf(v), opp = v.names[1 - v.you];
     const left = Math.max(0, (v.left || 0) - (Date.now() - K.recvAt));
     let role = "";
@@ -12513,22 +12755,28 @@ html.m #dg-open-btn { display: none; }
   }
   function playEvents(v) {
     const evs = v.last || [], side = (i) => i === v.you ? "p" : "b";
+    const u = evs.find(e => e.type === "ult" || ((e.type === "hit" || e.type === "dodge") && e.a === "ult"));
+    if (u && onTab() && window.HSQTE && HSQTE.cine) { const hh = heroesOf(v)[u.i]; if (hh) HSQTE.cine(hh.cls, "✨ " + H.CLASSES[hh.cls].skill); }
     evs.forEach((e, k) => setTimeout(() => {
       if (!onTab()) return;
-      if (e.type === "hit") { if (e.val) A.float((e.crit ? "CRIT " : e.jp ? "JACKPOT " : "") + fmt(e.val), side(1 - e.i), e.crit || e.jp ? "#ffb800" : "#fff", e.crit || e.jp); if (e.outcome === "block") A.float("BLOCK", side(1 - e.i), "#00f0ff"); if (e.outcome === "parry") A.float("PARRY!", side(1 - e.i), "#ffd700", true); if (e.timing === "PERFECT") A.float("PERFECT", side(e.i), "#ffd700"); if (e.counter) A.float("COUNTER " + fmt(e.counter), side(e.i), "#ff4d6d"); }
+      if (e.type === "hit" && e.hv && e.hv.length > 1 && e.a !== "ult") { e.hv.forEach((x, n) => setTimeout(() => A.float(fmt(x), side(1 - e.i), e.crit ? "#ffb800" : "#fff", !!e.crit), n * 220)); if (e.counter) A.float("COUNTER " + fmt(e.counter), side(e.i), "#ff4d6d"); }
+      else if (e.type === "hit") { if (e.val) A.float((e.crit ? "CRIT " : e.jp ? "JACKPOT " : "") + fmt(e.val), side(1 - e.i), e.crit || e.jp ? "#ffb800" : "#fff", e.crit || e.jp); if (e.outcome === "block") A.float("BLOCK", side(1 - e.i), "#00f0ff"); if (e.outcome === "parry") A.float("PARRY!", side(1 - e.i), "#ffd700", true); if (e.timing === "PERFECT") A.float("PERFECT", side(e.i), "#ffd700"); if (e.counter) A.float("COUNTER " + fmt(e.counter), side(e.i), "#ff4d6d"); }
       else if (e.type === "dodge") A.float("DODGE", side(1 - e.i), "#00f0ff", true);
       else if (e.type === "rest") A.float("+30 STA", side(e.i), "#00f0ff");
+      else if (e.type === "guess") A.float(e.ok ? e.fx : "WRONG GUESS", side(e.i), e.ok ? "#ffd700" : "#94a3b8", e.ok);
+      else if (e.type === "bm") A.float("+" + fmt(e.val), side(e.i), "#00ff88");
+      else if (e.type === "poison") A.float("🦠 -" + fmt(e.val), side(e.who), "#22c55e");
       else if (e.type === "bf") A.float("BACKFIRE", side(e.i), "#ff1744", true);
       else if (e.type === "ult") A.float("+" + fmt(e.shield) + " 🛡", side(e.i), "#00ff88", true);
       else if (e.type === "revive") A.float("RISE!", side(e.who), "#ffb800", true);
       if (window.HSRig && (e.type === "hit" || e.type === "dodge")) { HSRig.act("du-s" + e.i, e.a === "heavy" ? "a-power" : e.a === "ult" ? "a-skill" : "a-quick"); setTimeout(() => HSRig.act("du-s" + (1 - e.i), e.type === "dodge" ? "a-dodge" : e.outcome === "block" ? "a-block" : "a-hit"), 260); }
     }, k * 380));
   }
-  setInterval(() => { if (onTab() && K.view && K.view.status === "play") { const b = $("du-tbar"); if (b) b.style.width = Math.max(0, (K.view.left || 0) - (Date.now() - K.recvAt)) / 35000 * 100 + "%"; } }, 250);
+  setInterval(() => { if (onTab() && K.view && K.view.status === "play") { const b = $("du-tbar"); if (b) b.style.width = Math.max(0, (K.view.left || 0) - (Date.now() - K.recvAt)) / (K.view.setup ? 45000 : 35000) * 100 + "%"; } }, 250);
 
   A.registerMode("duel", { label: "⚔ DUEL", order: 92, render: function () { draw(); if (!K.list || Date.now() - K.listAt > 8000) loadList(); if (K.id) poll(); },
     dot: function () { return !!(K.view && K.view.status === "play" && K.view.role && !K.view.picked) || !!(K.list && K.list.tables && K.list.tables.some(t => t.status === "wait" && t.target === me())); } });
-  window.HSDuel = { create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
+  window.HSDuel = { al: al, ready: ready, create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
   (function boot() {
     if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 300); return; }
     TT.onLoaded(() => setTimeout(loadList, 8000));
@@ -12984,6 +13232,21 @@ html.m #dg-open-btn { display: none; }
 .sk-act .btn { padding: 3px 7px; font-size: 11px; }
 .sk-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin: 6px 0; } .sk-sum b { color: var(--text-main); }
 @media (max-width: 600px) { .sk-row { grid-template-columns: 1fr auto; } .sk-row svg { display: none; } }
+/* v11.2: detail akcie */
+.sk-row { cursor: pointer; } .sk-row.sel { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan) inset; }
+.sk-pos { font-size: 11px; color: var(--text-dim); margin-top: 2px; } .sk-pos b { font-size: 11px; }
+.sk-up { color: var(--emerald); } .sk-dn { color: var(--crimson); }
+.sk-det { padding: 10px; border-radius: 10px; background: var(--bg-panel-elevated); border: 1px solid var(--cyan); margin: 8px 0; }
+.sk-det .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sk-det .hd .px { font: 800 20px 'Orbitron', monospace; }
+.sk-tf { display: flex; gap: 4px; margin: 6px 0; } .sk-tf .btn { padding: 3px 9px; font-size: 11px; } .sk-tf .btn.on { border-color: var(--cyan); color: var(--cyan); }
+.sk-chart { width: 100%; height: 170px; display: block; }
+.sk-chart text { font: 10px sans-serif; fill: var(--text-dim); }
+.sk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; margin: 8px 0; font-size: 12px; }
+.sk-stats div { background: rgba(0,0,0,.2); border-radius: 8px; padding: 6px 8px; } .sk-stats span { display: block; font-size: 10px; color: var(--text-dim); }
+.sk-trade { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; } .sk-trade input { width: 130px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--bg-dark, #0b0f17); color: var(--text-main); }
+.sk-trade .btn { padding: 7px 10px; font-size: 12px; }
+.sk-hist { margin-top: 8px; font-size: 11px; color: var(--text-dim); max-height: 140px; overflow-y: auto; } .sk-hist div { padding: 2px 0; border-bottom: 1px dashed rgba(255,255,255,.06); }
 /* --- návštěva kanceláře --- */
 #ir-visit .rm { margin: 8px 0; }
 #ir-visit .vs-act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -13304,37 +13567,98 @@ html.m #dg-open-btn { display: none; }
     return `<svg viewBox="0 0 ${W} ${H}"><polyline fill="none" stroke="${c}" stroke-width="1.6" points="${pts.map((p, k) => (k * W / 47).toFixed(1) + "," + (H - 2 - (p - lo) / Math.max(1e-9, hi - lo) * (H - 4)).toFixed(1)).join(" ")}"/></svg>`;
   }
   function skHtml() { return `<div id="sk-box"></div>`; }
+  // v11.2: přehlednější akcie - pozice v GC, zisk/ztráta, velký graf s tvou nákupní cenou, historie obchodů, nákup zadanou částkou
+  let skSel = -1, skTf = 48, skAmt = "";
+  const TF = [[12, "1 h"], [48, "4 h"], [288, "24 h"]];
+  const pxf = (p) => p < 10 ? p.toFixed(2) : p < 1000 ? p.toFixed(1) : short(p);
+  const pl = (v, pct) => `<b class="${v >= 0 ? "sk-up" : "sk-dn"}">${v >= 0 ? "+" : ""}${short(v)} GC${pct != null ? " (" + (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%)" : ""}</b>`;
+  function chart(i, n, h) {
+    const now = Date.now(), W = 600, Ht = 170, pts = []; let lo = Infinity, hi = 0;
+    const step = n <= 48 ? 1 : 3, cnt = Math.floor(n / step);
+    for (let k = cnt; k >= 0; k--) { const t = now - k * step * TICK, p = price(i, t); pts.push([t, p]); lo = Math.min(lo, p); hi = Math.max(hi, p); }
+    if (h && h.q) { lo = Math.min(lo, h.avg); hi = Math.max(hi, h.avg); }
+    const pad = (hi - lo) * 0.08 || hi * 0.02; lo -= pad; hi += pad;
+    const X = (t) => 40 + (t - pts[0][0]) / (now - pts[0][0]) * (W - 48), Y = (p) => 8 + (1 - (p - lo) / (hi - lo)) * (Ht - 26);
+    const up = pts[pts.length - 1][1] >= pts[0][1], c = up ? "#22c55e" : "#ef4444";
+    const line = pts.map(x => X(x[0]).toFixed(1) + "," + Y(x[1]).toFixed(1)).join(" ");
+    let svg = `<svg class="sk-chart" viewBox="0 0 ${W} ${Ht}" preserveAspectRatio="none">`;
+    [0, 0.5, 1].forEach(f => { const p = lo + (hi - lo) * f; svg += `<line x1="40" x2="${W}" y1="${Y(p)}" y2="${Y(p)}" stroke="rgba(255,255,255,.07)"/><text x="2" y="${Y(p) + 3}">${pxf(p)}</text>`; });
+    svg += `<polygon fill="${c}" fill-opacity=".10" points="${X(pts[0][0])},${Ht - 18} ${line} ${X(now)},${Ht - 18}"/><polyline fill="none" stroke="${c}" stroke-width="2" points="${line}"/>`;
+    if (h && h.q) svg += `<line x1="40" x2="${W}" y1="${Y(h.avg)}" y2="${Y(h.avg)}" stroke="#ffb800" stroke-dasharray="6 5" stroke-width="1.5"/><text x="${W - 120}" y="${Y(h.avg) - 4}" style="fill:#ffb800;">your avg ${pxf(h.avg)}</text>`;
+    (skSt().log || []).filter(x => x.s === STOCKS[i].s && x.t >= pts[0][0]).forEach(x => { svg += `<circle cx="${X(x.t)}" cy="${Y(x.p)}" r="4.5" fill="${x.b ? "#22c55e" : "#ef4444"}" stroke="#fff" stroke-width="1"><title>${x.b ? "Bought" : "Sold"} ${short(x.q)} @ ${pxf(x.p)}</title></circle>`; });
+    svg += `<text x="40" y="${Ht - 4}">${TF.find(x => x[0] === n)[1]} ago</text><text x="${W - 28}" y="${Ht - 4}">now</text></svg>`;
+    return svg;
+  }
   function skRender() {
     const box = $("sk-box"); if (!box) return;
+    const ae = document.activeElement, typing = ae && ae.id === "sk-amt";
+    if (typing) { skAmt = ae.value; }
     const s = skSt(), now = Date.now(), val = skValue();
-    box.innerHTML = `<div class="adv-info">Trade shares of six very real companies. Prices move the same for everyone, all day long. ${FEE * 100}% fee on every trade. Some stocks pay a <b>dividend every hour</b> (up to ${DIV_CAP_H} h while you're away).</div>
-      <div class="sk-sum"><span>Portfolio <b>${short(val)} GC</b></span><span>Dividends earned <b>${short(s.div || 0)} GC</b></span><span>Realised P/L <b style="color:${(s.pnl || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(s.pnl || 0) >= 0 ? "+" : ""}${short(s.pnl || 0)} GC</b></span></div>
+    let cost = 0; STOCKS.forEach(S => { const h = s.h[S.s]; if (h && h.q) cost += h.q * h.avg; });
+    const unreal = val - cost;
+    let det = "";
+    if (skSel >= 0) {
+      const i = skSel, S = STOCKS[i], p = price(i), h = s.h[S.s] || { q: 0, avg: 0 }, p0 = price(i, now - skTf * TICK), ch = (p / p0 - 1) * 100;
+      const hist = (s.log || []).filter(x => x.s === S.s).slice(-12).reverse();
+      det = `<div class="sk-det"><div class="hd"><span><b>${S.n}</b> <span class="sym">${S.s}</span></span><span><span class="px">${pxf(p)}</span> <span class="${ch >= 0 ? "sk-up" : "sk-dn"}">${ch >= 0 ? "▲" : "▼"} ${Math.abs(ch).toFixed(1)}% (${TF.find(x => x[0] === skTf)[1]})</span></span></div>
+        <div class="sk-tf">${TF.map(x => `<button class="btn ${x[0] === skTf ? "on" : ""}" onclick="Extras.skTf(${x[0]})">${x[1]}</button>`).join("")}<button class="btn" style="margin-left:auto;" onclick="Extras.skPick(-1)">✕ close</button></div>
+        ${chart(i, skTf, h)}
+        <div class="sk-stats">
+          <div><span>You own</span><b>${h.q ? short(h.q) + " shares" : "none"}</b></div>
+          <div><span>Your average buy price</span><b>${h.q ? pxf(h.avg) : "-"}</b></div>
+          <div><span>Position value</span><b>${h.q ? short(h.q * p) + " GC" : "-"}</b></div>
+          <div><span>Profit / loss now</span>${h.q ? pl(h.q * (p - h.avg), (p / h.avg - 1) * 100) : "-"}</div>
+          ${S.d ? `<div><span>Dividend</span><b>${(S.d * 100).toFixed(2)}% / h</b></div>` : ""}
+        </div>
+        <div class="sk-trade"><input id="sk-amt" inputmode="numeric" placeholder="GC to invest" value="${skAmt}" oninput="Extras.skAmt(this.value)">
+          <button class="btn btn-cyan" onclick="Extras.skBuyGc(${i})">Buy for GC</button><button class="btn btn-cyan" onclick="Extras.skBuy(${i},0.1)">10%</button><button class="btn btn-cyan" onclick="Extras.skBuy(${i},0.5)">50%</button>
+          ${h.q ? `<button class="btn btn-crimson" onclick="Extras.skSell(${i},0.25)">Sell ¼</button><button class="btn btn-crimson" onclick="Extras.skSell(${i},0.5)">½</button><button class="btn btn-crimson" onclick="Extras.skSell(${i},1)">All</button>` : ""}</div>
+        <div class="sym" style="margin-top:4px;">${FEE * 100}% fee on every trade. Green dots on the chart = your buys, red = your sells, the dashed line = your average buy price.</div>
+        ${hist.length ? `<div class="sk-hist">${hist.map(x => `<div>${new Date(x.t).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${x.b ? "<span class='sk-up'>BUY</span>" : "<span class='sk-dn'>SELL</span>"} ${short(x.q)} @ ${pxf(x.p)} = ${short(x.gc)} GC${x.pl != null ? " · " + (x.pl >= 0 ? "+" : "") + short(x.pl) + " GC" : ""}</div>`).join("")}</div>` : ""}
+      </div>`;
+    }
+    box.innerHTML = `<div class="adv-info">Trade shares of six very real companies. Prices move the same for everyone, all day long. ${FEE * 100}% fee on every trade. Some stocks pay a <b>dividend every hour</b> (up to ${DIV_CAP_H} h while you're away). <b>Tap a stock</b> for its chart, your buy price and trade history.</div>
+      <div class="sk-sum"><span>Portfolio <b>${short(val)} GC</b></span><span>Profit / loss now ${pl(unreal, cost ? unreal / cost * 100 : null)}</span><span>Realised P/L ${pl(s.pnl || 0)}</span><span>Dividends <b>${short(s.div || 0)} GC</b></span></div>
+      ${det}
       <div class="sk-list" data-nocase="1">${STOCKS.map((S, i) => {
         const p = price(i), p0 = price(i, now - 12 * TICK), ch = (p / p0 - 1) * 100, h = s.h[S.s] || { q: 0, avg: 0 };
-        return `<div class="sk-row"><div><b>${S.n}</b> <span class="sym">${S.s}${S.d ? " · div " + (S.d * 100).toFixed(2) + "%/h" : ""}</span>
-          <div class="sym">${h.q ? `You own <b style="color:var(--text-main);">${short(h.q)}</b> · avg ${p < 10 ? h.avg.toFixed(2) : short(h.avg)} · ${((p / h.avg - 1) * 100).toFixed(1)}%` : "You own none"}</div></div>${spark(i)}
-          <div><div class="sk-px">${p < 10 ? p.toFixed(2) : short(p)}</div><div class="sk-ch" style="color:${ch >= 0 ? "var(--emerald)" : "var(--crimson)"};">${ch >= 0 ? "▲" : "▼"} ${Math.abs(ch).toFixed(1)}% (1 h)</div>
+        return `<div class="sk-row ${i === skSel ? "sel" : ""}" onclick="if(!event.target.closest('button'))Extras.skPick(${i})"><div><b>${S.n}</b> <span class="sym">${S.s}${S.d ? " · div " + (S.d * 100).toFixed(2) + "%/h" : ""}</span>
+          <div class="sk-pos">${h.q ? `${short(h.q)} shares · bought at ${pxf(h.avg)} · worth <b style="color:var(--text-main);">${short(h.q * p)} GC</b> · ${pl(h.q * (p - h.avg), (p / h.avg - 1) * 100)}` : "You own none"}</div></div>${spark(i)}
+          <div><div class="sk-px">${pxf(p)}</div><div class="sk-ch" style="color:${ch >= 0 ? "var(--emerald)" : "var(--crimson)"};">${ch >= 0 ? "▲" : "▼"} ${Math.abs(ch).toFixed(1)}% (1 h)</div>
           <div class="sk-act"><button class="btn btn-cyan" onclick="Extras.skBuy(${i},0.1)">Buy 10%</button><button class="btn btn-cyan" onclick="Extras.skBuy(${i},0.5)">50%</button>${h.q ? `<button class="btn btn-crimson" onclick="Extras.skSell(${i},0.5)">Sell ½</button><button class="btn btn-crimson" onclick="Extras.skSell(${i},1)">All</button>` : ""}</div></div></div>`;
       }).join("")}</div>`;
+    if (typing) { const el = $("sk-amt"); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {} } }
   }
-  /** frac = podíl tvých GC (0.1 = 10 %) */
-  function skBuy(i, frac) {
-    const S = STOCKS[i], p = price(i), s = skSt(), budget = Math.floor(gameState.coins * frac);
-    const q = Math.floor(budget / (p * (1 + FEE))); if (q < 1) { log("Not enough GC for even one share.", "warning"); return; }
-    const cost = Math.ceil(q * p * (1 + FEE)); if (cost > gameState.coins) return;
+  function skLog(x) { const s = skSt(); if (!Array.isArray(s.log)) s.log = []; s.log.push(x); if (s.log.length > 60) s.log = s.log.slice(-60); }
+  function skBuyQ(i, q) {
+    const S = STOCKS[i], p = price(i), s = skSt();
+    if (q < 1) { log("Not enough GC for even one share.", "warning"); return; }
+    const cost = Math.ceil(q * p * (1 + FEE)); if (cost > gameState.coins) { log("Not enough GC.", "warning"); return; }
     gameState.coins -= cost;
     const h = s.h[S.s] || { q: 0, avg: 0 }; h.avg = (h.avg * h.q + p * q) / (h.q + q); h.q += q; s.h[S.s] = h;
-    log(`📈 Bought ${short(q)} ${S.s} @ ${p.toFixed(2)} for ${short(cost)} GC.`, "success");
+    skLog({ t: Date.now(), s: S.s, b: 1, q: q, p: Math.round(p * 100) / 100, gc: cost });
+    log(`📈 Bought ${short(q)} ${S.s} @ ${pxf(p)} for ${short(cost)} GC.`, "success");
     if (typeof updateUI === "function") updateUI(); TT.saveSoon(); skRender();
+  }
+  /** frac = podíl tvých GC (0.1 = 10 %) */
+  function skBuy(i, frac) { const p = price(i); skBuyQ(i, Math.floor(Math.floor(gameState.coins * frac) / (p * (1 + FEE)))); }
+  function skBuyGc(i) {
+    const raw = String(skAmt || "").toLowerCase().replace(/[\s,]/g, ""), m = raw.match(/^([0-9.]+)([kmbt]?)$/);
+    if (!m) { log("Type how many GC to invest (e.g. 50000 or 2.5m).", "warning"); return; }
+    const gc = Math.min(gameState.coins, Number(m[1]) * ({ "": 1, k: 1e3, m: 1e6, b: 1e9, t: 1e12 })[m[2]]);
+    skBuyQ(i, Math.floor(gc / (price(i) * (1 + FEE))));
   }
   function skSell(i, frac) {
     const S = STOCKS[i], p = price(i), s = skSt(), h = s.h[S.s]; if (!h || !h.q) return;
-    const q = frac >= 1 ? h.q : Math.max(1, Math.floor(h.q * frac)), got = Math.floor(q * p * (1 - FEE));
-    gameState.coins += got; s.pnl = (s.pnl || 0) + Math.round(q * (p * (1 - FEE) - h.avg));
+    const q = frac >= 1 ? h.q : Math.max(1, Math.floor(h.q * frac)), got = Math.floor(q * p * (1 - FEE)), plv = Math.round(q * (p * (1 - FEE) - h.avg));
+    gameState.coins += got; s.pnl = (s.pnl || 0) + plv;
+    skLog({ t: Date.now(), s: S.s, b: 0, q: q, p: Math.round(p * 100) / 100, gc: got, pl: plv });
     h.q -= q; if (h.q <= 0) delete s.h[S.s];
-    log(`📉 Sold ${short(q)} ${S.s} @ ${p.toFixed(2)} for ${short(got)} GC.`, got >= q * h.avg ? "success" : "warning");
+    log(`📉 Sold ${short(q)} ${S.s} @ ${pxf(p)} for ${short(got)} GC (${plv >= 0 ? "+" : ""}${short(plv)} GC).`, plv >= 0 ? "success" : "warning");
     if (typeof updateUI === "function") updateUI(); TT.saveSoon(); skRender();
   }
+  function skPick(i) { skSel = skSel === i ? -1 : i; skRender(); }
+  function skTfSet(n) { skTf = n; skRender(); }
 
   // ===================================================================== 8) záložky v ADVANCED MINIGAMES
   function show(t) {
@@ -13345,7 +13669,7 @@ html.m #dg-open-btn { display: none; }
   }
 
   window.Extras = { visit: visit, act: act, show: show, bossKey: bkOn, mnMines: mnMines, mnBet: mnBet, mnStart: mnStart, mnPick: mnPick, mnCash: mnCash,
-    ltPick: ltPick, ltQuick: ltQuick, ltBuy: ltBuy, ltAct: ltAct, ltAdd: ltAdd, ltRow: ltRow, skBuy: skBuy, skSell: skSell, price: price, mnMult: mnMult, poll: poll, coffeeOn: coffeeOn, STOCKS: STOCKS };
+    ltPick: ltPick, ltQuick: ltQuick, ltBuy: ltBuy, ltAct: ltAct, ltAdd: ltAdd, ltRow: ltRow, skBuy: skBuy, skSell: skSell, skBuyGc: skBuyGc, skPick: skPick, skTf: skTfSet, skAmt: function (v) { skAmt = String(v || ""); }, price: price, mnMult: mnMult, poll: poll, coffeeOn: coffeeOn, STOCKS: STOCKS };
 
   (function boot() {
     if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }

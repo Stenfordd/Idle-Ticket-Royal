@@ -1,11 +1,11 @@
-NÁVOD v6.4 - firemní verze v11.1 (= hra Office Royale v11.1)
+NÁVOD v6.5 - firemní verze v11.2 (= hra Office Royale v11.2)
 
-v11.1: prestiž High Stakes místo Kampaně 2, 3... (level a staty zůstávají, nepřátelé +67 % za prestiž, upgrady gearu na +0),
-barvy lootu podle prestiže, jednorázový reset gearu s náhradou v GC, mini-hry ultimátek pro každou třídu, DODGE mini-hra,
-mini-hry i v DUELU (35 s na tah), třídy nepřátel, nový útok BREATHE a HEAVY s cooldownem.
-Máš-li už v11.0: přibyl JEDEN nový soubor part24 (HTML). Zkopíruj znovu VŠECH 29 (změnil se i server: code, server2, engine).
+v11.2: tip u ultimátky (uhodneš tah soupeře = efekt třídy), animace ultimátek, v DUELU se při nabité ultimátce čeká
+na útočníka a block/dodge se hraje 3×, rozdělení statů na "rovné podmínky", Mág půlí block soupeře, CHANNEL mini-hra,
+Hunter si sám míří lukem, dodge 20 focusu, silnější heal z gamble, přehlednější akcie.
+Máš-li už v11.1: přibyly DVA nové soubory part25 a part26 (HTML). Zkopíruj znovu VŠECH 31 (změnil se i server: code, server2, engine).
 
-Kancelář bez wipe. Gear v High Stakes se jednou vymaže - hráči dostanou GC (hodnota rozebrání + všechny zaplacené upgrady) a šedou startovní sadu.
+Kancelář bez wipe, High Stakes bez wipe.
 
 ======================================================
 KDE JSOU SOUBORY
@@ -14,20 +14,34 @@ https://stenfordd.github.io/Idle-Ticket-Royal/firemni/   (každý soubor má tla
 POZOR: "index.html" na GitHubu je jen tahle stránka. Do Apps Scriptu patří "index.html.txt" (soubor index).
 
 ======================================================
-SOUBORY V APPS SCRIPT PROJEKTU (29)
+SOUBORY V APPS SCRIPT PROJEKTU (31)
 ======================================================
 .gs:   code, server2, engine
 HTML:  index, style, office, casino, system, minigames, special, meta, hs_core, hs_ui, hs, prsi, hs_modes, mobile,
-       part13, part14, part15, part16, part17, part18, part19, part20, part21, part22, part23, part24 (NOVÝ)
+       part13, part14, part15, part16, part17, part18, part19, part20, part21, part22, part23, part24, part25 (NOVÝ), part26 (NOVÝ)
 
-1) Vytvoř nový HTML soubor part24 (+ -> HTML, jméno bez .html). Ostatních 28 už máš z v11.0.
-2) Do KAŽDÉHO z 29 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
+1) Vytvoř nové HTML soubory part25 a part26 (+ -> HTML, jméno bez .html). Ostatních 29 už máš z v11.1.
+2) Do KAŽDÉHO z 31 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
 3) Ctrl+S
 4) Deploy > Manage deployments > tužka (edit) > Version: New version > Deploy
 5) Obnov tabulku (F5) - v menu Ticket Tycoon přibude "Spustit firemní globální event". Pak Ticket Tycoon > Bump version.
 
 Při prvním spuštění menu "Spustit firemní globální event" se Google zeptá na oprávnění - povol.
 Když se ve hře objeví červená lišta COPY ERROR, vypíše, který soubor se nezkopíroval celý.
+
+======================================================
+CO JE NOVÉHO (v11.2)
+======================================================
+- Po ultimátce tipuješ další tah soupeře (v duelu jeho reakci). Trefa = efekt třídy jednou za boj:
+  Mág Blood Magic (3 rány léčí), Warrior Firewall Up (štít + další rána poloviční), Trojan infekce (jed),
+  Hunter 2 útoky jistý crit, Caffeine Abuser +40 staminy a HEAVY bez cooldownu.
+- Krátké animace ultimátek (ťuknutím přeskočíš).
+- DUEL: když má soupeř nabitou ultimátku, čekáš, až vybere (pořád nevidíš co), a BLOCK / DODGE se hraje 3×.
+- DUEL na rovné podmínky: oba si před startem rozdělí stejné body (45 s).
+- Mág: na jeho rány nejde dodge a block proti němu funguje jen z poloviny. CHANNEL je mini-hra (17,5 / 30 / 45 %).
+- Hunter si v ultimátce sám míří zaměřovačem, HEAVY ukazuje obě rány. Dodge stojí 20 focusu.
+- Gamble: třešně léčí víc (6 % / 15 % / 30 %), 777 je vždy crit, pár sedmiček +20 % crit.
+- Akcie: graf 1 h / 4 h / 24 h s tvou nákupní cenou a obchody, hodnota pozice, zisk/ztráta v GC, historie, nákup za zadané GC.
 
 ======================================================
 CO JE NOVÉHO (v11.1)

@@ -1,518 +1,422 @@
 <script>
 (function () {
 "use strict";
-const A = window.HS_API, H = window.HSEngine;
+const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign;
 const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString(), esc = (t) => escapeHtml(String(t == null ? "" : t));
-const K = { id: "", rev: -1, view: null, list: null, busy: false, msg: "", msgC: "", pollT: 0, listAt: 0, target: "", stake: 0, mode: "own", seq: 0, recvAt: 0 };
-const me = () => gameState.ldap;
-function run(fn, args) { return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); }); }
-function onTab() { return A.isOpen() && A.view() === "duel"; }
-function say(t, c) { K.msg = t; K.msgC = c || ""; K.forceDraw = true; draw(); }
-function takePay(pay) {
-(pay || []).forEach(p => {
-if (p.why === "WIN") { if (p.amt > 0) TT.win(p.amt); log(`⚔ DUEL: you won!${p.amt ? " +" + fmt(p.amt) + " GC" : ""}`, "special"); if (window.Meta && Meta.count) Meta.count("duelWins", 1); }
-else { gameState.coins += p.amt; log(`⚔ DUEL: ${p.why === "DRAW" ? "draw, stake returned" : "stake refunded"} +${fmt(p.amt)} GC`, "success"); }
-});
-if (pay && pay.length) { updateUI(); TT.saveSoon(); }
-}
-async function loadList() {
-if (K.listBusy) return; K.listBusy = true;
-try { const r = await run("dlList", []); K.listAt = Date.now(); if (r && r.ok) { K.list = r; takePay(r.pay); if (r.mine && !K.id) { K.id = r.mine; K.rev = -1; poll(); } } }
-catch (e) { K.list = K.list || { tables: [], max: 4 }; }
-finally { K.listBusy = false; }
-if (onTab()) draw();
-}
-async function poll() {
-clearTimeout(K.pollT); if (!K.id) return;
-try {
-const r = await run("dlPoll", [K.id, K.rev]);
-if (r && r.ok) { takePay(r.pay);
-if (r.gone) { K.id = ""; K.view = null; K.rev = -1; loadList(); return; }
-if (r.view) apply(r.view); else if (r.same && K.view) { K.view.left = r.left; K.recvAt = Date.now(); } }
-} catch (e) {}
-if (K.id) K.pollT = setTimeout(poll, onTab() ? (K.view && K.view.status === "play" ? 1000 : 2000) : 4000);
-}
-function apply(v) {
-const prev = K.view;
-K.view = v; K.rev = v.rev; K.recvAt = Date.now();
-if (v.status === "play" && v.role && !v.picked && K.ping !== v.half + ":" + v.rev && !onTab()) { K.ping = v.half + ":" + v.rev; log(`⚔ DUEL vs ${esc(v.names[1 - v.you])}: your move!`, "special"); }
-if (onTab()) { draw(); if (prev && v.evSeq !== K.seq) { K.seq = v.evSeq; playEvents(v); } else K.seq = v.evSeq; }
-}
-function heroesOf(v) {
-if (!v || !v.cards) return [null, null];
-let a = H.fromCard(v.cards[v.names[0]]), b = v.names[1] ? H.fromCard(v.cards[v.names[1]]) : null;
-if (v.mode === "equal" && a && b) { const L = Math.max(a.level, b.level); a = H.stdHero(a.cls, L); b = H.stdHero(b.cls, L); }
-return [a, b];
-}
-function cleanStake(x) { const n = Math.floor(Number(String(x).replace(/[^0-9.]/g, "")) || 0); return Math.max(0, Math.min((K.list && K.list.maxStake) || 1e9, n)); }
-function refund(s) { if (s > 0) { gameState.coins += s; updateUI(); TT.saveSoon(); } }
-function create() {
-if (K.busy) return;
-const stake = cleanStake($("du-stake") ? $("du-stake").value : 0), mode = $("du-mode") ? $("du-mode").value : "own", target = ($("du-target") ? $("du-target").value : "").trim();
-K.stake = stake; K.mode = mode; K.target = target;
-if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
-K.busy = true; draw();
-if (stake > 0) TT.spend(stake);
-saveGame(async () => {
-try { const r = await run("dlCreate", [stake, mode, target]);
-if (r && r.ok) { K.id = r.id; K.rev = -1; say(""); poll(); }
-else { refund(stake); say({ already: "You already have a duel.", full: "All duel tables are busy.", stake: "Invalid stake.", noclass: "Your High Stakes character isn't saved yet - try again in a few seconds." }[r && r.reason] || "Could not create.", "var(--crimson)"); } }
-catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
-finally { K.busy = false; loadList(); }
-});
-}
-function join(id, stake) {
-if (K.busy) return; if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
-K.busy = true; draw();
-if (stake > 0) TT.spend(stake);
-saveGame(async () => {
-try { const r = await run("dlJoin", [id]);
-if (r && r.ok) { K.id = r.id; K.rev = -1; say(""); poll(); }
-else { refund(stake); say({ already: "You already have a duel.", gone: "That duel is gone.", self: "That's your own challenge.", private: "That challenge is for someone else.", noclass: "Your High Stakes character isn't saved yet - try again." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); } }
-catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
-finally { K.busy = false; }
-});
-}
-async function leave() {
-if (K.busy || !K.id) return; const v = K.view;
-if (v && v.status === "play" && v.you >= 0 && !window.confirm("Flee the duel? Your opponent wins" + (v.stake ? " the pot." : "."))) return;
-K.busy = true; try { await run("dlLeave", [K.id]); } catch (e) {}
-K.busy = false; K.id = ""; K.view = null; K.rev = -1; clearTimeout(K.pollT); loadList();
-}
-/** v11.1: stejné mini-hry jako v kampani (HSQTE) - výsledek jde na server spolu s volbou */
-function qteFor(v, choice, cb) {
-const h = heroesOf(v)[v.you], Q = window.HSQTE;
-if (!Q || !h) return cb({});
-if (v.role === "atk") {
-if (choice === "heavy") return Q.timing(h.zone || 0.3, q => cb({ t: q }));
-if (choice === "ult") return Q.ult(h.cls, H.CLASSES[h.cls].skill, o => cb({ q: o.q }));
-if (choice === "gamble" && v.gr) {
-let k = 0; const f = { h: h, R: () => Number(v.gr[k++ % v.gr.length]) || 0, sta: v.sta ? v.sta[v.you] : 100, st: {} };
-return Q.gamble(f, H, (reels, g) => cb({ g: g }), (rs) => { const x = H.reelResult(rs); return x.bf ? "💀 BACKFIRE" : (x.jp ? "🎰 JACKPOT! " : "") + "×" + x.mult + " damage"; });
-}
-} else {
-if (choice === "block") return Q.parry({ k: "any", title: "🛡 BLOCK: hit the ring - a PERFECT parry stops a HEAVY / GAMBLE / ULTIMATE completely", easy: h.parryWin || 1 }, o => cb({ parry: o.parry }));
-if (choice === "dodge") return Q.dodge(q => cb({ dq: q }));
-}
-cb({});
-}
-function pick(choice) {
-const v = K.view; if (!v || v.status !== "play" || !v.role || v.picked || K.busy || K.qte) return;
-const half = v.half, role = v.role;
-K.qte = true;
-qteFor(v, choice, (opt) => {
-K.qte = false;
-const now = K.view;
-if (!now || now.status !== "play" || now.half !== half || now.role !== role || now.picked) { say("Too slow - the round already moved on.", "var(--crimson)"); return; }
-opt.h = half; send(choice, opt);
-});
-}
-async function send(choice, opt) {
-const v = K.view;
-K.busy = true; v.picked = true; draw();
-try { const r = await run("dlMove", [K.id, choice, opt]); if (r && r.view) apply(r.view); else if (r && !r.ok) say("Move not accepted (" + (r.reason || "?") + ").", "var(--crimson)"); }
-catch (e) { say("Server error - try again.", "var(--crimson)"); if (K.view) K.view.picked = false; }
-finally { K.busy = false; draw(); poll(); }
-}
-function challenge(nick) {
-K.target = String(nick || ""); K.msg = "";
-if (!A.isOpen()) Dungeon.open();
-Dungeon.tab("duel");
-setTimeout(() => { const el = $("du-target"); if (el) { el.value = K.target; el.focus(); } }, 50);
-}
-function bar(cls, v, m) { return `<div class="hs-bar"><div class="${cls}" style="width:${Math.max(0, Math.min(100, v / Math.max(1, m) * 100))}%"></div></div>`; }
-function side(v, i, h) {
-const nm = v.names[i] || "?", mine = i === v.you;
-const sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
-const max = v.max ? v.max[i] : (h ? h.maxHp : 1), hp = v.hp ? v.hp[i] : max;
-return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
-<div id="du-s${i}">${sprite}</div>
-<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div>${bar("hp", hp, max)}
-<div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}
-<div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}</div></div>`;
-}
-function buttons(v, hs) {
-if (v.status !== "play" || !v.role) return "";
-if (v.picked) return `<div class="du-wait">✔ Locked in. Waiting for ${esc(v.names[1 - v.you])}${v.oppPicked ? " (they're ready too)" : "..."}</div>`;
-const d = { c: hs, sta: v.sta, foc: v.foc, cd: v.cd }, i = v.you, h = hs[i];
-if (v.role === "atk") return `<div class="hs-acts">${H.PVP_ATK.map(a => { const ok = H.duelAtkOk(d, i, a) && !K.qte, A0 = H.ATTACKS[a];
-const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
-return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
-return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
-const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry ring" : r === "dodge" ? h.dodgeCost + " FOC · lanes · not vs magic" : r === "channel" ? "30 FOC · -25%, next ×1.6" : "+15 STA +10 FOC";
-return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
-}
-function fightHtml(v) {
-const hs = heroesOf(v), opp = v.names[1 - v.you];
-const left = Math.max(0, (v.left || 0) - (Date.now() - K.recvAt));
-let role = "";
-if (v.status === "play") {
-const oi = 1 - v.you, oh = hs[oi];
-role = v.role === "atk" ? `<div class="du-role atk">① YOUR ATTACK<small>${esc(opp)} picks a reaction at the same time - they don't know what you'll do.</small></div>`
-: `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits can't be dodged" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
-role += `<div class="du-timer"><div id="du-tbar" style="width:${left / 35000 * 100}%"></div></div>`;
-}
-const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>
-<div class="dg-dim" style="margin-top:6px;">${esc(v.why)}${v.winner === me() && v.win ? " · +" + fmt(v.win) + " GC" : ""}</div>
-<button class="btn btn-gold" style="margin-top:10px;width:100%;" onclick="HSDuel.leave()">◀ BACK TO DUELS</button></div>` : "";
-const wait = v.status === "wait" ? `<div class="dg-card"><div class="du-wait">⏳ Waiting for ${v.target ? "<b>" + esc(v.target) + "</b>" : "an opponent"} to accept (${Math.ceil((v.waitLeft || 0) / 60000)} min left)${v.stake ? " · stake " + fmt(v.stake) + " GC" : " · friendly duel"}${v.mode === "equal" ? " · equal terms" : ""}.<br>Tell them to open HIGH STAKES → ⚔ DUEL.</div>
-<button class="btn" style="width:100%;" onclick="HSDuel.leave()">CANCEL</button></div>` : "";
-if (v.status === "wait") return wait;
-return `<div class="dg-card"><div class="dg-h"><span>⚔ DUEL · ${esc(v.names[0])} vs ${esc(v.names[1])}</span><span>ROUND ${v.turn || 1}${v.stake ? " · 💰 " + fmt(v.stake * 2) : ""}${v.mode === "equal" ? " · ⚖ equal" : ""}</span></div></div>
-<div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(4) : ""}${side(v, 0, hs[0])}<div class="dg-vs">VS</div>${side(v, 1, hs[1])}</div>
-${role}${buttons(v, hs)}${res}
-${v.status === "play" ? `<div style="text-align:right;margin-top:6px;"><button class="btn" style="padding:4px 10px;font-size:11px;" onclick="HSDuel.leave()">🏳 FLEE</button></div>` : ""}
-<div class="dg-card" style="margin-top:10px;"><div class="dg-h">DUEL LOG</div><div class="dg-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div></div>`;
-}
-function lobbyHtml() {
-const L = K.list, d = A.HS();
-const tables = L && L.tables && L.tables.length ? L.tables.map(t => {
-const mine = t.host === me(), forMe = !t.target || t.target === me();
-return `<div class="dg-art"><div class="ic">${(H.CLASSES[t.cls] || {}).icon || "⚔"}</div><div class="t"><b>${esc(t.host)}</b> · ${esc((H.CLASSES[t.cls] || {}).name || "")} LV ${t.lv || "?"}
-<div class="dg-dim">${t.stake ? "💰 " + fmt(t.stake) + " GC" : "friendly"} · ${t.mode === "equal" ? "⚖ equal terms" : "own stats"}${t.target ? " · for " + esc(t.target) : ""}${t.status === "play" ? " · vs " + esc(t.guest) : ""}</div></div>
-${t.status === "wait" && !mine && forMe ? `<button class="btn btn-crimson" ${gameState.coins >= t.stake && !K.busy ? "" : "disabled"} onclick="HSDuel.join('${t.id}',${t.stake})">⚔ ACCEPT</button>` : `<span class="dg-dim">${t.status === "play" ? "FIGHTING" : mine ? "YOURS" : "PRIVATE"}</span>`}</div>`;
-}).join("") : `<div class="dg-dim">${L ? "No open duels. Create one and tell a friend!" : "Loading..."}</div>`;
-return `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>⚔ CHALLENGE A FRIEND</span></div>
-<div class="dg-dim">A live 1v1 with the same rules as your fights, but both of you choose at once: the attacker picks a move, the defender picks a reaction <b>blind</b>. HEAVY, GAMBLE, ultimates, BLOCK (parry) and DODGE are played as the same mini-games as in the campaign. 35 seconds per choice, 3 missed choices in a row = you lose. Winner takes the pot (5% goes to the lottery).</div>
-<div class="du-form">
-<label>Opponent (empty = anyone)<input id="du-target" maxlength="24" value="${esc(K.target)}" placeholder="nick"></label>
-<label>Stake GC (0 = friendly)<input id="du-stake" inputmode="numeric" value="${K.stake || 0}"></label>
-<label>Rules<select id="du-mode"><option value="own" ${K.mode !== "equal" ? "selected" : ""}>Own stats and gear</option><option value="equal" ${K.mode === "equal" ? "selected" : ""}>Equal terms (same level and gear - only skill)</option></select></label>
-<label>&nbsp;<button class="btn btn-gold" style="padding:9px;" ${K.busy || !d.cls ? "disabled" : ""} onclick="HSDuel.create()">⚔ CREATE DUEL</button></label></div>
-${K.msg ? `<div class="dg-dim" style="margin-top:6px;color:${K.msgC || "var(--amber)"};">${esc(K.msg)}</div>` : ""}</div>
-<div class="dg-card du-list"><div class="dg-h"><span>OPEN DUELS</span><button class="btn" style="padding:3px 8px;font-size:10px;" onclick="HSDuel.refresh()">↻</button></div>${tables}</div></div>`;
-}
-function draw() {
-if (!onTab()) return;
-if (!K.id && document.activeElement && /^du-/.test(document.activeElement.id || "") && !K.forceDraw) return;
-K.forceDraw = false;
-const box = $("dg-inner"); if (!box) return;
-const keep = $("du-target") ? { t: $("du-target").value, s: $("du-stake").value, m: $("du-mode").value } : null;
-if (keep && !K.id) { K.target = keep.t; K.stake = cleanStake(keep.s); K.mode = keep.m; }
-box.innerHTML = K.id && K.view ? fightHtml(K.view) : K.id ? `<div class="dg-card"><div class="du-wait">Loading the duel...</div></div>` : lobbyHtml();
-}
-function playEvents(v) {
-const evs = v.last || [], side = (i) => i === v.you ? "p" : "b";
-evs.forEach((e, k) => setTimeout(() => {
-if (!onTab()) return;
-if (e.type === "hit") { if (e.val) A.float((e.crit ? "CRIT " : e.jp ? "JACKPOT " : "") + fmt(e.val), side(1 - e.i), e.crit || e.jp ? "#ffb800" : "#fff", e.crit || e.jp); if (e.outcome === "block") A.float("BLOCK", side(1 - e.i), "#00f0ff"); if (e.outcome === "parry") A.float("PARRY!", side(1 - e.i), "#ffd700", true); if (e.timing === "PERFECT") A.float("PERFECT", side(e.i), "#ffd700"); if (e.counter) A.float("COUNTER " + fmt(e.counter), side(e.i), "#ff4d6d"); }
-else if (e.type === "dodge") A.float("DODGE", side(1 - e.i), "#00f0ff", true);
-else if (e.type === "rest") A.float("+30 STA", side(e.i), "#00f0ff");
-else if (e.type === "bf") A.float("BACKFIRE", side(e.i), "#ff1744", true);
-else if (e.type === "ult") A.float("+" + fmt(e.shield) + " 🛡", side(e.i), "#00ff88", true);
-else if (e.type === "revive") A.float("RISE!", side(e.who), "#ffb800", true);
-if (window.HSRig && (e.type === "hit" || e.type === "dodge")) { HSRig.act("du-s" + e.i, e.a === "heavy" ? "a-power" : e.a === "ult" ? "a-skill" : "a-quick"); setTimeout(() => HSRig.act("du-s" + (1 - e.i), e.type === "dodge" ? "a-dodge" : e.outcome === "block" ? "a-block" : "a-hit"), 260); }
-}, k * 380));
-}
-setInterval(() => { if (onTab() && K.view && K.view.status === "play") { const b = $("du-tbar"); if (b) b.style.width = Math.max(0, (K.view.left || 0) - (Date.now() - K.recvAt)) / 35000 * 100 + "%"; } }, 250);
-A.registerMode("duel", { label: "⚔ DUEL", order: 92, render: function () { draw(); if (!K.list || Date.now() - K.listAt > 8000) loadList(); if (K.id) poll(); },
-dot: function () { return !!(K.view && K.view.status === "play" && K.view.role && !K.view.picked) || !!(K.list && K.list.tables && K.list.tables.some(t => t.status === "wait" && t.target === me())); } });
-window.HSDuel = { create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
-(function boot() {
-if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 300); return; }
-TT.onLoaded(() => setTimeout(loadList, 8000));
-setInterval(() => { if (!K.id && (onTab() || Date.now() - K.listAt > 60000)) loadList(); }, 20000);
-})();
-})();
-</script>
-<style>
-/* ===== v8.8 THE COLLEAGUE: pomocník, který farmí poražené bosse a kliká za tebe ===== */
-.cl-row { display: flex; gap: 10px; align-items: center; }
-.cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
-.cl-name { font: 900 14px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
-.cl-quip { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
-.cl-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
-.cl-slot { padding: 5px; border-radius: 6px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); font-size: 10px; text-align: center; min-width: 0; }
-.cl-slot b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-boss { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 5px; cursor: pointer; }
-.cl-boss.sel { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald) inset; }
-.cl-boss .ic { font-size: 20px; width: 26px; text-align: center; }
-.cl-boss .t { flex: 1; min-width: 0; font-size: 11px; }
-.cl-boss .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-boss .wr { font: 800 11px 'Orbitron', monospace; }
-.cl-give { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px; }
-.cl-give span { flex: 1; min-width: 0; }
-.cl-give .btn { padding: 4px 10px; font-size: 10px; }
-.cl-log div { font-size: 11px; color: var(--text-dim); padding: 2px 0; }
-.cl-sleep { text-align: center; padding: 18px 10px; }
-.cl-sleep .big { font-size: 44px; }
-</style>
-<script>
-(function () {
-"use strict";
-const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;
-const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
+const fmt = A.fmt, fmtT = A.fmtT;
+const R = () => TT.rnd();
+const pick = (arr) => arr[Math.floor(R() * arr.length)];
 const esc = (t) => escapeHtml(String(t));
-const FIGHT_MS = 20 * 60000, CLICK_MS = 30000, AWAY_MAX = 8 * 3600000, POWER_CAP = 0.6, WAKE_BOSS = 29;
-const FIRST = ["David", "Dan", "Gabriel", "Kevin", "Steve", "Mike", "Tom", "Paul", "Martin", "Lukas", "Jakub", "Honza", "Pepa", "Franta", "Jarda", "Ondra", "Filip", "Adam", "Petr", "Vojta",
-"Tereza", "Klara", "Brenda", "Sandra", "Olga", "Zoe", "Nancy", "Linda", "Eva", "Karen"];
-const NICK = ["Hotfix", "Legacy", "Overtime", "Root", "Sudo", "Spaghetti", "Ctrl+C", "The Intern", "Senior", "No Docs", "Rollback", "Merge Master", "404", "Coffee", "Monday", "Burnout", "Rubber Duck", "Ticket Killer"];
-const MEME = [
-["Kevin from Accounting", "I counted the GC twice, it's fine."], ["Steve (Unpaid Intern)", "Do I get paid for this? ...no? Okay."], ["Gary the Printer Whisperer", "The printer and I have an understanding."],
-["Mr. Works On My Machine", "Works on my machine. Ship it."], ["Chad Deploy-on-Friday", "Pushed to prod. On Friday. You're welcome."], ["Legacy Larry", "Don't touch it. It works. Nobody knows why."],
-["Bobby Tables", "'); DROP TABLE bosses;--"], ["Reply-All Randy", "Replying all to confirm I replied all."], ["Copy-Paste Pete", "Found the answer on page 7 of a forum from 2009."],
-["Merge Conflict Mike", "Accept both changes. What could go wrong?"], ["Null Pointer Nancy", "undefined is not a function. Neither is this boss."], ["Stack Overflow Steve", "Marked as duplicate. Boss closed."],
-["Jira Jerry", "Moved the boss to DONE."], ["Hotfix Hank", "Hotfix deployed. Hotfix for the hotfix incoming."], ["Quick Sync Quinn", "Just a quick 5-minute fight."],
-["Synergy Sandra", "Let's leverage our core synergies going forward."], ["Excel Ernie", "I made a pivot table of the boss's weaknesses."], ["Out-Of-Office Olga", "I'm out of office. But also I won."],
-["Ctrl+Z Zoe", "Undid my mistakes. All of them."], ["Sudo Sam", "sudo win"], ["Patch Tuesday Tom", "Rebooting the boss. Please wait."],
-["404 Dave", "Nobody could find me. Including the boss."], ["Dev Null", "Sent the boss to /dev/null."], ["Coffee-Driven Kyle", "Third coffee. Fourth boss."],
-["Lunch Break Luke", "Back from lunch. What did I miss?"], ["Jarda z IT", "Did you try turning it off and on again?"], ["Pepa od tiskárny", "PC LOAD LETTER. Sorted."]
-];
-const QUIPS = ["Another one done.", "Tickets closed, boss closed.", "Coffee was cold, the fight was hot.", "I'll put it in the weekly report.", "Easy. Well, mostly.", "Can I go home now?"];
-function rollName() {
-if (Math.random() < 0.3) { const m = MEME[Math.floor(Math.random() * MEME.length)]; return { name: m[0], quip: m[1] }; }
-let n = FIRST[Math.floor(Math.random() * FIRST.length)];
-if (Math.random() < 0.3) n += " '" + NICK[Math.floor(Math.random() * NICK.length)] + "'";
-return { name: n, quip: "" };
+function towerGc(f, P) { return Math.round(C.gcAt(C.towerLevel(f, P), f % 10 === 0 ? "boss" : f % 5 === 0 ? "elite" : "normal") * 0.6 * (1 + 0.25 * P) * A.presBonus()); }
+function towerXp(f, P) { return Math.round(C.xpAt(C.towerLevel(f, P), f % 10 === 0 ? "boss" : f % 5 === 0 ? "elite" : "normal") * 0.6); }
+function towerHtml(box) {
+const d = A.HS(), P = d.hsp || 0, b = d.tower.best, next = Math.min(100, b + 1), m = C.towerFloor(next, P);
+const cells = [];
+for (let f = 1; f <= 100; f++) { const bs = !!C.TOWER_BOSS[f]; cells.push(`<div class="${f <= b ? "ok" : f === b + 1 ? "nx" : ""} ${bs ? "bs" : ""}">${f === 100 ? "🕶" : bs ? "☠" : f}</div>`); }
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>🗼 SERVER TOWER${P ? " · 🔺P" + P : ""}</span><span>${b}/100</span></div>
+<div class="dg-dim">Climb 100 floors (enemy LV ${C.towerLevel(1, P)} → ${C.towerLevel(100, P)}${P ? ", +" + Math.round(C.PS_MUL * 100 * P) + "% HP and damage" : ""}). Every 5th floor is an elite, every 10th (and floor 95) a boss. On floor 100 waits <b>THE ADMINISTRATOR</b> - beat him to unlock <b>♾ CLEAR THE POOL</b> and your colleague.
+Every 10 floors you ever climbed = <b>+1% damage and HP</b> in all HIGH STAKES modes (now <b>+${Math.min(30, Math.floor(A.towerFloorsTotal(d) / 10))}%</b>, max 30%). The tower starts over when you prestige High Stakes.</div></div>
+${b >= 100 ? `<div class="dg-card dg-lock"><div class="big">🏆</div><div style="font:800 14px Orbitron,monospace;color:var(--amber);">TOWER CONQUERED</div><div class="dg-dim">All 100 floors cleared. Prestige High Stakes for a harder tower.</div></div>` :
+`<div class="dg-card"><div class="dg-h"><span>NEXT: ${esc(m.name)}</span><span>⚡1</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · LV ${m.level} · ❤ ${fmt(m.enemy.maxHp)} · ⚔ ~${fmt(m.enemy.atk)}${m.enemy.ecls ? " · " + esc(m.enemy.archName) : ""}<br>
+Reward: ${fmt(towerXp(next, P))} XP, ${fmt(towerGc(next, P))} GC${next % 10 === 0 ? ", a GC bonus and +1% permanent power" : ""}<br>Your stats (LV ${d.level}): ${A.statLine()}</div></div>
+<button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.towerGo()">⚔ CLIMB TO FLOOR ${next} (⚡1)</button></div>`}
+<div class="dg-card"><div class="dg-h">FLOORS</div><div class="tw-grid">${cells.join("")}</div></div>`;
 }
-function st() {
-const d = A.HS();
-if (!d.col || typeof d.col !== "object") d.col = {};
-const c = d.col;
-c.level = Math.max(1, Math.floor(Number(c.level) || 1)); c.xp = Math.max(0, Number(c.xp) || 0);
-if (!c.gear || typeof c.gear !== "object") c.gear = {};
-if (c.gmig !== 2) { c.gear = {}; c.gmig = 2; }                     // v10: nový gear (loot) - kolega začíná s prázdnou výbavou
-if (!c.stats || typeof c.stats !== "object") c.stats = { w: 0, l: 0, gc: 0, clicks: 0 };
-if (!Array.isArray(c.log)) c.log = [];
-if (!H.CLASSES[c.cls]) c.cls = "engineer";
-c.tn = Math.max(1, Math.floor(Number(c.tn) || 1));
-if (!c.unlocked && (d.tower.best >= 100 || (d.pool && d.pool.unlocked))) c.unlocked = true;     // Administrator už padl
-if (c.unlocked && !c.name) { const r = rollName(); c.name = r.name; c.quip = r.quip; }
-return c;
+function towerTier() { A.render(); }
+function towerGo() {
+const d = A.HS(), P = d.hsp || 0, f = d.tower.best + 1;
+if (f > 100) return;
+if (!A.spendEnergy(1)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
+const m = C.towerFloor(f, P);
+A.beginFight(m, { mode: "tower", hud: () => `🗼 ${P ? "P" + P + " · " : ""}Floor ${f}/100${f % 10 === 0 ? " · BOSS" : f % 5 === 0 ? " · ELITE" : ""} · enemy LV ${m.level}`,
+onEnd: function (fi) {
+const lines = [], dd = A.HS();
+if (fi.win) {
+dd.wins++;
+dd.tower.best = Math.max(dd.tower.best, f);
+const gc = towerGc(f, P); gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
+A.gainXp(towerXp(f, P), lines); lines.unshift(`+${fmt(towerXp(f, P))} XP`);
+if (f % 10 === 0) { A.dropItem(lines, m.level); lines.push(`💪 +1% permanent power`); }
+if (f === 100) {
+TT.announce(P ? "CONQUERED THE SERVER TOWER ON PRESTIGE " + P : "CONQUERED THE SERVER TOWER", "HIGH STAKES", 0, gc);
+if (!dd.pool.unlocked) { dd.pool.unlocked = true; lines.push("♾ CLEAR THE POOL unlocked!"); log("♾ The Administrator is down. CLEAR THE POOL is now unlocked - how deep can you go?", "special"); }
 }
-function awake() { const c = st(); return !!c.unlocked && A.clearedAny(WAKE_BOSS); }
-/** v11.1: bossové poražení v aktuálním běhu High Stakes -> klíč (P+1)*100 + id */
-function bossesBeaten() {
-const d = A.HS(), out = [], P = d.hsp || 0, sm = d.sm || {};
-C.LIST.forEach(m => { if ((m.k === "boss" || m.k === "mini" || m.k === "secret" || m.k === "elite") && (sm[m.id] || 0) > 0) out.push((P + 1) * 100 + m.id); });
+log(`🗼 TOWER floor ${f} cleared - ${lines.join(", ")}`, "special");
+} else { dd.losses++; const xp = fi.fled ? 0 : Math.round(towerXp(f, P) * 0.3); if (xp) A.gainXp(xp, lines); lines.push(xp ? `+${fmt(xp)} XP` : "no reward"); }
+const btns = [{ label: "◀ TOWER", fn: () => Dungeon.tab("tower") }];
+if (fi.win && f < 100) btns.push({ label: `FLOOR ${f + 1} ▶`, cls: "btn-gold", fn: towerGo });
+else if (!fi.win) btns.push({ label: "↻ RETRY", cls: "btn-cyan", fn: towerGo });
+return { title: fi.win ? `FLOOR ${f} CLEARED` : "FALLEN", lines: lines, buttons: btns };
+} });
+}
+const SHIFT_COST = 3, SHIFT_STEPS = 10, ASC_MAX = 10;
+const PERKS = {
+cpu:   { n: "Overclocked CPU", i: "🔥", t: "+12% ATK", st: true },
+ram:   { n: "Extra RAM", i: "🧠", t: "+15% max HP", st: true },
+l7:    { n: "Lucky 7s", i: "7️⃣", t: "Gamble: much better odds for 7️⃣ and ⭐", st: true },
+caff:  { n: "Caffeine Addict", i: "☕", t: "+6 stamina every round", st: true },
+mon:   { n: "Wide Monitor", i: "🖥", t: "HEAVY timing zone +5%", st: true },
+duck:  { n: "Rubber Duck", i: "🦆", t: "Once per fight survive a lethal hit with 1 HP" },
+glove: { n: "Rubber Gloves", i: "🧤", t: "💀💀💀 no longer backfires" },
+vamp:  { n: "Vampire Script", i: "🧛", t: "Heal 8% of damage dealt", st: true },
+thorn: { n: "Thorny Firewall", i: "🌵", t: "Reflect 15% of damage taken", st: true },
+hot:   { n: "Hot Reload", i: "♻", t: "Heal 3% max HP every turn", st: true },
+early: { n: "Early Bird", i: "🐦", t: "First hit of every fight ×2" },
+root:  { n: "Root Access", i: "🔑", t: "Break meter fills 30% faster", st: true },
+chair: { n: "Ergonomic Chair", i: "🪑", t: "Start every fight with a 15% HP shield", st: true },
+mm:    { n: "Muscle Memory", i: "🥋", t: "Parry window much bigger" },
+eyes:  { n: "Sharp Eyes", i: "👁", t: "+6% crit", st: true },
+ninja: { n: "Ninja Mode", i: "🥷", t: "+6% dodge (dodge classes) or -6% damage taken (others)", st: true }
+};
+function applyPerks(h, P) {
+const k = (id) => P[id] || 0;
+h.wpn *= 1 + 0.12 * k("cpu"); h.atk *= 1 + 0.12 * k("cpu"); h.maxHp = Math.round(h.maxHp * (1 + 0.15 * k("ram")));
+h.luckReel += 12 * k("l7"); h.zone = Math.min(0.6, h.zone + 0.05 * k("mon")); h.critAdd = (h.critAdd || 0) + 0.06 * k("eyes"); h.staGain = (h.staGain || 0) + 6 * k("caff");
+if (h.dodge > 0) h.dodge = Math.min(0.75, h.dodge + 0.06 * k("ninja")); else h.dr = Math.min(0.4, (h.dr || 0) + 0.06 * k("ninja"));
+h.perks = { duck: !!k("duck"), noBackfire: !!k("glove"), vamp: 0.08 * k("vamp"), thorns: 0.15 * k("thorn"), regen: 0.03 * k("hot"),
+firstStrike: !!k("early"), breakBonus: 0.3 * k("root"), shieldStart: 0.15 * k("chair"), parryEasy: !!k("mm") };
+}
+function perkOffer(P, n) {
+const pool = Object.keys(PERKS).filter(id => PERKS[id].st || !P[id]);
+const out = [];
+while (out.length < n && pool.length) out.push(pool.splice(Math.floor(R() * pool.length), 1)[0]);
 return out;
 }
-const keyN = (k) => Math.max(0, Math.floor(k / 100) - 1), keyId = (k) => k % 100;
-/** v8.8: kolega má 80 % tvého levelu; v9.0: TRÉNINK se kupuje za GC (+2 % síly za level, max 15) */
-const TRAIN_MAX = 15;
-function trainCost() { return Math.round(25000 * Math.pow(1.55, trainLv())); }
-function colLevel() { return Math.max(1, Math.round(A.HS().level * 0.8)); }
-function xpToNext(L) { return 150 + 90 * L; }
-function trainLv() { return Math.min(TRAIN_MAX, st().level - 1); }
-/** kolega: vlastní výbava + level, nikdy silnější než 60 % tebe */
-function hero() {
-const c = st();
-const L = colLevel(), pts = H.statPoints(L);
-const g = window.Gear ? Gear.multOf(c.gear, L) : {};
-const mk = (H.CLASSES[c.cls] || {}).main || "str", stats = { vit: Math.round(pts * 0.3), luck: Math.round(pts * 0.2) }; stats[mk] = pts - stats.vit - stats.luck;
-const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, g);
-const tb = 1 + 0.02 * trainLv();                                   // trénink: +2 % za level
-hh.wpn *= tb; hh.atk *= tb; hh.maxHp = Math.round(hh.maxHp * tb);
-const me = A.hero(), k = Math.min(1, me.atk * POWER_CAP / Math.max(1, hh.atk));
-hh.wpn *= k; hh.atk *= k; hh.maxHp = Math.round(Math.min(hh.maxHp, me.maxHp * POWER_CAP));
-return hh;
+function stepGc() { return Math.round(C.gcAt(A.HS().level, "normal") * 0.25 * A.presBonus()); }
+function run() { return A.HS().shift.run || null; }
+const NODE = { fight: ["⚔", "INCIDENT", "A normal fight. Win = coins + a perk."], elite: ["💀", "ESCALATION", "Elite enemy. Harder, more coins, better perks."],
+event: ["❓", "SOMETHING WEIRD", "A random office event. Could be great. Could be HR."], shop: ["🛒", "VENDING MACHINE", "Spend shift coins on heals and perks."],
+rest: ["🛋", "BREAK ROOM", "Heal up or grab some coins."], boss: ["☠", "SHIFT BOSS", "The end of the shift. Beat it to clear the run."] };
+function rollChoices(r) {
+if (r.step === SHIFT_STEPS - 1) return ["boss"];
+const w = [["fight", 45], ["elite", 16], ["event", 17], ["shop", r.step >= 2 ? 11 : 0], ["rest", r.step >= 3 && r.last !== "rest" ? 11 : 0]];
+const one = () => { const s = w.reduce((a, x) => a + x[1], 0); let x = R() * s; for (const it of w) { if (x < it[1]) return it[0]; x -= it[1]; } return "fight"; };
+const a = one(); let b = one(), g = 0; while (b === a && g++ < 8) b = one();
+return [a, b];
 }
-/** souboj kolegy = stejný engine, jen hraje počítač (a hůř trefuje parry a ulti než ty) */
-function simFight(id, seed) {
-const PS = H.PARRY_SKILL, US = H.ULT_SKILL, keep = [PS.perfect, PS.good, US.q, US.all];
-PS.perfect = 0.15; PS.good = 0.35; US.q = 0.9; US.all = 0.3;
-try { return H.simulate(hero(), C.mission(keyId(id), keyN(id)), seed); }
-finally { PS.perfect = keep[0]; PS.good = keep[1]; US.q = keep[2]; US.all = keep[3]; }
+function shiftStart(asc) {
+const d = A.HS();
+if (run()) return;
+asc = Math.max(0, Math.min(d.shift.asc || 0, asc | 0));
+if (!A.spendEnergy(SHIFT_COST)) { log(`ON-CALL SHIFT costs ⚡${SHIFT_COST}.`, "warning"); A.render(); return; }
+const r = { asc: asc, step: 0, hp: 1, coins: 0, perks: {}, choices: null, phase: "map", offer: null, ev: null, last: "", seed: Math.floor(R() * 1e6), log: [] };
+r.choices = rollChoices(r);
+d.shift.run = r; d.shift.runs = (d.shift.runs || 0) + 1;
+TT.saveSoon(); A.render();
 }
-const wrCache = {};
-function winRate(id) {
-const c = st(), key = id + "|" + c.level + "|" + c.cls + "|" + JSON.stringify(c.gear) + "|" + A.HS().level + "|" + (gameState.prestige || 0);
-if (wrCache[id] && wrCache[id].k === key) return wrCache[id].v;
-let w = 0; for (let i = 0; i < 24; i++) if (simFight(id, 777 + i * 131).win) w++;
-const v = w / 24; wrCache[id] = { k: key, v: v }; return v;
+function shiftHtml(box) {
+const d = A.HS(), r = run(), sh = d.shift;
+if (!r) {
+const ascBtns = []; for (let a = 0; a <= Math.min(ASC_MAX, sh.asc || 0); a++) ascBtns.push(`<button class="btn ${a === (sh.asc || 0) ? "btn-gold" : ""}" style="padding:8px 10px;" onclick="HSModes.shiftStart(${a})">${a === 0 ? "NORMAL" : "ASC " + a}</button>`);
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📟 ON-CALL SHIFT</span><span>⚡${SHIFT_COST}</span></div>
+<div class="dg-dim">A roguelite run: ${SHIFT_STEPS} stops, you pick the path. <b>Your HP does NOT reset between fights.</b> After each fight pick 1 of 3 perks -
+build a broken combo (Lucky 7s + Rubber Gloves = gambling machine). Events, a vending machine, a break room and a boss at the end.
+Enemies are your level (a bit weaker at the start, stronger at the boss). Clear a shift to unlock the next <b>Ascension</b> (+3 enemy levels each, better rewards).</div>
+<div class="dg-dim" style="margin-top:6px;">Runs ${sh.runs || 0} · Clears ${sh.clears || 0} · Best ${sh.best || 0}/${SHIFT_STEPS} · Ascension unlocked ${sh.asc || 0}/${ASC_MAX}</div>
+<div class="dg-row" style="margin-top:10px;">${ascBtns.join("")}</div></div>`;
+return;
 }
-function reward(key) {
-const id = keyId(key), n = keyN(key), x = id + 50 * (n - 1);
-const gc = Math.round(C.gcFor(id, false, n) * 2 + (typeof calculateAutoGcRate === "function" ? calculateAutoGcRate() : 0) * (120 + 6 * Math.min(100, x)));   // + 2-12 min autogenu
-const scrap = Math.round((typeof getChestScrapCost === "function" ? getChestScrapCost() : 100) * (1 + x / 20));
-const xp = Math.round(C.xpFor(id, false, n) * 0.5);
-return { gc: gc, scrap: scrap, xp: xp };
+const pathCells = []; for (let i = 0; i < SHIFT_STEPS; i++) pathCells.push(`<div class="${i < r.step ? "done" : i === r.step ? "cur" : ""}"></div>`);
+const perks = Object.keys(r.perks).map(id => `<span title="${esc(PERKS[id].t)}">${PERKS[id].i} ${esc(PERKS[id].n)}${r.perks[id] > 1 ? " ×" + r.perks[id] : ""}</span>`).join("") || `<span style="opacity:.5;">no perks yet</span>`;
+const hh = shiftHero();
+const head = `<div class="dg-card"><div class="dg-h"><span>📟 SHIFT${r.asc ? " · ASC " + r.asc : ""} · STOP ${r.step + 1}/${SHIFT_STEPS}</span><span>🪙 ${r.coins}</span></div>
+<div class="sh-path">${pathCells.join("")}</div>
+<div class="dg-dim">❤ <b>${fmt(Math.ceil(r.hp * hh.maxHp))}</b> / ${fmt(hh.maxHp)} · ⚔ <b>${fmt(hh.atk)}</b> · enemies around LV ${A.HS().level + 3 * r.asc}</div>
+<div class="sh-perks">${perks}</div></div>`;
+let body = "";
+if (r.phase === "map") {
+body = `<div class="dg-card"><div class="dg-h">CHOOSE YOUR NEXT STOP</div><div class="sh-choices">${r.choices.map((c, i) => `<div class="sh-choice" onclick="HSModes.shiftGo(${i})"><div class="ic">${NODE[c][0]}</div><b>${NODE[c][1]}</b><div class="dg-dim">${NODE[c][2]}</div></div>`).join("")}</div>
+<div style="text-align:right;margin-top:8px;"><button class="btn" style="padding:5px 10px;font-size:10px;" onclick="HSModes.shiftQuit()">END SHIFT EARLY</button></div></div>`;
+} else if (r.phase === "perk") {
+body = `<div class="dg-card"><div class="dg-h">PICK A PERK</div><div class="sh-choices">${r.offer.map(id => `<div class="sh-choice" onclick="HSModes.shiftPerk('${id}')"><div class="ic">${PERKS[id].i}</div><b>${esc(PERKS[id].n)}${r.perks[id] ? " (" + (r.perks[id] + 1) + ")" : ""}</b><div class="dg-dim">${esc(PERKS[id].t)}</div></div>`).join("")}</div></div>`;
+} else if (r.phase === "event") {
+const e = EVENTS[r.ev];
+body = `<div class="dg-card"><div class="dg-h">${e.i} ${esc(e.n)}</div><div class="dg-dim">${esc(e.t)}</div>
+<div class="sh-choices">${e.o.map((o, i) => `<div class="sh-choice" onclick="HSModes.shiftEvent(${i})"><b>${esc(o[0])}</b><div class="dg-dim">${esc(o[1])}</div></div>`).join("")}</div></div>`;
+} else if (r.phase === "shop") {
+body = `<div class="dg-card"><div class="dg-h">🛒 VENDING MACHINE <span>🪙 ${r.coins}</span></div><div class="sh-choices">
+${SHOP.map((s, i) => `<div class="sh-choice" onclick="HSModes.shiftBuy(${i})" style="${r.coins < s.c || (r.bought || {})[i] ? "opacity:.4;" : ""}"><div class="ic">${s.i}</div><b>${esc(s.n)} - 🪙${s.c}</b><div class="dg-dim">${esc(s.t)}</div></div>`).join("")}</div>
+<button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="HSModes.shiftShopDone()">CONTINUE ▶</button></div>`;
+} else if (r.phase === "rest") {
+body = `<div class="dg-card"><div class="dg-h">🛋 BREAK ROOM</div><div class="sh-choices">
+<div class="sh-choice" onclick="HSModes.shiftRest(0)"><div class="ic">😴</div><b>POWER NAP</b><div class="dg-dim">Heal 40% max HP</div></div>
+<div class="sh-choice" onclick="HSModes.shiftRest(1)"><div class="ic">🎲</div><b>OFFICE POKER</b><div class="dg-dim">+1 random perk, but -10% HP</div></div></div></div>`;
 }
-let lastReport = null;
-function work(silent) {
-if (typeof gameState === "undefined" || !gameLoaded) return null;
-const c = st(), now = Date.now();
-if (!c.unlocked) return null;
-if (!awake()) { c.fightAt = now; c.clickAt = now; return null; }
-if (!c.fightAt) c.fightAt = now; if (!c.clickAt) c.clickAt = now;
-const from = Math.max(c.fightAt, now - AWAY_MAX), fromC = Math.max(c.clickAt, now - AWAY_MAX);
-const nf = Math.floor((now - from) / FIGHT_MS), nc = Math.floor((now - fromC) / CLICK_MS);
-if (!nf && !nc) return null;
-const rep = { w: 0, l: 0, gc: 0, scrap: 0, xp: 0, tok: 0, clicks: nc, tickets: 0, boss: "", gear: 0, gearTxt: [] };
-if (nc) {
-const t = (typeof calculateClickPower === "function" ? calculateClickPower() : 1) * nc;
-gameState.tickets += t; gameState.lifetimeTickets = (gameState.lifetimeTickets || 0) + t; rep.tickets = t; c.stats.clicks += nc;
+const logH = r.log.length ? `<div class="dg-card"><div class="dg-h">SHIFT LOG</div>${r.log.slice(-6).reverse().map(l => `<div class="dg-dim">${l}</div>`).join("")}</div>` : "";
+box.innerHTML = head + body + logH;
 }
-c.clickAt = fromC + nc * CLICK_MS;
-const ids = bossesBeaten();
-if (nf && c.target != null && ids.indexOf(c.target) >= 0) {
-const id = c.target, m = C.mission(keyId(id), keyN(id)); rep.boss = m.enemy.name;
-const wr = winRate(id), r = reward(id);
-const boss = m.kind === "boss" || m.kind === "secret" || m.kind === "mini";
-for (let i = 0; i < nf; i++) {
-if (Math.random() < wr) { rep.w++; rep.gc += r.gc; rep.scrap += r.scrap; rep.xp += r.xp; if (Math.random() < 0.02) rep.tok++;
-if (boss && window.Gear && Math.random() < 0.1 && rep.gear < 3) { const lines = []; if (Gear.drop(m, lines, true)) { rep.gear++; rep.gearTxt.push(lines.join(" ")); } } }      // v11.1: 10 % na gear z bosse
-else rep.l++;
+function shiftHero() { const r = run(), h = A.hero(); applyPerks(h, r ? r.perks : {}); return h; }
+function rlog(t) { const r = run(); if (r) { r.log.push(t); if (r.log.length > 20) r.log.shift(); } }
+function heal(p) { const r = run(); r.hp = Math.min(1, r.hp + p); }
+function shiftGo(i) {
+const r = run(); if (!r || r.phase !== "map") return;
+const node = r.choices[i]; if (!node) return;
+r.last = node;
+if (node === "fight" || node === "elite" || node === "boss") return shiftFight(node);
+if (node === "event") { r.ev = Math.floor(R() * EVENTS.length); r.phase = "event"; }
+if (node === "shop") { r.phase = "shop"; r.bought = {}; }
+if (node === "rest") r.phase = "rest";
+TT.saveSoon(); A.render();
 }
-gameState.coins += rep.gc; gameState.scrap += rep.scrap; gameState.slotTokens += rep.tok;
-if (rep.xp) { const lines = []; A.gainXp(rep.xp, lines); }
-c.stats.w += rep.w; c.stats.l += rep.l; c.stats.gc += rep.gc;
+function shiftFight(node) {
+const r = run();
+const m = C.shiftEnemy(A.HS().level, node, r.step, r.asc, r.seed + r.step * 31, A.HS().hsp || 0);
+A.beginFight(m, { mode: "shift",
+prepHero: function (h) { applyPerks(h, r.perks); h.startHp = Math.max(1, r.hp * h.maxHp); },
+hud: () => `📟 Shift stop ${r.step + 1}/${SHIFT_STEPS}${r.asc ? " · ASC " + r.asc : ""} · ${node.toUpperCase()} · enemy LV ${m.level} · HP carries over!`,
+onEnd: function (f) {
+const lines = [], d = A.HS();
+if (f.win) {
+d.wins++;
+r.hp = Math.max(0.01, f.hp / f.h.maxHp);
+const coins = node === "boss" ? 0 : node === "elite" ? 45 : 25;
+r.coins += coins;
+const gc = Math.round(stepGc() * (node === "elite" ? 1.5 : 1) * (1 + 0.25 * r.asc));
+gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
+const xp = Math.round(C.xpAt(m.level, node === "boss" ? "boss" : node === "elite" ? "elite" : "normal") * 0.3 * (1 + 0.15 * r.asc));
+A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`);
+if (coins) lines.push(`+${coins} 🪙`);
+rlog(`${NODE[node][0]} Beat ${esc(f.e.name)} (${Math.round(r.hp * 100)}% HP left)`);
+if (node === "boss") return shiftEnd(true, lines);
+r.step++; r.phase = "perk"; r.offer = perkOffer(r.perks, 3);
+d.shift.best = Math.max(d.shift.best || 0, r.step);
+return { title: node === "elite" ? "ESCALATION HANDLED" : "INCIDENT RESOLVED", lines: lines, buttons: [{ label: "PICK A PERK ▶", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
 }
-c.fightAt = from + nf * FIGHT_MS;
-if (rep.w || rep.l) {
-const line = `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${esc(rep.boss)}: ${rep.w}W ${rep.l}L · +${short(rep.gc)} GC · +${short(rep.scrap)} scrap${rep.tok ? " · +" + rep.tok + " 🎟" : ""}`;
-c.log.unshift(line); c.log = c.log.slice(0, 12);
-if (!silent) log(`🧑‍💼 ${esc(c.name)}: ${rep.w ? "beat " + esc(rep.boss) + (rep.w > 1 ? " " + rep.w + "×" : "") : "lost to " + esc(rep.boss)} → +${short(rep.gc)} GC, +${short(rep.scrap)} scrap${rep.tok ? ", +" + rep.tok + " 🎟" : ""}`, rep.w ? "success" : "warning");
-rep.gearTxt.forEach(t => log(`🧑‍💼 ${esc(c.name)} brought you loot: ${t}`, "special"));
+d.losses++;
+return shiftEnd(false, lines);
+} });
+}
+function shiftEnd(win, lines) {
+const d = A.HS(), r = run();
+const steps = win ? SHIFT_STEPS : r.step;
+d.shift.best = Math.max(d.shift.best || 0, steps);
+if (win) {
+d.shift.clears = (d.shift.clears || 0) + 1;
+const bonus = Math.round(stepGc() * 3 * (1 + 0.25 * r.asc));
+gameState.coins += bonus; lines.push(`🏆 shift bonus +${fmt(bonus)} GC`);
+A.dropItem(lines); A.dropItem(lines);
+if (r.asc >= (d.shift.asc || 0) && (d.shift.asc || 0) < ASC_MAX) { d.shift.asc = (d.shift.asc || 0) + 1; lines.push(`🔓 Ascension ${d.shift.asc} unlocked`); }
+log(`📟 ON-CALL SHIFT CLEARED${r.asc ? " (ASC " + r.asc + ")" : ""}! ${lines.join(", ")}`, "special");
+if (r.asc >= 5) TT.announce("CLEARED ASCENSION " + r.asc + " SHIFT", "HIGH STAKES", 0, bonus);
+} else log(`📟 Shift over at stop ${r.step + 1}/${SHIFT_STEPS}.`, "warning");
+d.shift.run = null;
+if (window.Meta && Meta.onShift) try { Meta.onShift(r.asc, steps); } catch (e) {}
+TT.saveSoon();
+return { title: win ? "SHIFT CLEARED" : "BURNED OUT", sub: `${steps}/${SHIFT_STEPS} stops`, lines: lines.length ? lines : ["Better luck next shift."],
+buttons: [{ label: "◀ SHIFT", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+}
+function shiftPerk(id) {
+const r = run(); if (!r || r.phase !== "perk" || r.offer.indexOf(id) < 0) return;
+r.perks[id] = (r.perks[id] || 0) + 1; rlog(`${PERKS[id].i} Took ${esc(PERKS[id].n)}`);
+shiftNext();
+}
+function shiftNext() { const r = run(); if (!r) return; r.phase = "map"; r.choices = rollChoices(r); TT.saveSoon(); A.render(); }
+function advance() { const r = run(); r.step++; A.HS().shift.best = Math.max(A.HS().shift.best || 0, r.step); }
+function shiftQuit() { const r = run(); if (!r) return; if (!confirm("End this shift? You keep what you earned so far.")) return; A.HS().shift.run = null; TT.saveSoon(); A.render(); }
+const EVENTS = [
+{ i: "☕", n: "Free Coffee", t: "Someone left a full coffee on their desk. Nobody is looking.", o: [["Drink it", "Heal 30% (or is it decaf?)"], ["Leave it", "+15 coins for honesty"]],
+f: [() => { if (R() < 0.75) { heal(0.3); return "☕ Delicious. +30% HP"; } return "☕ It was decaf. Nothing happens."; }, () => { run().coins += 15; return "😇 +15 coins"; }] },
+{ i: "🚪", n: "Open Server Room", t: "The server room door is propped open with a chair.", o: [["Sneak in", "Random perk, -15% HP"], ["Report it", "+25 coins"]],
+f: [() => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; run().hp = Math.max(0.05, run().hp - 0.15); return "🚪 Found " + PERKS[id].n + "! -15% HP"; }, () => { run().coins += 25; return "📋 +25 coins"; }] },
+{ i: "🎰", n: "Break Room Slot Machine", t: "There's a slot machine in the break room. Since when?", o: [["Spin (20 coins)", "50% +60 coins, 15% perk"], ["Walk away", "Nothing happens"]],
+f: [() => { const r = run(); if (r.coins < 20) return "🎰 Not enough coins."; r.coins -= 20; const x = R(); if (x < 0.5) { r.coins += 60; return "🎰 WIN! +60 coins"; } if (x < 0.65) { const id = perkOffer(r.perks, 1)[0]; r.perks[id] = (r.perks[id] || 0) + 1; return "🎰 JACKPOT: " + PERKS[id].n; } return "🎰 Nothing. Classic."; }, () => "🚶 You walk away."] },
+{ i: "📅", n: "Quick Sync?", t: "Your manager wants a 'quick sync'. It will not be quick.", o: [["Accept", "-10% HP, +40 coins"], ["Fake a call", "Nothing happens"]],
+f: [() => { run().hp = Math.max(0.05, run().hp - 0.1); run().coins += 40; return "📅 1 hour later... +40 coins, -10% HP"; }, () => "📞 'Sorry, I'm on a call!'"] },
+{ i: "💾", n: "Mysterious USB Stick", t: "A USB stick labelled 'SALARIES 2026' lies on the floor.", o: [["Plug it in", "50% perk / 50% -25% HP"], ["Throw it away", "+10 coins"]],
+f: [() => { if (R() < 0.5) { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; return "💾 Free perk: " + PERKS[id].n; } run().hp = Math.max(0.05, run().hp - 0.25); return "💾 It was malware. -25% HP"; }, () => { run().coins += 10; return "🗑 +10 coins"; }] },
+{ i: "🍕", n: "Pizza Friday", t: "There's leftover pizza in the kitchen.", o: [["Eat 3 slices", "Heal 50%"], ["Take it to the team", "+35 coins"]],
+f: [() => { heal(0.5); return "🍕 +50% HP"; }, () => { run().coins += 35; return "🍕 The team loves you. +35 coins"; }] }
+];
+const SHOP = [
+{ i: "🩹", n: "First Aid Kit", c: 30, t: "Heal 35% HP", f: () => heal(0.35) },
+{ i: "🎁", n: "Mystery Perk", c: 60, t: "A random perk", f: () => { const id = perkOffer(run().perks, 1)[0]; run().perks[id] = (run().perks[id] || 0) + 1; rlog("🛒 Bought " + PERKS[id].n); } }
+];
+function shiftEvent(i) {
+const r = run(); if (!r || r.phase !== "event") return;
+const e = EVENTS[r.ev]; const msg = e.f[i] ? e.f[i]() : "";
+rlog(msg); advance(); shiftNext();
+}
+function shiftBuy(i) {
+const r = run(); if (!r || r.phase !== "shop") return;
+r.bought = r.bought || {};
+const s = SHOP[i]; if (!s || r.coins < s.c || r.bought[i]) return;
+r.coins -= s.c; r.bought[i] = true; s.f(); TT.saveSoon(); A.render();
+}
+function shiftRest(i) {
+const r = run(); if (!r || r.phase !== "rest") return;
+if (i === 0) { heal(0.4); rlog("😴 Power nap: +40% HP"); }
+else { const id = perkOffer(r.perks, 1)[0]; r.perks[id] = (r.perks[id] || 0) + 1; r.hp = Math.max(0.05, r.hp - 0.1); rlog("🎲 Won " + PERKS[id].n + " at poker, -10% HP"); }
+advance(); shiftNext();
+}
+function shiftShopDone() { const r = run(); if (!r || r.phase !== "shop") return; advance(); shiftNext(); }
+const wb = { st: null, loading: false, err: "", busy: false, at: 0 };
+function week() { return String(Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000))); }
+function wbLoad(force) {
+if (wb.loading || (!force && wb.st && Date.now() - wb.at < 20000)) return;
+wb.loading = true;
+google.script.run.withSuccessHandler(r => {
+wb.loading = false; wb.at = Date.now();
+if (r && r.ok) { wb.st = r; wb.err = ""; wbClaim(); } else wb.err = "Could not load the boss.";
+if (A.isOpen() && A.view() === "boss") A.render();
+}).withFailureHandler(e => { wb.loading = false; wb.err = String(e && e.message || e); if (A.isOpen() && A.view() === "boss") A.render(); }).wbState();
+}
+/** odměna za minulý týden: když padl a hráč se zúčastnil -> +10 % do kanceláře (+3 % za každý další MK, max +25 %; nejlepší +5 %), GC ×(1 + 0.25 za každý další MK) */
+function wbReward(kills, top) { const k = Math.max(1, kills || 1); return { buff: Math.min(0.25, 0.10 + 0.03 * (k - 1)) + (top ? 0.05 : 0), gcMul: 1 + 0.25 * (k - 1) }; }
+function wbClaim() {
+const l = wb.st && wb.st.last, d = A.HS();
+if (!l || d.wb.claimed === String(l.week)) return;
+d.wb.claimed = String(l.week);
+if (l.killed && l.myDmg > 0) {
+const rw = wbReward(l.kills, l.top === gameState.ldap);
+d.wb.buff = rw.buff; d.wb.buffWeek = week();
+const gc = Math.round(l.myDmg * 4 * rw.gcMul);
+gameState.coins += gc;
+log(`📊 QUARTERLY REVIEW: last week's boss went down${l.kills > 1 ? " " + l.kills + "× (up to " + C.mkName(l.kills) + ")" : ""}! You get ×${(1 + d.wb.buff).toFixed(2)} office income this week and +${fmt(gc)} GC${l.top === gameState.ldap ? " (Employee of the Week!)" : ""}.`, "special");
+updateUI();
 }
 TT.saveSoon();
-return rep;
 }
-/** v9.0: trénink za GC */
-function train() {
-const c = st(); if (!c.unlocked || trainLv() >= TRAIN_MAX) { TT.holdStop = true; return; }
-const cost = trainCost();
-if (gameState.coins < cost) { TT.holdStop = true; log(`Training costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost; c.level++; c.xp = 0; c.named = true;
-log(`🧑‍💼 ${esc(c.name)} reached training level ${trainLv()} (+${2 * trainLv()}% power)!`, "special");
-if (trainLv() >= TRAIN_MAX) TT.holdStop = true;
-after();
+function wbHtml(box) {
+wbLoad(false);
+const s = wb.st;
+if (!s) { box.innerHTML = `<div class="dg-card"><div class="dg-dim">${wb.err ? "⚠ " + esc(wb.err) : "Loading the Quarterly Review..."}</div></div>`; return; }
+const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
+const wait = Math.max(0, c.me.wait - (Date.now() - wb.at)), dead = false, rw = wbReward(kills, false), rwN = wbReward(kills + 1, false);
+const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
+const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
+const l = s.last;
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
+<div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
+<div class="dg-dim">Everyone in the company hits the same boss (always your level). 1 attack per hour, 15 rounds, no energy needed. HP grows with every new attendee.
+When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.6 HP, +15% ATK).<br>
+${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
+Next kill → <b>×${(1 + rwN.buff).toFixed(2)}</b>.</div></div></div>
+${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING (15 turns)"}</button>`}
+<div class="dg-dim" style="margin-top:6px;">Your damage this week: <b>${fmt(c.me.dmg)}</b> in ${c.me.n} attack${c.me.n === 1 ? "" : "s"}${A.HS().wb.buffWeek === week() ? ` · 🎉 Active bonus: <b>×${(1 + A.HS().wb.buff).toFixed(2)}</b> office income` : ""}</div></div>
+<div class="dg-grid2"><div class="dg-card"><div class="dg-h">DAMAGE LEADERBOARD</div><div class="wb-lb">${lb}</div></div>
+<div class="dg-card"><div class="dg-h">LAST WEEK</div><div class="dg-dim">${l ? `${esc(C.WB[l.idx % C.WB.length].e)} - ${l.killed ? "<b style='color:var(--emerald);'>DEFEATED" + (l.kills > 1 ? " " + l.kills + "× (" + C.mkName(l.kills) + ")" : "") + "</b>" : "<b style='color:var(--crimson);'>SURVIVED</b>"} · ${l.participants} attendees<br>
+${l.top ? `🏅 Employee of the Week: <b>${esc(l.top)}</b><br>` : ""}Your damage: ${fmt(l.myDmg)}` : "No meeting last week."}</div></div></div>`;
 }
-/** v10.2: kolega už nebere gear automaticky (dostával lepší než ty a jeho starý kus mizel) - výbavu mu dáváš ručně (Gear.toCol) */
-function takeGear(k, old) { return false; }
-function takeGearOld(k, old) {
-const c = st(); if (!c.unlocked || !window.Gear) return false;
-const cur = c.gear[k];
-if (!old || old.lv == null || (cur && cur.lv != null && Gear.score(cur) >= Gear.score(old))) return false;
-c.gear[k] = Object.assign({}, old); c.named = true;
-log(`🧑‍💼 ${esc(c.name)} took your old ${Gear.name(k, old)}.`, "success");
-return true;
+function wbGo() {
+const s = wb.st; if (!s || wb.busy) return;
+const c = s.cur;
+if (c.me.wait - (Date.now() - wb.at) > 0) return;
+const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1);
+let atkUsed = 0;
+A.beginFight(m, { mode: "boss", prepHero: (h) => { atkUsed = h.atk; },
+hud: (f) => `📊 Quarterly Review · round ${Math.min(15, f.turn + 1)}/15 · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,
+onEnd: function (f) {
+const dmg = Math.round(f.emax - Math.max(0, f.ehp));
+wb.busy = true;
+const gc = Math.round(Math.min(dmg * 3, C.gcAt(L, "boss") * 3));
+gameState.coins += gc;
+const lines = [`💥 ${fmt(dmg)} damage`, `+${fmt(gc)} GC`];
+const xp = Math.round(C.xpAt(L, "boss") * 0.3);
+A.gainXp(xp, lines); lines.splice(1, 0, `+${fmt(xp)} XP`);
+saveGame(() => google.script.run.withSuccessHandler(r => {
+wb.busy = false;
+if (r && r.ok) { wb.st.cur = r.state; wb.at = Date.now(); if (window.Meta && Meta.onWb) try { Meta.onWb(r.dmg, !!r.kill, r.mk || 1); } catch (e) {}
+if (r.kill) { log(`📊 YOU TOOK DOWN ${C.mkName(r.mk || 1)} of the Quarterly Review boss! ${C.mkName((r.mk || 1) + 1)} just walked in.`, "special"); TT.announce("KILLED THE WEEKLY BOSS " + C.mkName(r.mk || 1), "HIGH STAKES", 0, gc); } }
+else log("QUARTERLY REVIEW: damage not counted (" + (r && r.reason || "error") + ").", "warning");
+if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-res")) A.render();
+}).withFailureHandler(() => { wb.busy = false; log("QUARTERLY REVIEW: could not reach the server.", "warning"); }).wbSubmit(dmg, Math.round(atkUsed)));
+return { title: "MEETING OVER", sub: `💥 ${fmt(dmg)}`, lines: lines, note: "Damage is being submitted to the company-wide total...",
+buttons: [{ label: "◀ QUARTERLY REVIEW", cls: "btn-gold", fn: () => { wbLoad(true); Dungeon.tab("boss"); } }] };
+} });
 }
-function target(id) { const c = st(); if (bossesBeaten().indexOf(id) < 0) return; work(true); c.target = id; c.fightAt = Date.now(); after(); }
-function cls(k) { const c = st(); if (c.named) return; c.cls = k; after(); }
-function reroll() { const c = st(); if (c.named) return; const r = rollName(); c.name = r.name; c.quip = r.quip; after(); }
-function rename() {
-const c = st(); const n = prompt("Name your colleague (max 24 characters):", c.name || "");
-if (n == null) return; const t = String(n).replace(/[<>]/g, "").trim().slice(0, 24); if (!t) return;
-c.name = t; c.quip = ""; after();
+const POOL_COST = 1, POOL_SEED = 90210;                 // stejná patra pro všechny (fér žebříček)
+function poolGc(n) { return Math.round(C.gcAt(C.poolLevel(n), n % 25 === 0 ? "boss" : n % 5 === 0 ? "elite" : "normal") * 0.8 * A.presBonus()); }
+function poolXp(n) { return Math.round(C.xpAt(C.poolLevel(n), n % 25 === 0 ? "boss" : n % 5 === 0 ? "elite" : "normal") * 0.6); }
+const pb = { list: null, at: 0, loading: false };
+function poolBoardLoad(force) {
+if (pb.loading || (!force && pb.list && Date.now() - pb.at < 30000)) return;
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+pb.loading = true;
+google.script.run.withSuccessHandler(r => { pb.loading = false; pb.at = Date.now(); pb.list = r && r.ok ? r.list : []; if (A.isOpen() && A.view() === "pool" && !document.querySelector(".hs-ov")) A.render(); })
+.withFailureHandler(() => { pb.loading = false; pb.at = Date.now(); pb.list = pb.list || []; }).poolBoard();
 }
-function after() { TT.saveSoon(); if (A.isOpen() && A.view() === "colleague") A.render(); if (typeof updateUI === "function") updateUI(); }
-function html(box) {
-const d = A.HS(), c = st();
-if (!c.unlocked) {
-box.innerHTML = `<div class="dg-card dg-lock"><div class="big">🧑‍💼</div><div style="font:800 14px Orbitron,monospace;color:var(--emerald);margin:8px 0;">THE COLLEAGUE - LOCKED</div>
-<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to get a colleague. They farm bosses you have beaten and resolve tickets for you - even while you're away (up to 8 h).<br>Tower: ${d.tower.best}/100</div></div>`;
+function poolHtml(box) {
+const d = A.HS(), P = d.pool;
+if (!P.unlocked) {
+box.innerHTML = `<div class="dg-card dg-lock"><div class="big">♾</div><div style="font:800 14px Orbitron,monospace;color:var(--crimson);margin:8px 0;">Clear the Pool is locked</div>
+<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to unlock it (forever - prestige won't lock it again).<br>Tower: ${d.tower.best}/100</div></div>`;
 return;
 }
-work(false);
-const aw = awake(), h = hero(), me = A.hero();
-const sp = window.HSRig ? HSRig.player(c.cls, window.Gear ? Gear.vis(c.gear) : c.gear) : A.sprite(A.SPRITE_IDX[c.cls] || 0, "p");
-const head = `<div class="dg-card"><div class="cl-row">${sp}<div style="flex:1;min-width:0;">
-<div class="cl-name">${esc(c.name)}</div>${c.quip ? `<div class="cl-quip">“${esc(c.quip)}”</div>` : ""}
-<div class="dg-dim" style="margin-top:4px;">${H.CLASSES[c.cls].icon} ${H.CLASSES[c.cls].name} · LV ${colLevel()} (80% of yours) · 📚 training ${trainLv()}/${TRAIN_MAX}${trainLv() < TRAIN_MAX ? ` (XP ${fmt(c.xp)}/${fmt(xpToNext(c.level))})` : " MAX"}<br>
-❤ ${fmt(h.maxHp)} · ⚔ ${fmt(h.atk)} <span style="opacity:.7;">(max ${Math.round(POWER_CAP * 100)}% of yours: ❤ ${fmt(me.maxHp * POWER_CAP)} ⚔ ${fmt(me.atk * POWER_CAP)})</span><br>
-Record: ${c.stats.w}W / ${c.stats.l}L · earned ${short(c.stats.gc)} GC · ${fmt(c.stats.clicks)} clicks</div></div></div>
-${c.named ? `<div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Colleague.rename()">✏ RENAME</button></div>` :
-`<div class="dg-row" style="margin-top:8px;flex-wrap:wrap;"><button class="btn btn-cyan" onclick="Colleague.reroll()">🎲 REROLL NAME</button><button class="btn" onclick="Colleague.rename()">✏ CUSTOM NAME</button>
-${H.CLASS_IDS.map(k => `<button class="btn ${c.cls === k ? "btn-gold" : ""}" title="${H.CLASSES[k].name}" onclick="Colleague.cls('${k}')">${H.CLASSES[k].icon}</button>`).join("")}</div>
-<div class="dg-dim" style="margin-top:4px;">Name and class lock in after the first training or gear.</div>`}
-<div class="cl-slots">${["w", "a", "h", "t"].map(k => { const p = c.gear[k] && c.gear[k].lv != null ? c.gear[k] : null, P = window.Gear ? Gear.PIECES[k] : { i: "", n: k }; return `<div class="cl-slot"><span style="opacity:.6;">${P.i} ${P.n}</span><b style="color:${p ? Gear.RAR[p.r].c : "var(--text-muted)"};">${p ? esc(Gear.name(k, p)) : "nothing yet"}</b>${p ? `<div class="dg-dim" style="font-size:10px;">LV ${p.lv}${p.u ? " +" + p.u : ""}</div>${p.u < Gear.UMAX ? `<button class="btn ${gameState.coins >= Gear.upCost(p) ? "btn-gold" : ""}" style="padding:2px 6px;font-size:11px;margin-top:3px;" data-hold="colup-${k}" onclick="Gear.upCol('${k}')">⬆ +${p.u + 1} · ${short(Gear.upCost(p))}</button>` : ""}<button class="btn" style="padding:2px 6px;font-size:11px;margin-top:3px;" onclick="Gear.fromCol('${k}')">↩ Take back</button>` : ""}</div>`; }).join("")}</div>
-${window.Gear ? Gear.colGiveHtml(c) : ""}</div>`;
-if (!aw) {
-box.innerHTML = head + `<div class="dg-card cl-sleep"><div class="big">💤</div><div style="font:800 13px Orbitron,monospace;color:var(--text-dim);margin:6px 0;">${esc(c.name)} is still sleeping...</div>
-<div class="dg-dim">Your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS, 0).enemy.name)}</b> (chapter 3 boss) to get them to work. You can still train them and give them gear.</div></div>` + trainHtml(c);
-return;
+poolBoardLoad(false);
+const lb = pb.list ? (pb.list.length ? pb.list.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>floor ${fmt(p.best)}</span></div>`).join("") : `<div class="dg-dim">Nobody yet. Be the first!</div>`) : `<div class="dg-dim">Loading...</div>`;
+const n = P.best + 1, m = C.poolFloor(n, POOL_SEED), q = window.Gear ? Gear.POOL_QUANTUM : 50;
+const from = Math.floor(P.best / 10) * 10 + 1, cells = [];
+for (let f = from; f < from + 20; f++) cells.push(`<div class="${f <= P.best ? "ok" : f === n ? "nx" : ""} ${f % 25 === 0 ? "bs" : ""}">${f % 25 === 0 ? "☠" : f}</div>`);
+box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>♾ Clear the Pool</span><span>best: floor ${fmt(P.best)}</span></div>
+<div class="dg-dim">An endless tower of tickets. Every floor is its own fight with <b>full HP</b> and your progress is saved - lose and just try the same floor again.
+Floor 1 is LV ${C.poolLevel(1)} and every floor adds ~1 level, every 5th is an elite, every 25th one of the company's bosses. ⚡${POOL_COST} per fight, rewards for every new floor.
+<br>🎁 Pool floors drop the highest-level gear in the game (40% per floor).</div></div>
+<div class="dg-card"><div class="dg-h"><span>Next: ${esc(m.name)}</span><span>⚡${POOL_COST}</span></div>
+<div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · LV ${m.level} · ❤ ${fmt(m.enemy.maxHp)} · ⚔ ~${fmt(m.enemy.atk)}${m.enemy.mech ? " · ⚙ " + esc(m.enemy.mech) : ""}<br>
+Reward: ${fmt(poolXp(n))} XP, ${fmt(poolGc(n))} GC${m.kind === "boss" ? " + GC bonus" : ""}<br>Your stats: ${A.statLine()}</div></div>
+<button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.poolGo()">⚔ Fight floor ${n} (⚡${POOL_COST})</button></div>
+<div class="dg-card"><div class="dg-h">Floors</div><div class="tw-grid">${cells.join("")}</div></div>
+<div class="dg-card"><div class="dg-h">Deepest pool</div><div class="wb-lb">${lb}</div></div>`;
 }
-const ids = bossesBeaten();
-const tgt = c.target != null && ids.indexOf(c.target) >= 0 ? c.target : null;
-const nextF = tgt != null ? Math.max(0, FIGHT_MS - (Date.now() - c.fightAt)) : 0;
-const bosses = ids.slice().reverse().slice(0, 30).map(id => {
-const m = C.mission(keyId(id), keyN(id)), wr = winRate(id), r = reward(id), col = wr >= 0.7 ? "var(--emerald)" : wr >= 0.35 ? "var(--amber)" : "var(--crimson)";
-return `<div class="cl-boss ${tgt === id ? "sel" : ""}" onclick="Colleague.target(${id})"><span class="ic">${m.enemy.icon}</span><div class="t"><b>${esc(m.enemy.name)} · LV ${m.level}</b><span class="dg-dim">win: +${short(r.gc)} GC · +${short(r.scrap)} scrap · +${fmt(r.xp)} XP</span></div><span class="wr" style="color:${col};">${Math.round(wr * 100)}%</span></div>`;
-}).join("") || `<div class="dg-dim">Beat some elites or bosses in the campaign first.</div>`;
-box.innerHTML = head + `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>🎯 BOSS TO FARM</span><span class="dg-dim">${tgt != null ? "next fight in " + A.fmtT(nextF) : "pick one"}</span></div>
-<div class="dg-dim" style="margin-bottom:6px;">Bosses you beat in this High Stakes run. One fight every 20 min (no energy), win chance on the right, 10% chance to bring you gear from a boss. Harder bosses pay more but ${esc(c.name)} wins less often. Every 30 s they also resolve a ticket with your click power. Works while you're away for up to 8 h.</div>${bosses}</div>
-<div><div class="dg-card"><div class="dg-h">📋 WORK LOG</div><div class="cl-log">${c.log.length ? c.log.map(l => `<div>${l}</div>`).join("") : `<div>Nothing yet.</div>`}</div></div>${trainHtml(c)}</div></div>`;
+function poolGo() {
+const d = A.HS(); if (!d.pool.unlocked) return;
+const n = d.pool.best + 1, m = C.poolFloor(n, POOL_SEED);
+if (!A.spendEnergy(POOL_COST)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
+A.beginFight(m, { mode: "pool",
+hud: () => `♾ Pool floor ${n}${m.kind === "boss" ? " · BOSS" : m.kind === "elite" ? " · ELITE" : ""} · best ${A.HS().pool.best}`,
+onEnd: function (fi) {
+const dd = A.HS(), lines = [];
+if (fi.win) {
+dd.wins++;
+if (n > dd.pool.best) {
+dd.pool.best = n;
+const gc = poolGc(n), xp = poolXp(n);
+gameState.coins += gc;
+A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`, `+${fmt(gc)} GC`);
+if (m.kind === "boss") A.dropItem(lines, m.level);
+lines.push(`🏆 New best: floor ${n}`);
+if (n % 25 === 0) TT.announce("REACHED POOL FLOOR " + n, "HIGH STAKES", 0, gc);
+log(`♾ POOL floor ${n} cleared - ${lines.join(", ")}`, "special");
 }
-function trainHtml(c) {
-const L = trainLv(), max = L >= TRAIN_MAX, cost = max ? 0 : trainCost(), ok = !max && gameState.coins >= cost;
-return `<div class="dg-card"><div class="dg-h"><span>📚 Training</span><span class="dg-dim">${L}/${TRAIN_MAX} · +${2 * L}% power</span></div>
-<div class="dg-dim" style="margin-bottom:6px;">Send ${esc(c.name)} to a course: +2% ATK and HP per level (max ${TRAIN_MAX}). Gear comes from you - when you evolve a piece, your old one goes to them if it's better.</div>
-<button class="btn ${ok ? "btn-gold" : ""}" style="width:100%;padding:10px;" ${ok ? "" : "disabled"} data-hold="col-train" onclick="Colleague.train()">${max ? "Fully trained" : `Train to level ${L + 1} · ${short(cost)} GC`}</button></div>`;
+TT.saveSoon(); poolBoardLoad(true);
+return { title: `FLOOR ${n} CLEARED`, lines: lines,
+buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: `FLOOR ${n + 1} ▶`, cls: "btn-gold", fn: poolGo }] };
 }
-function report(rep) {
-const c = st();
-if (!rep || (!rep.w && !rep.l && rep.clicks < 20)) return;
-const el = document.createElement("div");
-el.className = "tt-overlay open"; el.style.zIndex = 9995;
-el.onclick = (e) => { if (e.target === el) el.remove(); };
-const q = c.quip || QUIPS[Math.floor(Math.random() * QUIPS.length)];
-el.innerHTML = `<div class="tt-modal" style="border-color:var(--emerald);"><h2 style="color:var(--emerald);">🧑‍💼 WHILE YOU WERE AWAY</h2>
-<div class="tt-body" style="min-height:0;font-size:13px;line-height:1.6;"><b style="color:var(--emerald);">${esc(c.name)}</b>${rep.boss ? ` fought <b>${esc(rep.boss)}</b> ${rep.w + rep.l}× (${rep.w} won, ${rep.l} lost)` : ""}${rep.boss ? " and" : ""} resolved ${fmt(rep.clicks)} tickets.<br>
-💰 +${short(rep.gc)} GC · ⚙ +${short(rep.scrap)} scrap · 🎫 +${short(rep.tickets)} tickets${rep.xp ? " · +" + fmt(rep.xp) + " XP" : ""}${rep.tok ? " · 🎟 +" + rep.tok : ""}
-<div class="cl-quip" style="margin-top:8px;">“${esc(q)}”</div></div>
-<div style="margin-top:12px;"><button class="btn btn-gold" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">NICE</button></div></div>`;
-document.body.appendChild(el);
+dd.losses++;
+const xp = fi.fled ? 0 : Math.round(poolXp(n) * 0.3); if (xp) A.gainXp(xp, lines);
+lines.push(xp ? `+${xp} XP` : "no reward", "Your progress is saved - try again.");
+return { title: "THE POOL WINS", sub: `floor ${n}`, lines: lines,
+buttons: [{ label: "◀ POOL", fn: () => Dungeon.tab("pool") }, { label: "↻ RETRY", cls: "btn-cyan", fn: poolGo }] };
+} });
 }
-function chip() {
-if (typeof gameState === "undefined" || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return "";
-const c = gameState.hs.col;
-return awake() ? `<span class="buff-chip on" title="Your colleague is farming bosses and clicking for you">🧑‍💼 ${esc(c.name)}</span>` : `<span class="buff-chip" title="Beat the chapter 3 boss to wake them up">💤 ${esc(c.name)}</span>`;
-}
-A.registerMode("colleague", { label: "🧑‍💼 COLLEAGUE", order: 70, render: html });
-window.Colleague = { awake: awake, train: train, takeGear: takeGear, trainCost: trainCost, target: target, cls: cls, reroll: reroll, rename: rename, work: work, chip: chip, hero: hero, winRate: winRate, simFight: simFight, rollName: rollName, MEME: MEME, FIRST: FIRST };
-let wasAwake = null;
-(function boot() {
-if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
-TT.onLoaded(() => setTimeout(() => { try { wasAwake = awake(); const r = work(true); report(r); } catch (e) { console.error(e); } }, 2500));
-setInterval(() => {
-try {
-if (typeof gameState === "undefined" || !gameLoaded || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return;
-const a = awake();
-if (wasAwake === false && a) log(`☕ ${esc(gameState.hs.col.name)} woke up. Back to work!`, "special");
-if (wasAwake === true && !a) log(`💤 ${esc(gameState.hs.col.name)} fell asleep after your prestige. Beat ${esc(C.mission(WAKE_BOSS).enemy.name)} to wake them up.`, "warning");
-wasAwake = a;
-work(false);
-if (A.isOpen() && A.view() === "colleague" && !document.querySelector(".hs-ov") && !document.querySelector(".tt-overlay.open")) A.render();
-} catch (e) { console.error(e); }
-}, 10000);
-})();
+A.registerMode("tower", { label: "🗼 TOWER", order: 20, render: towerHtml });
+A.registerMode("pool", { label: "♾ POOL", order: 25, render: poolHtml });
+A.registerMode("shift", { label: "📟 SHIFT", order: 30, render: shiftHtml });
+A.registerMode("boss", { label: "📊 BOSS", order: 40, render: wbHtml, busy: () => wb.busy });
+window.HSModes = { week: week, towerGo: towerGo, shiftStart: shiftStart, shiftGo: shiftGo, shiftPerk: shiftPerk, shiftEvent: shiftEvent, shiftBuy: shiftBuy,
+shiftRest: shiftRest, shiftShopDone: shiftShopDone, shiftQuit: shiftQuit, wbGo: wbGo, poolGo: poolGo, PERKS: PERKS, applyPerks: applyPerks, towerTier: towerTier };
+(function wait() { if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(wait, 200); return; } TT.onLoaded(() => setTimeout(() => wbLoad(true), 4000)); })();
+setInterval(() => { if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-ov")) { const b = document.querySelector('[onclick="HSModes.wbGo()"]'); if (b && b.disabled && wb.st) A.render(); } }, 1000);
 })();
 </script>
 <style>
-/* ===== POSTUPNÉ ODEMYKÁNÍ + ZJEDNODUŠENÍ UI ===== */
-.gate-locked > :not(.gate-card) { display: none !important; }
-.gb-sec.gate-locked { padding: 6px 8px; }
-.gate-card { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
-.gate-card .ic { font-size: 22px; opacity: .7; }
-.gate-card .t { flex: 1; min-width: 0; }
-.gate-card b { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--text-dim); }
-.gate-card .dg-dim, .gate-card small { display: block; font-size: 11px; color: var(--text-muted, #667); margin-top: 2px; }
-.gate-bar { height: 4px; background: #000; border-radius: 2px; overflow: hidden; margin-top: 5px; }
-.gate-bar div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--amber)); }
-.panel.gate-hidden { display: none !important; }
-.pres-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: #3b4252; }
-.pres-dot.on { background: #00ff88; box-shadow: 0 0 6px #00ff88; animation: presPulse 1.6s ease-in-out infinite; }
-.pres-dot.afk { background: #ffb800; box-shadow: 0 0 5px rgba(255,184,0,.7); }
-@keyframes presPulse { 50% { opacity: .45; } }
-/* Telemetry: sbalitelný */
-.tele-toggle { cursor: pointer; user-select: none; }
-.tele-toggle::after { content: " ▾"; color: var(--text-dim); }
-.tele-collapsed .tele-toggle::after { content: " ▸"; }
-.tele-collapsed .stats-grid { display: none; }
-/* Autoclicker + autogen kompaktně */
-.ac-box { padding: 6px 8px; }
-.ac-box > .ac-row:nth-child(3), .ac-box > .ac-bar-next { display: none; }
-.ac-box .ac-bar { margin-bottom: 4px; height: 6px; }
-.ac-box .btn, #btn-autogen { padding: 6px 4px; font-size: 10px; }
-.ag-compact { margin-top: 6px !important; padding: 6px 8px !important; }
-/* Kasino taby ve dvou řadách */
-#tab-btn-roulette { margin-left: 0; }
-.panel .tab-row:has(#tab-btn-roulette) { flex-wrap: wrap; gap: 4px; }
-.panel .tab-row:has(#tab-btn-roulette) .casino-tab-btn { flex: 1 0 30%; }
+/* ===== v11 HIGH STAKES DUEL - živý 1v1 s kamarádem ===== */
+.du-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.du-form label { font-size: 11px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
+.du-form input, .du-form select { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); color: var(--text-main); border-radius: 6px; padding: 8px; font-size: 13px; }
+.du-list .dg-art { cursor: default; }
+.du-role { text-align: center; margin: 8px 0 4px; font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; }
+.du-role.atk { color: var(--amber); } .du-role.react { color: var(--cyan); }
+.du-role small { display: block; font: 400 11px sans-serif; letter-spacing: 0; color: var(--text-dim); margin-top: 2px; }
+.du-timer { height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin: 4px 0 6px; }
+.du-timer div { height: 100%; background: linear-gradient(90deg, var(--crimson), var(--amber)); transition: width .25s linear; }
+.du-al { display: grid; grid-template-columns: 52px 1fr repeat(2, auto) 44px repeat(2, auto); gap: 4px; align-items: center; margin-top: 6px; font-size: 12px; }
+.du-al .btn { padding: 5px 8px; font-size: 11px; }
+.du-al .v { text-align: center; font: 800 14px 'Orbitron', monospace; color: var(--amber); }
+.du-wait { text-align: center; padding: 12px; font-size: 12px; color: var(--text-dim); }
+@media (max-width: 700px) { .du-form { grid-template-columns: 1fr; } }
 </style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part20"] = 1;</script>
 <!-- END-OF-FILE: part20 -->

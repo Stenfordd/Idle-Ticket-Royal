@@ -1,81 +1,611 @@
-<script type="text/plain" data-tt="ttbig4" data-i="2">const lp = Number(last) | 0;
-if (P() <= lp) return;
-let msg = P() > 15 ? ["A new planet appeared outside your window!", "Space station · Prestige " + P()] : REVEAL[t];
-if (!msg) return;
-reveal(msg, P() > 15 ? "" : NEW_ITEM[t]);
+<script>
+(function () {
+"use strict";
+var $ = function (id) { return document.getElementById(id); };
+var mq = window.matchMedia ? window.matchMedia("(max-width: 820px)") : { matches: false };
+var tab = "play", compact = false;
+try { tab = localStorage.getItem("ir_tab") || "play"; compact = localStorage.getItem("ir_compact") === "1"; } catch (e) {}
+function isM() { return !!mq.matches || compact; }
+var tb = document.querySelector(".top-bar"); if (tb && $("m-hud")) tb.parentNode.insertBefore($("m-hud"), tb.nextSibling);
+var mwEl = document.querySelector(".main-wrapper"); if (mwEl && $("m-settings")) mwEl.appendChild($("m-settings"));
+var tabsEl = $("m-tabs"); if (mwEl && tabsEl) mwEl.parentNode.insertBefore(tabsEl, mwEl.nextSibling);
+function panelOf(id) { var el = $(id); return el ? (el.closest(".panel") || el) : null; }
+function panelByHeader(re) {
+var all = document.querySelectorAll(".panel");
+for (var i = 0; i < all.length; i++) { var h = all[i].querySelector(".panel-header"); if (h && re.test(h.textContent)) return all[i]; }
+return null;
 }
-function reveal(msg, item) {
-if (!root) return;
-const f = document.createElement("div"); f.className = "rm-flash"; root.appendChild(f); setTimeout(() => f.remove(), 800);
-const r = document.createElement("div"); r.className = "rm-rev"; r.innerHTML = `<b>${esc(msg[0])}</b><span>${esc(msg[1])}</span>`;
-r.onclick = () => r.remove(); root.appendChild(r); setTimeout(() => r.remove(), 6500);
-if (item) { const el = root.querySelector(`.rm-o[data-o="${item === "deco" ? "tv" : item}"]`); if (el) el.classList.add("new"); }
-const sv = me && me.querySelector(".rig"); if (sv) { sv.classList.add("a-wave"); setTimeout(() => sv.classList.remove("a-wave"), 1600); }
-if (typeof log === "function") log(`🏠 ${msg[0]} ${msg[1]}`, "special");
-}
-function mount() {
-const btnWrap = document.querySelector(".click-btn-wrap"); if (!btnWrap) return false;
-root = document.createElement("div"); root.className = "rm labels"; root.id = "rm";
-btnWrap.parentNode.insertBefore(root, btnWrap);
-root.addEventListener("click", (e) => { const o = e.target.closest(".rm-o"); if (o && !o.classList.contains("deco")) tap(o.getAttribute("data-o")); else hideHint(); });
-root.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { const o = e.target.closest(".rm-o"); if (o) { e.preventDefault(); tap(o.getAttribute("data-o")); } } });
-try { hintT = localStorage.getItem("ir_room_hint") ? 1 : 0; } catch (e) {}
-render();
-setTimeout(() => root && root.classList.remove("labels"), 5000);
-const btn = $("btn-click");
-if (btn) { btn.addEventListener("click", onResolve); btn.addEventListener("touchstart", onResolve, { passive: true }); }
-return true;
-}
-/** v9.6 VISIT OFFICE: vykreslí cizí kancelář (data z officeView na serveru) do el, bez interakce */
-function renderStatic(el, v) {
-OV = v; const kT = T;
-try {
-T = tierOf(v.prestige); const E = ENVS[ENV_OF[T]];
-let h = bg(T, v.prestige) + `<div class="rm-name">${E.i} ${esc(v.nick)}'s office · ${esc(E.n)} · Prestige ${v.prestige}</div>`;
-el.innerHTML = h;
-OBJS.forEach(o => {
-if (o.id === "col" && !v.col) return;
-const a = art(o.id), d = document.createElement("div");
-d.className = "rm-o deco"; d.style.zIndex = o.wall ? 5 : Math.round(o.y);
-d.innerHTML = `<svg viewBox="0 0 ${a.w} ${a.h}" aria-hidden="true">${a.svg}</svg>`;
-place(d, o.x, o.y, a.w, a.h); el.appendChild(d);
-if (o.id === "col" && v.col && window.HSRig) { const box = document.createElement("div"); box.style.cssText = "position:absolute;left:62%;top:-18%;width:46%;height:92%;"; box.innerHTML = `<div style="position:absolute;inset:0;transform:scaleX(-1);">${HSRig.player(v.col.cls, v.col.gear)}</div>`; d.appendChild(box); }
+function tag(el, name) { if (el) el.setAttribute("data-tab", name); }
+tag(panelOf("btn-click"), "play");
+tag(panelByHeader(/SCRAP FABRICATION/i), "chest");
+tag(panelOf("btn-open-chest"), "chest");
+tag(panelOf("slot-HEAD"), "bag");
+tag(panelOf("backpack-grid"), "bag");
+tag(panelOf("merge-list"), "bag");
+tag(panelOf("view-roulette"), "casino");
+tag($("adv-minigames-mount"), "casino");
+tag(panelOf("btn-consult-launch"), "casino");
+tag(panelOf("stat-tickets"), "more");
+tag(panelOf("lp-shop"), "more");
+tag(panelOf("log"), "more");
+tag(panelOf("lb-body"), "more");
+/* v8.5.1: iOS po zavření fullscreen překryvu (HIGH STAKES) občas nepřekreslí horní část a zůstane "duch" - vynutíme repaint */
+window.ttRepaint = function () {
+var b = document.body; if (!b) return;
+b.style.transform = "translateZ(0)"; void b.offsetHeight;
+requestAnimationFrame(function () {
+b.style.transform = "";
+var mw = document.querySelector(".main-wrapper");
+if (mw) { var st = mw.scrollTop; mw.scrollTop = st + 1; mw.scrollTop = st; }
+setTimeout(function () { b.style.opacity = "0.999"; requestAnimationFrame(function () { b.style.opacity = ""; }); }, 60);
 });
-decos(T).forEach(dd => { const d = document.createElement("div"); d.className = "rm-o deco"; d.style.zIndex = Math.round(dd.y); d.innerHTML = `<svg viewBox="0 0 ${dd.w} ${dd.h}" aria-hidden="true">${dd.svg}</svg>`; place(d, dd.x, dd.y, dd.w, dd.h); el.appendChild(d); });
-if (window.HSRig && v.hs && v.hs.cls) { const m = document.createElement("div"); m.className = "rm-me"; m.innerHTML = `<div class="rm-fl">${HSRig.player(v.hs.cls, v.hs.gear)}</div>`; const sz = meSize(214); place(m, 200, 214, sz.w, sz.h); m.style.zIndex = 215; el.appendChild(m); }
-} finally { OV = null; T = kT; }
+};
+function setTab(t) {
+tab = t;
+document.body.setAttribute("data-mtab", t);
+var bs = document.querySelectorAll("#m-tabs button");
+for (var i = 0; i < bs.length; i++) bs[i].classList.toggle("active", bs[i].getAttribute("data-go") === t);
+var mw = document.querySelector(".main-wrapper"); if (mw) mw.scrollTop = 0;
+try { localStorage.setItem("ir_tab", t); } catch (e) {}
+if (t === "more" && typeof chatVisible === "function" && chatVisible() && typeof chatUnread !== "undefined" && chatUnread) { chatUnread = 0; renderChatUnread(); }
+if (window.ttRepaint) window.ttRepaint();
+window.dispatchEvent(new Event("resize"));      // ruleta si přepočítá šířku
 }
-/** v9.6 PRANK: post-it lístky na mém stole, každý za scrap */
-function postits(n, onTake) {
-if (!root) return;
-root.querySelectorAll(".rm-pi").forEach(x => x.remove());
-for (let i = 0; i < n; i++) {
-const p = document.createElement("div"); p.className = "rm-pi"; p.setAttribute("role", "button"); p.title = "Peel it off";
-const x = 62 + (i * 37) % 80 + (i % 2) * 6, y = 112 + ((i * 23) % 34);
-p.style.cssText = `position:absolute;left:${pct(x, W)};top:${pct(y, H)};width:${pct(13, W)};height:${pct(13, H)};background:${["#fde047", "#f9a8d4", "#86efac", "#7dd3fc"][i % 4]};transform:rotate(${(i * 37) % 30 - 15}deg);box-shadow:0 2px 3px rgba(0,0,0,.4);z-index:700;cursor:pointer;border-radius:1px;`;
-p.addEventListener("click", (ev) => { ev.stopPropagation(); p.style.transition = "transform .3s,opacity .3s"; p.style.opacity = "0"; p.style.transform += " translateY(-14px)"; setTimeout(() => p.remove(), 300); onTake && onTake(); });
-root.appendChild(p);
-}
-}
-window.Room = { renderStatic: renderStatic, postits: postits, colSay: colSay, render: render, tap: tap, reveal: reveal, ENVS: ENVS, REVEAL: REVEAL, tierOf: tierOf, walkTo: walkTo, say: say, bg: bg, art: (id, t) => { const k = T; T = t; const a = art(id); T = k; return a; } };
-(function boot() {
-if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded || !window.HSRig) { setTimeout(boot, 120); return; }
-TT.onLoaded(() => {
-if (!root && !mount()) return;
-sig = sigAll(); render(); checkReveal();
-setInterval(() => {
-if (!root || document.hidden) return;
-const s = sigAll();
-if (s !== sig) {
-const prevP = Number(sig.split("|")[1]);
-sig = s; render();
-if (P() !== prevP) checkReveal();
-}
-}, 1500);
+document.getElementById("m-tabs").addEventListener("click", function (ev) {
+var b = ev.target.closest("button[data-go]"); if (!b) return;
+var go = b.getAttribute("data-go");
+if (go === "fight") { if (window.Dungeon) Dungeon.open(); return; }
+setTab(go);
 });
-})();
+/* v8.7.5: výška = skutečná viditelná plocha (pevný prvek top:0 + bottom:0), jen při psaní výška nad klávesnicí.
+(v8.7.3 používal 100dvh - Chrome na Androidu ho počítal i pod adresní řádek a spodní lišta zmizela) */
+var probe = document.createElement("div");
+probe.style.cssText = "position:fixed;top:0;bottom:0;left:0;width:0;visibility:hidden;pointer-events:none;";
+document.documentElement.appendChild(probe);
+function typing() { var a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea,select,[contenteditable]")); }
+/* v9.0.1: iPhone aplikace z plochy (černý průhledný status bar) hlásí výšku bez status baru -> spodní lišta byla useknutá */
+var sprobe = document.createElement("div");
+sprobe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);";
+document.documentElement.appendChild(sprobe);
+function safeTop() { return parseFloat(getComputedStyle(sprobe).paddingTop) || 0; }
+function standalone() { return !!(navigator.standalone || (window.matchMedia && (matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches))); }
+/** v9.3.1: iPhone web app (černý průhledný status bar): viditelná výška = hlášená výška + výška status baru */
+function isIOS() { var u = navigator.userAgent || ""; return /iPhone|iPad|iPod/.test(u) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function iosFull() {
+if (!isIOS() || !standalone() || !window.screen) return 0;            // v9.3.3: jen iPhone (Android aplikace má v screen.height i systémové lišty -> lišta zmizela pod okraj)
+var port = window.innerWidth < window.innerHeight;
+var sh = port ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+var ph = probe.offsetHeight || window.innerHeight, st = safeTop(), d = sh - ph;
+return d > 20 && d < 120 ? d : 0;     // v9.3.4: iOS spodních d bodů vůbec nevykreslí -> hru už NEnatahujeme, jen to označíme (iosgap)
+}
+window.__viewInfo = function () {
+return "screen " + (window.screen ? screen.width + "×" + screen.height : "?") + " · inner " + window.innerWidth + "×" + window.innerHeight + " · fixed " + (probe.offsetHeight || 0) +
+" · safe " + Math.round(safeTop()) + "/" + Math.round(parseFloat(getComputedStyle(sprobe).paddingBottom) || 0) + " · app " + (standalone() ? "yes" : "no") + (isIOS() ? " ios" : "") + " · gap " + (document.documentElement.classList.contains("iosgap") ? "on" : "off") +
+" · body " + Math.round(document.body.getBoundingClientRect().height) + " · tabs " + Math.round(($("m-tabs") || document.body).getBoundingClientRect().bottom);
+};
+function setAppH() {
+var vv = window.visualViewport, kb = typing() && vv && vv.height < (probe.offsetHeight || window.innerHeight) - 80;
+document.documentElement.classList.toggle("kb", !!kb);
+document.documentElement.classList.toggle("iosgap", !kb && !!iosFull());
+var h = kb ? vv.height : (probe.offsetHeight || window.innerHeight);
+if (h) document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
+}
+document.addEventListener("focusin", function () { setTimeout(setAppH, 50); });
+document.addEventListener("focusout", function () { setTimeout(setAppH, 50); });
+setAppH();
+window.addEventListener("resize", setAppH);
+window.addEventListener("orientationchange", function () { setTimeout(setAppH, 250); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", setAppH);
+window.addEventListener("pageshow", setAppH);
+setInterval(function () { setAppH(); var vi = $("m-viewinfo"); if (vi && document.body.getAttribute("data-mtab") === "more") vi.textContent = window.__viewInfo(); }, 2000);     // pojistka: Chrome při schování/zobrazení lišty někdy resize nepošle
+function applyMode() {
+var on = isM();
+document.documentElement.classList.toggle("m", on);
+document.documentElement.classList.toggle("mc", on && !mq.matches);
+var cb = $("m-compact"); if (cb) cb.textContent = compact ? "🖥 FULL UI" : "📱 COMPACT";
+if (on) setTab(/^(play|chest|bag|casino|more)$/.test(tab) ? tab : "play");
+else document.body.removeAttribute("data-mtab");
+}
+if (mq.addEventListener) mq.addEventListener("change", applyMode); else if (mq.addListener) mq.addListener(applyMode);
+var badge = document.querySelector(".user-badge");
+if (badge && !$("m-compact")) {
+var cbt = document.createElement("button");
+cbt.id = "m-compact"; cbt.type = "button"; cbt.className = "btn btn-cyan btn-help";
+cbt.title = "Switch between the full PC layout and the compact layout with tabs at the bottom";
+cbt.addEventListener("click", function () {
+compact = !compact;
+try { localStorage.setItem("ir_compact", compact ? "1" : "0"); } catch (e) {}
+applyMode();
+window.dispatchEvent(new Event("resize"));
+});
+badge.insertBefore(cbt, badge.firstChild);
+}
+applyMode();
+var cache = {};
+function mirror(from, to) {
+var a = $(from), b = $(to); if (!a || !b) return;
+var t = a.textContent;
+if (to !== "mh-p") {                                  // v9.0.1: od miliardy zkráceně, ať se to vejde (13.40B)
+var n = Number(t.replace(/[^\d]/g, ""));
+if (n >= 1e9) t = n >= 1e15 ? n.toExponential(2) : n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : (n / 1e9).toFixed(2) + "B";
+}
+if (cache[to] !== t) { cache[to] = t; b.textContent = t; }
+}
+setInterval(function () {
+if (!isM() || document.hidden) return;
+mirror("stat-tickets", "mh-t"); mirror("stat-coins", "mh-c"); mirror("stat-scrap", "mh-s"); mirror("stat-cps", "mh-p");
+}, 250);
+$("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/i.test(t.textContent)) ? "✨ EFFECTS: OFF" : "✨ EFFECTS: ON"; });
+$("m-logout").addEventListener("click", function () { var t = $("ir-logout"); if (t) t.click(); });
+var cbtn = $("btn-click");
+if (cbtn && "ontouchstart" in window) {
+cbtn.addEventListener("touchstart", function (e) {
+e.preventDefault();                      // žádný zpožděný click, dvojklik-zoom ani označení textu
+cbtn.classList.add("pressed");
+for (var i = 0; i < e.changedTouches.length; i++) {
+var t = e.changedTouches[i];
+if (typeof handleManualClick === "function") handleManualClick(e);
+if (window.__fxTap) window.__fxTap(t.clientX, t.clientY);
+}
+}, { passive: false });
+var unpress = function () { cbtn.classList.remove("pressed"); };
+cbtn.addEventListener("touchend", unpress); cbtn.addEventListener("touchcancel", unpress);
+}
+function isField(t) { return t && t.closest && t.closest("input,textarea,select,[contenteditable]"); }
+document.addEventListener("selectstart", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("dblclick", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("contextmenu", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+document.addEventListener("touchmove", function (e) {
+if (mq.matches && e.target.closest && e.target.closest("#btn-click")) e.preventDefault();   // v9.3.6: blokuje se jen tah po tlačítku, záložka HRA se jinak normálně posouvá
+}, { passive: false });
 })();
 </script>
-<script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig4"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<style>
+/* ======================= v9.0 NEW LOOK (styl C) =======================
+Klidnější tmavý vzhled: Space Grotesk, žádné CAPS LOCK nadpisy, ploché panely, jedno velké "hmatatelné" tlačítko.
+Vše je pod html.v9 -> přepínač 🎨 vrátí klasický vzhled. */
+html.v9 {
+--bg-core: #10131c;
+--bg-panel: #161b27;
+--bg-panel-elevated: #1e2433;
+--border-subtle: #262d3d;
+--border-glow: rgba(255, 71, 102, .35);
+--crimson: #ff4766;
+--crimson-glow: none;
+--cyan: #63c5ff;
+--cyan-glow: none;
+--amber: #f5b942;
+--emerald: #4fd39a;
+--text-main: #e8ecf3;
+--text-dim: #8a94a8;
+--text-muted: #5b657a;
+--rarity-t2: #4a8cff;
+--rarity-t6: #2fe6c8;
+--v9-line: #262d3d;
+--v9-hi: #262e40;
+--v9-r: 14px;
+color-scheme: dark;
+}
+html.v9 body, html.v9 body * {
+font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
+letter-spacing: normal !important;
+text-transform: none !important;
+text-shadow: none !important;
+}
+html.v9 body { font-size: 13px; line-height: 1.45; background: var(--bg-core); background-image: none; font-variant-numeric: tabular-nums; }
+html.v9 b, html.v9 strong { font-weight: 700; }
+html.v9 ::selection { background: rgba(255, 71, 102, .35); }
+html.v9 * { scrollbar-color: #2b3345 transparent; }
+/* ---------- horní lišta ---------- */
+html.v9 .top-bar { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 10px 18px; }
+html.v9 .brand-title { font-size: 17px; font-weight: 700; color: var(--text-main); }
+html.v9 .brand-title .v9-acc { color: var(--crimson); font-weight: 600; }
+html.v9 .brand-title { display: flex; align-items: center; white-space: nowrap; }
+html.v9 .brand-title .v9-mark { display: inline-flex; width: 28px; height: 19px; margin-right: 9px; flex: none; }
+html.v9 .brand-title .v9-mark svg { width: 100%; height: 100%; }
+html.v9 .brand-title .v9-acc { margin-left: 5px; }
+html.v9 .user-badge { font-size: 12px; color: var(--text-dim); }
+html.v9 .user-badge strong { font-weight: 600; }
+html.v9 .status-pill { background: rgba(79, 211, 154, .1); border: 0; font-weight: 500; }
+html.v9 .status-dot { box-shadow: none; }
+html.v9 #dg-open-btn, html.v9 .btn-help { padding: 5px 10px; font-size: 12px; }
+/* ---------- panely ---------- */
+html.v9 .main-wrapper { gap: 14px; }
+html.v9 .grid-columns, html.v9 .column { gap: 14px; }
+html.v9 .panel { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 18px; padding: 16px; box-shadow: none; }
+html.v9 .panel-header { font-size: 15px; font-weight: 700; color: var(--text-main); border-bottom: 0; padding-bottom: 0; margin-bottom: 12px; gap: 8px; }
+html.v9 .panel-header > span:not(:first-child), html.v9 .panel-header small { font-size: 12px !important; font-weight: 500; color: var(--text-dim); }
+html.v9 .panel-header #multiplier-badge { color: var(--amber) !important; font-weight: 600; }
+/* ---------- tlačítka ---------- */
+html.v9 .btn { font-size: 12px; font-weight: 600; border-radius: 10px; padding: 8px 12px; background: var(--v9-hi); border: 1px solid transparent; color: var(--text-main); transition: background .15s, transform .08s; }
+html.v9 .btn:hover:not(:disabled) { background: #2d3649; border-color: transparent; box-shadow: none; }
+html.v9 .btn:active:not(:disabled) { transform: translateY(1px); }
+html.v9 .btn:disabled { opacity: .38; }
+html.v9 .btn-cyan { background: rgba(99, 197, 255, .13); color: var(--cyan); border-color: transparent; }
+html.v9 .btn-cyan:hover:not(:disabled) { background: rgba(99, 197, 255, .22); box-shadow: none; }
+html.v9 .btn-crimson { background: rgba(255, 71, 102, .14); color: #ff7088; border-color: transparent; }
+html.v9 .btn-crimson:hover:not(:disabled) { background: rgba(255, 71, 102, .24); box-shadow: none; }
+html.v9 .btn-gold { background: rgba(245, 185, 66, .15); color: var(--amber); border-color: transparent; }
+html.v9 .btn-gold:hover:not(:disabled) { background: rgba(245, 185, 66, .25); }
+html.v9 .btn:focus-visible, html.v9 .casino-tab-btn:focus-visible, html.v9 #m-tabs button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* ---------- hlavní tlačítko RESOLVE ---------- */
+html.v9 .btn-primary-action {
+border: 0; border-radius: 22px; padding: 22px 14px; font-size: 20px; font-weight: 700; color: #fff;
+background: radial-gradient(circle at 50% 30%, #ff6580 0%, #e3304f 55%, #c9213f 100%);
+box-shadow: 0 7px 0 #8c1530, 0 14px 26px rgba(0, 0, 0, .45);
+transition: transform .06s, box-shadow .06s;
+}
+html.v9 .btn-primary-action:hover { transform: translateY(-1px); box-shadow: 0 8px 0 #8c1530, 0 16px 28px rgba(0, 0, 0, .45); }
+html.v9 .btn-primary-action:active, html.v9 .btn-primary-action.pressed { transform: translateY(5px) !important; box-shadow: 0 2px 0 #8c1530, 0 6px 14px rgba(0, 0, 0, .45); }
+html.v9 #btn-click .v9-sub { display: block; font-size: 14px; font-weight: 500; opacity: .85; margin-top: 4px; }
+html.v9 #btn-click .v9-main { display: block; }
+html.v9 .click-btn-wrap { margin: 6px 0 16px; }
+html.v9 #click-ring { left: -6px; top: -6px; width: calc(100% + 12px); height: calc(100% + 12px); }
+html.v9 #click-ring .prg { filter: none; }
+html.v9 #click-ring-pop { font-weight: 700; }
+html.v9 #btn-click.overheated { filter: grayscale(.85) brightness(.6); }
+/* ---------- HUD a statistiky ---------- */
+html.v9 .stat-box { background: transparent; border: 0; padding: 4px 2px; }
+html.v9 .stat-label { font-size: 12px; color: var(--text-dim); }
+html.v9 .stat-val { font-size: 18px; font-weight: 700; }
+html.v9 .heat-row { font-size: 12px; }
+html.v9 .heat-bar, html.v9 .ac-bar, html.v9 .ac-bar-next { background: rgba(0, 0, 0, .35); border: 0; border-radius: 99px; height: 6px; }
+html.v9 .ac-bar-fill { background: var(--amber); }
+html.v9 .buff-row { gap: 6px; }
+html.v9 .buff-chip { font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 99px; background: var(--v9-hi); border: 0; color: var(--text-dim); }
+html.v9 .buff-chip.on { background: rgba(79, 211, 154, .12); color: var(--emerald); }
+html.v9 .buff-chip.lp { background: rgba(245, 185, 66, .12); color: var(--amber); }
+html.v9 .buff-chip.bad { background: rgba(255, 71, 102, .14); color: #ff7088; }
+html.v9 .ac-box { background: var(--bg-panel-elevated); border: 0; border-radius: var(--v9-r); padding: 12px; margin-top: 10px; }
+html.v9 .ac-row { font-size: 13px; font-weight: 600; }
+/* ---------- záložky (segmenty) ---------- */
+html.v9 .tab-row { border-bottom: 0; gap: 4px; padding: 3px; background: rgba(0, 0, 0, .25); border-radius: 12px; }
+html.v9 .casino-tab-btn { font-size: 12px; font-weight: 600; background: transparent; border: 0; border-radius: 9px; color: var(--text-dim); padding: 8px 6px; box-shadow: none; }
+html.v9 .casino-tab-btn:hover { color: var(--text-main); }
+html.v9 .casino-tab-btn.active { background: var(--v9-hi); color: var(--text-main); box-shadow: none; border: 0; }
+html.v9 .casino-tab-btn.glow { color: var(--amber) !important; background: rgba(245, 185, 66, .14); animation: none; }
+/* ---------- formuláře ---------- */
+html.v9 input:not([type=checkbox]):not([type=radio]):not([type=range]), html.v9 select, html.v9 textarea, html.v9 .adv-select {
+background: #0d1018 !important; border: 1px solid var(--v9-line) !important; border-radius: 10px !important; color: var(--text-main) !important; padding: 8px 10px; font-size: 13px;
+}
+html.v9 input:focus, html.v9 select:focus, html.v9 textarea:focus { outline: 2px solid rgba(99, 197, 255, .45); outline-offset: 0; }
+html.v9 input[type=checkbox] { accent-color: var(--crimson); }
+/* ---------- bedna, merge, inventář ---------- */
+html.v9 .chest-box { background: var(--bg-panel-elevated); border: 0; border-radius: var(--v9-r); }
+html.v9 .chest-lvl-tag { font-size: 16px; font-weight: 700; }
+html.v9 .odds-table { gap: 6px; }
+html.v9 .odds-cell { background: var(--bg-panel-elevated); border: 0; border-radius: 12px; padding: 8px 10px; }
+html.v9 .odds-name { font-size: 12px; font-weight: 500; }
+html.v9 .odds-val { font-size: 15px; font-weight: 700; }
+html.v9 .odds-table .odds-t6 { background: rgba(47, 230, 200, .07); }
+html.v9 .merge-card { background: var(--bg-panel-elevated); border-radius: 12px; border-left-width: 3px; padding: 10px 12px; }
+html.v9 .merge-card-title { font-size: 13px; }
+html.v9 .loadout-slot { background: var(--bg-panel-elevated); border: 1px dashed #303a4f; border-radius: 12px; }
+html.v9 .loadout-slot.filled { background: var(--bg-panel-elevated); border: 1px solid transparent; }
+html.v9 .loadout-slot-label { font-size: 11px; }
+html.v9 .backpack-container { background: transparent; border: 0; padding: 0; gap: 8px; }
+html.v9 .item-card { background: var(--bg-panel-elevated); border-radius: 12px; padding: 10px 12px; box-shadow: none; }
+html.v9 .item-name { font-size: 13px; }
+html.v9 .item-stats { font-size: 12px; }
+html.v9 .item-count-badge { background: var(--v9-hi); color: var(--amber); font-weight: 600; }
+html.v9 .item-actions button { padding: 6px 0; font-size: 11px; }
+html.v9 .bp-controls { font-size: 12px; }
+/* ---------- log, chat, žebříček ---------- */
+html.v9 .log-container, html.v9 .chat-container { background: rgba(0, 0, 0, .22) !important; border: 0 !important; border-radius: 12px; font-size: 12px; }
+html.v9 table.lb-table th { font-size: 11px; font-weight: 500; color: var(--text-dim); }
+html.v9 table.lb-table td { border-color: var(--v9-line); }
+html.v9.m table.lb-table { font-size: 12px; table-layout: auto; }
+html.v9.m table.lb-table th, html.v9.m table.lb-table td { padding: 7px 3px; white-space: nowrap; }
+html.v9.m table.lb-table td:nth-child(2) { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+html.v9.m table.lb-table th:first-child, html.v9.m table.lb-table td:first-child { padding-left: 0; }
+html.v9.m .panel:has(> .lb-table), html.v9.m .panel:has(table.lb-table) { overflow-x: auto; }
+/* ---------- modaly ---------- */
+html.v9 .tt-overlay { background: rgba(6, 8, 13, .72); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+html.v9 .tt-modal { background: var(--bg-panel); border: 1px solid var(--v9-line) !important; border-radius: 20px; padding: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+html.v9 .tt-modal h2 { font-size: 18px; font-weight: 700; color: var(--text-main) !important; }
+html.v9 .tt-modal .tt-body b { color: var(--text-main); }
+html.v9 .cl-box { border: 1px solid var(--v9-line); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+html.v9 .cl-head h2 { font-size: 17px; font-weight: 700; color: var(--text-main); }
+html.v9 .update-banner { background: var(--bg-panel-elevated); border: 0; border-radius: 12px; color: var(--amber); font-weight: 600; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+html.v9 #fx-toggle, html.v9 #ir-logout { border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--bg-panel-elevated); border: 0; }
+/* ---------- mobil ---------- */
+html.v9.m .top-bar { padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 4px calc(14px + env(safe-area-inset-left)); background: var(--bg-core); border-bottom: 0; }
+html.v9.m .brand-title { font-size: 17px; }
+html.v9.m #m-hud { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: 6px 14px 12px; gap: 10px; grid-template-columns: auto auto auto auto; justify-content: space-between; }
+html.v9.m #m-hud div { text-align: left; }
+html.v9.m #m-hud div:last-child { text-align: right; }
+html.v9.m #m-hud small { font-size: 11px; font-weight: 500; color: var(--text-dim); }
+html.v9.m #m-hud b { font-size: 17px; font-weight: 700; overflow: visible; text-overflow: clip; }
+/* firemní event: na mobilu tenký pruh pod HUDem (nic nepřekrývá) */
+html.v9.m #mt-event { position: static; transform: none; left: auto; bottom: auto; top: auto; flex: none; max-width: none; width: 100%; border-radius: 0; justify-content: center;
+padding: 6px 14px; font-size: 12px; font-weight: 600; animation: none; box-shadow: none; background: linear-gradient(90deg, rgba(255, 71, 102, .9), rgba(245, 185, 66, .9)); }
+html.v9.m #mt-event small { font-size: 11px; font-weight: 500; }
+html.v9.m .main-wrapper { padding: 14px; gap: 14px; }
+html.v9.m .panel { padding: 14px; border-radius: 18px; }
+html.v9.m [data-tab="play"].panel { background: transparent; border: 0; padding: 0; }
+html.v9.m [data-tab="play"] .panel-header { margin-bottom: 8px; }
+html.v9.m [data-tab="play"] #btn-click { border-radius: 26px; font-size: 26px; }
+html.v9.m [data-tab="play"] #btn-click .v9-sub { font-size: 15px; }
+html.v9.m [data-tab="play"] .click-btn-wrap { margin: 4px 0 18px; }
+html.v9.m #m-tabs { background: var(--bg-panel); border-top: 1px solid var(--v9-line); }
+html.v9.m #m-tabs button { font-size: 11px; font-weight: 500; color: var(--text-dim); border-top: 0; padding: 9px 2px 9px; }
+html.v9.m #m-tabs button span { font-size: 19px; margin-bottom: 3px; filter: grayscale(.55); opacity: .75; transition: filter .15s, opacity .15s; }
+html.v9.m #m-tabs button.active { color: var(--text-main); background: transparent; }
+html.v9.m #m-tabs button.active span { filter: none; opacity: 1; }
+html.v9.m #m-tabs button.active::before { content: ""; position: absolute; top: 1px; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: var(--crimson); }
+html.v9.m #m-tabs button[data-go="fight"] { color: var(--text-dim); }
+html.v9.m #m-tabs button[data-go="fight"].active { color: var(--text-main); }
+html.v9 #m-tabs button::after { box-shadow: none !important; }
+/* ---------- HIGH STAKES ---------- */
+html.v9 #dg-screen { background: var(--bg-core); }
+html.v9 .dg-top { background: var(--bg-core); border-bottom: 1px solid var(--v9-line); padding: calc(10px + env(safe-area-inset-top)) 14px 10px; }
+html.v9 .dg-top h1 { font-size: 18px; font-weight: 700; color: var(--text-main); }
+html.v9 .dg-keys { font-size: 13px; font-weight: 600; }
+html.v9 .dg-tabs { padding: 10px 14px 4px; gap: 4px; }
+html.v9 .dg-tabs .casino-tab-btn { background: var(--bg-panel); }
+html.v9 .dg-tabs .casino-tab-btn.active { background: var(--v9-hi); }
+html.v9 .dg-body { padding: 10px 14px calc(16px + env(safe-area-inset-bottom)); }
+html.v9 .dg-card { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
+html.v9 .dg-h { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; }
+html.v9 .dg-dim { font-size: 12.5px; line-height: 1.55; }
+html.v9 .dg-dim b { color: var(--text-main); }
+html.v9 .dg-xp, html.v9 .hs-bar, html.v9 .dg-bar { border: 0; background: rgba(0, 0, 0, .4); border-radius: 99px; }
+html.v9 .dg-xp div { background: var(--emerald); }
+html.v9 .hs-ch .btn { border-radius: 12px; padding: 8px 2px; font-size: 12px; }
+html.v9 .hs-ch .btn.sel { box-shadow: none; background: var(--v9-hi); color: var(--text-main); outline: 2px solid var(--amber); outline-offset: -2px; }
+html.v9 .hs-m { background: var(--bg-panel-elevated); border: 1px solid transparent; border-radius: 14px; padding: 10px 12px; }
+html.v9 .hs-m:hover { border-color: #33405a; }
+html.v9 .hs-m.boss { border-color: rgba(255, 71, 102, .35); background: linear-gradient(90deg, rgba(255, 71, 102, .10), var(--bg-panel-elevated) 70%); }
+html.v9 .hs-m.compliance { border-color: rgba(245, 185, 66, .3); }
+html.v9 .hs-m .t b { font-size: 13px; font-weight: 600; }
+html.v9 .hs-stars { color: var(--amber); }
+html.v9 .dg-arena { background: linear-gradient(180deg, #151a26, #121620); border: 1px solid var(--v9-line); border-radius: 18px; }
+html.v9 .dg-name { font-size: 13px; font-weight: 700; }
+html.v9 .dg-vs { font-size: 15px; font-weight: 700; color: var(--text-muted); }
+html.v9 .hs-acts .btn { border-radius: 12px; font-size: 12px; padding: 10px 2px; }
+html.v9 .hs-acts .btn small { font-size: 10px; }
+html.v9 .hs-intent { font-size: 12px; font-weight: 700; border-radius: 99px; }
+html.v9 .hs-lbl { font-size: 10px; font-weight: 600; }
+html.v9 .dg-float { text-shadow: 0 2px 0 rgba(0, 0, 0, .8) !important; font-weight: 700; }
+html.v9 .fx-float { text-shadow: 0 2px 0 rgba(0, 0, 0, .7) !important; font-weight: 700; }
+html.v9 .dg-log { background: rgba(0, 0, 0, .25); border: 0; border-radius: 12px; font-size: 12px; }
+html.v9 .hs-ov { border-radius: 18px; }
+html.v9 .hs-res .big { font-size: 26px; font-weight: 700; }
+html.v9 .hs-stat { font-size: 13px; }
+html.v9 .hs-stat b { font-size: 12px; font-weight: 700; }
+html.v9 .hs-coach { border-radius: 14px; }
+html.v9 .tw-grid div { border-radius: 6px; font-size: 10px; font-weight: 600; }
+html.v9 .sh-choice { border-radius: 14px; background: var(--bg-panel-elevated); }
+html.v9 .cl-name { font-size: 17px; font-weight: 700; }
+html.v9 .cl-slot, html.v9 .cl-boss { border-radius: 12px; }
+html.v9 .dg-class { border-radius: 16px; }
+html.v9 .dg-stances button.sel { box-shadow: 0 0 0 2px var(--amber) inset; }
+html.v9 .hs-reel.held::after { content: "Hold"; font-size: 10px; font-weight: 700; }
+html.v9 .bet-grid.cool::after { font-size: 14px; font-weight: 700; }
+html.v9 #ir-login { background: var(--bg-core); }
+html.v9 .ir-card { background: var(--bg-panel); border: 1px solid var(--v9-line); border-radius: 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, .45); }
+html.v9 .ir-title { color: var(--text-main); font-size: 24px; font-weight: 700; }
+html.v9 .ir-card label { font-size: 12px; font-weight: 600; }
+html.v9 .mt-toast { background: var(--bg-panel-elevated); border: 1px solid rgba(245, 185, 66, .45); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); border-radius: 16px; }
+html.v9 .mt-toast b { color: var(--amber); font-size: 12px; font-weight: 700; }
+/* mobil: horní lišta jen s ikonami */
+html.v9.m .user-badge > span { display: none !important; }
+html.v9.m .user-badge { gap: 6px; }
+html.v9.m .user-badge .btn-help { padding: 6px 9px; font-size: 13px; border-radius: 10px; }
+html.v9.m .user-badge .btn-help:not(#cl-btn):not(#th-btn):not(#m-compact) { font-size: 0; }
+html.v9.m .user-badge .btn-help:not(#cl-btn):not(#th-btn):not(#m-compact)::before { content: "?"; font-size: 14px; font-weight: 700; }
+/* HIGH STAKES: lišta a záložky na mobilu */
+html.v9 .dg-top .btn { white-space: nowrap; }
+html.v9 .dg-top h1 { min-width: 0; }
+html.v9 #dg-tokbtn { white-space: nowrap; font-size: 11px !important; }
+html.v9.m .dg-top h1 { font-size: 16px; }
+html.v9.m .dg-keys { font-size: 12px; }
+html.v9.m .dg-kstar, html.v9.m .dg-back-t, html.v9.m .dg-hic { display: none; }
+html.v9.m .dg-top > .btn:first-child { padding: 7px 12px; font-size: 14px; }
+html.v9.m #m-settings .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+html.v9.m #m-settings .btn { padding: 12px 8px; font-size: 13px; }
+html.v9.m .dg-top { gap: 8px; }
+/* v9.6: záložky High Stakes se zalamují do řádků (dřív na úzkém okně / compact UI část zmizela za okrajem) */
+html.v9 .dg-tabs { flex-wrap: wrap; }
+html.v9 .dg-tabs button { flex: 1 1 96px !important; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.v9.m .dg-tabs { padding-bottom: 6px; }
+html.v9.m .dg-tabs button { flex: 1 1 22% !important; padding: 8px 4px; font-size: 12px !important; }
+@media (max-width: 1000px) { html.v9:not(.m) .top-bar { align-items: flex-start; } }
+</style>
+<script>
+(function () {
+"use strict";
+var KEY = "ir_theme";
+var root = document.documentElement;
+function classic() { try { return localStorage.getItem(KEY) === "classic"; } catch (e) { return false; } }
+var KEEP = {};
+("GC LP XP HP ATK STA CPS LV OS HUD CPU ID AI LLM IT SME EMEA APAC PVP QA FX OK UI PC CEO CTO HR MK II III IV VI VII VIII IX ASC RNG NPC USB VIP KPI AFK DPS GG LOL OMG ASAP SQL PDF API URL FAQ EU CZ USD EUR BJ TT T1 T2 T3 T4 T5 T6 RIP DM HQ AM PM GO").split(" ").forEach(function (k) { KEEP[k] = 1; });
+var PHRASES = [
+["high stakes", "High Stakes"], ["office royale", "Office Royale"], ["idle royale", "Idle Royale"], ["casino royale", "Casino Royale"], ["hall of fame", "Hall of Fame"],
+["the office plant", "the Office Plant"], ["office plant", "Office Plant"], ["clear the pool", "Clear the Pool"], ["server tower", "Server Tower"],
+["quarterly review", "Quarterly Review"], ["on-call shift", "On-Call Shift"], ["the administrator", "the Administrator"], ["google coins", "Google Coins"],
+["slot token", "Slot Token"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
+["big massi", "Big Massi"], ["da polishen", "Da Polishen"], ["italian guy", "Italian Guy"], ["supreme louis", "Supreme Louis"], ["the cobol", "The Cobol"],
+["company chest", "Company Chest"], ["upgrade station", "Upgrade Station"], ["merge station", "Merge Station"], ["corporate climb", "Corporate Climb"]
+];
+var UP = /\p{Lu}{3}/u, LOW = /\p{Ll}/u, UNIT = /\d\p{Ll}{1,2}\b/gu, WORD = /[\p{L}\d][\p{L}\d.'’]*/gu, FIRST = /^[^\p{L}\d]*\p{L}/u;
+function hasLow(s) { return LOW.test(s.replace(UNIT, "")); }       // "+1s", "45m" nejsou malá písmena věty
+function conv(s, mid) {
+if (!s || s.length < 3 || !UP.test(s) || hasLow(s)) return s;
+var out = s.replace(WORD, function (w) {
+var core = w.replace(/[.'’]+$/, "");
+if (/\d/.test(core) || core.length === 1 || KEEP[core] || KEEP[core.replace(/\./g, "")]) return w;
+if (/^MK\./.test(core)) return w;
+return w.toLowerCase();
+});
+for (var i = 0; i < PHRASES.length; i++) {
+var p = PHRASES[i][0], k = out.indexOf(p);
+while (k >= 0) {
+var a = k === 0 ? "" : out.charAt(k - 1), z = out.charAt(k + p.length);
+if (!/[\p{L}]/u.test(a) && !/[\p{L}]/u.test(z)) out = out.slice(0, k) + PHRASES[i][1] + out.slice(k + p.length);
+k = out.indexOf(p, k + 1);
+}
+}
+if (!mid) out = out.replace(FIRST, function (c) { return c.slice(0, -1) + c.slice(-1).toUpperCase(); });
+return out;
+}
+var SKIP = "script,style,textarea,input,select,option,#chat-messages,.lb-table tbody,.no-case,[data-nocase],.cl-name,.dg-name";
+function fixNode(t) {
+var v = t.nodeValue;
+if (!v || v.length < 3 || !UP.test(v) || hasLow(v)) return;
+var p = t.parentNode; if (!p || p.nodeType !== 1) return;
+if (p.closest && p.closest(SKIP)) return;
+var prev = t.previousSibling, mid = /^\s/.test(v) && !!prev && !(prev.nodeType === 1 && /^(BR|DIV|SPAN)$/.test(prev.nodeName) && !prev.textContent.trim());
+if (prev && prev.nodeType === 1 && prev.nodeName === "BR") mid = false;
+var n = conv(v, mid);
+if (n !== v) t.nodeValue = n;
+}
+function walk(el) {
+if (!el) return;
+if (el.nodeType === 3) { fixNode(el); return; }
+if (el.nodeType !== 1) return;
+var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n;
+while ((n = w.nextNode())) fixNode(n);
+}
+var obs = null;
+function startCase() {
+if (obs || !window.MutationObserver) return;
+walk(document.body);
+obs = new MutationObserver(function (ms) {
+for (var i = 0; i < ms.length; i++) {
+var m = ms[i];
+if (m.type === "characterData") fixNode(m.target);
+else for (var j = 0; j < m.addedNodes.length; j++) walk(m.addedNodes[j]);
+}
+});
+obs.observe(document.body, { childList: true, characterData: true, subtree: true });
+}
+function stopCase() { if (obs) { obs.disconnect(); obs = null; } }
+window.UICase = conv;
+function splitResolve() {
+var b = document.getElementById("btn-click"), cv = document.getElementById("click-val");
+if (!b || !cv || b.querySelector(".v9-main")) return;
+var main = document.createElement("span"); main.className = "v9-main"; main.textContent = "RESOLVE TICKET";
+var sub = document.createElement("span"); sub.className = "v9-sub";
+sub.appendChild(document.createTextNode("+")); sub.appendChild(cv); sub.appendChild(document.createTextNode(" per click"));
+while (b.firstChild) b.removeChild(b.firstChild);
+b.appendChild(main); b.appendChild(sub);
+}
+function brand() {
+var t = document.querySelector(".brand-title"); if (!t || t.querySelector(".v9-acc")) return;
+var m = /^(.*?)\s*\/\/\s*(.*)$/.exec(t.textContent || "");
+if (!m) return;
+t.textContent = "";
+var ic = document.createElement("span"); ic.className = "v9-mark"; ic.setAttribute("aria-hidden", "true");
+ic.innerHTML = '<svg viewBox="0 0 112 76"><rect width="112" height="76" rx="10" fill="#efe9dc"/><path d="M24 50 L28 26 L38 38 L44 20 L50 38 L60 26 L64 50 Z" fill="#ff4766"/><rect x="24" y="53" width="40" height="6" rx="2" fill="#ff4766"/></svg>';
+t.appendChild(ic);
+t.appendChild(document.createTextNode(m[1].trim() + " "));
+var a = document.createElement("span"); a.className = "v9-acc"; a.textContent = "/" + m[2].trim().toLowerCase(); t.appendChild(a);
+}
+/** firemní event na mobilu do toku stránky (pod HUD), jinak plovoucí */
+function placeEvent() {
+var ev = document.getElementById("mt-event"), hud = document.getElementById("m-hud"); if (!ev) return;
+var inFlow = root.classList.contains("v9") && root.classList.contains("m") && hud;
+if (inFlow && ev.previousElementSibling !== hud) hud.parentNode.insertBefore(ev, hud.nextSibling);
+else if (!inFlow && ev.parentNode !== document.body) document.body.appendChild(ev);
+}
+function apply(on) {
+root.classList.toggle("v9", on);
+if (on) { splitResolve(); brand(); startCase(); } else stopCase();
+placeEvent();
+var b = document.getElementById("th-btn"); if (b) b.title = on ? "Switch to the classic look" : "Switch to the new look";
+var m = document.getElementById("th-more"); if (m) m.textContent = on ? "🎨 Classic look" : "🎨 New look";
+}
+function toggle() {
+var on = !root.classList.contains("v9");
+try { localStorage.setItem(KEY, on ? "new" : "classic"); } catch (e) {}
+if (!on) { location.reload(); return; }                 // návrat ke klasice = čisté texty z kódu
+apply(true);
+}
+window.Theme = { toggle: toggle, conv: conv, isNew: function () { return root.classList.contains("v9"); } };
+if (!classic()) root.classList.add("v9");              // hned, ať se neukáže starý vzhled
+function boot() {
+if (!document.body) { setTimeout(boot, 30); return; }
+apply(!classic());
+var badge = document.querySelector(".user-badge");
+if (badge && !document.getElementById("th-btn")) {
+var b = document.createElement("button"); b.id = "th-btn"; b.className = "btn btn-help"; b.type = "button"; b.textContent = "🎨";
+b.onclick = toggle; b.title = root.classList.contains("v9") ? "Switch to the classic look" : "Switch to the new look";
+var help = badge.querySelector(".btn-help:not(#m-compact)"); badge.insertBefore(b, help || null);
+}
+function addMore() {
+var st = document.getElementById("m-settings");
+if (st && !document.getElementById("th-more")) { var r = st.querySelector(".row"); if (r) { var x = document.createElement("button"); x.id = "th-more"; x.className = "btn"; x.type = "button"; x.onclick = toggle; x.textContent = root.classList.contains("v9") ? "🎨 Classic look" : "🎨 New look"; r.appendChild(x); } }
+}
+addMore(); setTimeout(addMore, 800);
+setInterval(placeEvent, 1500);
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
+<style>
+/* ===== v9.3 THE ROOM: tvoje kancelář jako místnost (pohled zepředu, trochu shora), postava chodí k předmětům.
+Vzhled se mění s prestiží: Garáž (P0) -> ... -> Vesmírná stanice (P15). ===== */
+.rm { position: relative; width: 100%; aspect-ratio: 400 / 280; border-radius: 16px; overflow: hidden; margin: 0 0 12px; background: #0d1018; user-select: none; -webkit-user-select: none; touch-action: manipulation; isolation: isolate; }
+.rm .rm-bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.rm .rm-o { position: absolute; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rm .rm-o > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
+.rm .rm-o.deco { pointer-events: none; }
+.rm .rm-o:not(.deco):hover > svg { filter: brightness(1.15) drop-shadow(0 0 4px rgba(255,255,255,.35)); }
+.rm .rm-o.lock > svg { filter: saturate(.35) brightness(.7); }
+.rm .rm-o .rm-lk { position: absolute; right: 0; top: 0; font-size: 11px; line-height: 1; filter: none; }
+.rm .rm-lb { position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); white-space: nowrap; font: 600 9.5px 'Space Grotesk', system-ui, sans-serif; color: #e8ecf3; background: rgba(10,12,18,.72); padding: 1px 6px; border-radius: 99px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 2; }
+.rm.labels .rm-lb, .rm .rm-o:hover .rm-lb { opacity: 1; }
+.rm .rm-o.lbl-l .rm-lb { left: 2px; transform: none; }
+.rm .rm-o.lbl-r .rm-lb { left: auto; right: 2px; transform: none; }
+.rm .rm-o.lbl-t .rm-lb { bottom: auto; top: 100%; }
+.rm .rm-me { position: absolute; pointer-events: none; will-change: left, top; }
+.rm .rm-me .rm-fl { position: absolute; inset: 0; }
+.rm .rm-me.left .rm-fl { transform: scaleX(-1); }
+.rm .rm-me .dg-sprite.rig { position: absolute; inset: 0; width: 100% !important; height: 100% !important; margin: 0 !important; }
+.rm .rm-col .dg-sprite.rig { position: absolute; width: 100% !important; height: 100% !important; margin: 0 !important; }
+.rig.a-walk .rg-legF { animation: rgStepF .32s ease-in-out infinite !important; }
+.rig.a-walk .rg-legB { animation: rgStepB .32s ease-in-out infinite !important; }
+.rig.a-walk .rg-bob { animation: rmWalkBob .32s ease-in-out infinite !important; }
+@keyframes rmWalkBob { 50% { transform: translateY(-2px); } }
+.rig.a-type .rg-armF { animation: rmType .22s ease-in-out infinite !important; }
+.rig.a-type .rg-armB { animation: rmType .22s ease-in-out .11s infinite !important; }
+@keyframes rmType { 50% { transform: rotate(-38deg); } }
+.rig.a-sit .rg-legF { transform: rotate(-70deg); animation: none !important; }
+.rig.a-sit .rg-legB { transform: rotate(-62deg); animation: none !important; }
+.rig.a-sit .rg-all { transform: translateY(12px); }
+.rig.a-wave .rg-armF { animation: rmWave .5s ease-in-out 3 !important; }
+@keyframes rmWave { 50% { transform: rotate(-150deg); } }
+.rm .rm-bub { position: absolute; z-index: 400; transform: translate(-50%, -100%); max-width: 70%; background: #f8fafc; color: #10131c; font: 600 11px/1.3 'Space Grotesk', system-ui, sans-serif; padding: 6px 9px; border-radius: 12px; box-shadow: 0 6px 16px rgba(0,0,0,.4); pointer-events: none; animation: rmPop .25s ease-out; }
+.rm .rm-bub::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: #f8fafc; }
+@keyframes rmPop { from { transform: translate(-50%, -80%) scale(.7); opacity: 0; } }
+.rm .rm-name { position: absolute; left: 8px; top: 7px; z-index: 300; font: 600 10.5px 'Space Grotesk', system-ui, sans-serif; color: #e8ecf3; background: rgba(10,12,18,.6); padding: 2px 8px; border-radius: 99px; pointer-events: none; }
+.rm .rm-hint { position: absolute; right: 8px; top: 7px; z-index: 300; font: 500 10px 'Space Grotesk', system-ui, sans-serif; color: #c9d1dc; background: rgba(10,12,18,.6); padding: 2px 8px; border-radius: 99px; pointer-events: none; transition: opacity .5s; }
+.rm .rm-rev { position: absolute; left: 50%; top: 14%; z-index: 500; transform: translateX(-50%); width: max-content; max-width: 88%; text-align: center; background: rgba(10,12,18,.88); border: 1px solid rgba(245,185,66,.55); border-radius: 14px; padding: 10px 14px; color: #e8ecf3; font-family: 'Space Grotesk', system-ui, sans-serif; box-shadow: 0 14px 30px rgba(0,0,0,.5); animation: rmRev .5s cubic-bezier(.2,.8,.2,1); cursor: pointer; }
+.rm .rm-rev b { display: block; font-size: 15px; color: #f5b942; }
+.rm .rm-rev span { font-size: 12px; color: #c9d1dc; }
+@keyframes rmRev { from { transform: translate(-50%, -20px) scale(.9); opacity: 0; } }
+.rm .rm-flash { position: absolute; inset: 0; z-index: 450; background: #fff; pointer-events: none; animation: rmFlash .7s ease-out forwards; }
+@keyframes rmFlash { from { opacity: .85; } to { opacity: 0; } }
+.rm .rm-o.new > svg { animation: rmNew 1.2s ease-in-out 3; }
+@keyframes rmNew { 50% { filter: brightness(1.6) drop-shadow(0 0 8px #f5b942); } }
+.panel.rm-hl { animation: rmHl 1.2s ease-out; }
+@keyframes rmHl { 0%, 40% { box-shadow: 0 0 0 2px var(--amber, #f5b942); } 100% { box-shadow: none; } }
+.rm .rm-tv-logo { animation: rmTv 4s ease-in-out infinite; }
+@keyframes rmTv { 50% { opacity: .8; } }
+.rm .rm-led { animation: rmLed 1.4s steps(2) infinite; }
+@keyframes rmLed { 50% { opacity: .25; } }
+.rm .rm-float { animation: rmFloat 3s ease-in-out infinite; }
+@keyframes rmFloat { 50% { transform: translateY(-3px); } }
+html.m [data-tab="play"] .rm { margin-bottom: 10px; border-radius: 18px; flex: none; }
+/* v9.3.1: Play na mobilu se normálně posouvá (místnost + tlačítko pevné výšky), nic se nemačká přes sebe */
+html.m body[data-mtab="play"] .main-wrapper { overflow-y: auto; }
+html.m body[data-mtab="play"] .grid-columns { flex: none; min-height: auto; }
+html.m body[data-mtab="play"] [data-tab="play"] { display: block; flex: none; min-height: 0; }
+html.m [data-tab="play"] .click-btn-wrap { display: flex; flex: none; height: clamp(130px, 22vh, 190px); min-height: 0; }
+html.m [data-tab="play"] .rm-o, html.m [data-tab="play"] .rm { touch-action: pan-y; }
+@media (prefers-reduced-motion: reduce) { .rm .rm-tv-logo, .rm .rm-led, .rm .rm-float { animation: none; } }
+</style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part24"] = 1;</script>
 <!-- END-OF-FILE: part24 -->

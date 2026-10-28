@@ -1,0 +1,81 @@
+<script type="text/plain" data-tt="ttbig4" data-i="2">const lp = Number(last) | 0;
+if (P() <= lp) return;
+let msg = P() > 15 ? ["A new planet appeared outside your window!", "Space station · Prestige " + P()] : REVEAL[t];
+if (!msg) return;
+reveal(msg, P() > 15 ? "" : NEW_ITEM[t]);
+}
+function reveal(msg, item) {
+if (!root) return;
+const f = document.createElement("div"); f.className = "rm-flash"; root.appendChild(f); setTimeout(() => f.remove(), 800);
+const r = document.createElement("div"); r.className = "rm-rev"; r.innerHTML = `<b>${esc(msg[0])}</b><span>${esc(msg[1])}</span>`;
+r.onclick = () => r.remove(); root.appendChild(r); setTimeout(() => r.remove(), 6500);
+if (item) { const el = root.querySelector(`.rm-o[data-o="${item === "deco" ? "tv" : item}"]`); if (el) el.classList.add("new"); }
+const sv = me && me.querySelector(".rig"); if (sv) { sv.classList.add("a-wave"); setTimeout(() => sv.classList.remove("a-wave"), 1600); }
+if (typeof log === "function") log(`🏠 ${msg[0]} ${msg[1]}`, "special");
+}
+function mount() {
+const btnWrap = document.querySelector(".click-btn-wrap"); if (!btnWrap) return false;
+root = document.createElement("div"); root.className = "rm labels"; root.id = "rm";
+btnWrap.parentNode.insertBefore(root, btnWrap);
+root.addEventListener("click", (e) => { const o = e.target.closest(".rm-o"); if (o && !o.classList.contains("deco")) tap(o.getAttribute("data-o")); else hideHint(); });
+root.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { const o = e.target.closest(".rm-o"); if (o) { e.preventDefault(); tap(o.getAttribute("data-o")); } } });
+try { hintT = localStorage.getItem("ir_room_hint") ? 1 : 0; } catch (e) {}
+render();
+setTimeout(() => root && root.classList.remove("labels"), 5000);
+const btn = $("btn-click");
+if (btn) { btn.addEventListener("click", onResolve); btn.addEventListener("touchstart", onResolve, { passive: true }); }
+return true;
+}
+/** v9.6 VISIT OFFICE: vykreslí cizí kancelář (data z officeView na serveru) do el, bez interakce */
+function renderStatic(el, v) {
+OV = v; const kT = T;
+try {
+T = tierOf(v.prestige); const E = ENVS[ENV_OF[T]];
+let h = bg(T, v.prestige) + `<div class="rm-name">${E.i} ${esc(v.nick)}'s office · ${esc(E.n)} · Prestige ${v.prestige}</div>`;
+el.innerHTML = h;
+OBJS.forEach(o => {
+if (o.id === "col" && !v.col) return;
+const a = art(o.id), d = document.createElement("div");
+d.className = "rm-o deco"; d.style.zIndex = o.wall ? 5 : Math.round(o.y);
+d.innerHTML = `<svg viewBox="0 0 ${a.w} ${a.h}" aria-hidden="true">${a.svg}</svg>`;
+place(d, o.x, o.y, a.w, a.h); el.appendChild(d);
+if (o.id === "col" && v.col && window.HSRig) { const box = document.createElement("div"); box.style.cssText = "position:absolute;left:62%;top:-18%;width:46%;height:92%;"; box.innerHTML = `<div style="position:absolute;inset:0;transform:scaleX(-1);">${HSRig.player(v.col.cls, v.col.gear)}</div>`; d.appendChild(box); }
+});
+decos(T).forEach(dd => { const d = document.createElement("div"); d.className = "rm-o deco"; d.style.zIndex = Math.round(dd.y); d.innerHTML = `<svg viewBox="0 0 ${dd.w} ${dd.h}" aria-hidden="true">${dd.svg}</svg>`; place(d, dd.x, dd.y, dd.w, dd.h); el.appendChild(d); });
+if (window.HSRig && v.hs && v.hs.cls) { const m = document.createElement("div"); m.className = "rm-me"; m.innerHTML = `<div class="rm-fl">${HSRig.player(v.hs.cls, v.hs.gear)}</div>`; const sz = meSize(214); place(m, 200, 214, sz.w, sz.h); m.style.zIndex = 215; el.appendChild(m); }
+} finally { OV = null; T = kT; }
+}
+/** v9.6 PRANK: post-it lístky na mém stole, každý za scrap */
+function postits(n, onTake) {
+if (!root) return;
+root.querySelectorAll(".rm-pi").forEach(x => x.remove());
+for (let i = 0; i < n; i++) {
+const p = document.createElement("div"); p.className = "rm-pi"; p.setAttribute("role", "button"); p.title = "Peel it off";
+const x = 62 + (i * 37) % 80 + (i % 2) * 6, y = 112 + ((i * 23) % 34);
+p.style.cssText = `position:absolute;left:${pct(x, W)};top:${pct(y, H)};width:${pct(13, W)};height:${pct(13, H)};background:${["#fde047", "#f9a8d4", "#86efac", "#7dd3fc"][i % 4]};transform:rotate(${(i * 37) % 30 - 15}deg);box-shadow:0 2px 3px rgba(0,0,0,.4);z-index:700;cursor:pointer;border-radius:1px;`;
+p.addEventListener("click", (ev) => { ev.stopPropagation(); p.style.transition = "transform .3s,opacity .3s"; p.style.opacity = "0"; p.style.transform += " translateY(-14px)"; setTimeout(() => p.remove(), 300); onTake && onTake(); });
+root.appendChild(p);
+}
+}
+window.Room = { renderStatic: renderStatic, postits: postits, colSay: colSay, render: render, tap: tap, reveal: reveal, ENVS: ENVS, REVEAL: REVEAL, tierOf: tierOf, walkTo: walkTo, say: say, bg: bg, art: (id, t) => { const k = T; T = t; const a = art(id); T = k; return a; } };
+(function boot() {
+if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded || !window.HSRig) { setTimeout(boot, 120); return; }
+TT.onLoaded(() => {
+if (!root && !mount()) return;
+sig = sigAll(); render(); checkReveal();
+setInterval(() => {
+if (!root || document.hidden) return;
+const s = sigAll();
+if (s !== sig) {
+const prevP = Number(sig.split("|")[1]);
+sig = s; render();
+if (P() !== prevP) checkReveal();
+}
+}, 1500);
+});
+})();
+})();
+</script>
+<script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig4"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["part26"] = 1;</script>
+<!-- END-OF-FILE: part26 -->

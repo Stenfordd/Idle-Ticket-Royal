@@ -1,588 +1,538 @@
 <script>
 (function () {
 "use strict";
+const A = window.HS_API, H = window.HSEngine;
 const $ = (id) => document.getElementById(id);
-const GATES = [
-{ key: "casino", find: () => $("gb-sec-basic") || panelOf("view-roulette"), chest: 5, icon: "🎰", name: "BASIC CASINO", what: "Roulette, Slots, Blackjack" },
-{ key: "adv", find: () => $("gb-sec-adv"), chest: 10, icon: "⚡", name: "ADVANCED", what: "MEGA 5×5, Crash, Chicken Road, Pachinko" },
-{ key: "special", find: () => $("gb-sec-special"), chest: 10, icon: "👥", name: "SPECIAL", what: "Showdown PvP, Corporate Climb, Prší, Checkers" },
-{ key: "consult", find: () => panelOf("btn-consult-launch"), chest: 15, icon: "🐞", name: "SME CONSULT", what: "Escalate tickets for big GC wins (and bugs)" },
-{ key: "legacy", find: () => panelOf("lp-shop"), prestige: 1, icon: "★", name: "THE OFFICE PLANT", what: "A tree of permanent upgrades grown with Legacy Points" }
-];
-function panelOf(id) { const el = $(id); return el ? (el.closest(".panel") || el) : null; }
-function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
-function isOpen(g) {
-if (g.prestige) return (gameState.prestige || 0) >= g.prestige || (gameState.lp || 0) > 0;
-return maxChest() >= g.chest;
-}
-const state = {};
-let booted = false;
-function apply() {
-if (typeof gameState === "undefined" || !gameLoaded) return;
-GATES.forEach(g => {
-const p = g.find(); if (!p) return;
-const open = isOpen(g);
-if (state[g.key] === false && open && booted) {
-log(`🔓 UNLOCKED: ${g.name}! ${g.what}.`, "special");
-const b = $("fx-banner");
-if (b) { b.style.color = "var(--amber)"; b.innerHTML = "UNLOCKED<small>" + g.name + "</small>"; b.classList.remove("go"); void b.offsetWidth; b.classList.add("go"); }
-}
-state[g.key] = open;
-p.classList.toggle("gate-locked", !open);
-let card = p.querySelector(":scope > .gate-card");
-if (!open) {
-const pct = g.prestige ? 0 : Math.min(100, (maxChest() - 1) / (g.chest - 1) * 100);
-const html = `<span class="ic">🔒</span><div class="t"><b>${g.icon} ${g.name}</b><small>${g.what}</small>
-<small>Unlocks at ${g.prestige ? "Prestige " + g.prestige : "chest level " + g.chest + " (you: " + maxChest() + ")"}</small>
-${g.prestige ? "" : `<div class="gate-bar"><div style="width:${pct}%"></div></div>`}</div>`;
-if (!card) { card = document.createElement("div"); card.className = "gate-card"; p.insertBefore(card, p.firstChild); }
-if (card.__h !== html) { card.innerHTML = html; card.__h = html; }
-} else if (card) card.remove();
+const fmt = (n) => Math.floor(n).toLocaleString(), esc = (t) => escapeHtml(String(t == null ? "" : t));
+const K = { id: "", rev: -1, view: null, list: null, busy: false, msg: "", msgC: "", pollT: 0, listAt: 0, target: "", stake: 0, mode: "own", seq: 0, recvAt: 0 };
+const me = () => gameState.ldap;
+function run(fn, args) { return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); }); }
+function onTab() { return A.isOpen() && A.view() === "duel"; }
+function say(t, c) { K.msg = t; K.msgC = c || ""; K.forceDraw = true; draw(); }
+function takePay(pay) {
+(pay || []).forEach(p => {
+if (p.why === "WIN") { if (p.amt > 0) TT.win(p.amt); log(`⚔ DUEL: you won!${p.amt ? " +" + fmt(p.amt) + " GC" : ""}`, "special"); if (window.Meta && Meta.count) Meta.count("duelWins", 1); }
+else { gameState.coins += p.amt; log(`⚔ DUEL: ${p.why === "DRAW" ? "draw, stake returned" : "stake refunded"} +${fmt(p.amt)} GC`, "success"); }
 });
-const mp = panelOf("merge-list");
-if (mp) {
-const any = gameState.inventory.some(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL);
-mp.classList.toggle("gate-hidden", !any);
+if (pay && pay.length) { updateUI(); TT.saveSoon(); }
 }
-const mt = document.querySelector('#m-tabs button[data-go="casino"] span');
-if (mt) { const t = isOpen(GATES[0]) ? "🎰" : "🔒"; if (mt.textContent !== t) mt.textContent = t; }
-const ft = document.querySelector('#m-tabs button[data-go="fight"] span');
-if (ft && window.Dungeon) { const t = Dungeon.unlocked() ? "⚔" : "🔒"; if (ft.textContent !== t) ft.textContent = t; }
-booted = true;
+async function loadList() {
+if (K.listBusy) return; K.listBusy = true;
+try { const r = await run("dlList", []); K.listAt = Date.now(); if (r && r.ok) { K.list = r; takePay(r.pay); if (r.mine && !K.id) { K.id = r.mine; K.rev = -1; poll(); } } }
+catch (e) { K.list = K.list || { tables: [], max: 4 }; }
+finally { K.listBusy = false; }
+if (onTab()) draw();
 }
-function boot() {
-if (typeof gameState === "undefined" || !window.TT) { setTimeout(boot, 50); return; }
-const tp = panelOf("stat-tickets");
-if (tp) {
-const h = tp.querySelector(".panel-header");
-if (h) {
-h.classList.add("tele-toggle");
-let col = true; try { col = localStorage.getItem("ir_tele") !== "open"; } catch (e) {}
-tp.classList.toggle("tele-collapsed", col);
-h.addEventListener("click", () => { const c = tp.classList.toggle("tele-collapsed"); try { localStorage.setItem("ir_tele", c ? "closed" : "open"); } catch (e) {} });
+async function poll() {
+clearTimeout(K.pollT); if (!K.id) return;
+try {
+const r = await run("dlPoll", [K.id, K.rev]);
+if (r && r.ok) { takePay(r.pay);
+if (r.gone) { K.id = ""; K.view = null; K.rev = -1; loadList(); return; }
+if (r.view) apply(r.view); else if (r.same && K.view) { K.view.left = r.left; K.recvAt = Date.now(); } }
+} catch (e) {}
+if (K.id) K.pollT = setTimeout(poll, onTab() ? (K.view && K.view.status === "play" ? 1000 : 2000) : 4000);
 }
+function apply(v) {
+const prev = K.view;
+K.view = v; K.rev = v.rev; K.recvAt = Date.now();
+if (v.status === "play" && v.role && !v.picked && K.ping !== v.half + ":" + v.rev && !onTab()) { K.ping = v.half + ":" + v.rev; log(`⚔ DUEL vs ${esc(v.names[1 - v.you])}: your move!`, "special"); }
+if (onTab()) { draw(); if (prev && v.evSeq !== K.seq) { K.seq = v.evSeq; playEvents(v); } else K.seq = v.evSeq; }
 }
-const ag = $("btn-autogen"); if (ag && ag.parentElement) ag.parentElement.classList.add("ag-compact");
-TT.onLoaded(() => { apply(); setInterval(apply, 1000); });
+function heroesOf(v) {
+if (!v || !v.cards) return [null, null];
+let a = H.fromCard(v.cards[v.names[0]]), b = v.names[1] ? H.fromCard(v.cards[v.names[1]]) : null;
+if (v.mode === "equal" && a && b) { const L = Math.max(a.level, b.level); a = H.stdHero(a.cls, L); b = H.stdHero(b.cls, L); }
+return [a, b];
 }
-window.Gate = { apply: apply };
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+function cleanStake(x) { const n = Math.floor(Number(String(x).replace(/[^0-9.]/g, "")) || 0); return Math.max(0, Math.min((K.list && K.list.maxStake) || 1e9, n)); }
+function refund(s) { if (s > 0) { gameState.coins += s; updateUI(); TT.saveSoon(); } }
+function create() {
+if (K.busy) return;
+const stake = cleanStake($("du-stake") ? $("du-stake").value : 0), mode = $("du-mode") ? $("du-mode").value : "own", target = ($("du-target") ? $("du-target").value : "").trim();
+K.stake = stake; K.mode = mode; K.target = target;
+if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
+K.busy = true; draw();
+if (stake > 0) TT.spend(stake);
+saveGame(async () => {
+try { const r = await run("dlCreate", [stake, mode, target]);
+if (r && r.ok) { K.id = r.id; K.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You already have a duel.", full: "All duel tables are busy.", stake: "Invalid stake.", noclass: "Your High Stakes character isn't saved yet - try again in a few seconds." }[r && r.reason] || "Could not create.", "var(--crimson)"); } }
+catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { K.busy = false; loadList(); }
+});
+}
+function join(id, stake) {
+if (K.busy) return; if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
+K.busy = true; draw();
+if (stake > 0) TT.spend(stake);
+saveGame(async () => {
+try { const r = await run("dlJoin", [id]);
+if (r && r.ok) { K.id = r.id; K.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You already have a duel.", gone: "That duel is gone.", self: "That's your own challenge.", private: "That challenge is for someone else.", noclass: "Your High Stakes character isn't saved yet - try again." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); } }
+catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { K.busy = false; }
+});
+}
+async function leave() {
+if (K.busy || !K.id) return; const v = K.view;
+if (v && v.status === "play" && v.you >= 0 && !window.confirm("Flee the duel? Your opponent wins" + (v.stake ? " the pot." : "."))) return;
+K.busy = true; try { await run("dlLeave", [K.id]); } catch (e) {}
+K.busy = false; K.id = ""; K.view = null; K.rev = -1; clearTimeout(K.pollT); loadList();
+}
+/** v11.1: stejné mini-hry jako v kampani (HSQTE) - výsledek jde na server spolu s volbou */
+function qteFor(v, choice, cb) {
+const h = heroesOf(v)[v.you], Q = window.HSQTE;
+if (!Q || !h) return cb({});
+if (v.role === "atk") {
+if (choice === "heavy") return Q.timing(h.zone || 0.3, q => cb({ t: q }));
+if (choice === "ult") return Q.ult(h.cls, H.CLASSES[h.cls].skill, o => {
+const oh = heroesOf(v)[1 - v.you], gu = v.gu && v.gu[v.you];
+if (gu || !oh) return cb({ q: o.q });
+Q.guess(H.reactsOf(oh).map(x => ({ k: x, icon: H.REACTS[x].icon, label: H.REACTS[x].name })), H.GUESS_FX[h.cls], g => cb(g ? { q: o.q, guess: g } : { q: o.q }));
+});
+if (choice === "gamble" && v.gr) {
+let k = 0; const f = { h: h, R: () => Number(v.gr[k++ % v.gr.length]) || 0, sta: v.sta ? v.sta[v.you] : 100, st: {} };
+return Q.gamble(f, H, (reels, g) => cb({ g: g }), (rs) => { const x = H.reelResult(rs); return x.bf ? "💀 BACKFIRE" : (x.jp ? "🎰 JACKPOT! " : "") + "×" + x.mult + " damage"; });
+}
+} else {
+const oh = heroesOf(v)[1 - v.you], vsMage = oh && oh.cls === "engineer";
+if (v.ultReady) {                                                   // v11.2: soupeř má ULTI - block / dodge se hraje 3× (jako UNLEASH)
+if (choice === "block") return Q.parry3(rs => cb({ rings: rs }), "🛡 ULTIMATE is ready - parry all 3 rings" + (vsMage ? " (a Mage halves your block)" : ""));
+if (choice === "dodge") return Q.dodge3(qs => cb({ dqs: qs }), "💨 ULTIMATE is ready - dodge 3 times");
+}
+if (choice === "block") return Q.parry({ k: "any", title: "🛡 BLOCK: hit the ring - a PERFECT parry stops a HEAVY / GAMBLE / ULTIMATE" + (vsMage ? " (only half vs a Mage)" : " completely"), easy: h.parryWin || 1 }, o => cb({ parry: o.parry }));
+if (choice === "dodge") return Q.dodge(q => cb({ dq: q }));
+if (choice === "channel") return Q.channel(q => cb({ cq: q }));
+}
+cb({});
+}
+function pick(choice) {
+const v = K.view; if (!v || v.status !== "play" || !v.role || v.picked || v.waitAtk || v.setup || K.busy || K.qte) return;
+const half = v.half, role = v.role;
+K.qte = true;
+qteFor(v, choice, (opt) => {
+K.qte = false;
+const now = K.view;
+if (!now || now.status !== "play" || now.half !== half || now.role !== role || now.picked) { say("Too slow - the round already moved on.", "var(--crimson)"); return; }
+opt.h = half; send(choice, opt);
+});
+}
+async function send(choice, opt) {
+const v = K.view;
+K.busy = true; v.picked = true; draw();
+try { const r = await run("dlMove", [K.id, choice, opt]); if (r && r.view) apply(r.view); else if (r && !r.ok) say("Move not accepted (" + (r.reason || "?") + ").", "var(--crimson)"); }
+catch (e) { say("Server error - try again.", "var(--crimson)"); if (K.view) K.view.picked = false; }
+finally { K.busy = false; draw(); poll(); }
+}
+function challenge(nick) {
+K.target = String(nick || ""); K.msg = "";
+if (!A.isOpen()) Dungeon.open();
+Dungeon.tab("duel");
+setTimeout(() => { const el = $("du-target"); if (el) { el.value = K.target; el.focus(); } }, 50);
+}
+function bar(cls, v, m) { return `<div class="hs-bar"><div class="${cls}" style="width:${Math.max(0, Math.min(100, v / Math.max(1, m) * 100))}%"></div></div>`; }
+function side(v, i, h) {
+const nm = v.names[i] || "?", mine = i === v.you;
+const sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
+const max = v.max ? v.max[i] : (h ? h.maxHp : 1), hp = v.hp ? v.hp[i] : max;
+return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
+<div id="du-s${i}">${sprite}</div>
+<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div>${bar("hp", hp, max)}
+<div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}
+<div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}</div></div>`;
+}
+function buttons(v, hs) {
+if (v.status !== "play" || !v.role) return "";
+if (v.picked) return `<div class="du-wait">✔ Locked in. Waiting for ${esc(v.names[1 - v.you])}${v.oppPicked ? " (they're ready too)" : "..."}</div>`;
+if (v.waitAtk) return `<div class="du-wait">⏳ ${esc(v.names[1 - v.you])} has the <b style="color:#ff4dff;">ULTIMATE</b> ready - wait until they pick their move (you still won't see it). BLOCK or DODGE will be played 3× this round.</div>`;
+const d = { c: hs, sta: v.sta, foc: v.foc, cd: v.cd }, i = v.you, h = hs[i];
+if (v.role === "atk") return `<div class="hs-acts">${H.PVP_ATK.map(a => { const ok = H.duelAtkOk(d, i, a) && !K.qte, A0 = H.ATTACKS[a];
+const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
+return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
+return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
+const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " FOC · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "30 FOC · ring -17-45%" : "+15 STA +10 FOC";
+return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
+}
+/** v11.2: rovné podmínky - rozdělení bodů před startem */
+function setupHtml(v) {
+const su = v.setup, me0 = v.you, cls = (heroesOf(v)[me0] || {}).cls || "sysadmin", C = H.CLASSES[cls], mainNm = { str: "STR", agi: "AGI", int: "INT" }[C.main] || "MAIN";
+if (!K.al || K.alId !== v.id) { K.alId = v.id; K.al = { main: Math.round(su.pts * 0.5), vit: Math.round(su.pts * 0.3) }; K.al.luck = su.pts - K.al.main - K.al.vit; }
+const al = K.al, left = Math.max(0, (v.left || 0) - (Date.now() - K.recvAt)), done = su.ready[me0];
+const prev = H.stdHero(cls, su.L, al);
+const row = (k, nm, tip) => `<div class="du-al"><b>${nm}</b><span class="dg-dim">${tip}</span><button class="btn" ${done ? "disabled" : ""} onclick="HSDuel.al('${k}',-10)">-10</button><button class="btn" ${done ? "disabled" : ""} onclick="HSDuel.al('${k}',-1)">-</button><b class="v">${al[k]}</b><button class="btn" ${done ? "disabled" : ""} onclick="HSDuel.al('${k}',1)">+</button><button class="btn" ${done ? "disabled" : ""} onclick="HSDuel.al('${k}',10)">+10</button></div>`;
+return `<div class="dg-card"><div class="dg-h"><span>⚖ EQUAL TERMS · split your stat points</span><span>LV ${su.L} · ${su.pts} points</span></div>
+<div class="dg-dim">Same level and gear for both of you - only your split and your skill decide. Your opponent sees your split only when the duel starts.</div>
+${row("main", mainNm, "damage")}${row("vit", "VIT", "HP")}${row("luck", "LUCK", "crit · leftover points go here")}
+<div class="dg-dim" style="margin:6px 0;">❤ ${fmt(prev.maxHp * H.PVP.hp)} HP · ⚔ ~${fmt(prev.atk)} · 💥 crit ${Math.round(H.critOf(prev, prev) * 100)}%</div>
+<div class="du-timer"><div id="du-tbar" style="width:${left / 45000 * 100}%"></div></div>
+${done ? `<div class="du-wait">✔ Ready. Waiting for ${esc(v.names[1 - me0])}${su.ready[1 - me0] ? "" : "..."}</div>` : `<button class="btn btn-gold" style="width:100%;padding:10px;margin-top:8px;" ${K.busy ? "disabled" : ""} onclick="HSDuel.ready()">✔ READY</button>`}
+<div style="text-align:right;margin-top:6px;"><button class="btn" style="padding:4px 10px;font-size:11px;" onclick="HSDuel.leave()">🏳 FLEE</button></div></div>`;
+}
+function al(k, n) {
+const v = K.view; if (!v || !v.setup || !K.al) return;
+const cur = K.al, pts = v.setup.pts;
+if (n < 0) cur[k] = Math.max(0, cur[k] + n);
+else for (let i = 0; i < n; i++) {
+if (cur.main + cur.vit + cur.luck < pts) { cur[k]++; continue; }
+const from = ["main", "vit", "luck"].filter(x => x !== k && cur[x] > 0).sort((x, y) => cur[y] - cur[x])[0];
+if (!from) break; cur[from]--; cur[k]++;
+}
+draw();
+}
+async function ready() {
+const v = K.view; if (!v || !v.setup || K.busy) return;
+const a = Object.assign({}, K.al), free = v.setup.pts - a.main - a.vit - a.luck; if (free > 0) a.luck += free;
+K.busy = true; draw();
+try { const r = await run("dlStats", [K.id, a]); if (r && r.view) apply(r.view); else say("Stats not accepted.", "var(--crimson)"); }
+catch (e) { say("Server error - try again.", "var(--crimson)"); }
+finally { K.busy = false; draw(); poll(); }
+}
+function fightHtml(v) {
+if (v.setup) return setupHtml(v);
+const hs = heroesOf(v), opp = v.names[1 - v.you];
+const left = Math.max(0, (v.left || 0) - (Date.now() - K.recvAt));
+let role = "";
+if (v.status === "play") {
+const oi = 1 - v.you, oh = hs[oi];
+role = v.role === "atk" ? `<div class="du-role atk">① YOUR ATTACK<small>${esc(opp)} picks a reaction at the same time - they don't know what you'll do.</small></div>`
+: `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits can't be dodged" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
+role += `<div class="du-timer"><div id="du-tbar" style="width:${left / 35000 * 100}%"></div></div>`;
+}
+const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>
+<div class="dg-dim" style="margin-top:6px;">${esc(v.why)}${v.winner === me() && v.win ? " · +" + fmt(v.win) + " GC" : ""}</div>
+<button class="btn btn-gold" style="margin-top:10px;width:100%;" onclick="HSDuel.leave()">◀ BACK TO DUELS</button></div>` : "";
+const wait = v.status === "wait" ? `<div class="dg-card"><div class="du-wait">⏳ Waiting for ${v.target ? "<b>" + esc(v.target) + "</b>" : "an opponent"} to accept (${Math.ceil((v.waitLeft || 0) / 60000)} min left)${v.stake ? " · stake " + fmt(v.stake) + " GC" : " · friendly duel"}${v.mode === "equal" ? " · equal terms" : ""}.<br>Tell them to open HIGH STAKES → ⚔ DUEL.</div>
+<button class="btn" style="width:100%;" onclick="HSDuel.leave()">CANCEL</button></div>` : "";
+if (v.status === "wait") return wait;
+return `<div class="dg-card"><div class="dg-h"><span>⚔ DUEL · ${esc(v.names[0])} vs ${esc(v.names[1])}</span><span>ROUND ${v.turn || 1}${v.stake ? " · 💰 " + fmt(v.stake * 2) : ""}${v.mode === "equal" ? " · ⚖ equal" : ""}</span></div></div>
+<div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(4) : ""}${side(v, 0, hs[0])}<div class="dg-vs">VS</div>${side(v, 1, hs[1])}</div>
+${role}${buttons(v, hs)}${res}
+${v.status === "play" ? `<div style="text-align:right;margin-top:6px;"><button class="btn" style="padding:4px 10px;font-size:11px;" onclick="HSDuel.leave()">🏳 FLEE</button></div>` : ""}
+<div class="dg-card" style="margin-top:10px;"><div class="dg-h">DUEL LOG</div><div class="dg-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div></div>`;
+}
+function lobbyHtml() {
+const L = K.list, d = A.HS();
+const tables = L && L.tables && L.tables.length ? L.tables.map(t => {
+const mine = t.host === me(), forMe = !t.target || t.target === me();
+return `<div class="dg-art"><div class="ic">${(H.CLASSES[t.cls] || {}).icon || "⚔"}</div><div class="t"><b>${esc(t.host)}</b> · ${esc((H.CLASSES[t.cls] || {}).name || "")} LV ${t.lv || "?"}
+<div class="dg-dim">${t.stake ? "💰 " + fmt(t.stake) + " GC" : "friendly"} · ${t.mode === "equal" ? "⚖ equal terms" : "own stats"}${t.target ? " · for " + esc(t.target) : ""}${t.status === "play" ? " · vs " + esc(t.guest) : ""}</div></div>
+${t.status === "wait" && !mine && forMe ? `<button class="btn btn-crimson" ${gameState.coins >= t.stake && !K.busy ? "" : "disabled"} onclick="HSDuel.join('${t.id}',${t.stake})">⚔ ACCEPT</button>` : `<span class="dg-dim">${t.status === "play" ? "FIGHTING" : mine ? "YOURS" : "PRIVATE"}</span>`}</div>`;
+}).join("") : `<div class="dg-dim">${L ? "No open duels. Create one and tell a friend!" : "Loading..."}</div>`;
+return `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>⚔ CHALLENGE A FRIEND</span></div>
+<div class="dg-dim">A live 1v1 with the same rules as your fights, but both of you choose at once: the attacker picks a move, the defender picks a reaction <b>blind</b>. HEAVY, GAMBLE, ultimates, BLOCK (parry) and DODGE are played as the same mini-games as in the campaign. 35 seconds per choice, 3 missed choices in a row = you lose. Winner takes the pot (5% goes to the lottery).</div>
+<div class="du-form">
+<label>Opponent (empty = anyone)<input id="du-target" maxlength="24" value="${esc(K.target)}" placeholder="nick"></label>
+<label>Stake GC (0 = friendly)<input id="du-stake" inputmode="numeric" value="${K.stake || 0}"></label>
+<label>Rules<select id="du-mode"><option value="own" ${K.mode !== "equal" ? "selected" : ""}>Own stats and gear</option><option value="equal" ${K.mode === "equal" ? "selected" : ""}>Equal terms (same level and gear - only skill)</option></select></label>
+<label>&nbsp;<button class="btn btn-gold" style="padding:9px;" ${K.busy || !d.cls ? "disabled" : ""} onclick="HSDuel.create()">⚔ CREATE DUEL</button></label></div>
+${K.msg ? `<div class="dg-dim" style="margin-top:6px;color:${K.msgC || "var(--amber)"};">${esc(K.msg)}</div>` : ""}</div>
+<div class="dg-card du-list"><div class="dg-h"><span>OPEN DUELS</span><button class="btn" style="padding:3px 8px;font-size:10px;" onclick="HSDuel.refresh()">↻</button></div>${tables}</div></div>`;
+}
+function draw() {
+if (!onTab()) return;
+if (!K.id && document.activeElement && /^du-/.test(document.activeElement.id || "") && !K.forceDraw) return;
+K.forceDraw = false;
+const box = $("dg-inner"); if (!box) return;
+const keep = $("du-target") ? { t: $("du-target").value, s: $("du-stake").value, m: $("du-mode").value } : null;
+if (keep && !K.id) { K.target = keep.t; K.stake = cleanStake(keep.s); K.mode = keep.m; }
+box.innerHTML = K.id && K.view ? fightHtml(K.view) : K.id ? `<div class="dg-card"><div class="du-wait">Loading the duel...</div></div>` : lobbyHtml();
+}
+function playEvents(v) {
+const evs = v.last || [], side = (i) => i === v.you ? "p" : "b";
+const u = evs.find(e => e.type === "ult" || ((e.type === "hit" || e.type === "dodge") && e.a === "ult"));
+if (u && onTab() && window.HSQTE && HSQTE.cine) { const hh = heroesOf(v)[u.i]; if (hh) HSQTE.cine(hh.cls, "✨ " + H.CLASSES[hh.cls].skill); }
+evs.forEach((e, k) => setTimeout(() => {
+if (!onTab()) return;
+if (e.type === "hit" && e.hv && e.hv.length > 1 && e.a !== "ult") { e.hv.forEach((x, n) => setTimeout(() => A.float(fmt(x), side(1 - e.i), e.crit ? "#ffb800" : "#fff", !!e.crit), n * 220)); if (e.counter) A.float("COUNTER " + fmt(e.counter), side(e.i), "#ff4d6d"); }
+else if (e.type === "hit") { if (e.val) A.float((e.crit ? "CRIT " : e.jp ? "JACKPOT " : "") + fmt(e.val), side(1 - e.i), e.crit || e.jp ? "#ffb800" : "#fff", e.crit || e.jp); if (e.outcome === "block") A.float("BLOCK", side(1 - e.i), "#00f0ff"); if (e.outcome === "parry") A.float("PARRY!", side(1 - e.i), "#ffd700", true); if (e.timing === "PERFECT") A.float("PERFECT", side(e.i), "#ffd700"); if (e.counter) A.float("COUNTER " + fmt(e.counter), side(e.i), "#ff4d6d"); }
+else if (e.type === "dodge") A.float("DODGE", side(1 - e.i), "#00f0ff", true);
+else if (e.type === "rest") A.float("+30 STA", side(e.i), "#00f0ff");
+else if (e.type === "guess") A.float(e.ok ? e.fx : "WRONG GUESS", side(e.i), e.ok ? "#ffd700" : "#94a3b8", e.ok);
+else if (e.type === "bm") A.float("+" + fmt(e.val), side(e.i), "#00ff88");
+else if (e.type === "poison") A.float("🦠 -" + fmt(e.val), side(e.who), "#22c55e");
+else if (e.type === "bf") A.float("BACKFIRE", side(e.i), "#ff1744", true);
+else if (e.type === "ult") A.float("+" + fmt(e.shield) + " 🛡", side(e.i), "#00ff88", true);
+else if (e.type === "revive") A.float("RISE!", side(e.who), "#ffb800", true);
+if (window.HSRig && (e.type === "hit" || e.type === "dodge")) { HSRig.act("du-s" + e.i, e.a === "heavy" ? "a-power" : e.a === "ult" ? "a-skill" : "a-quick"); setTimeout(() => HSRig.act("du-s" + (1 - e.i), e.type === "dodge" ? "a-dodge" : e.outcome === "block" ? "a-block" : "a-hit"), 260); }
+}, k * 380));
+}
+setInterval(() => { if (onTab() && K.view && K.view.status === "play") { const b = $("du-tbar"); if (b) b.style.width = Math.max(0, (K.view.left || 0) - (Date.now() - K.recvAt)) / (K.view.setup ? 45000 : 35000) * 100 + "%"; } }, 250);
+A.registerMode("duel", { label: "⚔ DUEL", order: 92, render: function () { draw(); if (!K.list || Date.now() - K.listAt > 8000) loadList(); if (K.id) poll(); },
+dot: function () { return !!(K.view && K.view.status === "play" && K.view.role && !K.view.picked) || !!(K.list && K.list.tables && K.list.tables.some(t => t.status === "wait" && t.target === me())); } });
+window.HSDuel = { al: al, ready: ready, create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
+(function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 300); return; }
+TT.onLoaded(() => setTimeout(loadList, 8000));
+setInterval(() => { if (!K.id && (onTab() || Date.now() - K.listAt > 60000)) loadList(); }, 20000);
+})();
 })();
 </script>
 <style>
-/* ===== v9.6 EXTRAS: Boss key, Hotfix Mines, Loterie, Akcie, návštěvy kanceláře ===== */
-/* --- boss key: nudná tabulka --- */
-#bk-sheet { position: fixed; inset: 0; z-index: 100000; display: none; flex-direction: column; background: #fff; color: #202124; font: 13px Arial, Helvetica, sans-serif; user-select: none; }
-#bk-sheet.open { display: flex; }
-#bk-sheet .bk-top { display: flex; align-items: center; gap: 10px; padding: 8px 12px 4px; }
-#bk-sheet .bk-ic { width: 26px; height: 32px; border-radius: 3px; background: #0f9d58; position: relative; flex: none; }
-#bk-sheet .bk-ic::after { content: ""; position: absolute; left: 6px; right: 6px; top: 10px; bottom: 8px; border: 2px solid #fff; border-width: 2px 0; box-shadow: inset 0 6px 0 -4px #fff; }
-#bk-sheet .bk-title { font-size: 18px; color: #202124; }
-#bk-sheet .bk-menu { display: flex; gap: 14px; font-size: 13px; color: #444; padding: 0 12px 6px 48px; }
-#bk-sheet .bk-tool { height: 34px; margin: 0 8px; border-radius: 20px; background: #edf2fa; display: flex; align-items: center; gap: 12px; padding: 0 14px; color: #444; font-size: 13px; }
-#bk-sheet .bk-fx { display: flex; align-items: center; gap: 8px; border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; margin-top: 6px; padding: 3px 8px; font-size: 13px; }
-#bk-sheet .bk-fx .nm { width: 70px; border-right: 1px solid #e0e0e0; color: #444; }
-#bk-sheet .bk-grid { flex: 1; overflow: auto; }
-#bk-sheet table { border-collapse: collapse; table-layout: fixed; }
-#bk-sheet td, #bk-sheet th { border: 1px solid #e2e3e3; height: 21px; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
-#bk-sheet th { background: #f8f9fa; color: #5f6368; font-size: 11px; text-align: center; position: sticky; top: 0; z-index: 1; }
-#bk-sheet th.rn { position: sticky; left: 0; z-index: 2; }
-#bk-sheet td.rn { background: #f8f9fa; color: #5f6368; text-align: center; font-size: 11px; position: sticky; left: 0; }
-#bk-sheet td.sel { outline: 2px solid #1a73e8; outline-offset: -2px; }
-#bk-sheet tr.hd td:not(.rn) { font-weight: 700; background: #f3f3f3; }
-#bk-sheet .ok { color: #188038; } #bk-sheet .bad { color: #d93025; }
-#bk-sheet .bk-tabs { display: flex; gap: 2px; background: #f8f9fa; border-top: 1px solid #e0e0e0; padding: 4px 8px; font-size: 13px; }
-#bk-sheet .bk-tabs span { padding: 4px 14px; color: #444; } #bk-sheet .bk-tabs span.on { background: #e8f0fe; color: #1a73e8; border-radius: 4px 4px 0 0; }
-.bk-btn { padding: 4px 8px !important; font-size: 11px !important; opacity: .55; }
-/* --- mines --- */
-.mn-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 330px; margin: 8px auto; }
-.mn-c { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .12s, background .15s; }
-.mn-c:hover:not(.on) { transform: translateY(-1px); background: #23304a; }
-.mn-c.on { cursor: default; }
-.mn-c.safe { background: rgba(0,255,136,.12); border-color: rgba(0,255,136,.45); }
-.mn-c.bug { background: rgba(255,23,68,.18); border-color: var(--crimson); }
-.mn-c.ghost { opacity: .45; }
-.mn-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: center; }
-.mn-row .btn.sel { outline: 2px solid var(--amber); }
-.mn-info { text-align: center; font-size: 13px; color: var(--text-dim); margin-top: 6px; }
-.mn-info b { color: var(--text-main); }
-/* --- lottery --- */
-.lt-nums { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-width: 420px; margin: 8px auto; }
-.lt-n { aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); font: 700 13px 'Space Grotesk', sans-serif; color: var(--text-main); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.lt-n.on { background: var(--amber); color: #111; border-color: var(--amber); }
-.lt-ball { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center; background: var(--amber); color: #111; font-weight: 700; margin: 0 2px; font-size: 12px; }
-.lt-ball.dim { background: var(--bg-panel-elevated); color: var(--text-main); border: 1px solid var(--border-subtle); }
-.lt-pool { text-align: center; font-size: 28px; font-weight: 700; color: var(--amber); margin: 4px 0; }
-/* --- stocks --- */
-.sk-list { display: grid; gap: 6px; }
-.sk-row { display: grid; grid-template-columns: 1fr 96px auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); }
-.sk-row b { font-size: 14px; } .sk-row .sym { font-size: 11px; color: var(--text-dim); }
-.sk-row svg { width: 96px; height: 34px; }
-.sk-px { text-align: right; font-weight: 700; } .sk-ch { font-size: 11px; text-align: right; }
-.sk-act { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
-.sk-act .btn { padding: 3px 7px; font-size: 11px; }
-.sk-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin: 6px 0; } .sk-sum b { color: var(--text-main); }
-@media (max-width: 600px) { .sk-row { grid-template-columns: 1fr auto; } .sk-row svg { display: none; } }
-/* --- návštěva kanceláře --- */
-#ir-visit .rm { margin: 8px 0; }
-#ir-visit .vs-act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+/* ===== v8.8 THE COLLEAGUE: pomocník, který farmí poražené bosse a kliká za tebe ===== */
+.cl-row { display: flex; gap: 10px; align-items: center; }
+.cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
+.cl-name { font: 900 14px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
+.cl-quip { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
+.cl-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+.cl-slot { padding: 5px; border-radius: 6px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); font-size: 10px; text-align: center; min-width: 0; }
+.cl-slot b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-boss { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 5px; cursor: pointer; }
+.cl-boss.sel { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald) inset; }
+.cl-boss .ic { font-size: 20px; width: 26px; text-align: center; }
+.cl-boss .t { flex: 1; min-width: 0; font-size: 11px; }
+.cl-boss .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-boss .wr { font: 800 11px 'Orbitron', monospace; }
+.cl-give { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px; }
+.cl-give span { flex: 1; min-width: 0; }
+.cl-give .btn { padding: 4px 10px; font-size: 10px; }
+.cl-log div { font-size: 11px; color: var(--text-dim); padding: 2px 0; }
+.cl-sleep { text-align: center; padding: 18px 10px; }
+.cl-sleep .big { font-size: 44px; }
 </style>
 <script>
 (function () {
 "use strict";
+const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString();
-const short = (n) => { n = Math.floor(n); const a = Math.abs(n), s = n < 0 ? "-" : ""; return a >= 1e12 ? s + (a / 1e12).toFixed(1) + "T" : a >= 1e9 ? s + (a / 1e9).toFixed(1) + "B" : a >= 1e6 ? s + (a / 1e6).toFixed(1) + "M" : a >= 1e4 ? s + Math.round(a / 1e3) + "K" : n.toLocaleString(); };
-const esc = (t) => (typeof escapeHtml === "function" ? escapeHtml(String(t)) : String(t));
-const me = () => (typeof gameState !== "undefined" && gameState.ldap) || "";
-const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
-function call(fn, args, ok, fail) {
-try {
-if (typeof google === "undefined" || !google.script || !google.script.run) { if (fail) fail("offline"); return; }
-const r = google.script.run.withSuccessHandler(ok || function () {}).withFailureHandler(fail || function () {});
-r[fn].apply(r, args || []);
-} catch (e) { if (fail) fail(e); }
-}
-const T = { mn: null, lt: null, sk: null };
-const BK_ROWS = (function () {
-const pri = ["P1", "P2", "P2", "P3", "P3", "P3", "P4"], st = ["Resolved", "Resolved", "In progress", "Waiting for customer", "Resolved", "Escalated", "Closed"], team = ["Service Desk", "Network", "Identity & Access", "Workplace", "Apps L2", "Infra"];
-const out = []; let s = 7;
-const r = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
-for (let i = 0; i < 60; i++) {
-const sla = Math.round(70 + r() * 30), d = 1 + Math.floor(r() * 28);
-out.push(["INC" + (204310 + Math.floor(r() * 9000)), pri[Math.floor(r() * pri.length)], team[Math.floor(r() * team.length)], "2026-10-" + String(d).padStart(2, "0"),
-(r() * 9).toFixed(1) + " h", sla + "%", st[Math.floor(r() * st.length)], sla >= 90 ? "Met" : "Breached"]);
-}
-return out;
-})();
-function bkBuild() {
-if ($("bk-sheet")) return $("bk-sheet");
-const cols = "ABCDEFGHIJKL".split(""), W = [110, 60, 140, 100, 90, 70, 150, 80, 80, 80, 80, 80];
-const hdr = ["Ticket ID", "Priority", "Assignment group", "Opened", "Time to resolve", "SLA %", "Status", "SLA met", "", "", "", ""];
-let h = `<div class="bk-top"><div class="bk-ic"></div><div><div class="bk-title">Q4 SLA Report - Service Desk (weekly)</div></div></div>
-<div class="bk-menu"><span>File</span><span>Edit</span><span>View</span><span>Insert</span><span>Format</span><span>Data</span><span>Tools</span><span>Help</span></div>
-<div class="bk-tool">↶ ↷ 🖨 &nbsp; 100% ▾ &nbsp; $ % .0 .00 123 &nbsp; Default ▾ &nbsp; 10 ▾ &nbsp; <b>B</b> <i>I</i> <s>S</s> A</div>
-<div class="bk-fx"><span class="nm" id="bk-nm">A1</span><span>fx</span><span id="bk-fv">Ticket ID</span></div><div class="bk-grid"><table><colgroup><col style="width:46px">${W.map(w => `<col style="width:${w}px">`).join("")}</colgroup>
-<tr><th class="rn"></th>${cols.map(c => `<th>${c}</th>`).join("")}</tr><tr class="hd"><td class="rn">1</td>${hdr.map(x => `<td>${x}</td>`).join("")}</tr>`;
-BK_ROWS.forEach((r, i) => { h += `<tr><td class="rn">${i + 2}</td>${r.map((x, j) => `<td class="${j === 7 ? (x === "Met" ? "ok" : "bad") : ""}">${x}</td>`).join("")}<td></td><td></td><td></td><td></td></tr>`; });
-h += `</table></div><div class="bk-tabs"><span class="on">SLA weekly</span><span>Backlog</span><span>Pivot</span></div>`;
-const el = document.createElement("div"); el.id = "bk-sheet"; el.innerHTML = h; document.body.appendChild(el);
-el.addEventListener("click", function (ev) {
-const td = ev.target.closest("td"); if (!td || td.classList.contains("rn")) return;
-el.querySelectorAll("td.sel").forEach(x => x.classList.remove("sel")); td.classList.add("sel");
-const tr = td.parentNode, ri = [...tr.parentNode.children].indexOf(tr), ci = [...tr.children].indexOf(td);
-$("bk-nm").textContent = "ABCDEFGHIJKL"[ci - 1] + ri; $("bk-fv").textContent = td.textContent;
-if (typeof handleManualClick === "function") try { handleManualClick(ev); } catch (e) {}   // tiket se potichu vyřeší
-});
-return el;
-}
-function bkOn() { const el = bkBuild(); el.classList.add("open"); document.title = "Q4 SLA Report - Service Desk"; }
-function bkOff() { const el = $("bk-sheet"); if (el) el.classList.remove("open"); document.title = window.__irTitle || document.title; }
-function bkOpen() { const el = $("bk-sheet"); return !!(el && el.classList.contains("open")); }
-function modalOpen() { return !!document.querySelector('#dg-screen.open, #mt-screen.open, #pl-screen.open, #cl-ov.open, .tt-overlay.open, #ir-visit, #ir-conflict'); }
-document.addEventListener("keydown", function (e) {
-if (e.key !== "Escape") return;
-if (bkOpen()) { e.preventDefault(); e.stopImmediatePropagation(); bkOff(); return; }
-if (modalOpen()) return;                                                   // ESC nejdřív zavře otevřené okno (jejich vlastní handlery)
-e.preventDefault(); bkOn();
-}, true);
-function bkButton() {
-const host = document.querySelector(".top-bar .user-badge") || document.querySelector(".top-bar");
-if (!host || $("bk-btn")) return;
-const b = document.createElement("button"); b.id = "bk-btn"; b.className = "btn bk-btn"; b.type = "button"; b.title = "Boss key (Esc)"; b.textContent = "📊";
-b.onclick = bkOn; host.insertBefore(b, host.firstChild);
-}
-const P = { data: null, at: 0, busy: false };
-function poll(force) {
-if (P.busy || (!force && document.hidden)) return;
-P.busy = true;
-call("metaPoll", [], function (r) {
-P.busy = false; if (!r || !r.ok) return;
-P.data = r; P.at = Date.now();
-const off = r.now ? Date.now() - r.now : 0;
-window.__irForcedEv = r.ev ? { id: r.ev.id, start: r.ev.start + off, end: r.ev.end + off } : null;
-if (r.lotto && r.lotto.pay > 0) claimLotto();
-if (r.inbox > 0) inbox();
-if (T.lt) ltRender();
-}, function () { P.busy = false; });
-}
-function claimLotto() {
-call("lottoClaim", [], function (r) {
-if (!r || !r.ok || !r.gc) return;
-gameState.coins += r.gc;
-log(`🎟 LOTTERY: you won ${fmt(r.gc)} GC in the last draw!`, "special");
-if (window.TT && TT.announce && r.gc >= 1e6) try { TT.announce("WON THE LOTTERY", "LOTTERY", 0, r.gc); } catch (e) {}
-if (typeof updateUI === "function") updateUI(); TT.saveSoon();
-});
-}
-const FEED = { s: 0, w: 0 };
-function hookTT() {
-if (!window.TT || TT.__x96) return; TT.__x96 = true;
-const sp = TT.spend, wn = TT.win;
-TT.spend = function (a) { const ok = sp.apply(TT, arguments); if (ok) FEED.s += Math.max(0, Math.floor(Number(a) || 0)); return ok; };
-TT.win = function (a) { FEED.w += Math.max(0, Math.floor(Number(a) || 0)); return wn.apply(TT, arguments); };
-}
-function feed() {
-const loss = FEED.s - FEED.w; FEED.s = 0; FEED.w = 0;
-if (loss > 0) call("lottoFeed", [Math.floor(loss * 0.4)]);
-}
-const COFFEE_MS = 30 * 60000, COFFEE_X = 1.25;
-function ck() { return "ir_coffee_" + me(); }
-function coffeeOn() { return (ls.get(ck(), 0) || 0) > Date.now(); }
-function hookMeta() {
-if (!window.Meta || Meta.__x96) return; Meta.__x96 = true;
-const om = Meta.mult;
-Meta.mult = function (k) { let v = om.apply(Meta, arguments); if ((k === "click" || k === "auto") && coffeeOn()) v *= COFFEE_X; return v; };
-}
-function pk() { return "ir_postit_" + me(); }
-function inbox() {
-call("officeInbox", [], function (r) {
-if (!r || !r.ok || !r.list || !r.list.length) return;
-let pi = ls.get(pk(), { n: 0, from: [] });
-r.list.forEach(x => {
-if (x.k === "coffee") { ls.set(ck(), Math.max(ls.get(ck(), 0) || 0, Date.now()) + COFFEE_MS); log(`☕ ${esc(x.from)} left you a coffee: clicks and Auto GC ×${COFFEE_X} for 30 minutes!`, "special"); }
-else if (x.k === "prank") { pi.n = Math.min(40, (pi.n || 0) + (x.n || 5)); pi.from = (pi.from || []).concat([x.from]).slice(-5); log(`📝 ${esc(x.from)} covered your desk in post-it notes! Peel them off in your office for scrap.`, "special"); if (window.Room && Room.colSay) Room.colSay("Someone pranked your desk!"); }
-});
-ls.set(pk(), pi); postitTick(true);
-});
-}
-function postitTick(force) {
-const pi = ls.get(pk(), { n: 0 }), root = document.querySelector(".rm:not(.rm-visit)");
-if (!root || !window.Room || !Room.postits) return;
-const have = root.querySelectorAll(".rm-pi").length;
-if (pi.n > 0 && (force || !have)) Room.postits(pi.n, takePostit);
-}
-function takePostit() {
-const pi = ls.get(pk(), { n: 0 }); if (pi.n <= 0) return;
-pi.n--; ls.set(pk(), pi);
-const v = Math.max(100, Math.round((typeof getChestScrapCost === "function" ? getChestScrapCost() : 200) * 0.75));
-gameState.scrap += v;
-if (window.TT && TT.float) try { TT.float("+" + short(v) + " scrap"); } catch (e) {}
-if (pi.n === 0) log(`📝 Desk cleaned! The prank paid you scrap for every note.`, "success");
-if (typeof updateUI === "function") updateUI(); TT.saveSoon();
-}
-function visit(nick) {
-const old = $("ir-visit"); if (old) old.remove();
-const el = document.createElement("div"); el.id = "ir-visit"; el.className = "tt-overlay open"; el.style.zIndex = 10001;
-el.onclick = (e) => { if (e.target === el) el.remove(); };
-el.innerHTML = `<div class="tt-modal" style="max-width:640px;width:100%;"><h2>🏠 ${esc(nick)}'s office</h2><div class="dg-dim" id="vs-st">Knocking on the door...</div><div class="rm rm-visit" id="vs-room" style="display:none;"></div><div class="vs-act" id="vs-act"></div></div>`;
-document.body.appendChild(el);
-call("officeView", [nick], function (v) {
-if (!$("ir-visit")) return;
-if (!v || !v.ok) { $("vs-st").textContent = "Nobody is home."; $("vs-act").innerHTML = `<button class="btn" onclick="this.closest('.tt-overlay').remove()">Close</button>`; return; }
-const room = $("vs-room"); room.style.display = ""; if (window.Room && Room.renderStatic) Room.renderStatic(room, v);
-$("vs-st").innerHTML = `Prestige <b>${v.prestige}</b> · chest LV <b>${v.maxChest}</b> · ${v.hs && v.hs.cls && window.HSEngine ? (HSEngine.CLASSES[v.hs.cls] || {}).name + " LV " + v.hs.level : "not in High Stakes yet"} · 🏆 ${v.ach} achievements${v.col ? " · 🧑‍💼 " + esc(v.col.name) : ""}${v.waiting ? ` · <span style="color:var(--amber);">${v.waiting} surprise${v.waiting === 1 ? "" : "s"} already waiting</span>` : ""}`;
-visitButtons(nick, v.cdLeft);
-}, function () { const s = $("vs-st"); if (s) s.textContent = "Could not reach the office (server)."; });
-}
-function visitButtons(nick, cd) {
-const a = $("vs-act"); if (!a) return;
-const dis = cd > 0 ? "disabled" : "";
-a.innerHTML = (cd > 0 ? `<span class="dg-dim" style="align-self:center;">Next surprise in ${Math.ceil(cd / 60000)} min</span>` : "") +
-`<button class="btn btn-gold" ${dis} onclick="Extras.act('${encodeURIComponent(nick)}','coffee')">☕ Leave a coffee</button>` +
-`<button class="btn btn-crimson" ${dis} onclick="Extras.act('${encodeURIComponent(nick)}','prank')">📝 Post-it prank</button>` +
-`<button class="btn" onclick="this.closest('.tt-overlay').remove()">Leave</button>`;
-}
-function act(nickEnc, kind) {
-const nick = decodeURIComponent(nickEnc);
-visitButtons(nick, 3600000);
-call("officeAct", [nick, kind], function (r) {
-if (r && r.ok) { log(kind === "coffee" ? `☕ You left a coffee on ${esc(nick)}'s desk (+25% clicks and Auto GC for them, 30 min).` : `📝 You covered ${esc(nick)}'s desk in post-it notes. They'll love it.`, "special"); const s = $("vs-st"); if (s) s.innerHTML += `<br><b style="color:var(--emerald);">${kind === "coffee" ? "☕ Coffee delivered!" : "📝 Prank planted!"}</b>`; }
-else { const s = $("vs-st"); if (s) s.innerHTML += `<br><span style="color:var(--crimson);">${r && r.reason === "cd" ? "You already surprised them this hour." : "That didn't work."}</span>`; }
-}, function () { log("Office visit failed (server).", "warning"); });
-}
-const MN = { st: null, mines: 3 };
-const MN_RTP = 0.96;
-function mnMult(k, m) { let p = 1; for (let i = 0; i < k; i++) p *= (25 - m - i) / (25 - i); return k ? MN_RTP / p : 1; }
-function mnHtml() {
-return `<div class="adv-info" style="margin-bottom:6px;">Find the clean files, avoid the 🐞 bugs. Every clean tile raises the multiplier (RTP ${Math.round(MN_RTP * 100)}%). <b>Cash out</b> any time - one bug and the bet is gone.</div>
-<div class="mn-row"><span>Bugs:</span>${[1, 3, 5, 10].map(m => `<button class="btn ${MN.mines === m ? "sel" : ""}" id="mn-m${m}" onclick="Extras.mnMines(${m})">${m}</button>`).join("")}
-<input class="adv-input" id="mn-bet" type="number" min="10" value="1000" style="width:110px;"><button class="btn" onclick="Extras.mnBet(2)">2×</button><button class="btn" onclick="Extras.mnBet(0)">MAX</button></div>
-<div class="mn-grid" id="mn-grid"></div>
-<div class="mn-row"><button class="btn btn-gold" id="mn-go" onclick="Extras.mnStart()">▶ Start</button><button class="btn btn-crimson" id="mn-out" onclick="Extras.mnCash()" disabled>💰 Cash out</button></div>
-<div class="mn-info" id="mn-info"></div>`;
-}
-function mnDraw() {
-const g = $("mn-grid"); if (!g) return;
-const s = MN.st;
-g.innerHTML = Array.from({ length: 25 }, (_, i) => {
-let cls = "mn-c", t = "";
-if (s) {
-if (s.open.indexOf(i) >= 0) { cls += " on safe"; t = "📄"; }
-else if (s.over && s.bugs.indexOf(i) >= 0) { cls += " on bug" + (i === s.hit ? "" : " ghost"); t = "🐞"; }
-else if (s.over) { cls += " on ghost"; t = "📄"; }
-}
-return `<div class="${cls}" onclick="Extras.mnPick(${i})">${t}</div>`;
-}).join("");
-const k = s ? s.open.length : 0, m = s ? s.m : MN.mines;
-$("mn-info").innerHTML = s ? (s.over ? (s.win ? `Cashed out <b>${fmt(s.win)} GC</b> (×${mnMult(k, m).toFixed(2)})` : `🐞 Bug in production! Lost <b>${fmt(s.bet)} GC</b>.`) :
-`Bet <b>${fmt(s.bet)}</b> · now <b>×${mnMult(k, m).toFixed(2)}</b> = ${fmt(s.bet * mnMult(k, m))} GC · next tile <b>×${mnMult(k + 1, m).toFixed(2)}</b>`) : `Pick bugs and bet, then press Start. Next tile pays ×${mnMult(1, m).toFixed(2)}.`;
-const go = $("mn-go"), out = $("mn-out");
-if (go) go.disabled = !!(s && !s.over);
-if (out) out.disabled = !(s && !s.over && s.open.length);
-[1, 3, 5, 10].forEach(x => { const b = $("mn-m" + x); if (b) { b.classList.toggle("sel", MN.mines === x); b.disabled = !!(s && !s.over); } });
-}
-function mnMines(m) { if (MN.st && !MN.st.over) return; MN.mines = m; mnDraw(); }
-function mnBet(x) { const i = $("mn-bet"); if (!i) return; const mx = TT.maxBet ? TT.maxBet() : 1e5; i.value = x ? Math.min(mx, Math.floor((Number(i.value) || 10) * x)) : Math.min(mx, Math.floor(gameState.coins)); }
-function mnStart() {
-if (MN.st && !MN.st.over) return;
-const bet = TT.cleanBet($("mn-bet").value, 10, TT.maxBet ? TT.maxBet() : 1e5);
-if (!bet || !TT.spend(bet)) { $("mn-info").innerHTML = `<span style="color:var(--crimson);">Not enough GC.</span>`; return; }
-const bugs = []; while (bugs.length < MN.mines) { const x = Math.floor(Math.random() * 25); if (bugs.indexOf(x) < 0) bugs.push(x); }
-MN.st = { bet: bet, m: MN.mines, bugs: bugs, open: [], over: false, win: 0, hit: -1 };
-mnDraw();
-}
-function mnPick(i) {
-const s = MN.st; if (!s || s.over || s.open.indexOf(i) >= 0) return;
-if (s.bugs.indexOf(i) >= 0) { s.over = true; s.hit = i; log(`🐞 HOTFIX MINES: bug hit after ${s.open.length} tiles. -${fmt(s.bet)} GC.`, "error"); mnDraw(); return; }
-s.open.push(i);
-if (s.open.length >= 25 - s.m) return mnCash();
-mnDraw();
-}
-function mnCash() {
-const s = MN.st; if (!s || s.over || !s.open.length) return;
-s.over = true; s.win = Math.floor(s.bet * mnMult(s.open.length, s.m));
-TT.win(s.win);
-log(`💰 HOTFIX MINES: ${s.open.length} clean tiles, ×${mnMult(s.open.length, s.m).toFixed(2)} → +${fmt(s.win)} GC.`, "success");
-if (window.Meta && Meta.onCasinoWin) try { Meta.onCasinoWin(s.win - s.bet, "MINES"); } catch (e) {}
-mnDraw();
-}
-const LT = { rows: [[]], act: 0 };
-function ltHtml() { return `<div id="lt-box"><div class="dg-dim">Loading the lottery...</div></div>`; }
-function ltFree() { const r = P.data && P.data.lotto; return r ? Math.max(0, r.max - (r.mine || []).length) : 10; }
-function ltRand(k, n) { const a = []; while (a.length < k) { const x = 1 + Math.floor(Math.random() * n); if (a.indexOf(x) < 0) a.push(x); } return a.sort((x, y) => x - y); }
-function ltRender() {
-const box = $("lt-box"); if (!box) return;
-const r = P.data && P.data.lotto;
-if (!r) { box.innerHTML = `<div class="adv-info">Connecting to the lottery office...</div>`; return; }
-LT.rows = LT.rows.slice(0, Math.max(1, ltFree())); if (!LT.rows.length) LT.rows = [[]]; LT.act = Math.min(LT.act, LT.rows.length - 1);
-const left = Math.max(0, r.drawAt - Date.now()), h = Math.floor(left / 3600000), m = Math.floor(left % 3600000 / 60000);
-const cur = LT.rows[LT.act] || [];
-const ready = LT.rows.filter(x => x.length === r.k), cost = ready.length * r.price;
-const mine = (r.mine || []).map(t => `<div>${t.map(n => `<span class="lt-ball">${n}</span>`).join("")}</div>`).join("") || `<span class="dg-dim">No tickets for this draw yet.</span>`;
-const last = r.last ? `<div class="adv-info" style="margin-top:8px;">Last draw #${r.last.round}: ${r.last.nums.map(n => `<span class="lt-ball">${n}</span>`).join("")} · ${r.last.tickets} tickets from ${r.last.players} players<br>${r.last.winners.length ? r.last.winners.map(w => `${w.kind === 3 ? "🏆 JACKPOT" : "✨ 2 numbers"}: <b>${esc(w.nick)}</b> +${short(w.prize)} GC`).join("<br>") : "Nobody won - the pool rolls over! 🎉"}</div>` : "";
-const rows = LT.rows.map((t, i) => `<div class="mn-row" style="justify-content:flex-start;padding:4px 6px;border-radius:10px;${i === LT.act ? "background:rgba(255,184,0,.10);outline:1px solid var(--amber);" : ""}" onclick="Extras.ltAct(${i})">
-<b style="width:58px;">Ticket ${i + 1}</b>${Array.from({ length: r.k }, (_, q) => t[q] ? `<span class="lt-ball">${t[q]}</span>` : `<span class="lt-ball dim">?</span>`).join("")}
-<button class="btn" style="padding:2px 8px;margin-left:auto;" onclick="event.stopPropagation();Extras.ltRow(${i},'r')">🎲</button>${LT.rows.length > 1 ? `<button class="btn" style="padding:2px 8px;" onclick="event.stopPropagation();Extras.ltRow(${i},'x')">✕</button>` : ""}</div>`).join("");
-box.innerHTML = `<div class="adv-info">Pick <b>${r.k}</b> numbers from 1-${r.n} on each ticket. Draw every day at <b>18:00</b>. All <b>${r.k}</b> = JACKPOT (90% of the pool, split between winners) · 2 numbers = ×5 the ticket. 40% of everyone's casino losses and the Prší / Checkers cut go into the pool.</div>
-<div class="lt-pool">${short(r.pool)} GC</div><div style="text-align:center;" class="dg-dim">Draw #${r.round} in <b>${h} h ${m} min</b> · ${r.players} player${r.players === 1 ? "" : "s"} in · you can buy <b>${ltFree()}</b> more</div>
-<div style="display:grid;gap:4px;margin:8px 0;">${rows}</div>
-<div class="lt-nums">${Array.from({ length: r.n }, (_, i) => i + 1).map(n => `<div class="lt-n ${cur.indexOf(n) >= 0 ? "on" : ""}" onclick="Extras.ltPick(${n})">${n}</div>`).join("")}</div>
-<div class="mn-row"><button class="btn" ${LT.rows.length < ltFree() ? "" : "disabled"} onclick="Extras.ltAdd()">➕ Ticket</button><button class="btn" onclick="Extras.ltQuick()">🎲 Randomize all</button>
-<button class="btn btn-gold" ${ready.length && gameState.coins >= cost ? "" : "disabled"} onclick="Extras.ltBuy()">🎟 Buy ${ready.length || ""} ticket${ready.length === 1 ? "" : "s"} · ${short(cost || r.price)} GC</button></div>
-<div style="margin-top:8px;"><b>Your tickets (${(r.mine || []).length}/${r.max})</b><div style="display:grid;gap:4px;margin-top:4px;">${mine}</div></div>${last}`;
-}
-function ltAct(i) { LT.act = i; ltRender(); }
-function ltAdd() { if (LT.rows.length >= ltFree()) return; LT.rows.push([]); LT.act = LT.rows.length - 1; ltRender(); }
-function ltRow(i, op) { const r = P.data && P.data.lotto; if (op === "x") { LT.rows.splice(i, 1); if (!LT.rows.length) LT.rows = [[]]; LT.act = Math.min(LT.act, LT.rows.length - 1); } else LT.rows[i] = ltRand(r ? r.k : 3, r ? r.n : 20); ltRender(); }
-function ltPick(n) {
-const k = (P.data && P.data.lotto && P.data.lotto.k) || 3, t = LT.rows[LT.act] || (LT.rows[LT.act] = []), i = t.indexOf(n);
-if (i >= 0) t.splice(i, 1); else if (t.length < k) { t.push(n); t.sort((a, b) => a - b); if (t.length === k && LT.act < LT.rows.length - 1) LT.act++; }
-ltRender();
-}
-function ltQuick() { const r = P.data && P.data.lotto; const k = r ? r.k : 3, n = r ? r.n : 20; LT.rows = LT.rows.map(() => ltRand(k, n)); ltRender(); }
-function ltBuy() {
-const r = P.data && P.data.lotto; if (!r) return;
-const list = LT.rows.filter(x => x.length === r.k).slice(0, ltFree()), cost = list.length * r.price;
-if (!list.length || gameState.coins < cost) return;
-gameState.coins -= cost; if (typeof updateUI === "function") updateUI();
-call("lottoBuyMany", [list], function (x) {
-const n = x && x.ok ? x.bought : 0, back = (list.length - n) * r.price;
-if (back > 0) gameState.coins += back;
-if (x && x.ok) { r.mine = x.mine; r.pool = x.pool; LT.rows = [[]]; LT.act = 0; log(`🎟 ${n} lottery ticket${n === 1 ? "" : "s"} bought. Good luck at 18:00!${back ? " (" + short(back) + " GC refunded - ticket limit)" : ""}`, "success"); TT.saveSoon(); }
-else log("Ticket purchase failed - refunded.", "warning");
-if (typeof updateUI === "function") updateUI(); ltRender();
-}, function () { gameState.coins += cost; log("Ticket purchase failed (server) - refunded.", "warning"); if (typeof updateUI === "function") updateUI(); });
-}
-const STOCKS = [
-{ s: "SYN", n: "Synergy Corp", b: 120, v: 0.18, d: 0.0005 },
-{ s: "CLIP", n: "Paperclip Holdings", b: 40, v: 0.10, d: 0.001 },
-{ s: "CLDY", n: "CloudyBank", b: 900, v: 0.25, d: 0.0003 },
-{ s: "BEAN", n: "Coffee Futures", b: 65, v: 0.38, d: 0 },
-{ s: "COBL", n: "Legacy Systems Inc.", b: 15, v: 0.12, d: 0.0015 },
-{ s: "QDK", n: "QuantumDuck", b: 3000, v: 0.6, d: 0 }
+const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
+const esc = (t) => escapeHtml(String(t));
+const FIGHT_MS = 20 * 60000, CLICK_MS = 30000, AWAY_MAX = 8 * 3600000, POWER_CAP = 0.6, WAKE_BOSS = 29;
+const FIRST = ["David", "Dan", "Gabriel", "Kevin", "Steve", "Mike", "Tom", "Paul", "Martin", "Lukas", "Jakub", "Honza", "Pepa", "Franta", "Jarda", "Ondra", "Filip", "Adam", "Petr", "Vojta",
+"Tereza", "Klara", "Brenda", "Sandra", "Olga", "Zoe", "Nancy", "Linda", "Eva", "Karen"];
+const NICK = ["Hotfix", "Legacy", "Overtime", "Root", "Sudo", "Spaghetti", "Ctrl+C", "The Intern", "Senior", "No Docs", "Rollback", "Merge Master", "404", "Coffee", "Monday", "Burnout", "Rubber Duck", "Ticket Killer"];
+const MEME = [
+["Kevin from Accounting", "I counted the GC twice, it's fine."], ["Steve (Unpaid Intern)", "Do I get paid for this? ...no? Okay."], ["Gary the Printer Whisperer", "The printer and I have an understanding."],
+["Mr. Works On My Machine", "Works on my machine. Ship it."], ["Chad Deploy-on-Friday", "Pushed to prod. On Friday. You're welcome."], ["Legacy Larry", "Don't touch it. It works. Nobody knows why."],
+["Bobby Tables", "'); DROP TABLE bosses;--"], ["Reply-All Randy", "Replying all to confirm I replied all."], ["Copy-Paste Pete", "Found the answer on page 7 of a forum from 2009."],
+["Merge Conflict Mike", "Accept both changes. What could go wrong?"], ["Null Pointer Nancy", "undefined is not a function. Neither is this boss."], ["Stack Overflow Steve", "Marked as duplicate. Boss closed."],
+["Jira Jerry", "Moved the boss to DONE."], ["Hotfix Hank", "Hotfix deployed. Hotfix for the hotfix incoming."], ["Quick Sync Quinn", "Just a quick 5-minute fight."],
+["Synergy Sandra", "Let's leverage our core synergies going forward."], ["Excel Ernie", "I made a pivot table of the boss's weaknesses."], ["Out-Of-Office Olga", "I'm out of office. But also I won."],
+["Ctrl+Z Zoe", "Undid my mistakes. All of them."], ["Sudo Sam", "sudo win"], ["Patch Tuesday Tom", "Rebooting the boss. Please wait."],
+["404 Dave", "Nobody could find me. Including the boss."], ["Dev Null", "Sent the boss to /dev/null."], ["Coffee-Driven Kyle", "Third coffee. Fourth boss."],
+["Lunch Break Luke", "Back from lunch. What did I miss?"], ["Jarda z IT", "Did you try turning it off and on again?"], ["Pepa od tiskárny", "PC LOAD LETTER. Sorted."]
 ];
-const TICK = 5 * 60000, FEE = 0.01, DIV_CAP_H = 24;
-function hsh(n) { n = Math.imul(n ^ 0x5bd1e995, 0x27d4eb2d); n ^= n >>> 15; n = Math.imul(n, 0x165667b1); n ^= n >>> 13; return (n >>> 0) / 4294967296; }
-function noise(i, t) { const a = Math.floor(t), f = t - a, u = f * f * (3 - 2 * f); return (hsh(i * 7919 + a) * (1 - u) + hsh(i * 7919 + a + 1) * u) * 2 - 1; }
-/** cena je pro všechny stejná (jen čas), plyne plynule, vrací se ke střední hodnotě */
-function price(i, ms) {
-const S = STOCKS[i], t = (ms || Date.now()) / TICK;
-const x = 0.55 * Math.sin(t / 37 + i * 1.7) + 0.3 * Math.sin(t / 11.3 + i * 2.9) + 0.35 * noise(i, t / 3) + 0.2 * noise(i + 50, t);
-return Math.max(0.01, S.b * Math.exp(S.v * x));
+const QUIPS = ["Another one done.", "Tickets closed, boss closed.", "Coffee was cold, the fight was hot.", "I'll put it in the weekly report.", "Easy. Well, mostly.", "Can I go home now?"];
+function rollName() {
+if (Math.random() < 0.3) { const m = MEME[Math.floor(Math.random() * MEME.length)]; return { name: m[0], quip: m[1] }; }
+let n = FIRST[Math.floor(Math.random() * FIRST.length)];
+if (Math.random() < 0.3) n += " '" + NICK[Math.floor(Math.random() * NICK.length)] + "'";
+return { name: n, quip: "" };
 }
-function skSt() { const g = gameState; if (!g.stk || typeof g.stk !== "object") g.stk = { h: {}, divAt: Date.now(), div: 0, pnl: 0 }; if (!g.stk.h) g.stk.h = {}; return g.stk; }
-function skValue() { const s = skSt(); return STOCKS.reduce((a, S, i) => a + ((s.h[S.s] || {}).q || 0) * price(i), 0); }
-function skDividends() {
-const s = skSt(), now = Date.now(), hrs = Math.min(DIV_CAP_H, Math.max(0, (now - (s.divAt || now)) / 3600000));
-if (hrs < 1 / 60) return 0;
-let pay = 0; STOCKS.forEach((S, i) => { const q = (s.h[S.s] || {}).q || 0; if (q && S.d) pay += q * price(i) * S.d * hrs; });
-s.divAt = now; pay = Math.floor(pay);
-if (pay > 0) { gameState.coins += pay; s.div = (s.div || 0) + pay; }
-return pay;
+function st() {
+const d = A.HS();
+if (!d.col || typeof d.col !== "object") d.col = {};
+const c = d.col;
+c.level = Math.max(1, Math.floor(Number(c.level) || 1)); c.xp = Math.max(0, Number(c.xp) || 0);
+if (!c.gear || typeof c.gear !== "object") c.gear = {};
+if (c.gmig !== 2) { c.gear = {}; c.gmig = 2; }                     // v10: nový gear (loot) - kolega začíná s prázdnou výbavou
+if (!c.stats || typeof c.stats !== "object") c.stats = { w: 0, l: 0, gc: 0, clicks: 0 };
+if (!Array.isArray(c.log)) c.log = [];
+if (!H.CLASSES[c.cls]) c.cls = "engineer";
+c.tn = Math.max(1, Math.floor(Number(c.tn) || 1));
+if (!c.unlocked && (d.tower.best >= 100 || (d.pool && d.pool.unlocked))) c.unlocked = true;     // Administrator už padl
+if (c.unlocked && !c.name) { const r = rollName(); c.name = r.name; c.quip = r.quip; }
+return c;
 }
-function spark(i) {
-const now = Date.now(), pts = []; let lo = Infinity, hi = 0;
-for (let k = 47; k >= 0; k--) { const p = price(i, now - k * TICK); pts.push(p); lo = Math.min(lo, p); hi = Math.max(hi, p); }
-const W = 96, H = 34, c = pts[pts.length - 1] >= pts[0] ? "#22c55e" : "#ef4444";
-return `<svg viewBox="0 0 ${W} ${H}"><polyline fill="none" stroke="${c}" stroke-width="1.6" points="${pts.map((p, k) => (k * W / 47).toFixed(1) + "," + (H - 2 - (p - lo) / Math.max(1e-9, hi - lo) * (H - 4)).toFixed(1)).join(" ")}"/></svg>`;
+function awake() { const c = st(); return !!c.unlocked && A.clearedAny(WAKE_BOSS); }
+/** v11.1: bossové poražení v aktuálním běhu High Stakes -> klíč (P+1)*100 + id */
+function bossesBeaten() {
+const d = A.HS(), out = [], P = d.hsp || 0, sm = d.sm || {};
+C.LIST.forEach(m => { if ((m.k === "boss" || m.k === "mini" || m.k === "secret" || m.k === "elite") && (sm[m.id] || 0) > 0) out.push((P + 1) * 100 + m.id); });
+return out;
 }
-function skHtml() { return `<div id="sk-box"></div>`; }
-function skRender() {
-const box = $("sk-box"); if (!box) return;
-const s = skSt(), now = Date.now(), val = skValue();
-box.innerHTML = `<div class="adv-info">Trade shares of six very real companies. Prices move the same for everyone, all day long. ${FEE * 100}% fee on every trade. Some stocks pay a <b>dividend every hour</b> (up to ${DIV_CAP_H} h while you're away).</div>
-<div class="sk-sum"><span>Portfolio <b>${short(val)} GC</b></span><span>Dividends earned <b>${short(s.div || 0)} GC</b></span><span>Realised P/L <b style="color:${(s.pnl || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(s.pnl || 0) >= 0 ? "+" : ""}${short(s.pnl || 0)} GC</b></span></div>
-<div class="sk-list" data-nocase="1">${STOCKS.map((S, i) => {
-const p = price(i), p0 = price(i, now - 12 * TICK), ch = (p / p0 - 1) * 100, h = s.h[S.s] || { q: 0, avg: 0 };
-return `<div class="sk-row"><div><b>${S.n}</b> <span class="sym">${S.s}${S.d ? " · div " + (S.d * 100).toFixed(2) + "%/h" : ""}</span>
-<div class="sym">${h.q ? `You own <b style="color:var(--text-main);">${short(h.q)}</b> · avg ${p < 10 ? h.avg.toFixed(2) : short(h.avg)} · ${((p / h.avg - 1) * 100).toFixed(1)}%` : "You own none"}</div></div>${spark(i)}
-<div><div class="sk-px">${p < 10 ? p.toFixed(2) : short(p)}</div><div class="sk-ch" style="color:${ch >= 0 ? "var(--emerald)" : "var(--crimson)"};">${ch >= 0 ? "▲" : "▼"} ${Math.abs(ch).toFixed(1)}% (1 h)</div>
-<div class="sk-act"><button class="btn btn-cyan" onclick="Extras.skBuy(${i},0.1)">Buy 10%</button><button class="btn btn-cyan" onclick="Extras.skBuy(${i},0.5)">50%</button>${h.q ? `<button class="btn btn-crimson" onclick="Extras.skSell(${i},0.5)">Sell ½</button><button class="btn btn-crimson" onclick="Extras.skSell(${i},1)">All</button>` : ""}</div></div></div>`;
-}).join("")}</div>`;
+const keyN = (k) => Math.max(0, Math.floor(k / 100) - 1), keyId = (k) => k % 100;
+/** v8.8: kolega má 80 % tvého levelu; v9.0: TRÉNINK se kupuje za GC (+2 % síly za level, max 15) */
+const TRAIN_MAX = 15;
+function trainCost() { return Math.round(25000 * Math.pow(1.55, trainLv())); }
+function colLevel() { return Math.max(1, Math.round(A.HS().level * 0.8)); }
+function xpToNext(L) { return 150 + 90 * L; }
+function trainLv() { return Math.min(TRAIN_MAX, st().level - 1); }
+/** kolega: vlastní výbava + level, nikdy silnější než 60 % tebe */
+function hero() {
+const c = st();
+const L = colLevel(), pts = H.statPoints(L);
+const g = window.Gear ? Gear.multOf(c.gear, L) : {};
+const mk = (H.CLASSES[c.cls] || {}).main || "str", stats = { vit: Math.round(pts * 0.3), luck: Math.round(pts * 0.2) }; stats[mk] = pts - stats.vit - stats.luck;
+const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, g);
+const tb = 1 + 0.02 * trainLv();                                   // trénink: +2 % za level
+hh.wpn *= tb; hh.atk *= tb; hh.maxHp = Math.round(hh.maxHp * tb);
+const me = A.hero(), k = Math.min(1, me.atk * POWER_CAP / Math.max(1, hh.atk));
+hh.wpn *= k; hh.atk *= k; hh.maxHp = Math.round(Math.min(hh.maxHp, me.maxHp * POWER_CAP));
+return hh;
 }
-/** frac = podíl tvých GC (0.1 = 10 %) */
-function skBuy(i, frac) {
-const S = STOCKS[i], p = price(i), s = skSt(), budget = Math.floor(gameState.coins * frac);
-const q = Math.floor(budget / (p * (1 + FEE))); if (q < 1) { log("Not enough GC for even one share.", "warning"); return; }
-const cost = Math.ceil(q * p * (1 + FEE)); if (cost > gameState.coins) return;
-gameState.coins -= cost;
-const h = s.h[S.s] || { q: 0, avg: 0 }; h.avg = (h.avg * h.q + p * q) / (h.q + q); h.q += q; s.h[S.s] = h;
-log(`📈 Bought ${short(q)} ${S.s} @ ${p.toFixed(2)} for ${short(cost)} GC.`, "success");
-if (typeof updateUI === "function") updateUI(); TT.saveSoon(); skRender();
+/** souboj kolegy = stejný engine, jen hraje počítač (a hůř trefuje parry a ulti než ty) */
+function simFight(id, seed) {
+const PS = H.PARRY_SKILL, US = H.ULT_SKILL, keep = [PS.perfect, PS.good, US.q, US.all];
+PS.perfect = 0.15; PS.good = 0.35; US.q = 0.9; US.all = 0.3;
+try { return H.simulate(hero(), C.mission(keyId(id), keyN(id)), seed); }
+finally { PS.perfect = keep[0]; PS.good = keep[1]; US.q = keep[2]; US.all = keep[3]; }
 }
-function skSell(i, frac) {
-const S = STOCKS[i], p = price(i), s = skSt(), h = s.h[S.s]; if (!h || !h.q) return;
-const q = frac >= 1 ? h.q : Math.max(1, Math.floor(h.q * frac)), got = Math.floor(q * p * (1 - FEE));
-gameState.coins += got; s.pnl = (s.pnl || 0) + Math.round(q * (p * (1 - FEE) - h.avg));
-h.q -= q; if (h.q <= 0) delete s.h[S.s];
-log(`📉 Sold ${short(q)} ${S.s} @ ${p.toFixed(2)} for ${short(got)} GC.`, got >= q * h.avg ? "success" : "warning");
-if (typeof updateUI === "function") updateUI(); TT.saveSoon(); skRender();
+const wrCache = {};
+function winRate(id) {
+const c = st(), key = id + "|" + c.level + "|" + c.cls + "|" + JSON.stringify(c.gear) + "|" + A.HS().level + "|" + (gameState.prestige || 0);
+if (wrCache[id] && wrCache[id].k === key) return wrCache[id].v;
+let w = 0; for (let i = 0; i < 24; i++) if (simFight(id, 777 + i * 131).win) w++;
+const v = w / 24; wrCache[id] = { k: key, v: v }; return v;
 }
-function show(t) {
-const v = $("adv-view-" + t); if (!v) return;
-if (t === "mines") { if (!$("mn-grid")) v.innerHTML = mnHtml(); mnDraw(); }
-if (t === "lotto") { if (!$("lt-box")) v.innerHTML = ltHtml(); ltRender(); poll(true); clearInterval(T.lt); T.lt = setInterval(() => { if ($("adv-view-lotto") && $("adv-view-lotto").style.display !== "none") ltRender(); else { clearInterval(T.lt); T.lt = null; } }, 20000); }
-if (t === "stocks") { if (!$("sk-box")) v.innerHTML = skHtml(); const d = skDividends(); if (d) log(`💵 Stock dividends: +${fmt(d)} GC.`, "success"); skRender(); clearInterval(T.sk); T.sk = setInterval(() => { if ($("adv-view-stocks") && $("adv-view-stocks").style.display !== "none") skRender(); else { clearInterval(T.sk); T.sk = null; } }, 15000); }
+function reward(key) {
+const id = keyId(key), n = keyN(key), x = id + 50 * (n - 1);
+const gc = Math.round(C.gcFor(id, false, n) * 2 + (typeof calculateAutoGcRate === "function" ? calculateAutoGcRate() : 0) * (120 + 6 * Math.min(100, x)));   // + 2-12 min autogenu
+const scrap = Math.round((typeof getChestScrapCost === "function" ? getChestScrapCost() : 100) * (1 + x / 20));
+const xp = Math.round(C.xpFor(id, false, n) * 0.5);
+return { gc: gc, scrap: scrap, xp: xp };
 }
-window.Extras = { visit: visit, act: act, show: show, bossKey: bkOn, mnMines: mnMines, mnBet: mnBet, mnStart: mnStart, mnPick: mnPick, mnCash: mnCash,
-ltPick: ltPick, ltQuick: ltQuick, ltBuy: ltBuy, ltAct: ltAct, ltAdd: ltAdd, ltRow: ltRow, skBuy: skBuy, skSell: skSell, price: price, mnMult: mnMult, poll: poll, coffeeOn: coffeeOn, STOCKS: STOCKS };
+let lastReport = null;
+function work(silent) {
+if (typeof gameState === "undefined" || !gameLoaded) return null;
+const c = st(), now = Date.now();
+if (!c.unlocked) return null;
+if (!awake()) { c.fightAt = now; c.clickAt = now; return null; }
+if (!c.fightAt) c.fightAt = now; if (!c.clickAt) c.clickAt = now;
+const from = Math.max(c.fightAt, now - AWAY_MAX), fromC = Math.max(c.clickAt, now - AWAY_MAX);
+const nf = Math.floor((now - from) / FIGHT_MS), nc = Math.floor((now - fromC) / CLICK_MS);
+if (!nf && !nc) return null;
+const rep = { w: 0, l: 0, gc: 0, scrap: 0, xp: 0, tok: 0, clicks: nc, tickets: 0, boss: "", gear: 0, gearTxt: [] };
+if (nc) {
+const t = (typeof calculateClickPower === "function" ? calculateClickPower() : 1) * nc;
+gameState.tickets += t; gameState.lifetimeTickets = (gameState.lifetimeTickets || 0) + t; rep.tickets = t; c.stats.clicks += nc;
+}
+c.clickAt = fromC + nc * CLICK_MS;
+const ids = bossesBeaten();
+if (nf && c.target != null && ids.indexOf(c.target) >= 0) {
+const id = c.target, m = C.mission(keyId(id), keyN(id)); rep.boss = m.enemy.name;
+const wr = winRate(id), r = reward(id);
+const boss = m.kind === "boss" || m.kind === "secret" || m.kind === "mini";
+for (let i = 0; i < nf; i++) {
+if (Math.random() < wr) { rep.w++; rep.gc += r.gc; rep.scrap += r.scrap; rep.xp += r.xp; if (Math.random() < 0.02) rep.tok++;
+if (boss && window.Gear && Math.random() < 0.1 && rep.gear < 3) { const lines = []; if (Gear.drop(m, lines, true)) { rep.gear++; rep.gearTxt.push(lines.join(" ")); } } }      // v11.1: 10 % na gear z bosse
+else rep.l++;
+}
+gameState.coins += rep.gc; gameState.scrap += rep.scrap; gameState.slotTokens += rep.tok;
+if (rep.xp) { const lines = []; A.gainXp(rep.xp, lines); }
+c.stats.w += rep.w; c.stats.l += rep.l; c.stats.gc += rep.gc;
+}
+c.fightAt = from + nf * FIGHT_MS;
+if (rep.w || rep.l) {
+const line = `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${esc(rep.boss)}: ${rep.w}W ${rep.l}L · +${short(rep.gc)} GC · +${short(rep.scrap)} scrap${rep.tok ? " · +" + rep.tok + " 🎟" : ""}`;
+c.log.unshift(line); c.log = c.log.slice(0, 12);
+if (!silent) log(`🧑‍💼 ${esc(c.name)}: ${rep.w ? "beat " + esc(rep.boss) + (rep.w > 1 ? " " + rep.w + "×" : "") : "lost to " + esc(rep.boss)} → +${short(rep.gc)} GC, +${short(rep.scrap)} scrap${rep.tok ? ", +" + rep.tok + " 🎟" : ""}`, rep.w ? "success" : "warning");
+rep.gearTxt.forEach(t => log(`🧑‍💼 ${esc(c.name)} brought you loot: ${t}`, "special"));
+}
+TT.saveSoon();
+return rep;
+}
+/** v9.0: trénink za GC */
+function train() {
+const c = st(); if (!c.unlocked || trainLv() >= TRAIN_MAX) { TT.holdStop = true; return; }
+const cost = trainCost();
+if (gameState.coins < cost) { TT.holdStop = true; log(`Training costs ${fmt(cost)} GC.`, "warning"); return; }
+gameState.coins -= cost; c.level++; c.xp = 0; c.named = true;
+log(`🧑‍💼 ${esc(c.name)} reached training level ${trainLv()} (+${2 * trainLv()}% power)!`, "special");
+if (trainLv() >= TRAIN_MAX) TT.holdStop = true;
+after();
+}
+/** v10.2: kolega už nebere gear automaticky (dostával lepší než ty a jeho starý kus mizel) - výbavu mu dáváš ručně (Gear.toCol) */
+function takeGear(k, old) { return false; }
+function takeGearOld(k, old) {
+const c = st(); if (!c.unlocked || !window.Gear) return false;
+const cur = c.gear[k];
+if (!old || old.lv == null || (cur && cur.lv != null && Gear.score(cur) >= Gear.score(old))) return false;
+c.gear[k] = Object.assign({}, old); c.named = true;
+log(`🧑‍💼 ${esc(c.name)} took your old ${Gear.name(k, old)}.`, "success");
+return true;
+}
+function target(id) { const c = st(); if (bossesBeaten().indexOf(id) < 0) return; work(true); c.target = id; c.fightAt = Date.now(); after(); }
+function cls(k) { const c = st(); if (c.named) return; c.cls = k; after(); }
+function reroll() { const c = st(); if (c.named) return; const r = rollName(); c.name = r.name; c.quip = r.quip; after(); }
+function rename() {
+const c = st(); const n = prompt("Name your colleague (max 24 characters):", c.name || "");
+if (n == null) return; const t = String(n).replace(/[<>]/g, "").trim().slice(0, 24); if (!t) return;
+c.name = t; c.quip = ""; after();
+}
+function after() { TT.saveSoon(); if (A.isOpen() && A.view() === "colleague") A.render(); if (typeof updateUI === "function") updateUI(); }
+function html(box) {
+const d = A.HS(), c = st();
+if (!c.unlocked) {
+box.innerHTML = `<div class="dg-card dg-lock"><div class="big">🧑‍💼</div><div style="font:800 14px Orbitron,monospace;color:var(--emerald);margin:8px 0;">THE COLLEAGUE - LOCKED</div>
+<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to get a colleague. They farm bosses you have beaten and resolve tickets for you - even while you're away (up to 8 h).<br>Tower: ${d.tower.best}/100</div></div>`;
+return;
+}
+work(false);
+const aw = awake(), h = hero(), me = A.hero();
+const sp = window.HSRig ? HSRig.player(c.cls, window.Gear ? Gear.vis(c.gear) : c.gear) : A.sprite(A.SPRITE_IDX[c.cls] || 0, "p");
+const head = `<div class="dg-card"><div class="cl-row">${sp}<div style="flex:1;min-width:0;">
+<div class="cl-name">${esc(c.name)}</div>${c.quip ? `<div class="cl-quip">“${esc(c.quip)}”</div>` : ""}
+<div class="dg-dim" style="margin-top:4px;">${H.CLASSES[c.cls].icon} ${H.CLASSES[c.cls].name} · LV ${colLevel()} (80% of yours) · 📚 training ${trainLv()}/${TRAIN_MAX}${trainLv() < TRAIN_MAX ? ` (XP ${fmt(c.xp)}/${fmt(xpToNext(c.level))})` : " MAX"}<br>
+❤ ${fmt(h.maxHp)} · ⚔ ${fmt(h.atk)} <span style="opacity:.7;">(max ${Math.round(POWER_CAP * 100)}% of yours: ❤ ${fmt(me.maxHp * POWER_CAP)} ⚔ ${fmt(me.atk * POWER_CAP)})</span><br>
+Record: ${c.stats.w}W / ${c.stats.l}L · earned ${short(c.stats.gc)} GC · ${fmt(c.stats.clicks)} clicks</div></div></div>
+${c.named ? `<div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Colleague.rename()">✏ RENAME</button></div>` :
+`<div class="dg-row" style="margin-top:8px;flex-wrap:wrap;"><button class="btn btn-cyan" onclick="Colleague.reroll()">🎲 REROLL NAME</button><button class="btn" onclick="Colleague.rename()">✏ CUSTOM NAME</button>
+${H.CLASS_IDS.map(k => `<button class="btn ${c.cls === k ? "btn-gold" : ""}" title="${H.CLASSES[k].name}" onclick="Colleague.cls('${k}')">${H.CLASSES[k].icon}</button>`).join("")}</div>
+<div class="dg-dim" style="margin-top:4px;">Name and class lock in after the first training or gear.</div>`}
+<div class="cl-slots">${["w", "a", "h", "t"].map(k => { const p = c.gear[k] && c.gear[k].lv != null ? c.gear[k] : null, P = window.Gear ? Gear.PIECES[k] : { i: "", n: k }; return `<div class="cl-slot"><span style="opacity:.6;">${P.i} ${P.n}</span><b style="color:${p ? Gear.RAR[p.r].c : "var(--text-muted)"};">${p ? esc(Gear.name(k, p)) : "nothing yet"}</b>${p ? `<div class="dg-dim" style="font-size:10px;">LV ${p.lv}${p.u ? " +" + p.u : ""}</div>${p.u < Gear.UMAX ? `<button class="btn ${gameState.coins >= Gear.upCost(p) ? "btn-gold" : ""}" style="padding:2px 6px;font-size:11px;margin-top:3px;" data-hold="colup-${k}" onclick="Gear.upCol('${k}')">⬆ +${p.u + 1} · ${short(Gear.upCost(p))}</button>` : ""}<button class="btn" style="padding:2px 6px;font-size:11px;margin-top:3px;" onclick="Gear.fromCol('${k}')">↩ Take back</button>` : ""}</div>`; }).join("")}</div>
+${window.Gear ? Gear.colGiveHtml(c) : ""}</div>`;
+if (!aw) {
+box.innerHTML = head + `<div class="dg-card cl-sleep"><div class="big">💤</div><div style="font:800 13px Orbitron,monospace;color:var(--text-dim);margin:6px 0;">${esc(c.name)} is still sleeping...</div>
+<div class="dg-dim">Your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS, 0).enemy.name)}</b> (chapter 3 boss) to get them to work. You can still train them and give them gear.</div></div>` + trainHtml(c);
+return;
+}
+const ids = bossesBeaten();
+const tgt = c.target != null && ids.indexOf(c.target) >= 0 ? c.target : null;
+const nextF = tgt != null ? Math.max(0, FIGHT_MS - (Date.now() - c.fightAt)) : 0;
+const bosses = ids.slice().reverse().slice(0, 30).map(id => {
+const m = C.mission(keyId(id), keyN(id)), wr = winRate(id), r = reward(id), col = wr >= 0.7 ? "var(--emerald)" : wr >= 0.35 ? "var(--amber)" : "var(--crimson)";
+return `<div class="cl-boss ${tgt === id ? "sel" : ""}" onclick="Colleague.target(${id})"><span class="ic">${m.enemy.icon}</span><div class="t"><b>${esc(m.enemy.name)} · LV ${m.level}</b><span class="dg-dim">win: +${short(r.gc)} GC · +${short(r.scrap)} scrap · +${fmt(r.xp)} XP</span></div><span class="wr" style="color:${col};">${Math.round(wr * 100)}%</span></div>`;
+}).join("") || `<div class="dg-dim">Beat some elites or bosses in the campaign first.</div>`;
+box.innerHTML = head + `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>🎯 BOSS TO FARM</span><span class="dg-dim">${tgt != null ? "next fight in " + A.fmtT(nextF) : "pick one"}</span></div>
+<div class="dg-dim" style="margin-bottom:6px;">Bosses you beat in this High Stakes run. One fight every 20 min (no energy), win chance on the right, 10% chance to bring you gear from a boss. Harder bosses pay more but ${esc(c.name)} wins less often. Every 30 s they also resolve a ticket with your click power. Works while you're away for up to 8 h.</div>${bosses}</div>
+<div><div class="dg-card"><div class="dg-h">📋 WORK LOG</div><div class="cl-log">${c.log.length ? c.log.map(l => `<div>${l}</div>`).join("") : `<div>Nothing yet.</div>`}</div></div>${trainHtml(c)}</div></div>`;
+}
+function trainHtml(c) {
+const L = trainLv(), max = L >= TRAIN_MAX, cost = max ? 0 : trainCost(), ok = !max && gameState.coins >= cost;
+return `<div class="dg-card"><div class="dg-h"><span>📚 Training</span><span class="dg-dim">${L}/${TRAIN_MAX} · +${2 * L}% power</span></div>
+<div class="dg-dim" style="margin-bottom:6px;">Send ${esc(c.name)} to a course: +2% ATK and HP per level (max ${TRAIN_MAX}). Gear comes from you - when you evolve a piece, your old one goes to them if it's better.</div>
+<button class="btn ${ok ? "btn-gold" : ""}" style="width:100%;padding:10px;" ${ok ? "" : "disabled"} data-hold="col-train" onclick="Colleague.train()">${max ? "Fully trained" : `Train to level ${L + 1} · ${short(cost)} GC`}</button></div>`;
+}
+function report(rep) {
+const c = st();
+if (!rep || (!rep.w && !rep.l && rep.clicks < 20)) return;
+const el = document.createElement("div");
+el.className = "tt-overlay open"; el.style.zIndex = 9995;
+el.onclick = (e) => { if (e.target === el) el.remove(); };
+const q = c.quip || QUIPS[Math.floor(Math.random() * QUIPS.length)];
+el.innerHTML = `<div class="tt-modal" style="border-color:var(--emerald);"><h2 style="color:var(--emerald);">🧑‍💼 WHILE YOU WERE AWAY</h2>
+<div class="tt-body" style="min-height:0;font-size:13px;line-height:1.6;"><b style="color:var(--emerald);">${esc(c.name)}</b>${rep.boss ? ` fought <b>${esc(rep.boss)}</b> ${rep.w + rep.l}× (${rep.w} won, ${rep.l} lost)` : ""}${rep.boss ? " and" : ""} resolved ${fmt(rep.clicks)} tickets.<br>
+💰 +${short(rep.gc)} GC · ⚙ +${short(rep.scrap)} scrap · 🎫 +${short(rep.tickets)} tickets${rep.xp ? " · +" + fmt(rep.xp) + " XP" : ""}${rep.tok ? " · 🎟 +" + rep.tok : ""}
+<div class="cl-quip" style="margin-top:8px;">“${esc(q)}”</div></div>
+<div style="margin-top:12px;"><button class="btn btn-gold" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">NICE</button></div></div>`;
+document.body.appendChild(el);
+}
+function chip() {
+if (typeof gameState === "undefined" || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return "";
+const c = gameState.hs.col;
+return awake() ? `<span class="buff-chip on" title="Your colleague is farming bosses and clicking for you">🧑‍💼 ${esc(c.name)}</span>` : `<span class="buff-chip" title="Beat the chapter 3 boss to wake them up">💤 ${esc(c.name)}</span>`;
+}
+A.registerMode("colleague", { label: "🧑‍💼 COLLEAGUE", order: 70, render: html });
+window.Colleague = { awake: awake, train: train, takeGear: takeGear, trainCost: trainCost, target: target, cls: cls, reroll: reroll, rename: rename, work: work, chip: chip, hero: hero, winRate: winRate, simFight: simFight, rollName: rollName, MEME: MEME, FIRST: FIRST };
+let wasAwake = null;
 (function boot() {
 if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
-window.__irTitle = document.title;
-TT.onLoaded(() => {
-hookTT(); hookMeta(); bkButton();
-poll(true); setInterval(() => poll(false), 30000); setInterval(feed, 60000);
-setInterval(() => postitTick(false), 2500); setTimeout(() => postitTick(true), 1500);
-setInterval(() => { const d = skDividends(); if (d && $("sk-box")) skRender(); }, 10 * 60000);
-setInterval(() => { if (!document.hidden && window.Room && Room.colSay && Math.random() < 0.3 && document.querySelector(".rm:not(.rm-visit)")) Room.colSay(); }, 55000);
-});
+TT.onLoaded(() => setTimeout(() => { try { wasAwake = awake(); const r = work(true); report(r); } catch (e) { console.error(e); } }, 2500));
+setInterval(() => {
+try {
+if (typeof gameState === "undefined" || !gameLoaded || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return;
+const a = awake();
+if (wasAwake === false && a) log(`☕ ${esc(gameState.hs.col.name)} woke up. Back to work!`, "special");
+if (wasAwake === true && !a) log(`💤 ${esc(gameState.hs.col.name)} fell asleep after your prestige. Beat ${esc(C.mission(WAKE_BOSS).enemy.name)} to wake them up.`, "warning");
+wasAwake = a;
+work(false);
+if (A.isOpen() && A.view() === "colleague" && !document.querySelector(".hs-ov") && !document.querySelector(".tt-overlay.open")) A.render();
+} catch (e) { console.error(e); }
+}, 10000);
 })();
 })();
 </script>
-<style>
-/* ======================= MOBILNÍ REŽIM (html.m) =======================
-Stejná hra, jen jiné rozložení: horní lišta + mini HUD + obsah jedné záložky + spodní lišta.
-Záložka HRA má zamčený scroll a obří tlačítko, ostatní záložky se normálně posouvají. */
-#m-hud, #m-tabs { display: none; }
-html.m.kb body { bottom: auto; height: var(--app-h, 100%); }
-/* v9.3.4: iPhone aplikace na ploše - webview končí nad home proužkem, takže lišta nepotřebuje safe-area odsazení; pozadí stránky v barvě lišty */
-html.m.iosgap #m-tabs { padding-bottom: 4px !important; }
-html.m body { min-height: 0 !important; }   /* v9.3.6: style.html má min-height:100vh - na iPhonu je 100vh celá obrazovka (852), i když se kreslí jen 793 -> lišta mizela pod okraj */
-/* v9.3.6: batoh na mobilu bez vnořeného scrollu (karty se v něm na Androidu roztahovaly) */
-html.m .backpack-container { display: flex !important; flex-direction: column; max-height: none; overflow: visible; min-height: 0; }
-html.m .backpack-container > .item-card { flex: none; }
-html.m.iosgap body { bottom: auto !important; height: var(--app-h, 100%) !important; }   /* v9.3.5: iOS dá fixed body 852 i když kreslí jen 793 -> výška natvrdo podle sondy */
-html.m.iosgap { background: var(--bg-panel, #0a0e16) !important; }
-html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
-html.m body {
-display: flex; flex-direction: column; overflow: hidden;
-position: fixed; top: 0; bottom: 0; left: 0; width: 100%; height: auto;   /* v8.7.5: přichyceno k hranám viditelné plochy (Android i iPhone) */
--webkit-tap-highlight-color: transparent;
-}
-html.m .btn, html.m .btn-primary-action, html.m .casino-tab-btn, html.m #m-tabs button {
--webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
-}
-html.m .top-bar { flex: none; padding: calc(6px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 6px calc(10px + env(safe-area-inset-left)); flex-direction: row; gap: 6px; }
-html.m .brand-title { font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
-html.m .user-badge { gap: 8px; font-size: 10px; flex-wrap: nowrap; }
-html.m .status-pill { display: none; }
-html.m .user-badge > span:nth-child(2) { display: none; }
-html.m .btn-help { padding: 3px 7px; font-size: 10px; }
-html.m #m-hud {
-flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 5px 8px;
-background: #0a0e16; border-bottom: 1px solid var(--border-subtle);
-}
-html.m #m-hud div { text-align: center; line-height: 1.15; min-width: 0; }
-html.m #m-hud small { display: block; font: 700 8px 'Orbitron', monospace; letter-spacing: .5px; color: var(--text-dim); }
-html.m #m-hud b { display: block; font: 800 13px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-html.m .main-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px; gap: 8px; max-width: none; width: 100%; box-sizing: border-box; }
-html.m .grid-columns { display: flex; flex-direction: column; gap: 8px; flex: none; }
-html.m .grid-columns { align-items: stretch; }
-html.m .grid-columns > *, html.m .main-wrapper > * { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
-html.m #adv-minigames-mount, html.m .adv-wrap { min-width: 0; max-width: 100%; overflow: hidden; }
-html.m .cr-road { max-width: 100%; }
-html.m .column { display: contents; }
-html.m [data-tab] { display: none; }
-html.m body[data-mtab="play"]   [data-tab="play"],
-html.m body[data-mtab="chest"]  [data-tab="chest"],
-html.m body[data-mtab="bag"]    [data-tab="bag"],
-html.m body[data-mtab="casino"] [data-tab="casino"],
-html.m body[data-mtab="more"]   [data-tab="more"] { display: block; }
-/* --- záložka HRA: nic se neposouvá, tlačítko vyplní zbytek výšky --- */
-html.m body[data-mtab="play"] .main-wrapper { overflow: hidden; }
-html.m body[data-mtab="play"] .grid-columns { flex: 1 1 auto; min-height: 0; }
-html.m body[data-mtab="play"] [data-tab="play"] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-html.m [data-tab="play"] .click-btn-wrap { flex: 1 1 auto; display: flex; min-height: 130px; }
-html.m [data-tab="play"] #btn-click { flex: 1; height: auto; font-size: 20px; line-height: 1.3; border-radius: 10px; }
-html.m [data-tab="play"] #btn-click:active, html.m [data-tab="play"] #btn-click.pressed { transform: scale(.985); }
-/* na mobilu se nic neoznačuje (dvojklik / podržení), kromě polí pro psaní */
-html.m body, html.m body * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-html.m input, html.m textarea, html.m select, html.m [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
-html.m #btn-click { touch-action: none; }
-html.m #m-tabs {
-flex: none; display: flex; background: #0a0e16; border-top: 1px solid var(--border-subtle);
-padding-bottom: env(safe-area-inset-bottom);
-}
-html.m #m-tabs button {
-flex: 1; padding: 9px 2px 8px; background: none; border: 0; border-top: 2px solid transparent; color: var(--text-dim);
-font: 700 9px 'Orbitron', monospace; letter-spacing: .5px; cursor: pointer;
-}
-html.m #m-tabs button span { display: block; font-size: 17px; margin-bottom: 2px; }
-html.m #m-tabs button.active { color: var(--cyan); border-top-color: var(--cyan); background: rgba(0,240,255,.06); }
-html.m #m-tabs button { position: relative; }
-html.m #m-tabs button[data-go="fight"] { color: #ff4d6d; }
-html.has-unread #m-tabs button[data-go="more"]::after,
-html.pl-glow #m-tabs button[data-go="more"]::after,
-html.hs-glow #m-tabs button[data-go="fight"]::after,
-html.sd-glow #m-tabs button[data-go="casino"]::after { content: ""; position: absolute; top: 5px; right: 22%; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 6px var(--crimson); }
-html.m #fx-toggle, html.m #ir-logout { display: none !important; }
-html.m .panel { padding: 10px; }
-html.m .stats-grid { grid-template-columns: repeat(2, 1fr); }
-html.m input, html.m select, html.m textarea { font-size: 16px; }   /* iOS nezoomuje při fokusu */
-html.m canvas { max-width: 100%; height: auto; }
-html.m table.lb-table { font-size: 11px; }
-html.m #backpack-grid { grid-template-columns: minmax(0, 1fr) !important; }
-html.m #m-tabs button { min-width: 0; overflow: hidden; }
-html.m .item-actions { flex-wrap: wrap; }
-html.m .item-actions .btn { padding: 8px 10px; }
-html.m #fx-banner { font-size: 22px; }
-html.m .tt-modal, html.m .modal { max-width: 94vw; }
-html.m #update-banner { top: calc(8px + env(safe-area-inset-top)); bottom: auto; width: max-content; max-width: calc(100% - 24px); text-align: center; line-height: 1.4; }   /* v8.7.2: dřív top:0 + bottom:14px = roztažené přes celou obrazovku */
-/* panel Nastavení (jen mobil) */
-#m-settings { display: none; }
-html.m body[data-mtab="more"] #m-settings { display: block; }
-#m-settings .row { display: flex; gap: 8px; }
-#m-settings .btn { flex: 1; padding: 10px; }
-/* PC: přepínač na kompaktní (mobilní) rozložení */
-#m-compact { white-space: nowrap; }
-@media (max-width: 820px) { #m-compact { display: none !important; } }
-html.m.mc .main-wrapper { max-width: 860px; width: 100%; margin: 0 auto; align-self: center; }
-html.m.mc #m-tabs { justify-content: center; }
-html.m.mc #m-tabs button { flex: 0 1 140px; }
-html.m.mc #m-hud { max-width: 860px; width: 100%; margin: 0 auto; box-sizing: border-box; }
-html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
-#m-logout { display: none !important; }
-</style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part21"] = 1;</script>
 <!-- END-OF-FILE: part21 -->
