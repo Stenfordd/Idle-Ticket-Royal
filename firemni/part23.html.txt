@@ -1,4 +1,4 @@
-<script type="text/plain" data-tt="ttbig3" data-i="2">const lp = Number(last) | 0;
+<script type="text/plain" data-tt="ttbig4" data-i="2">const lp = Number(last) | 0;
 if (P() <= lp) return;
 let msg = P() > 15 ? ["A new planet appeared outside your window!", "Space station · Prestige " + P()] : REVEAL[t];
 if (!msg) return;
@@ -76,6 +76,6 @@ if (P() !== prevP) checkReveal();
 })();
 })();
 </script>
-<script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig3"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig4"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part23"] = 1;</script>
 <!-- END-OF-FILE: part23 -->

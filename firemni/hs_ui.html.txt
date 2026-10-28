@@ -2,6 +2,16 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "11.0", d: "2026-10-28", i: [
+"🎰 <b>HIGH STAKES 2.0</b> (Season 3): a real 1v1 fight. Every round ① you attack (⚔ STRIKE, 💥 HEAVY, 🎰 GAMBLE, ✨ ULTIMATE), ② the enemy shows its move (⚔ attack, 💥 heavy, 🔮 spell, ⏳ charge, 🛡 guard) and ③ you react (🛡 BLOCK, 💨 DODGE, 🔮 CHANNEL or 😮‍💨 BREATHE)",
+"🧍 5 classes: 🛡 Firewall Warden (warrior - blocks and counters), 🗡 Shadow Admin (assassin - dodges, 2.5× crits), 🧙 Code Wizard (mage - +75% damage, immune to spells, glass cannon), 🩸 Blood Walker (lifesteal, rises again) and 🏹 Bug Hunter (double hits, first strike, marks the target). One free class change",
+"📊 SFGame-style stats: your main stat beats the enemy's main stat for big damage, VIT = HP, LUCK = crit against the enemy's level (max 50%). +5 points per level and you can <b>buy extra points with GC</b>",
+"⚒ Gear now gives flat stats: the weapon is your damage, armor cuts damage taken. Items drop at the enemy's level",
+"🔺 <b>High Stakes ascends</b>: beat the Big Massi to open Campaign 2, 3, 4... (+40 enemy levels each, better rewards, enemies that fake their moves from Campaign 3). Stars add up over all campaigns - every star +0.3% office income",
+"🗼 Server Tower tiers: clear floor 100 to open the next tier",
+"⚔ <b>DUEL</b>: challenge a friend to a live 1v1 (15 s per choice, the defender reacts blind), friendly or for a GC stake, with your own stats or on equal terms. The arena now uses the same rules with an AI",
+"🔄 Level, campaign, tower and pool start from zero one last time - office prestige never resets High Stakes again. Your gear stayed and you got GC for your old progress"
+] },
 { v: "10.2", d: "2026-10-27", i: [
 "🎰 Office prestige no longer resets High Stakes - campaign, tower, pool, gear and level all stay. Instead every prestige gives +3% High Stakes XP and GC",
 "🧑‍💼 Colleague gear is now yours to manage: give them pieces from your gear bag and take them back (COLLEAGUE tab). No more automatic swaps and no more vanishing items",
@@ -126,11 +136,12 @@ const RECAP = [
 { h: "🎨 New look", i: [
 "Calmer dark design, a new font, no more CAPS LOCK and a big squishy Resolve button",
 "Prefer the old style? Tap 🎨 at the top (on phones: More → Settings → Classic look)" ] },
-{ h: "🎰 High Stakes Season 2", i: [
-"Three classes where your <b>main stat</b> gives damage AND your class's defence: 🛡 Firewall Warden (STR, damage reduction), 🧙 Code Wizard (INT, auto-shield), 🗡 Shadow Admin (AGI, dodge)",
-"⚒ Gear <b>drops from fights</b>: weapon, armor, helmet and trinket from Common to Mythic. Upgrade +1 to +10 with GC, salvage the rest. Everyone starts with a Rare weapon and armor",
-"Office prestige never resets High Stakes - every prestige adds +3% High Stakes XP and GC",
-"Office items from the chest only boost the office (click, auto, mult)" ] },
+{ h: "🎰 High Stakes 2.0", i: [
+"A real 1v1: you attack, the enemy shows its move, you react (block, dodge, channel or breathe)",
+"Five classes: Warrior, Assassin, Mage, Blood Walker and Hunter - each reacts differently",
+"SFGame-style stats (buy extra points with GC) and gear with flat stats that <b>drops from fights</b> (Common to Mythic, upgrade +1 to +10)",
+"High Stakes ascends: Campaign 2, 3... with stronger enemies, stars add up across all campaigns. Office prestige never resets High Stakes",
+"⚔ Live duels with friends and an AI arena" ] },
 { h: "🧑‍💼 The Colleague", i: [
 "Beat the Administrator on Tower floor 100 and you get a colleague with a random (sometimes very meme) name",
 "Pick a boss you already beat: they fight it every 20 minutes and resolve a ticket every 30 s - also while you're away (up to 8 h)",
@@ -144,7 +155,7 @@ const RECAP = [
 "Replaced the Legacy shop: spend Legacy Points on a tree of permanent upgrades (office, casino, HIGH STAKES)",
 "It grows fruit every 4 hours (harvest it in More) and you can water it once a day. Your old LP were refunded" ] },
 { h: "⚔ Better fights", i: [
-"New parry: the ring comes after a random wind-up and speeds up - <b>PERFECT</b> or <b>GOOD</b>. UNLEASH sends 3 rings and every boss has its own trick",
+"Parry when you BLOCK a big hit: the ring comes after a random wind-up and speeds up - <b>PERFECT</b> or <b>GOOD</b>. UNLEASH sends 3 rings and every boss has its own trick",
 "Ultimates are a 2-second tap mini-game (70-125% power). Gamble: HOLD reels and re-spin once",
 "🎓 Training fight in Hero (+1 🎟 the first time) and a ❓ cheat sheet in every fight" ] },
 { h: "📱 Smaller things", i: [

@@ -152,7 +152,9 @@ return `<svg class="dg-sprite rig${sp.boss ? " boss" : ""}" viewBox="0 0 100 120
 const CLS = {
 sysadmin: { shirt: "#3567b5", hair: "short", hairC: HAIR[1], hat: "headset", hoodie: true, skin: SKIN[1] },
 engineer: { shirt: "#d97a2b", hair: "curly", hairC: HAIR[0], face: { glasses: true }, hoodie: true, skin: SKIN[0] },
-cyber: { shirt: "#1f8f6a", hair: "short", hairC: HAIR[4], hat: "hood", hoodie: true, skin: SKIN[2] }
+cyber: { shirt: "#1f8f6a", hair: "short", hairC: HAIR[4], hat: "hood", hoodie: true, skin: SKIN[2] },
+blood: { shirt: "#8b1e2e", hair: "long", hairC: "#151515", hat: "hoodblack", hoodie: true, skin: SKIN[0], face: { angry: true } },
+hunter: { shirt: "#5b6b2a", hair: "spiky", hairC: HAIR[2], hat: "fedora", hoodie: true, skin: SKIN[3] }
 };
 function player(cls, gear) {
 const c = CLS[cls] || CLS.sysadmin, g = gear || {};
@@ -317,7 +319,7 @@ html.m #dg-screen { height: var(--app-h, 100%); }
 .dg-art .ic { font-size: 22px; width: 28px; text-align: center; }
 .dg-art .t { flex: 1; min-width: 0; }
 .dg-art.eq { box-shadow: 0 0 0 1px var(--amber) inset; }
-.dg-classes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.dg-classes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
 .dg-class { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; }
 .dg-class:hover { border-color: var(--cyan); }
 .dg-class .ic { font-size: 30px; }
@@ -330,7 +332,8 @@ html.m #dg-screen { height: var(--app-h, 100%); }
 html.m #dg-open-btn { display: none; }
 .lb-table tbody tr { cursor: pointer; }
 @media (max-width: 700px) {
-.dg-grid2, .dg-classes { grid-template-columns: 1fr; }
+.dg-grid2 { grid-template-columns: 1fr; }
+.dg-classes { grid-template-columns: 1fr 1fr; }
 .dg-sprite { width: 76px; height: 76px; }
 }
 </style>

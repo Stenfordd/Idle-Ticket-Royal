@@ -1,9 +1,10 @@
-NÁVOD v6.2 - firemní verze v10.2 (= hra Office Royale v10.2)
+NÁVOD v6.3 - firemní verze v11.0 (= hra Office Royale v11.0)
 
-v10.2: prestiž už nemaže High Stakes, výbava kolegy ručně, snazší ultimátka assassina, víc tiketů v loterii.
-Máš-li už v10.x: zkopíruj znovu všech 28 souborů a přidej nový HTML soubor part23.
+v11.0: HIGH STAKES 2.0 - nový souboj 1v1 (útok -> nepřítel ukáže tah -> reakce), 5 tříd, staty jako v SFGame,
+ascend High Stakes (Kampaň 2, 3...), tiery toweru, živé DUELY s kamarády, aréna na nových pravidlech.
+Máš-li už v10.x: stejných 28 souborů, žádný nový. Zkopíruj znovu VŠECH 28 (změnil se i server: code, server2, engine).
 
-Kancelář bez wipe. High Stakes začíná znovu (Season 2) - hráči dostanou za starý postup GC.
+Kancelář bez wipe. High Stakes začíná znovu (Season 3, naposledy) - hráči dostanou za starý postup GC, gear zůstává.
 
 ======================================================
 KDE JSOU SOUBORY
@@ -18,8 +19,7 @@ SOUBORY V APPS SCRIPT PROJEKTU (28)
 HTML:  index, style, office, casino, system, minigames, special, meta, hs_core, hs_ui, hs, prsi, hs_modes, mobile,
        part13, part14, part15, part16, part17, part18, part19, part20, part21, part22, part23
 
-1) Vytvoř nový .gs soubor server2 (+ > Skript, jméno bez .gs) a nové HTML soubory part18 až part23 (+ > HTML).
-   part13 až part17 už máš z minula.
+1) Žádný nový soubor - z v10.2 máš všech 28 (code, server2, engine + 25 HTML).
 2) Do KAŽDÉHO z 28 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
 3) Ctrl+S
 4) Deploy > Manage deployments > tužka (edit) > Version: New version > Deploy
@@ -29,13 +29,15 @@ Při prvním spuštění menu "Spustit firemní globální event" se Google zept
 Když se ve hře objeví červená lišta COPY ERROR, vypíše, který soubor se nezkopíroval celý.
 
 ======================================================
-CO JE NOVÉHO
+CO JE NOVÉHO (v11.0)
 ======================================================
-- HIGH STAKES SEASON 2: nové třídy Firewall Warden (STR), Code Wizard (INT), Shadow Admin (AGI) - hlavní stat dává damage i obranu třídy.
-- Nový gear: padá z bojů (zbraň, brnění, helma, talisman; Common -> Mythic), upgrade +1 až +10, salvage za GC.
-- Kolega pomáhá v boji a v kanceláři říká korporátní hlášky. BRIBE u Compliance auditu (+ achievement).
-- VISIT OFFICE: v Top 10 klikni na hráče -> navštiv kancelář, nech kafe (buff) nebo post-it prank (lístky za scrap).
-- Gamble: HOTFIX MINES, LOTERIE (každý den v 18:00, 40 % proher z casina jde do jackpotu), AKCIE (dividendy), Pachinko míčky až 10M.
-- Boss key: ESC nebo tlačítko 📊 = hra se změní na nudnou SLA tabulku (klikání do buněk dál řeší tickety).
-- Menu v tabulce: "Spustit firemní globální event" - vybereš event a běží 10 minut všem.
-- Opravy: falešné "offline", záložky High Stakes na malém okně.
+- HIGH STAKES 2.0: každé kolo 1) útočíš (STRIKE / HEAVY / GAMBLE / ULTIMATE), 2) nepřítel ukáže, co chystá,
+  3) reaguješ (BLOCK / DODGE / CHANNEL / BREATHE). Boje trvají 5-15 kol, bossové mají svoje triky.
+- 5 tříd: Firewall Warden (warrior, blok + protiútok), Shadow Admin (assassin, úhyb), Code Wizard (mág, imunní na kouzla),
+  Blood Walker (lifesteal, vstane z mrtvých), Bug Hunter (dvojitý úder, první rána). První změna třídy zdarma.
+- Staty jako SFGame: hlavní stat proti hlavnímu statu soupeře, VIT = HP, LUCK = crit proti levelu soupeře. Body jde koupit za GC.
+- Gear dává pevné staty (zbraň = damage, zbroj = armor), padá na levelu nepřítele.
+- Ascend High Stakes: po Big Massim se otevře Kampaň 2, 3... (+40 levelů nepřátel). Hvězdy se sčítají, každá +0.3 % kanceláře.
+- Tower má tiery (po patře 100 se otevře další). Prestiž kanceláře High Stakes nikdy nemaže.
+- DUEL: živý souboj s kamarádem (záložka DUEL v High Stakes, nebo tlačítko DUEL v kartě hráče). Přátelský nebo o GC,
+  vlastní staty nebo rovné podmínky. Aréna teď bojuje podle stejných pravidel (hraje AI).

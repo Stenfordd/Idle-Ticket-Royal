@@ -311,7 +311,7 @@ chestLvl: Math.max(Number(s.maxChestLevel) || 0, Number(s.chestLevel) || 1),
 gambleNet: s.gambleNet || 0,
 peakCps: Number(s.peakCps) || 0,
 gear: cleanTxt_(gear.join(' '), 80),
-dungeon: { cls: cleanTxt_(dg.cls, 12), level: Number(dg.level) || 0, best: Number(dg.best) || 0, wins: Number(dg.wins) || 0, losses: Number(dg.losses) || 0, title: cleanTxt_(dg.title, 40), honor: arenaHonorOf_(saves[i][0]) },
+dungeon: { cls: cleanTxt_(dg.cls, 12), level: Number(dg.level) || 0, best: Number(dg.best) || 0, camp: Number(dg.camp) || 1, stars: Number(dg.stars) || 0, wins: Number(dg.wins) || 0, losses: Number(dg.losses) || 0, title: cleanTxt_(dg.title, 40), honor: arenaHonorOf_(saves[i][0]) },
 ach: (function () { var u = s.hs && s.hs.ach && s.hs.ach.u; if (!u || typeof u !== 'object') return []; return Object.keys(u).slice(0, 60).map(function (k) { return cleanTxt_(k, 20); }); })(),
 score: computeScore_(s),
 presence: presenceOf_(s).presence,
@@ -679,17 +679,11 @@ out[String(data[i][0])] = s;
 }
 return out;
 }
+/** v11: postava z bojové karty v savu (HSEngine.fromCard přepočítá vše znovu a ořízne nesmyslné hodnoty) */
 function arenaPlayer_(s) {
 var d = s.dungeon || {};
-if (!d.cls) return null;
-var lo = s.loadout || {}, g = { atk: 1, hp: 1 };
-['TOOL', 'AUGMENT', 'RELIC'].forEach(function (k) { var it = lo[k]; if (it) g.atk += DungeonEngine.gearSlotValue(Number(it.tier) || 1, Number(it.lvl) || 0); });
-['HEAD', 'RIG', 'OS'].forEach(function (k) { var it = lo[k]; if (it) g.hp += DungeonEngine.gearSlotValue(Number(it.tier) || 1, Number(it.lvl) || 0); });
-if (d.gear && Number(d.gear.atk) > 0 && Number(d.gear.hp) > 0) g = { atk: Math.min(5, Number(d.gear.atk)), hp: Math.min(5, Number(d.gear.hp)) };
-var arts = d.artifacts || {}, eq = Array.isArray(d.equipped) ? d.equipped.filter(function (id) { return arts[id]; }).slice(0, 6) : [];
-var dd = { cls: d.cls, level: Math.max(1, Math.min(999, Number(d.level) || 1)), tier: Math.max(1, Math.min(4, Number(d.tier) || 1)), branch: d.branch === 'a' || d.branch === 'b' ? d.branch : '',
-artifacts: arts, equipped: eq, exec: !!(d.promos && d.promos.bod) };
-return DungeonEngine.buildPlayer(dd, g);
+if (!d.cls || !d.card) return null;
+return HSEngine.fromCard(d.card);
 }
 function arenaList() {
 var me = getUserLdap();
@@ -706,7 +700,7 @@ var p = arenaPlayer_(saves[nick]); if (!p) return;
 var d = saves[nick].dungeon || {}, r = recs[nick] || {};
 var last = (mine.last || {})[nick] || 0;
 opp.push({ nick: nick, cls: d.cls, level: p.level, title: cleanTxt_(d.title, 40), best: Number(d.best) || 0, honor: r.honor || ARENA_START,
-power: DungeonEngine.power(p), wins: r.wins || 0, losses: r.losses || 0, cooldown: Math.max(0, ARENA_SAME_TARGET_MS - (Date.now() - last)),
+power: HSEngine.power(p), wins: r.wins || 0, losses: r.losses || 0, cooldown: Math.max(0, ARENA_SAME_TARGET_MS - (Date.now() - last)),
 presence: presenceOf_(saves[nick]).presence });
 });
 opp.sort(function (a, b) { return b.honor - a.honor; });
@@ -719,7 +713,7 @@ if (r2[1] === me || r2[2] === me) logs.push({ time: Number(r2[0]) || 0, attacker
 }
 }
 var mp = saves[me] ? arenaPlayer_(saves[me]) : null;
-return { ok: true, me: { honor: mine.honor, wins: mine.wins, losses: mine.losses, left: Math.max(0, ARENA_PER_DAY - used), perDay: ARENA_PER_DAY, power: mp ? DungeonEngine.power(mp) : 0 }, opponents: opp, log: logs };
+return { ok: true, me: { honor: mine.honor, wins: mine.wins, losses: mine.losses, left: Math.max(0, ARENA_PER_DAY - used), perDay: ARENA_PER_DAY, power: mp ? HSEngine.power(mp) : 0 }, opponents: opp, log: logs };
 }
 function arenaFight(target, stance) {
 var me = getUserLdap();
@@ -745,7 +739,7 @@ if (Date.now() - lastT < ARENA_SAME_TARGET_MS) return { ok: false, reason: 'cool
 var dStance = (saves[target].dungeon && saves[target].dungeon.arenaStance) || 'normal';
 if (['safe', 'normal', 'allin'].indexOf(dStance) < 0) dStance = 'normal';
 var seed = Math.floor(Math.random() * 2147483646) + 1;
-var res = DungeonEngine.duel(A, B, seed, stance, dStance);
+var res = HSEngine.duelAI(A, B, seed, stance, dStance);
 var exp = 1 / (1 + Math.pow(10, (rb.honor - ra.honor) / 400));
 var dA = Math.round(32 * ((res.win ? 1 : 0) - exp));
 if (res.win && dA < 1) dA = 1;
@@ -824,7 +818,7 @@ var sh = wbSheet_(), w = wbWeek_(), got = wbLoad_(sh, w), d = wbFix_(got.data ||
 var p = d.players[me];
 if (p && Date.now() - (p.last || 0) < WB_COOLDOWN_MS) return { ok: false, reason: 'cooldown' };
 atk = Math.max(1, Math.min(1000000, Number(atk) || 1));
-dmg = Math.max(0, Math.min(Math.floor(Number(dmg) || 0), Math.round(atk * 90)));   // v8.6: 15 kol + silnější ulty
+dmg = Math.max(0, Math.min(Math.floor(Number(dmg) || 0), Math.round(atk * 150)));  // v11: 15 kol, crit 2.5×, ulti
 if (!p) { p = d.players[me] = { dmg: 0, n: 0, last: 0, contrib: Math.round(atk * WB_CONTRIB) }; d.baseHp += p.contrib; d.maxHp += Math.round(p.contrib * wbMkMult_(d.mk)); }
 var before = d.dmg, mkBefore = d.mk;
 dmg = Math.min(dmg, d.maxHp - d.dmg);                      // přebytek se nepřenáší do dalšího MK

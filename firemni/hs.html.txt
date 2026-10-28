@@ -81,8 +81,8 @@ const lo = () => gameState.loadout || {};
 const eq = () => Object.values(lo()).filter(Boolean);
 const hs = () => (window.Dungeon && Dungeon.state ? Dungeon.state() : {});
 const cnt = (k) => Number((st() || { c: {} }).c[k]) || 0;
-const starsTotal = () => Object.values(hs().stars || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-const cleared = (id) => ((hs().stars || {})[id] || 0) > 0 ? 1 : 0;
+const starsTotal = () => window.Dungeon && Dungeon.totalStars ? Dungeon.totalStars() : Object.values(hs().stars || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+const cleared = (id) => window.Dungeon && Dungeon.clearedAny ? (Dungeon.clearedAny(id) ? 1 : 0) : ((hs().stars || {})[id] || 0) > 0 ? 1 : 0;
 const maxChest = () => Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1);
 const ACH = [
 ["OFFICE", [
@@ -118,7 +118,11 @@ const ACH = [
 ["hs_ch5", "👑", "Massi's Favourite", "Beat The Big Massi", () => cleared(49), 1],
 ["hs_secret", "📋", "They Actually Came", "Beat The Compliance Control", () => cleared(50), 1],
 ["hs_stars75", "⭐", "Star Collector", "Collect 75 campaign stars", starsTotal, 75],
-["hs_stars153", "🌟", "Perfect Record", "Collect all 153 campaign stars", starsTotal, 153],
+["hs_stars153", "🌟", "Perfect Record", "Collect 153 campaign stars", starsTotal, 153],
+["hs_stars300", "💫", "Constellation", "Collect 300 stars across all campaigns", starsTotal, 300],
+["hs_asc2", "🔺", "Ascended", "Ascend High Stakes to Campaign 2", () => ((hs().camp || {}).top || 1), 2],
+["hs_asc3", "🔱", "Higher Stakes", "Ascend High Stakes to Campaign 3", () => ((hs().camp || {}).top || 1), 3],
+["hs_duel", "⚔", "Duelist", "Win a live duel against a friend", () => cnt("duelWins"), 1],
 ["hs_onehit", "👊", "One Punch", "Win a fight in a single turn", () => cnt("oneTurn"), 1],
 ["hs_jackpot", "7️⃣", "Triple Seven", "Hit a 777 jackpot in a fight", () => cnt("jackpots"), 1],
 ["hs_parry", "🛡", "Parry God", "Land 25 parries", () => cnt("parries"), 25],

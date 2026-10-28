@@ -500,4 +500,199 @@ return { ok: true, now: Date.now(), ev: m96Event_(),
 lotto: { round: s.round, drawAt: s.drawAt, pool: s.pool, price: LOTTO_PRICE, max: LOTTO_MAX, n: LOTTO_N, k: LOTTO_K, mine: s.t[me] || [], players: Object.keys(s.t).length, last: s.last, pay: Number(pay[me]) || 0 },
 inbox: ((v.inbox || {})[me] || []).length };
 }
+var DL_MAX_TABLES = 4, DL_TURN_MS = 15000, DL_WAIT_MS = 300000, DL_IDLE_MS = 20 * 60000, DL_RAKE = 0.05, DL_MAX_MISS = 3, DL_MAX_STAKE = 1000000000;
+function dlGet_(id) { var raw = CacheService.getScriptCache().get('dl_' + id); if (!raw) raw = prsProps_().getProperty('dl_' + id); return raw ? JSON.parse(raw) : null; }
+function dlPut_(t) { var j = JSON.stringify(t); CacheService.getScriptCache().put('dl_' + t.id, j, 21600); prsProps_().setProperty('dl_' + t.id, j); }
+function dlDel_(id) { CacheService.getScriptCache().remove('dl_' + id); prsProps_().deleteProperty('dl_' + id); }
+function dlIndex_() { try { return JSON.parse(prsProps_().getProperty('dl_index') || '[]'); } catch (e) { return []; } }
+function dlSetIndex_(a) { prsProps_().setProperty('dl_index', JSON.stringify(a)); }
+function dlLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 40) t.log.shift(); }
+function dlPay_(nick, amt, why, id) {
+if (!(amt > 0)) return;
+var p = prsProps_(), m = {}; try { m = JSON.parse(p.getProperty('dl_pay') || '{}'); } catch (e) {}
+(m[nick] = m[nick] || []).push({ amt: Math.floor(amt), why: why, id: id }); p.setProperty('dl_pay', JSON.stringify(m));
+}
+function dlTakePay_(nick) {
+var p = prsProps_(), raw = p.getProperty('dl_pay'); if (!raw || raw.indexOf('"' + nick + '"') < 0) return [];
+var m = {}; try { m = JSON.parse(raw); } catch (e) {} var out = m[nick] || []; delete m[nick]; p.setProperty('dl_pay', JSON.stringify(m)); return out;
+}
+function dlCardOf_(nick) {
+var db = getDb_(), data = db.saves.getDataRange().getValues();
+for (var i = 1; i < data.length; i++) if (String(data[i][0]) === nick) { try { var s = JSON.parse(rowToJson_(data[i])); return s.dungeon && s.dungeon.cls && s.dungeon.card ? s.dungeon.card : null; } catch (e) { return null; } }
+return null;
+}
+function dlHeroes_(t) {
+var a = HSEngine.fromCard(t.cards[t.host]), b = HSEngine.fromCard(t.cards[t.guest]);
+if (t.mode === 'equal') { var L = Math.max(a.level, b.level); a = HSEngine.stdHero(a.cls, L); b = HSEngine.stdHero(b.cls, L); }
+return [a, b];
+}
+function dlStart_(t) {
+var c = dlHeroes_(t), d = HSEngine.duelNew(c[0], c[1], t.seed);
+delete d.R; delete d.c; d.events = [];
+t.ds = d; t.status = 'play'; t.started = Date.now(); t.moved = Date.now(); t.deadline = Date.now() + DL_TURN_MS + 5000; t.pick = { a: '', r: '' }; t.miss = {}; t.rev++;
+t.max = d.max.slice(); t.cls = [c[0].cls, c[1].cls]; t.lv = [c[0].level, c[1].level];
+dlLog_(t, (d.first === 0 ? t.host : t.guest) + ' strikes first.');
+}
+function dlResolve_(t, auto) {
+var c = dlHeroes_(t), d = t.ds;
+d.R = HSEngine.rng((t.seed + d.half * 7919 + 13) >>> 0); d.c = c; d.events = [];
+var names = [t.host, t.guest], att = d.atk;
+var evs = HSEngine.duelHalf(d, t.pick.a || 'strike', t.pick.r || 'brace', {});
+delete d.R; delete d.c; d.events = [];
+t.lastEv = evs; t.evSeq = (t.evSeq || 0) + 1; t.pick = { a: '', r: '' }; t.moved = Date.now(); t.deadline = Date.now() + DL_TURN_MS; t.rev++;
+evs.forEach(function (e) {
+if (e.type === 'hit') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.label || e.a) + ' ' + e.val + (e.crit ? ' CRIT' : '') + (e.outcome === 'block' ? ' (blocked)' : e.outcome === 'dodgefail' ? ' (dodge failed)' : '') + (e.counter ? ', counter ' + e.counter : ''));
+else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[1 - e.i] + ' dodged');
+else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
+else if (e.type === 'revive') dlLog_(t, names[e.who] + ' rises again!');
+});
+if (d.over) dlEnd_(t, names[d.win], d.hp[1 - d.win] <= 0 ? 'K.O.' : 'time');
+}
+function dlEnd_(t, winner, why) {
+t.status = 'done'; t.doneAt = Date.now(); t.deadline = 0; t.winner = winner || ''; t.why = why;
+if (winner) {
+var win = Math.floor(t.stake * 2 * (1 - DL_RAKE)); t.win = win; dlPay_(winner, win, 'WIN', t.id);
+if (t.stake > 0) m96PoolAdd_(t.stake * 2 - win);
+var loser = winner === t.host ? t.guest : t.host;
+dlLog_(t, '🏆 ' + winner + ' wins' + (win ? ' ' + win.toLocaleString() + ' GC' : '') + ' (' + why + ')');
+try { getDb_().chat.appendRow([new Date(), '⚔ DUEL', '🏆 ' + winner + ' beat ' + loser + ' in a High Stakes duel' + (win ? ' (+' + win.toLocaleString() + ' GC)' : '') + ' - ' + why + '.']); } catch (e) {}
+} else {
+[t.host, t.guest].forEach(function (n) { if (n) dlPay_(n, t.stake, 'DRAW', t.id); });
+dlLog_(t, '🤝 Draw (' + why + ') - stakes returned');
+}
+}
+function dlTimeouts_(t) {
+var ch = false;
+if (t.status === 'play' && t.deadline && Date.now() > t.deadline) {
+var names = [t.host, t.guest], d = t.ds, att = names[d.atk], def = names[1 - d.atk];
+[[att, 'a'], [def, 'r']].forEach(function (x) { if (!t.pick[x[1]]) t.miss[x[0]] = (t.miss[x[0]] || 0) + 1; else t.miss[x[0]] = 0; });
+ch = true;
+var out = [att, def].filter(function (n) { return (t.miss[n] || 0) >= DL_MAX_MISS; });
+if (out.length === 2) { dlEnd_(t, '', 'both players left'); t.rev++; }
+else if (out.length === 1) { dlEnd_(t, out[0] === t.host ? t.guest : t.host, out[0] + ' timed out 3×'); t.rev++; }
+else { dlLog_(t, '⏱ time ran out - default moves'); dlResolve_(t, true); }
+}
+return ch;
+}
+function dlHousekeep_(t) {
+var now = Date.now();
+if (t.status === 'wait' && now - t.created > DL_WAIT_MS) { dlPay_(t.host, t.stake, 'REFUND', t.id); t.status = 'gone'; return true; }
+if (t.status === 'done' && now - t.doneAt > 180000) { t.status = 'gone'; return true; }
+if (t.status === 'play' && now - t.moved > DL_IDLE_MS) { dlEnd_(t, '', 'abandoned'); t.status = 'gone'; return true; }
+return false;
+}
+function dlLoadAll_() {
+var ids = dlIndex_(), out = [], keep = [], dirty = false;
+ids.forEach(function (id) {
+var t = dlGet_(id); if (!t) { dirty = true; return; }
+var hk = dlHousekeep_(t), to = dlTimeouts_(t);
+if (hk || to) { dirty = true; if (t.status === 'gone') { dlDel_(id); return; } dlPut_(t); }
+keep.push(id); out.push(t);
+});
+if (dirty) dlSetIndex_(keep);
+return out;
+}
+function dlBusy_(ts, me) { return ts.some(function (t) { return (t.status === 'wait' || t.status === 'play') && (t.host === me || t.guest === me) && !(t.seen && t.seen[me]); }); }
+function dlList() {
+var me = getUserLdap(), lock = prsLock_();
+try {
+var ts = dlLoadAll_(), mine = '';
+ts.forEach(function (t) { if ((t.host === me || t.guest === me) && !(t.seen && t.seen[me])) mine = t.id; });
+return { ok: true, tables: ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).map(function (t) { return { id: t.id, host: t.host, guest: t.guest, target: t.target || '', stake: t.stake, mode: t.mode, status: t.status, cls: t.hostCls, lv: t.hostLv }; }),
+mine: mine, max: DL_MAX_TABLES, maxStake: DL_MAX_STAKE, pay: dlTakePay_(me) };
+} finally { lock.releaseLock(); }
+}
+/** stake 0 = přátelský duel; mode 'own' | 'equal'; target = přezdívka (jen ona se může připojit) nebo '' */
+function dlCreate(stake, mode, target) {
+var me = getUserLdap(), lock = prsLock_();
+try {
+stake = Math.floor(Number(stake) || 0);
+if (!(stake >= 0 && stake <= DL_MAX_STAKE)) return { ok: false, reason: 'stake' };
+mode = mode === 'equal' ? 'equal' : 'own'; target = cleanTxt_(target || '', 24);
+if (target === me) target = '';
+var card = dlCardOf_(me); if (!card || !HSEngine.fromCard(card)) return { ok: false, reason: 'noclass' };
+var ts = dlLoadAll_();
+if (dlBusy_(ts, me)) return { ok: false, reason: 'already' };
+if (ts.filter(function (t) { return t.status === 'wait' || t.status === 'play'; }).length >= DL_MAX_TABLES) return { ok: false, reason: 'full' };
+var h0 = HSEngine.fromCard(card);
+var t = { id: Utilities.getUuid().slice(0, 8), host: me, guest: '', target: target, stake: stake, mode: mode, status: 'wait', created: Date.now(), rev: 1, log: [], miss: {}, seen: {}, cards: {}, seed: Math.floor(Math.random() * 2147483646) + 1, hostCls: h0.cls, hostLv: h0.level };
+t.cards[me] = card;
+dlLog_(t, me + ' is waiting for ' + (target || 'an opponent'));
+dlPut_(t); var idx = dlIndex_(); idx.push(t.id); dlSetIndex_(idx);
+try { getDb_().chat.appendRow([new Date(), '⚔ DUEL', me + ' challenges ' + (target || 'anyone') + ' to a High Stakes duel' + (stake ? ' for ' + stake.toLocaleString() + ' GC' : '') + (mode === 'equal' ? ' (equal terms)' : '') + '. Accept in HIGH STAKES > DUEL!']); } catch (e) {}
+return { ok: true, id: t.id };
+} finally { lock.releaseLock(); }
+}
+function dlJoin(id) {
+var me = getUserLdap(), lock = prsLock_();
+try {
+var ts = dlLoadAll_(), t = ts.filter(function (x) { return x.id === id; })[0];
+if (!t || t.status !== 'wait') return { ok: false, reason: 'gone' };
+if (t.host === me) return { ok: false, reason: 'self' };
+if (t.target && t.target !== me) return { ok: false, reason: 'private' };
+if (dlBusy_(ts, me)) return { ok: false, reason: 'already' };
+var card = dlCardOf_(me); if (!card || !HSEngine.fromCard(card)) return { ok: false, reason: 'noclass' };
+t.guest = me; t.cards[me] = card;
+dlLog_(t, me + ' accepted the duel.');
+dlStart_(t);
+dlPut_(t);
+return { ok: true, id: t.id, stake: t.stake };
+} finally { lock.releaseLock(); }
+}
+function dlLeave(id) {
+var me = getUserLdap(), lock = prsLock_();
+try {
+var t = dlGet_(id); if (!t) return { ok: true };
+if (t.status === 'wait' && t.host === me) { dlPay_(me, t.stake, 'REFUND', t.id); dlDel_(id); dlSetIndex_(dlIndex_().filter(function (x) { return x !== id; })); return { ok: true }; }
+if (t.status === 'play' && (t.host === me || t.guest === me)) { dlEnd_(t, me === t.host ? t.guest : t.host, me + ' fled'); t.rev++; }
+t.seen = t.seen || {}; t.seen[me] = 1; dlPut_(t);
+return { ok: true };
+} finally { lock.releaseLock(); }
+}
+function dlView_(t, me) {
+var you = t.host === me ? 0 : t.guest === me ? 1 : -1, d = t.ds || null;
+var role = '', picked = false, oppPicked = false;
+if (d && t.status === 'play' && you >= 0) {
+role = d.atk === you ? 'atk' : 'react';
+picked = !!t.pick[role === 'atk' ? 'a' : 'r']; oppPicked = !!t.pick[role === 'atk' ? 'r' : 'a'];
+}
+return { id: t.id, rev: t.rev, status: t.status, host: t.host, guest: t.guest, target: t.target || '', stake: t.stake, mode: t.mode, you: you, names: [t.host, t.guest],
+cls: t.cls || [t.hostCls, ''], lv: t.lv || [t.hostLv, 0], cards: t.cards, max: t.max || null,
+hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh : null, sure: d ? d.sure : null, chan: d ? d.chan : null, atk: d ? d.atk : -1, turn: d ? d.turn : 0, half: d ? d.half : 0,
+role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
+winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-14) };
+}
+function dlPoll(id, rev) {
+var me = getUserLdap(), t = dlGet_(id), pay = [];
+var due = t && ((t.status === 'play' && t.deadline && Date.now() > t.deadline) || (t.status === 'wait' && Date.now() - t.created > DL_WAIT_MS) || (t.status === 'play' && Date.now() - t.moved > DL_IDLE_MS));
+if (due) {
+var lock = prsLock_();
+try { t = dlGet_(id); if (t) { var hk = dlHousekeep_(t), to = dlTimeouts_(t); if (hk || to) { if (t.status === 'gone') { dlDel_(id); dlSetIndex_(dlIndex_().filter(function (x) { return x !== id; })); t = null; } else { t.rev++; dlPut_(t); } } } }
+finally { lock.releaseLock(); }
+}
+var raw = prsProps_().getProperty('dl_pay');
+if (raw && raw.indexOf('"' + me + '"') >= 0) { var l2 = prsLock_(); try { pay = dlTakePay_(me); } finally { l2.releaseLock(); } }
+if (!t) return { ok: true, gone: true, pay: pay };
+if (Number(rev) === t.rev && !pay.length) return { ok: true, same: true, rev: t.rev, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0 };
+return { ok: true, view: dlView_(t, me), pay: pay };
+}
+/** choice = útok (strike/heavy/gamble/ult), když útočíš, nebo reakce (block/dodge/channel/brace), když se bráníš */
+function dlMove(id, choice) {
+var me = getUserLdap(), lock = prsLock_();
+try {
+var t = dlGet_(id); if (!t || t.status !== 'play') return { ok: false, reason: 'gone' };
+dlTimeouts_(t);
+if (t.status !== 'play') { dlPut_(t); return { ok: false, reason: 'over', view: dlView_(t, me) }; }
+var you = t.host === me ? 0 : t.guest === me ? 1 : -1; if (you < 0) return { ok: false, reason: 'seat' };
+var d = t.ds, role = d.atk === you ? 'a' : 'r';
+choice = String(choice || '');
+var okA = ['strike', 'heavy', 'gamble', 'ult'], okR = ['block', 'dodge', 'channel', 'brace'];
+if ((role === 'a' ? okA : okR).indexOf(choice) < 0) return { ok: false, reason: 'choice', view: dlView_(t, me) };
+if (t.pick[role]) return { ok: false, reason: 'picked', view: dlView_(t, me) };
+t.pick[role] = choice; t.miss[me] = 0; t.rev++;
+if (t.pick.a && t.pick.r) dlResolve_(t, false);
+dlPut_(t);
+return { ok: true, view: dlView_(t, me) };
+} finally { lock.releaseLock(); }
+}
 // END-OF-FILE: server2

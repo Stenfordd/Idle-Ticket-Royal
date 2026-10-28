@@ -1,6 +1,217 @@
 <script>
 (function () {
 "use strict";
+const A = window.HS_API, H = window.HSEngine;
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString(), esc = (t) => escapeHtml(String(t == null ? "" : t));
+const K = { id: "", rev: -1, view: null, list: null, busy: false, msg: "", msgC: "", pollT: 0, listAt: 0, target: "", stake: 0, mode: "own", seq: 0, recvAt: 0 };
+const me = () => gameState.ldap;
+function run(fn, args) { return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); }); }
+function onTab() { return A.isOpen() && A.view() === "duel"; }
+function say(t, c) { K.msg = t; K.msgC = c || ""; K.forceDraw = true; draw(); }
+function takePay(pay) {
+(pay || []).forEach(p => {
+if (p.why === "WIN") { if (p.amt > 0) TT.win(p.amt); log(`⚔ DUEL: you won!${p.amt ? " +" + fmt(p.amt) + " GC" : ""}`, "special"); if (window.Meta && Meta.count) Meta.count("duelWins", 1); }
+else { gameState.coins += p.amt; log(`⚔ DUEL: ${p.why === "DRAW" ? "draw, stake returned" : "stake refunded"} +${fmt(p.amt)} GC`, "success"); }
+});
+if (pay && pay.length) { updateUI(); TT.saveSoon(); }
+}
+async function loadList() {
+if (K.listBusy) return; K.listBusy = true;
+try { const r = await run("dlList", []); K.listAt = Date.now(); if (r && r.ok) { K.list = r; takePay(r.pay); if (r.mine && !K.id) { K.id = r.mine; K.rev = -1; poll(); } } }
+catch (e) { K.list = K.list || { tables: [], max: 4 }; }
+finally { K.listBusy = false; }
+if (onTab()) draw();
+}
+async function poll() {
+clearTimeout(K.pollT); if (!K.id) return;
+try {
+const r = await run("dlPoll", [K.id, K.rev]);
+if (r && r.ok) { takePay(r.pay);
+if (r.gone) { K.id = ""; K.view = null; K.rev = -1; loadList(); return; }
+if (r.view) apply(r.view); else if (r.same && K.view) { K.view.left = r.left; K.recvAt = Date.now(); } }
+} catch (e) {}
+if (K.id) K.pollT = setTimeout(poll, onTab() ? (K.view && K.view.status === "play" ? 1000 : 2000) : 4000);
+}
+function apply(v) {
+const prev = K.view;
+K.view = v; K.rev = v.rev; K.recvAt = Date.now();
+if (v.status === "play" && v.role && !v.picked && K.ping !== v.half + ":" + v.rev && !onTab()) { K.ping = v.half + ":" + v.rev; log(`⚔ DUEL vs ${esc(v.names[1 - v.you])}: your move!`, "special"); }
+if (onTab()) { draw(); if (prev && v.evSeq !== K.seq) { K.seq = v.evSeq; playEvents(v); } else K.seq = v.evSeq; }
+}
+function heroesOf(v) {
+if (!v || !v.cards) return [null, null];
+let a = H.fromCard(v.cards[v.names[0]]), b = v.names[1] ? H.fromCard(v.cards[v.names[1]]) : null;
+if (v.mode === "equal" && a && b) { const L = Math.max(a.level, b.level); a = H.stdHero(a.cls, L); b = H.stdHero(b.cls, L); }
+return [a, b];
+}
+function cleanStake(x) { const n = Math.floor(Number(String(x).replace(/[^0-9.]/g, "")) || 0); return Math.max(0, Math.min((K.list && K.list.maxStake) || 1e9, n)); }
+function refund(s) { if (s > 0) { gameState.coins += s; updateUI(); TT.saveSoon(); } }
+function create() {
+if (K.busy) return;
+const stake = cleanStake($("du-stake") ? $("du-stake").value : 0), mode = $("du-mode") ? $("du-mode").value : "own", target = ($("du-target") ? $("du-target").value : "").trim();
+K.stake = stake; K.mode = mode; K.target = target;
+if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
+K.busy = true; draw();
+if (stake > 0) TT.spend(stake);
+saveGame(async () => {
+try { const r = await run("dlCreate", [stake, mode, target]);
+if (r && r.ok) { K.id = r.id; K.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You already have a duel.", full: "All duel tables are busy.", stake: "Invalid stake.", noclass: "Your High Stakes character isn't saved yet - try again in a few seconds." }[r && r.reason] || "Could not create.", "var(--crimson)"); } }
+catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { K.busy = false; loadList(); }
+});
+}
+function join(id, stake) {
+if (K.busy) return; if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
+K.busy = true; draw();
+if (stake > 0) TT.spend(stake);
+saveGame(async () => {
+try { const r = await run("dlJoin", [id]);
+if (r && r.ok) { K.id = r.id; K.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You already have a duel.", gone: "That duel is gone.", self: "That's your own challenge.", private: "That challenge is for someone else.", noclass: "Your High Stakes character isn't saved yet - try again." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); } }
+catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { K.busy = false; }
+});
+}
+async function leave() {
+if (K.busy || !K.id) return; const v = K.view;
+if (v && v.status === "play" && v.you >= 0 && !window.confirm("Flee the duel? Your opponent wins" + (v.stake ? " the pot." : "."))) return;
+K.busy = true; try { await run("dlLeave", [K.id]); } catch (e) {}
+K.busy = false; K.id = ""; K.view = null; K.rev = -1; clearTimeout(K.pollT); loadList();
+}
+async function pick(choice) {
+const v = K.view; if (!v || v.status !== "play" || !v.role || v.picked || K.busy) return;
+K.busy = true; v.picked = true; draw();
+try { const r = await run("dlMove", [K.id, choice]); if (r && r.view) apply(r.view); else if (r && !r.ok) say("Move not accepted (" + (r.reason || "?") + ").", "var(--crimson)"); }
+catch (e) { say("Server error - try again.", "var(--crimson)"); if (K.view) K.view.picked = false; }
+finally { K.busy = false; draw(); poll(); }
+}
+function challenge(nick) {
+K.target = String(nick || ""); K.msg = "";
+if (!A.isOpen()) Dungeon.open();
+Dungeon.tab("duel");
+setTimeout(() => { const el = $("du-target"); if (el) { el.value = K.target; el.focus(); } }, 50);
+}
+function bar(cls, v, m) { return `<div class="hs-bar"><div class="${cls}" style="width:${Math.max(0, Math.min(100, v / Math.max(1, m) * 100))}%"></div></div>`; }
+function side(v, i, h) {
+const nm = v.names[i] || "?", mine = i === v.you;
+const sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
+const max = v.max ? v.max[i] : (h ? h.maxHp : 1), hp = v.hp ? v.hp[i] : max;
+return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
+<div id="du-s${i}">${sprite}</div>
+<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div>${bar("hp", hp, max)}
+<div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}
+<div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}</div></div>`;
+}
+function buttons(v, hs) {
+if (v.status !== "play" || !v.role) return "";
+if (v.picked) return `<div class="du-wait">✔ Locked in. Waiting for ${esc(v.names[1 - v.you])}${v.oppPicked ? " (they're ready too)" : "..."}</div>`;
+const d = { c: hs, sta: v.sta, foc: v.foc }, i = v.you, h = hs[i];
+if (v.role === "atk") return `<div class="hs-acts">${["strike", "heavy", "gamble", "ult"].map(a => { const ok = H.duelAtkOk(d, i, a), A0 = H.ATTACKS[a];
+const t = a === "strike" ? (h.double ? "2 × 60%" : "free") : a === "heavy" ? "30 STA · 1.7×" : a === "gamble" ? "20 STA · slots" : "100 focus";
+return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
+return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
+const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% (half vs HEAVY)" : r === "dodge" ? h.dodgeCost + " FOC · not vs magic" : r === "channel" ? "30 FOC · -25%, next ×1.6" : "+10 STA +10 FOC";
+return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
+}
+function fightHtml(v) {
+const hs = heroesOf(v), opp = v.names[1 - v.you];
+const left = Math.max(0, (v.left || 0) - (Date.now() - K.recvAt));
+let role = "";
+if (v.status === "play") {
+const oi = 1 - v.you, oh = hs[oi];
+role = v.role === "atk" ? `<div class="du-role atk">① YOUR ATTACK<small>${esc(opp)} picks a reaction at the same time - they don't know what you'll do.</small></div>`
+: `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits can't be dodged" : ""}.</small></div>`;
+role += `<div class="du-timer"><div id="du-tbar" style="width:${left / 15000 * 100}%"></div></div>`;
+}
+const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>
+<div class="dg-dim" style="margin-top:6px;">${esc(v.why)}${v.winner === me() && v.win ? " · +" + fmt(v.win) + " GC" : ""}</div>
+<button class="btn btn-gold" style="margin-top:10px;width:100%;" onclick="HSDuel.leave()">◀ BACK TO DUELS</button></div>` : "";
+const wait = v.status === "wait" ? `<div class="dg-card"><div class="du-wait">⏳ Waiting for ${v.target ? "<b>" + esc(v.target) + "</b>" : "an opponent"} to accept (${Math.ceil((v.waitLeft || 0) / 60000)} min left)${v.stake ? " · stake " + fmt(v.stake) + " GC" : " · friendly duel"}${v.mode === "equal" ? " · equal terms" : ""}.<br>Tell them to open HIGH STAKES → ⚔ DUEL.</div>
+<button class="btn" style="width:100%;" onclick="HSDuel.leave()">CANCEL</button></div>` : "";
+if (v.status === "wait") return wait;
+return `<div class="dg-card"><div class="dg-h"><span>⚔ DUEL · ${esc(v.names[0])} vs ${esc(v.names[1])}</span><span>ROUND ${v.turn || 1}${v.stake ? " · 💰 " + fmt(v.stake * 2) : ""}${v.mode === "equal" ? " · ⚖ equal" : ""}</span></div></div>
+<div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(4) : ""}${side(v, 0, hs[0])}<div class="dg-vs">VS</div>${side(v, 1, hs[1])}</div>
+${role}${buttons(v, hs)}${res}
+${v.status === "play" ? `<div style="text-align:right;margin-top:6px;"><button class="btn" style="padding:4px 10px;font-size:11px;" onclick="HSDuel.leave()">🏳 FLEE</button></div>` : ""}
+<div class="dg-card" style="margin-top:10px;"><div class="dg-h">DUEL LOG</div><div class="dg-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div></div>`;
+}
+function lobbyHtml() {
+const L = K.list, d = A.HS();
+const tables = L && L.tables && L.tables.length ? L.tables.map(t => {
+const mine = t.host === me(), forMe = !t.target || t.target === me();
+return `<div class="dg-art"><div class="ic">${(H.CLASSES[t.cls] || {}).icon || "⚔"}</div><div class="t"><b>${esc(t.host)}</b> · ${esc((H.CLASSES[t.cls] || {}).name || "")} LV ${t.lv || "?"}
+<div class="dg-dim">${t.stake ? "💰 " + fmt(t.stake) + " GC" : "friendly"} · ${t.mode === "equal" ? "⚖ equal terms" : "own stats"}${t.target ? " · for " + esc(t.target) : ""}${t.status === "play" ? " · vs " + esc(t.guest) : ""}</div></div>
+${t.status === "wait" && !mine && forMe ? `<button class="btn btn-crimson" ${gameState.coins >= t.stake && !K.busy ? "" : "disabled"} onclick="HSDuel.join('${t.id}',${t.stake})">⚔ ACCEPT</button>` : `<span class="dg-dim">${t.status === "play" ? "FIGHTING" : mine ? "YOURS" : "PRIVATE"}</span>`}</div>`;
+}).join("") : `<div class="dg-dim">${L ? "No open duels. Create one and tell a friend!" : "Loading..."}</div>`;
+return `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>⚔ CHALLENGE A FRIEND</span></div>
+<div class="dg-dim">A live 1v1 with the same rules as your fights, but both of you choose at once: the attacker picks a move, the defender picks a reaction <b>blind</b>. 15 seconds per choice, 3 missed choices in a row = you lose. Winner takes the pot (5% goes to the lottery).</div>
+<div class="du-form">
+<label>Opponent (empty = anyone)<input id="du-target" maxlength="24" value="${esc(K.target)}" placeholder="nick"></label>
+<label>Stake GC (0 = friendly)<input id="du-stake" inputmode="numeric" value="${K.stake || 0}"></label>
+<label>Rules<select id="du-mode"><option value="own" ${K.mode !== "equal" ? "selected" : ""}>Own stats and gear</option><option value="equal" ${K.mode === "equal" ? "selected" : ""}>Equal terms (same level and gear - only skill)</option></select></label>
+<label>&nbsp;<button class="btn btn-gold" style="padding:9px;" ${K.busy || !d.cls ? "disabled" : ""} onclick="HSDuel.create()">⚔ CREATE DUEL</button></label></div>
+${K.msg ? `<div class="dg-dim" style="margin-top:6px;color:${K.msgC || "var(--amber)"};">${esc(K.msg)}</div>` : ""}</div>
+<div class="dg-card du-list"><div class="dg-h"><span>OPEN DUELS</span><button class="btn" style="padding:3px 8px;font-size:10px;" onclick="HSDuel.refresh()">↻</button></div>${tables}</div></div>`;
+}
+function draw() {
+if (!onTab()) return;
+if (!K.id && document.activeElement && /^du-/.test(document.activeElement.id || "") && !K.forceDraw) return;
+K.forceDraw = false;
+const box = $("dg-inner"); if (!box) return;
+const keep = $("du-target") ? { t: $("du-target").value, s: $("du-stake").value, m: $("du-mode").value } : null;
+if (keep && !K.id) { K.target = keep.t; K.stake = cleanStake(keep.s); K.mode = keep.m; }
+box.innerHTML = K.id && K.view ? fightHtml(K.view) : K.id ? `<div class="dg-card"><div class="du-wait">Loading the duel...</div></div>` : lobbyHtml();
+}
+function playEvents(v) {
+const evs = v.last || [], side = (i) => i === v.you ? "p" : "b";
+evs.forEach((e, k) => setTimeout(() => {
+if (!onTab()) return;
+if (e.type === "hit") { if (e.val) A.float((e.crit ? "CRIT " : e.jp ? "JACKPOT " : "") + fmt(e.val), side(1 - e.i), e.crit || e.jp ? "#ffb800" : "#fff", e.crit || e.jp); if (e.outcome === "block") A.float("BLOCK", side(1 - e.i), "#00f0ff"); if (e.counter) A.float("COUNTER " + fmt(e.counter), side(e.i), "#ff4d6d"); }
+else if (e.type === "dodge") A.float("DODGE", side(1 - e.i), "#00f0ff", true);
+else if (e.type === "bf") A.float("BACKFIRE", side(e.i), "#ff1744", true);
+else if (e.type === "ult") A.float("+" + fmt(e.shield) + " 🛡", side(e.i), "#00ff88", true);
+else if (e.type === "revive") A.float("RISE!", side(e.who), "#ffb800", true);
+if (window.HSRig && (e.type === "hit" || e.type === "dodge")) { HSRig.act("du-s" + e.i, e.a === "heavy" ? "a-power" : e.a === "ult" ? "a-skill" : "a-quick"); setTimeout(() => HSRig.act("du-s" + (1 - e.i), e.type === "dodge" ? "a-dodge" : e.outcome === "block" ? "a-block" : "a-hit"), 260); }
+}, k * 380));
+}
+setInterval(() => { if (onTab() && K.view && K.view.status === "play") { const b = $("du-tbar"); if (b) b.style.width = Math.max(0, (K.view.left || 0) - (Date.now() - K.recvAt)) / 15000 * 100 + "%"; } }, 250);
+A.registerMode("duel", { label: "⚔ DUEL", order: 92, render: function () { draw(); if (!K.list || Date.now() - K.listAt > 8000) loadList(); if (K.id) poll(); },
+dot: function () { return !!(K.view && K.view.status === "play" && K.view.role && !K.view.picked) || !!(K.list && K.list.tables && K.list.tables.some(t => t.status === "wait" && t.target === me())); } });
+window.HSDuel = { create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
+(function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 300); return; }
+TT.onLoaded(() => setTimeout(loadList, 8000));
+setInterval(() => { if (!K.id && (onTab() || Date.now() - K.listAt > 60000)) loadList(); }, 20000);
+})();
+})();
+</script>
+<style>
+/* ===== v8.8 THE COLLEAGUE: pomocník, který farmí poražené bosse a kliká za tebe ===== */
+.cl-row { display: flex; gap: 10px; align-items: center; }
+.cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
+.cl-name { font: 900 14px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
+.cl-quip { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
+.cl-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+.cl-slot { padding: 5px; border-radius: 6px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); font-size: 10px; text-align: center; min-width: 0; }
+.cl-slot b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-boss { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 5px; cursor: pointer; }
+.cl-boss.sel { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald) inset; }
+.cl-boss .ic { font-size: 20px; width: 26px; text-align: center; }
+.cl-boss .t { flex: 1; min-width: 0; font-size: 11px; }
+.cl-boss .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-boss .wr { font: 800 11px 'Orbitron', monospace; }
+.cl-give { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px; }
+.cl-give span { flex: 1; min-width: 0; }
+.cl-give .btn { padding: 4px 10px; font-size: 10px; }
+.cl-log div { font-size: 11px; color: var(--text-dim); padding: 2px 0; }
+.cl-sleep { text-align: center; padding: 18px 10px; }
+.cl-sleep .big { font-size: 44px; }
+</style>
+<script>
+(function () {
+"use strict";
 const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString();
@@ -37,17 +248,20 @@ if (!c.gear || typeof c.gear !== "object") c.gear = {};
 if (c.gmig !== 2) { c.gear = {}; c.gmig = 2; }                     // v10: nový gear (loot) - kolega začíná s prázdnou výbavou
 if (!c.stats || typeof c.stats !== "object") c.stats = { w: 0, l: 0, gc: 0, clicks: 0 };
 if (!Array.isArray(c.log)) c.log = [];
-if (c.cls !== "sysadmin" && c.cls !== "engineer" && c.cls !== "cyber") c.cls = "engineer";
+if (!H.CLASSES[c.cls]) c.cls = "engineer";
+c.tn = Math.max(1, Math.floor(Number(c.tn) || 1));
 if (!c.unlocked && (d.tower.best >= 100 || (d.pool && d.pool.unlocked))) c.unlocked = true;     // Administrator už padl
 if (c.unlocked && !c.name) { const r = rollName(); c.name = r.name; c.quip = r.quip; }
 return c;
 }
-function awake() { const d = A.HS(), c = st(); return !!c.unlocked && (d.stars[WAKE_BOSS] || 0) > 0; }
+function awake() { const c = st(); return !!c.unlocked && A.clearedAny(WAKE_BOSS); }
+/** v11: poražení bossové ze všech kampaní -> klíč n*100 + id (kampaň n, mise id) */
 function bossesBeaten() {
 const d = A.HS(), out = [];
-C.LIST.forEach(m => { if ((m.k === "boss" || m.k === "mini" || m.k === "secret" || m.k === "elite") && (d.stars[m.id] || 0) > 0) out.push(m.id); });
+for (let n = 1; n <= d.camp.top; n++) { const sm = A.smOf(n); C.LIST.forEach(m => { if ((m.k === "boss" || m.k === "mini" || m.k === "secret" || m.k === "elite") && (sm[m.id] || 0) > 0) out.push(n * 100 + m.id); }); }
 return out;
 }
+const keyN = (k) => Math.max(1, Math.floor(k / 100)), keyId = (k) => k % 100;
 /** v8.8: kolega má 80 % tvého levelu; v9.0: TRÉNINK se kupuje za GC (+2 % síly za level, max 15) */
 const TRAIN_MAX = 15;
 function trainCost() { return Math.round(25000 * Math.pow(1.55, trainLv())); }
@@ -57,21 +271,21 @@ function trainLv() { return Math.min(TRAIN_MAX, st().level - 1); }
 /** kolega: vlastní výbava + level, nikdy silnější než 60 % tebe */
 function hero() {
 const c = st();
-const g = window.Gear ? Gear.multOf(c.gear) : { atk: 1, hp: 1, crit: 0 };
 const L = colLevel(), pts = H.statPoints(L);
-const mk = (H.CLASSES[c.cls] || {}).main || "str", stats = { vit: Math.round(pts * 0.4), end: pts - 2 * Math.round(pts * 0.4) }; stats[mk] = Math.round(pts * 0.4);
-const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, { atk: g.atk, hp: g.hp, crit: g.crit, stats: g.stats });
-const tb = 1 + 0.02 * trainLv();                                   // trénink z darovaných itemů: +2 % za level
-hh.atk *= tb; hh.maxHp = Math.round(hh.maxHp * tb);
-const me = A.hero();
-hh.atk = Math.min(hh.atk, me.atk * POWER_CAP); hh.maxHp = Math.round(Math.min(hh.maxHp, me.maxHp * POWER_CAP));
+const g = window.Gear ? Gear.multOf(c.gear, L) : {};
+const mk = (H.CLASSES[c.cls] || {}).main || "str", stats = { vit: Math.round(pts * 0.3), luck: Math.round(pts * 0.2) }; stats[mk] = pts - stats.vit - stats.luck;
+const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, g);
+const tb = 1 + 0.02 * trainLv();                                   // trénink: +2 % za level
+hh.wpn *= tb; hh.atk *= tb; hh.maxHp = Math.round(hh.maxHp * tb);
+const me = A.hero(), k = Math.min(1, me.atk * POWER_CAP / Math.max(1, hh.atk));
+hh.wpn *= k; hh.atk *= k; hh.maxHp = Math.round(Math.min(hh.maxHp, me.maxHp * POWER_CAP));
 return hh;
 }
 /** souboj kolegy = stejný engine, jen hraje počítač (a hůř trefuje parry a ulti než ty) */
 function simFight(id, seed) {
 const PS = H.PARRY_SKILL, US = H.ULT_SKILL, keep = [PS.perfect, PS.good, US.q, US.all];
 PS.perfect = 0.15; PS.good = 0.35; US.q = 0.9; US.all = 0.3;
-try { return H.simulate(hero(), C.mission(id), seed); }
+try { return H.simulate(hero(), C.mission(keyId(id), keyN(id)), seed); }
 finally { PS.perfect = keep[0]; PS.good = keep[1]; US.q = keep[2]; US.all = keep[3]; }
 }
 const wrCache = {};
@@ -81,10 +295,11 @@ if (wrCache[id] && wrCache[id].k === key) return wrCache[id].v;
 let w = 0; for (let i = 0; i < 24; i++) if (simFight(id, 777 + i * 131).win) w++;
 const v = w / 24; wrCache[id] = { k: key, v: v }; return v;
 }
-function reward(id) {
-const gc = Math.round(C.gcFor(id, false) * 2 + (typeof calculateAutoGcRate === "function" ? calculateAutoGcRate() : 0) * (120 + 6 * id));   // + 2-7 min autogenu
-const scrap = Math.round((typeof getChestScrapCost === "function" ? getChestScrapCost() : 100) * (1 + id / 20));
-const xp = Math.round(C.xpFor(id, false) * 0.5);
+function reward(key) {
+const id = keyId(key), n = keyN(key), x = id + 50 * (n - 1);
+const gc = Math.round(C.gcFor(id, false, n) * 2 + (typeof calculateAutoGcRate === "function" ? calculateAutoGcRate() : 0) * (120 + 6 * Math.min(100, x)));   // + 2-12 min autogenu
+const scrap = Math.round((typeof getChestScrapCost === "function" ? getChestScrapCost() : 100) * (1 + x / 20));
+const xp = Math.round(C.xpFor(id, false, n) * 0.5);
 return { gc: gc, scrap: scrap, xp: xp };
 }
 let lastReport = null;
@@ -105,7 +320,7 @@ gameState.tickets += t; gameState.lifetimeTickets = (gameState.lifetimeTickets |
 c.clickAt = fromC + nc * CLICK_MS;
 const ids = bossesBeaten();
 if (nf && c.target != null && ids.indexOf(c.target) >= 0) {
-const id = c.target, m = C.mission(id); rep.boss = m.enemy.name;
+const id = c.target, m = C.mission(keyId(id), keyN(id)); rep.boss = (keyN(id) > 1 ? "🔺" + keyN(id) + " " : "") + m.enemy.name;
 const wr = winRate(id), r = reward(id);
 for (let i = 0; i < nf; i++) {
 if (Math.random() < wr) { rep.w++; rep.gc += r.gc; rep.scrap += r.scrap; rep.xp += r.xp; if (Math.random() < 0.02) rep.tok++; }
@@ -162,7 +377,7 @@ return;
 }
 work(false);
 const aw = awake(), h = hero(), me = A.hero();
-const sp = window.HSRig ? HSRig.player(c.cls, window.Gear ? Gear.vis(c.gear) : c.gear) : A.sprite(["sysadmin", "engineer", "cyber"].indexOf(c.cls), "p");
+const sp = window.HSRig ? HSRig.player(c.cls, window.Gear ? Gear.vis(c.gear) : c.gear) : A.sprite(A.SPRITE_IDX[c.cls] || 0, "p");
 const head = `<div class="dg-card"><div class="cl-row">${sp}<div style="flex:1;min-width:0;">
 <div class="cl-name">${esc(c.name)}</div>${c.quip ? `<div class="cl-quip">“${esc(c.quip)}”</div>` : ""}
 <div class="dg-dim" style="margin-top:4px;">${H.CLASSES[c.cls].icon} ${H.CLASSES[c.cls].name} · LV ${colLevel()} (80% of yours) · 📚 training ${trainLv()}/${TRAIN_MAX}${trainLv() < TRAIN_MAX ? ` (XP ${fmt(c.xp)}/${fmt(xpToNext(c.level))})` : " MAX"}<br>
@@ -170,21 +385,21 @@ const head = `<div class="dg-card"><div class="cl-row">${sp}<div style="flex:1;m
 Record: ${c.stats.w}W / ${c.stats.l}L · earned ${short(c.stats.gc)} GC · ${fmt(c.stats.clicks)} clicks</div></div></div>
 ${c.named ? `<div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Colleague.rename()">✏ RENAME</button></div>` :
 `<div class="dg-row" style="margin-top:8px;flex-wrap:wrap;"><button class="btn btn-cyan" onclick="Colleague.reroll()">🎲 REROLL NAME</button><button class="btn" onclick="Colleague.rename()">✏ CUSTOM NAME</button>
-${["sysadmin", "engineer", "cyber"].map(k => `<button class="btn ${c.cls === k ? "btn-gold" : ""}" onclick="Colleague.cls('${k}')">${H.CLASSES[k].icon}</button>`).join("")}</div>
+${H.CLASS_IDS.map(k => `<button class="btn ${c.cls === k ? "btn-gold" : ""}" title="${H.CLASSES[k].name}" onclick="Colleague.cls('${k}')">${H.CLASSES[k].icon}</button>`).join("")}</div>
 <div class="dg-dim" style="margin-top:4px;">Name and class lock in after the first training or gear.</div>`}
 <div class="cl-slots">${["w", "a", "h", "t"].map(k => { const p = c.gear[k] && c.gear[k].lv != null ? c.gear[k] : null, P = window.Gear ? Gear.PIECES[k] : { i: "", n: k }; return `<div class="cl-slot"><span style="opacity:.6;">${P.i} ${P.n}</span><b style="color:${p ? Gear.RAR[p.r].c : "var(--text-muted)"};">${p ? esc(Gear.name(k, p)) : "nothing yet"}</b>${p ? `<button class="btn" style="padding:2px 6px;font-size:11px;margin-top:3px;" onclick="Gear.fromCol('${k}')">↩ Take back</button>` : ""}</div>`; }).join("")}</div>
 ${window.Gear ? Gear.colGiveHtml(c) : ""}</div>`;
 if (!aw) {
 box.innerHTML = head + `<div class="dg-card cl-sleep"><div class="big">💤</div><div style="font:800 13px Orbitron,monospace;color:var(--text-dim);margin:6px 0;">${esc(c.name)} is still sleeping...</div>
-<div class="dg-dim">Your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS).enemy.name)}</b> (chapter 3 boss) to get them to work. You can still train them and give them gear.</div></div>` + trainHtml(c);
+<div class="dg-dim">Your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS).enemy.name)}</b> (chapter 3 boss) in any campaign to get them to work. You can still train them and give them gear.</div></div>` + trainHtml(c);
 return;
 }
 const ids = bossesBeaten();
 const tgt = c.target != null && ids.indexOf(c.target) >= 0 ? c.target : null;
 const nextF = tgt != null ? Math.max(0, FIGHT_MS - (Date.now() - c.fightAt)) : 0;
-const bosses = ids.slice().reverse().map(id => {
-const m = C.mission(id), wr = winRate(id), r = reward(id), col = wr >= 0.7 ? "var(--emerald)" : wr >= 0.35 ? "var(--amber)" : "var(--crimson)";
-return `<div class="cl-boss ${tgt === id ? "sel" : ""}" onclick="Colleague.target(${id})"><span class="ic">${m.enemy.icon}</span><div class="t"><b>${esc(m.enemy.name)}</b><span class="dg-dim">win: +${short(r.gc)} GC · +${short(r.scrap)} scrap · +${fmt(r.xp)} XP</span></div><span class="wr" style="color:${col};">${Math.round(wr * 100)}%</span></div>`;
+const bosses = ids.slice().reverse().slice(0, 30).map(id => {
+const m = C.mission(keyId(id), keyN(id)), wr = winRate(id), r = reward(id), col = wr >= 0.7 ? "var(--emerald)" : wr >= 0.35 ? "var(--amber)" : "var(--crimson)";
+return `<div class="cl-boss ${tgt === id ? "sel" : ""}" onclick="Colleague.target(${id})"><span class="ic">${m.enemy.icon}</span><div class="t"><b>${keyN(id) > 1 ? "🔺" + keyN(id) + " " : ""}${esc(m.enemy.name)} · LV ${m.level}</b><span class="dg-dim">win: +${short(r.gc)} GC · +${short(r.scrap)} scrap · +${fmt(r.xp)} XP</span></div><span class="wr" style="color:${col};">${Math.round(wr * 100)}%</span></div>`;
 }).join("") || `<div class="dg-dim">Beat some elites or bosses in the campaign first.</div>`;
 box.innerHTML = head + `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>🎯 BOSS TO FARM</span><span class="dg-dim">${tgt != null ? "next fight in " + A.fmtT(nextF) : "pick one"}</span></div>
 <div class="dg-dim" style="margin-bottom:6px;">One fight every 20 min (no energy), win chance on the right. Harder bosses pay more but ${esc(c.name)} wins less often. Every 30 s they also resolve a ticket with your click power. Works while you're away for up to 8 h.</div>${bosses}</div>
@@ -338,63 +553,5 @@ window.Gate = { apply: apply };
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
 </script>
-<style>
-/* ===== v9.6 EXTRAS: Boss key, Hotfix Mines, Loterie, Akcie, návštěvy kanceláře ===== */
-/* --- boss key: nudná tabulka --- */
-#bk-sheet { position: fixed; inset: 0; z-index: 100000; display: none; flex-direction: column; background: #fff; color: #202124; font: 13px Arial, Helvetica, sans-serif; user-select: none; }
-#bk-sheet.open { display: flex; }
-#bk-sheet .bk-top { display: flex; align-items: center; gap: 10px; padding: 8px 12px 4px; }
-#bk-sheet .bk-ic { width: 26px; height: 32px; border-radius: 3px; background: #0f9d58; position: relative; flex: none; }
-#bk-sheet .bk-ic::after { content: ""; position: absolute; left: 6px; right: 6px; top: 10px; bottom: 8px; border: 2px solid #fff; border-width: 2px 0; box-shadow: inset 0 6px 0 -4px #fff; }
-#bk-sheet .bk-title { font-size: 18px; color: #202124; }
-#bk-sheet .bk-menu { display: flex; gap: 14px; font-size: 13px; color: #444; padding: 0 12px 6px 48px; }
-#bk-sheet .bk-tool { height: 34px; margin: 0 8px; border-radius: 20px; background: #edf2fa; display: flex; align-items: center; gap: 12px; padding: 0 14px; color: #444; font-size: 13px; }
-#bk-sheet .bk-fx { display: flex; align-items: center; gap: 8px; border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; margin-top: 6px; padding: 3px 8px; font-size: 13px; }
-#bk-sheet .bk-fx .nm { width: 70px; border-right: 1px solid #e0e0e0; color: #444; }
-#bk-sheet .bk-grid { flex: 1; overflow: auto; }
-#bk-sheet table { border-collapse: collapse; table-layout: fixed; }
-#bk-sheet td, #bk-sheet th { border: 1px solid #e2e3e3; height: 21px; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
-#bk-sheet th { background: #f8f9fa; color: #5f6368; font-size: 11px; text-align: center; position: sticky; top: 0; z-index: 1; }
-#bk-sheet th.rn { position: sticky; left: 0; z-index: 2; }
-#bk-sheet td.rn { background: #f8f9fa; color: #5f6368; text-align: center; font-size: 11px; position: sticky; left: 0; }
-#bk-sheet td.sel { outline: 2px solid #1a73e8; outline-offset: -2px; }
-#bk-sheet tr.hd td:not(.rn) { font-weight: 700; background: #f3f3f3; }
-#bk-sheet .ok { color: #188038; } #bk-sheet .bad { color: #d93025; }
-#bk-sheet .bk-tabs { display: flex; gap: 2px; background: #f8f9fa; border-top: 1px solid #e0e0e0; padding: 4px 8px; font-size: 13px; }
-#bk-sheet .bk-tabs span { padding: 4px 14px; color: #444; } #bk-sheet .bk-tabs span.on { background: #e8f0fe; color: #1a73e8; border-radius: 4px 4px 0 0; }
-.bk-btn { padding: 4px 8px !important; font-size: 11px !important; opacity: .55; }
-/* --- mines --- */
-.mn-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 330px; margin: 8px auto; }
-.mn-c { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .12s, background .15s; }
-.mn-c:hover:not(.on) { transform: translateY(-1px); background: #23304a; }
-.mn-c.on { cursor: default; }
-.mn-c.safe { background: rgba(0,255,136,.12); border-color: rgba(0,255,136,.45); }
-.mn-c.bug { background: rgba(255,23,68,.18); border-color: var(--crimson); }
-.mn-c.ghost { opacity: .45; }
-.mn-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: center; }
-.mn-row .btn.sel { outline: 2px solid var(--amber); }
-.mn-info { text-align: center; font-size: 13px; color: var(--text-dim); margin-top: 6px; }
-.mn-info b { color: var(--text-main); }
-/* --- lottery --- */
-.lt-nums { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-width: 420px; margin: 8px auto; }
-.lt-n { aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); font: 700 13px 'Space Grotesk', sans-serif; color: var(--text-main); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.lt-n.on { background: var(--amber); color: #111; border-color: var(--amber); }
-.lt-ball { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center; background: var(--amber); color: #111; font-weight: 700; margin: 0 2px; font-size: 12px; }
-.lt-ball.dim { background: var(--bg-panel-elevated); color: var(--text-main); border: 1px solid var(--border-subtle); }
-.lt-pool { text-align: center; font-size: 28px; font-weight: 700; color: var(--amber); margin: 4px 0; }
-/* --- stocks --- */
-.sk-list { display: grid; gap: 6px; }
-.sk-row { display: grid; grid-template-columns: 1fr 96px auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); }
-.sk-row b { font-size: 14px; } .sk-row .sym { font-size: 11px; color: var(--text-dim); }
-.sk-row svg { width: 96px; height: 34px; }
-.sk-px { text-align: right; font-weight: 700; } .sk-ch { font-size: 11px; text-align: right; }
-.sk-act { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
-.sk-act .btn { padding: 3px 7px; font-size: 11px; }
-.sk-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin: 6px 0; } .sk-sum b { color: var(--text-main); }
-@media (max-width: 600px) { .sk-row { grid-template-columns: 1fr auto; } .sk-row svg { display: none; } }
-/* --- návštěva kanceláře --- */
-#ir-visit .rm { margin: 8px 0; }
-#ir-visit .vs-act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-</style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part19"] = 1;</script>
 <!-- END-OF-FILE: part19 -->

@@ -1,6 +1,137 @@
+<script type="text/plain" data-tt="ttbig2" data-i="2">const PVP_ATK = ["strike", "heavy", "gamble", "ult"];
+/** d = stav duelu: dva bojovníci, střídají se v útoku. V jednom půlkole volí útočník útok a obránce naslepo reakci. */
+function duelNew(A, B, seed) {
+const R = rng(seed || 1);
+const c = [A, B];
+const pv = (h) => PVP.dmg[h.cls] || 1;
+let first = A.firstStrike && !B.firstStrike ? 0 : B.firstStrike && !A.firstStrike ? 1 : (R() < 0.5 ? 0 : 1);
+const mA = Math.round(A.maxHp * PVP.hp), mB = Math.round(B.maxHp * PVP.hp);
+const d = { R: R, c: c, hp: [mA, mB], max: [mA, mB], pv: [pv(A), pv(B)], sta: [100, 100], foc: [30, 30], sh: [0, 0], sure: [false, false], chan: [0, 0], mark: [false, false],
+rev: [false, false], streak: [0, 0], vuln: [false, false], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
+d.armor = [clamp(A.armor / (B.level * 100), 0, A.armorCap), clamp(B.armor / (A.level * 100), 0, B.armorCap)];
+d.dodge = [A.dodge > 0 ? Math.min(0.75, A.dodge + (A.cls === "cyber" ? 0.3 * clamp(A.main / Math.max(1, B.main) - 0.5, 0, 1) : 0)) : 0,
+B.dodge > 0 ? Math.min(0.75, B.dodge + (B.cls === "cyber" ? 0.3 * clamp(B.main / Math.max(1, A.main) - 0.5, 0, 1) : 0)) : 0];
+return d;
+}
+function dEv(d, type, x) { const e = Object.assign({ t: d.turn, i: d.atk, type: type, hp: d.hp.slice(), sh: d.sh.slice() }, x || {}); d.events.push(e); return e; }
+function duelAtkOk(d, i, a) { if (a === "strike") return true; if (a === "heavy") return d.sta[i] >= 30; if (a === "gamble") return d.sta[i] >= 20; if (a === "ult") return d.foc[i] >= 100; return false; }
+function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.foc[i] >= h.dodgeCost; if (r === "channel") return d.foc[i] >= 30; return true; }
+function dHurt(d, i, v) {
+v = Math.max(0, Math.round(v)); const s = Math.min(d.sh[i], v); d.sh[i] -= s; d.hp[i] -= v - s;
+if (v > 0) d.foc[i] = Math.min(100, d.foc[i] + 8);
+const h = d.c[i];
+if (d.hp[i] <= 0 && h.revive && !d.rev[i]) { d.rev[i] = true; if (d.R() < h.revive) { d.hp[i] = Math.round(d.max[i] * 0.3); dEv(d, "revive", { who: i, val: d.hp[i] }); } }
+return v;
+}
+function dHit(d, a, b, mult, o) {
+o = o || {};
+const A = d.c[a], B = d.c[b];
+let m = mult * (d.chan[a] || 1) * (d.mark[a] ? 1 + (A.mark || 0) : 1) * (d.vuln[b] ? 1.5 : 1) * ((d.pv && d.pv[a]) || 1);
+d.vuln[b] = false;
+const sure = d.sure[a]; if (sure) d.sure[a] = false;
+const r = rawHit(d.R, A, Object.assign({}, B, { armorRed: o.ignoreArmor ? 0 : d.armor[b] }), { mult: m, crit: sure ? true : undefined, critMul: o.critMul });
+return r;
+}
+/** jedno půlkolo: útočník d.atk dá útok a, obránce reaguje r. opt.t timing (živý duel: bez mini-her, HEAVY = 1.7×) */
+function duelHalf(d, a, r, opt) {
+if (d.over) return [];
+opt = opt || {};
+const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
+if (!duelAtkOk(d, i, a)) a = "strike";
+if (!duelReactOk(d, j, r)) r = "brace";
+if (a === "heavy") d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
+if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.foc[j] -= B.dodgeCost; if (r === "channel") d.foc[j] -= 30;
+if (r === "brace") { d.sta[j] = Math.min(100, d.sta[j] + 10); d.foc[j] = Math.min(100, d.foc[j] + 10); }
+d.streak[j] = r === "dodge" ? d.streak[j] + 1 : 0;
+let hits = [], kind = a, label = ATTACKS[a].name, ignoreArmor = false, critMul = 1, gres = null, healSelf = 0;
+if (a === "strike") hits = A.double ? [0.6, 0.6] : [1];
+else if (a === "heavy") hits = A.double ? [0.6 * 1.7, 0.6 * 1.7] : [opt.t === "perfect" ? 2.2 : 1.7];
+else if (a === "gamble") {
+const reels = (function () { const f0 = { h: A, R: R }; return spinReels(f0); })();
+gres = reelResult(reels); gres.reels = reels;
+if (gres.bf) { const s = dHurt(d, i, estDmg(A, A.level) * gres.self); dEv(d, "bf", { val: s, reels: reels }); hits = []; }
+else { hits = gres.mult > 0 ? [gres.mult] : []; if (gres.heal) healSelf = Math.round(d.max[i] * gres.heal); d.foc[i] = Math.min(100, d.foc[i] + gres.foc); }
+} else if (a === "ult") {
+d.foc[i] = 0;
+if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3), hh = Math.round(d.max[i] * 0.05); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); healSelf = 0; hits = [1.4]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh }); }
+else if (A.cls === "engineer") { hits = [3.2]; critMul = 2; }
+else if (A.cls === "cyber") { hits = [2.8]; ignoreArmor = true; d.chan[j] = 0; }
+else if (A.cls === "blood") { hits = [2.6]; }
+else hits = [0.9, 0.9, 0.9, 0.9];
+}
+const magic = A.cls === "engineer";
+let total = 0, anyCrit = false, outcome = "hit", saved = 0, counter = 0;
+if (hits.length) {
+if (r === "dodge") {
+const ch = magic ? 0 : Math.max(0, d.dodge[j] * Math.pow(0.8, d.streak[j] - 1));
+if (R() < ch) { outcome = "dodge"; d.foc[j] = Math.min(100, d.foc[j] + 10); if (B.cls === "cyber") d.sure[j] = true; hits = []; }
+else outcome = magic ? "nododge" : "dodgefail";
+}
+if (r === "channel") { d.chan[j] = 1.6; outcome = "channel"; }
+const red = r === "block" ? B.block * (a === "strike" ? 1 : 0.5) : r === "channel" ? 0.25 : 0;
+hits.forEach(m => {
+const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul });
+const v = h0.v * (1 - red); saved += h0.v - v; total += dHurt(d, j, v); if (h0.crit) anyCrit = true;
+});
+if (hits.length) d.chan[i] = 0;
+if (a === "ult" && A.cls === "cyber") d.vuln[j] = true;
+if (r === "block" && hits.length) { outcome = "block"; if (a === "strike" && B.counter) { const c0 = dHit(d, j, i, B.counter, {}); counter = dHurt(d, i, c0.v); } }
+if (A.lifesteal && total) healSelf += Math.round(total * A.lifesteal);
+if (a === "ult" && A.cls === "blood") healSelf += Math.round(total * 0.6);
+if (A.mark) d.mark[i] = true;
+}
+if (healSelf) d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf);
+if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null });
+if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
+d.half++;
+if (d.half % 2 === 0) { for (let k = 0; k < 2; k++) { d.sta[k] = Math.min(100, d.sta[k] + 15); d.foc[k] = Math.min(100, d.foc[k] + 10); } d.turn++; }
+d.atk = j;
+if (d.skipNext === j) { d.skipNext = -1; dEv(d, "stun", { who: j }); d.half++; if (d.half % 2 === 0) d.turn++; d.atk = i; }
+if (d.turn > 30) return duelEnd(d, d.hp[0] / d.max[0] >= d.hp[1] / d.max[1] ? 0 : 1, start, "time");
+return d.events.slice(start);
+}
+function duelEnd(d, w, start, why) { d.over = true; d.win = w; d.hp = d.hp.map(x => Math.max(0, x)); dEv(d, "end", { win: w, why: why || "ko" }); return d.events.slice(start); }
+/** AI v duelu: útočí podle stavu, reaguje naslepo (neví, co soupeř zvolí) */
+function duelAiAtk(d, i, R, style) {
+if (duelAtkOk(d, i, "ult")) return "ult";
+const st = d.sta[i], h = d.c[i], reserve = h.block > 0 ? h.blockCost : 0;
+if (style === "allin" && st >= 20 && R() < 0.35) return "gamble";
+if (st - 30 >= reserve && (st >= 70 || R() < 0.4)) return "heavy";
+if (style !== "safe" && st - 20 >= reserve + 10 && R() < 0.12) return "gamble";
+return "strike";
+}
+function duelAiReact(d, j, R, style) {
+const h = d.c[j], opp = d.c[1 - j], heavyLikely = d.sta[1 - j] >= 70 || d.foc[1 - j] >= 100;
+if (h.cls === "sysadmin") return duelReactOk(d, j, "block") ? "block" : "brace";
+if (h.dodge > 0 && opp.cls !== "engineer" && duelReactOk(d, j, "dodge") && (heavyLikely || d.foc[j] >= 80) && d.foc[j] < 100 - (style === "safe" ? 0 : 5)) return "dodge";
+if (h.cls === "blood" && duelReactOk(d, j, "block") && d.sta[j] >= 55) return "block";
+if (h.canChannel && duelReactOk(d, j, "channel") && d.foc[j] < 60) return "channel";
+return "brace";
+}
+function duelAI(A, B, seed, sa, sb) {
+const d = duelNew(A, B, seed), R = rng((seed || 1) * 13 + 5), st = [sa || "normal", sb || "normal"];
+let g = 0;
+while (!d.over && g++ < 200) {
+const i = d.atk, j = 1 - i;
+duelHalf(d, duelAiAtk(d, i, R, st[i]), duelAiReact(d, j, R, st[j]), { t: R() < 0.25 ? "perfect" : "good" });
+}
+return { win: d.win === 0, first: d.first, events: d.events, max: d.max, turns: d.turn };
+}
+const api = { rng: rng, CLASSES: CLASSES, CLASS_IDS: CLASS_IDS, ATTACKS: ATTACKS, REACTS: REACTS, ACTIONS: ACTIONS, ITEMS: ITEMS, MAX_ITEMS_PER_FIGHT: MAX_ITEMS_PER_FIGHT,
+statPoints: statPoints, typical: typical, buildHero: buildHero, buildEnemy: buildEnemy, estDmg: estDmg, critOf: critOf, rawHit: rawHit, ARCH: ARCH, KIND: KIND,
+newFight: newFight, attack: attack, react: react, step: step, allowed: allowed, allowedAtk: allowedAtk, allowedReact: allowedReact, hasReact: hasReact, reactsOf: reactsOf, isDmgIntent: isDmgIntent, useItem: useItem,
+stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, bonusText: bonusText, FORM_NO: FORM_NO,
+simulate: simulate, autoAttack: autoAttack, autoReact: autoReact, autoPolicy: autoAttack, autoOpt: autoOpt, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, timingRoll: timingRoll,
+reelResult: reelResult, gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM,
+card: card, fromCard: fromCard, PVP: PVP, stdHero: stdHero, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
+if (typeof module !== "undefined" && module.exports) module.exports = api;
+else root.HSEngine = api;
+})(typeof window !== "undefined" ? window : this);
+</script>
+<script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig2"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
 <script>
 /**
-* HIGH STAKES - kampaň: 5 kapitol × 10 misí + tajná mise. Staty nepřátel ladí simulace (STATS níže).
+* HIGH STAKES - kampaň: 5 kapitol × 10 misí + tajná mise. v11: síla nepřítele = jeho level (HSEngine.buildEnemy), kampaň N = +40 levelů.
 */
 (function (root) {
 "use strict";
@@ -32,9 +163,9 @@ const CH = [
 { n: "Compliance Audit Incoming!", e: "Compliance Vanguard", i: "📋", p: "caster", k: "compliance", mech: "compliance", b: { type: "noGamble" }, t: "This time it's REAL. Compliance Control is coming to inspect the server room. Their Vanguard brings forms - comply or drown in red tape." },
 { n: "Rogue Cron Job", e: "Cron Job at 3 AM", i: "⏰", p: "brute", b: { type: "crits", n: 2 }, t: "It runs every night at 3:00 and deletes something important." },
 { n: "Memory Leak", e: "Java Heap Monster", i: "🧠", p: "caster", mech: "drain", b: { type: "skill" }, t: "It eats RAM. Then it eats your stamina. Then it eats your soul." },
-{ n: "Hey Dan, Listen", e: "The Cobol", i: "🥟", p: "caster", mech: "cobol", k: "elite", x: [0.8, 0.8], b: { type: "noBlock" }, t: "\"Hey Dan, listen...\" Older than the mainframe and it still runs. He will offer you bryndza (answer with BLOCK) and throw halušky at you." },
-{ n: "The Gym Rack", e: "The Pookie (The E)", i: "🤘", p: "boss", mech: "pookie", k: "mini", b: { type: "perfectBlock", n: 2 }, t: "Black T-shirt. Blast beats. Bulking season never ends. Every 3rd turn he flexes - block the HEAVY that follows!" },
-{ n: "BOSS: The Italian Guy", e: "The Italian Guy", i: "🤌", p: "boss", mech: "italian", k: "boss", x: [1.1, 1.15], b: { type: "perfectPower" }, t: "\"Relax, mamma mia... first we eat, then we fight.\" He ties your moves into SPAGHETTI CODE and at half HP takes a PASTA BREAK (BREAK him to stop it). Land a PERFECT Power Strike - he loves it al dente." }
+{ n: "Hey Dan, Listen", e: "The Cobol", i: "🥟", p: "caster", mech: "cobol", k: "elite", x: [0.8, 0.8], b: { type: "noBlock" }, t: "\"Hey Dan, listen...\" Older than the mainframe and it still runs. He will offer you bryndza (answer with BREATHE - \"yes, thanks\") and throw halušky at you." },
+{ n: "The Gym Rack", e: "The Pookie (The E)", i: "🤘", p: "boss", mech: "pookie", k: "mini", b: { type: "perfectBlock", n: 2 }, t: "Black T-shirt. Blast beats. Bulking season never ends. Every 3rd round he flexes - get ready for the HEAVY that follows!" },
+{ n: "BOSS: The Italian Guy", e: "The Italian Guy", i: "🤌", p: "boss", mech: "italian", k: "boss", x: [1.1, 1.15], b: { type: "perfectPower" }, t: "\"Relax, mamma mia... first we eat, then we fight.\" He ties your moves into SPAGHETTI CODE and at half HP takes a PASTA BREAK (BREAK him to stop it). Land a PERFECT HEAVY - he loves it al dente." }
 ] },
 { name: "Security Breach", icon: "🛡", desc: "Someone clicked the link. Of course someone clicked the link.", missions: [
 { n: "Phishing Mail", e: "Nigerian Prince", i: "🎣", p: "normal", b: { type: "noGamble" }, t: "\"Dear Sir, kindly verify your password.\" Karen from accounting already did." },
@@ -45,8 +176,8 @@ const CH = [
 { n: "Crypto Miner", e: "Crypto-Miner Trojan", i: "⛏", p: "caster", mech: "drain", b: { type: "crits", n: 3 }, t: "The CPU is at 100% and the electricity bill tripled." },
 { n: "Zero-Day", e: "Zero-Day Broker", i: "🕵", p: "normal", b: { type: "skill" }, t: "He sells your vulnerabilities on the dark web. With a loyalty program." },
 { n: "Lateral Movement", e: "Insider Threat", i: "🥷", p: "brute", k: "elite", b: { type: "hp", pct: 60 }, t: "It's coming from INSIDE the network." },
-{ n: "Encrypted Files", e: "Ransomware Executive", i: "🔒", p: "boss", mech: "ransom", k: "mini", b: { type: "perfectPower" }, t: "He encrypts your moves. A Power Strike decrypts everything." },
-{ n: "BOSS: Da Polishen", e: "Da Polishen", i: "🇵🇱", p: "boss", mech: "polishen", k: "boss", b: { type: "hp", pct: 50 }, t: "\"So guys... about the withdrawals...\" Every 4th turn: THE WITHDRAWAL FROM YOUR LIFE (takes 20% of your HP - only PARRY or DODGE stops it). She cuts your payroll and audits you for using the same move twice." }
+{ n: "Encrypted Files", e: "Ransomware Executive", i: "🔒", p: "boss", mech: "ransom", k: "mini", b: { type: "perfectPower" }, t: "He encrypts your moves. A HEAVY hit decrypts everything." },
+{ n: "BOSS: Da Polishen", e: "Da Polishen", i: "🇵🇱", p: "boss", mech: "polishen", k: "boss", b: { type: "hp", pct: 50 }, t: "\"So guys... about the withdrawals...\" Every 4th round: THE WITHDRAWAL FROM YOUR LIFE (takes 20% of your HP - only a PARRY or a DODGE stops it). She cuts your payroll and audits you for using the same move twice." }
 ] },
 { name: "Cloud Migration", icon: "☁", desc: "\"It's just someone else's computer.\" - the CTO, before the outage.", missions: [
 { n: "Lift And Shift", e: "Monolith Fragment", i: "🧱", p: "turtle", b: { type: "noGamble" }, t: "We moved the old mess to the cloud. Now it's an expensive old mess." },
@@ -58,7 +189,7 @@ const CH = [
 { n: "Deprecated API", e: "Breaking Change", i: "🧩", p: "brute", b: { type: "hp", pct: 60 }, t: "v1 is shut down tomorrow. Everything still uses v1." },
 { n: "Unstable Staging", e: "Staging Environment", i: "🧪", p: "caster", mech: "drain", k: "elite", b: { type: "noBlock" }, t: "Works on staging! (It doesn't work on staging either.)" },
 { n: "Prompt Injection", e: "Rogue LLM Agent", i: "🤖", p: "boss", mech: "llm", k: "mini", b: { type: "jackpot" }, t: "It hallucinates its own intentions. Some of what it shows you is a lie (marked ?)." },
-{ n: "BOSS: The Supreme Louis", e: "The Supreme Louis", i: "🫅", p: "boss", mech: "louis", k: "boss", x: [1.15, 1.35], b: { type: "perfectPower", n: 2 }, t: "\"¡Hola! The Supreme Leader has entered the chat.\" Every 5th turn he takes a SIESTA (+50% damage!) and wakes up with a HEAVY. FLAMENCO makes him hard to hit and he issues SUPREME DECREES." }
+{ n: "BOSS: The Supreme Louis", e: "The Supreme Louis", i: "🫅", p: "boss", mech: "louis", k: "boss", x: [1.15, 1.35], b: { type: "perfectPower", n: 2 }, t: "\"¡Hola! The Supreme Leader has entered the chat.\" Every 5th round he takes a SIESTA (your next hit +50%!) and wakes up with a HEAVY. FLAMENCO makes him hard to hit and he issues SUPREME DECREES." }
 ] },
 { name: "The Boardroom", icon: "🏦", desc: "The top floor. Glass walls. Expensive chairs. Final level.", missions: [
 { n: "Mandatory Fun", e: "Team Building Coordinator", i: "🎉", p: "normal", b: { type: "noGamble" }, t: "Trust falls at 8 AM. Attendance is mandatory." },
@@ -74,21 +205,7 @@ const CH = [
 ] }
 ];
 const SECRET = { n: "They Finally Came.", e: "The Compliance Control", i: "📋", p: "boss", mech: "audit_final", k: "secret", b: { type: "hp", pct: 30 },
-t: "Email from Compliance Control: \"We're finally coming tomorrow.\" ...They actually came. Every turn they audit one of your actions and forbid it." };
-let STATS = [[233,55.4],[240,57.2],[292,69.1],[387,94.8],[510,50.8],[415,94.3],[427,115.4],[629,132.6],[792,163.7],[1091,130.1],[602,131.6],[673,174.7],[747,196.8],[1059,196.2],[1285,130.6],[915,228.9],[992,267.5],[1377,270.7],[1645,323.9],[2168,189.1],[1250,270.6],[1333,292.1],[1373,376.8],[1875,410.8],[2107,204.5],[1562,433.4],[1649,361],[2234,470.1],[2609,596.4],[3424,462.6],[1934,444.9],[2025,537.5],[2117,559.1],[2840,634.8],[3180,314.5],[2270,518],[2363,627.3],[3159,834.6],[3534,495],[4770,495.9],[2663,601.7],[2759,753.6],[2855,889.3],[3691,754.7],[2967,926.2],[3064,842.1],[4065,781.9],[4122,661.2],[4601,889.6],[6162,772.8],[7320,577.8]];   // v8.2: přeladěno (nová stamina, gear s klesajícím přínosem, nižší win rate)
-function setStats(t) { STATS = t; }
-/** v8.6.1: obecně o něco těžší nepřátelé (+10 %) + kampaň a tower +25 % za každou prestiž (lineárně) */
-const BASE_HP = 1.06, BASE_ATK = 1.08;
-let PRESTIGE = 0;
-function setPrestige(p) { PRESTIGE = Math.max(0, Math.floor(Number(p) || 0)); }
-function prestigeMult() { return 1 + 0.25 * PRESTIGE; }
-/** v10.1: prestiž přitvrzuje jen když misi přerosteš - na jejím levelu je stejně těžká na P0 i P9, plný bonus +25 %/prestiž o 20 levelů výš */
-let LEVEL = 1;
-function setLevel(L) { LEVEL = Math.max(1, Math.floor(Number(L) || 1)); }
-function refAt(x) { x = Math.max(0, x); return x <= 50 ? REF[Math.min(50, Math.floor(x))] : REF[50] + (x - 50) / 0.6; }
-/** v10.1: první kapitola je mírnější pro čerstvé postavy (mise 0 ×0.75 -> mise 10 ×1) */
-function ease(id) { return 0.75 + 0.25 * Math.min(1, id / 10); }
-function pmAt(ref) { return 1 + 0.25 * PRESTIGE * Math.max(0, Math.min(1, (LEVEL - ref) / 20)); }
+t: "Email from Compliance Control: \"We're finally coming tomorrow.\" ...They actually came. Every round they audit one of your moves and forbid it." };
 function all() {
 const out = [];
 CH.forEach((c, ci) => c.missions.forEach((m, mi) => out.push(Object.assign({ ch: ci, idx: mi, id: ci * 10 + mi }, m))));
@@ -96,109 +213,74 @@ out.push(Object.assign({ ch: 5, idx: 0, id: 50 }, SECRET));
 return out;
 }
 const LIST = all();
-const PAT = P;
-function mission(id) {
-const m = LIST[id]; if (!m) return null;
-const s = STATS && STATS[id] ? STATS[id] : [60 + 40 * id, 6 + 2 * id];
-return {
-id: id, ch: m.ch, idx: m.idx, name: m.n, intro: m.t, kind: m.k || "normal", bonus: m.b,
-survive: m.survive || 0, surviveMsg: "",
-energy: m.k === "boss" || m.k === "secret" ? 2 : 1,
-enemy: { name: m.e, icon: m.i, hp: Math.round(s[0] * BASE_HP * pmAt(REF[id]) * ease(id) * (m.x ? m.x[0] : 1)), atk: Math.round(s[1] * BASE_ATK * pmAt(REF[id]) * ease(id) * (m.x ? m.x[1] : 1) * 10) / 10, pattern: Object.assign({}, PAT[m.p] || PAT.normal), mech: m.mech || "", sprite: id }
-};
-}
-function xpFor(id, first) { return Math.round((40 + 25 * id) * (first ? 1 : 0.4)); }
-function gcFor(id, first) { return Math.round((300 + 120 * Math.pow(id + 1, 1.7)) * (first ? 1 : 0.35)); }
+const ASC_LV = 40;
+const ARCH_OF = { normal: "bal", brute: "glass", turtle: "tank", caster: "spec", boss: "bal" };
+function mLevel(id, n) { n = Math.max(1, n | 0 || 1); return (id >= 50 ? 41 : 1 + Math.round(0.8 * id)) + ASC_LV * (n - 1); }
+function deceiveOf(n) { return n >= 5 ? 0.2 : n >= 3 ? 0.12 : 0; }
+function ease(id, n) { return n > 1 ? 1 : 0.8 + 0.2 * Math.min(1, id / 10); }
 function xpToNext(L) { return 60 + 40 * L; }
+const KMUL = { normal: 1, compliance: 1, elite: 1.25, mini: 1.4, boss: 1.7, secret: 2, world: 1 };
+/** XP a GC podle levelu nepřítele (stejné pro kampaň, tower, pool, směnu) */
+function xpAt(L, kind) { return Math.round(xpToNext(L) * 0.85 * (KMUL[kind] || 1)); }
+function gcAt(L, kind) { return Math.round((300 + 120 * Math.pow(1.25 * L, 1.7)) * (KMUL[kind] || 1)); }
+function spec(src, level, kind, extra) {
+return Object.assign({ name: src.e, icon: src.i, level: level, kind: kind, arch: src.mech && kind !== "boss" && kind !== "secret" ? "spec" : (ARCH_OF[src.p] || "bal"),
+pattern: Object.assign({}, P[src.p] || P.normal), mech: src.mech || "", sprite: src.id, hpM: src.x ? src.x[0] : 1, dmgM: src.x ? src.x[1] : 1 }, extra || {});
+}
+function mission(id, n) {
+const m = LIST[id]; if (!m) return null;
+n = Math.max(1, n | 0 || 1);
+const kind = m.k || "normal", L = mLevel(id, n), b = Object.assign({}, m.b);
+if (b.type === "turns") b.n = Math.max(5, b.n - 2);
+const e = spec(m, L, kind);
+e.hpM *= ease(id, n); e.dmgM *= ease(id, n);
+return { id: id, n: n, ch: m.ch, idx: m.idx, name: m.n, intro: m.t, kind: kind, bonus: b, survive: 0, surviveMsg: "", deceive: deceiveOf(n),
+energy: kind === "boss" || kind === "secret" ? 2 : 1, level: L, enemy: H().buildEnemy(e) };
+}
+function H() { return root.HSEngine || (typeof HSEngine !== "undefined" ? HSEngine : require("./hs_engine.js")); }
+function xpFor(id, first, n) { const m = LIST[id]; return Math.round(xpAt(mLevel(id, n), (m && m.k) || "normal") * (first ? 1 : 0.3)); }
+function gcFor(id, first, n) { const m = LIST[id]; return Math.round(gcAt(mLevel(id, n), (m && m.k) || "normal") * (first ? 1 : 0.35)); }
+/** levelToX - starý "index síly" (0-50) pro zpětnou kompatibilitu */
+function refLevel(id) { return mLevel(Math.max(0, Math.min(50, id | 0)), 1); }
+function levelToX(L) { return Math.max(0, Math.min(50, (L - 1) / 0.8)); }
 const BOSS_SLOT = { 9: "HEAD", 19: "RIG", 29: "OS", 39: "AUGMENT", 49: "TOOL", 50: "RELIC" };
-/** očekávaný level hráče u mise id (podle XP z prvních průchodů) */
-function refLevel(id) { let xp = 0; for (let k = 0; k < id; k++) xp += xpFor(k, true); let L = 1; while (xp >= xpToNext(L)) { xp -= xpToNext(L); L++; } return L; }
-const REF = []; for (let i = 0; i <= 50; i++) REF.push(refLevel(i));
-/** "index síly" (0-50, desetinný) odpovídající levelu hráče */
-function levelToX(L) { if (L <= REF[0]) return 0; for (let i = 1; i <= 50; i++) if (REF[i] > L) return i - 1 + (L - REF[i - 1]) / Math.max(1, REF[i] - REF[i - 1]); return 50 + (L - REF[50]) * 0.6; }
-const NORMALS = LIST.filter(m => (m.k || "normal") === "normal").map(m => m.id);
-/** HP/ATK běžného nepřítele síly x (interpolace mezi normal misemi, nad 50 dál roste) */
-function strength(x) {
-const st = (id) => (STATS && STATS[id]) || [60 + 40 * id, 6 + 2 * id];
-if (x <= NORMALS[0]) return st(NORMALS[0]);
-for (let i = 1; i < NORMALS.length; i++) {
-const a = NORMALS[i - 1], b = NORMALS[i];
-if (x <= b) { const t = (x - a) / (b - a), A = st(a), B = st(b); return [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]; }
-}
-const last = st(NORMALS[NORMALS.length - 1]), k = Math.pow(1.06, x - NORMALS[NORMALS.length - 1]);
-return [last[0] * k, last[1] * k];
-}
-function enemyFrom(src, x, hpM, atkM, extra) {
-const s0 = strength(x);
-return Object.assign({ name: src.e, icon: src.i, hp: Math.round(s0[0] * hpM * BASE_HP), atk: Math.round(s0[1] * atkM * BASE_ATK * 10) / 10,
-pattern: Object.assign({}, P[src.p] || P.normal), mech: src.mech || "", sprite: src.id }, extra || {});
-}
 const BOSSES = LIST.filter(m => m.k === "boss" || m.k === "secret");
-/** v8.6: ADMINISTRATOR - finální boss toweru (patro 100), odemyká Clear The Pool */
 const ADMIN = { id: 51, n: "Floor 100: The Administrator", e: "The Administrator", i: "🕶", p: "boss", mech: "admin", k: "boss",
-t: "\"Access denied. I am the Administrator.\" ROOT ACCESS locks one of your moves every turn. At half HP he tries a FORCE RESTART (BREAK him to cancel it). Below 25% HP: sudo rm -rf every 3rd turn - PARRY it." };
-/** tematičtí bossové (všichni) - tower, Clear The Pool, týdenní rotace. Hodnota = id mise v kampani. */
-const THEMED = [9, 18, 19, 17, 29, 39, 28, 38, 49, 50];      // Great I, Pookie, Italian, Cobol, Polishen, Louis, Ransomware, LLM, Massi, Compliance
+t: "\"Access denied. I am the Administrator.\" ROOT ACCESS locks one of your moves every round. At half HP he tries a FORCE RESTART (BREAK him to cancel it). Below 25% HP he charges sudo rm -rf - HEAVY to interrupt or PARRY it." };
+const THEMED = [9, 18, 19, 17, 29, 39, 28, 38, 49, 50];
 const TOWER_BOSS = { 10: 9, 20: 18, 30: 19, 40: 17, 50: 29, 60: 39, 70: 28, 80: 38, 90: 49, 95: 50, 100: "admin" };
 function srcOf(id) { return id === "admin" ? ADMIN : LIST[id]; }
-/** SERVER TOWER: 100 pater, každé 5. elite, každých 10 (+ patro 95) boss, patro 100 Administrator. v8.6.1: +25 % za prestiž. */
-function towerFloor(f) {
-f = Math.max(1, Math.min(100, f | 0));
-const x = (f - 1) * 0.55, boss = !!TOWER_BOSS[f], elite = !boss && f % 5 === 0;
+/** SERVER TOWER: 100 pater (level 1 -> 46), tier T = +40 levelů. */
+function towerLevel(f, t) { return 1 + Math.round(0.45 * (Math.max(1, f) - 1)) + ASC_LV * (Math.max(1, t | 0 || 1) - 1); }
+function towerFloor(f, t) {
+f = Math.max(1, Math.min(100, f | 0)); t = Math.max(1, t | 0 || 1);
+const boss = !!TOWER_BOSS[f], elite = !boss && f % 5 === 0, adm = f === 100;
 const pool = LIST.filter(m => (m.k || "normal") === "normal" || m.k === "elite");
 const src = boss ? srcOf(TOWER_BOSS[f]) : pool[(f * 7) % pool.length];
-const kind = boss ? "boss" : elite ? "elite" : "normal";
-const pm = pmAt(refAt(x)), adm = f === 100;
-const e = enemyFrom(src, x, (adm ? 2.5 : boss ? 2.6 : elite ? 1.35 : 1) * pm, (adm ? 1.15 : boss ? 1.1 : elite ? 1.1 : 1) * pm);
+const kind = boss ? "boss" : elite ? "elite" : "normal", L = towerLevel(f, t);
+const e = spec(src, L, kind, { hpM: adm ? 1.2 : 1, dmgM: 1 });
 if (boss) { e.name = adm ? "The Administrator" : "Floor " + f + " Guardian: " + src.e; e.pattern = Object.assign({}, P.boss); }
 if (!boss && src.mech === "compliance") e.mech = "";
-return { id: 1000 + f, floor: f, ch: Math.min(4, Math.floor((f - 1) / 20)), idx: f - 1, name: adm ? "Floor 100 - THE ADMINISTRATOR" : "Floor " + f + (boss ? " - BOSS" : elite ? " - ELITE" : ""),
-intro: src.t, kind: kind, bonus: { type: "hp", pct: 50 }, survive: 0, energy: 1, enemy: e };
+return { id: 1000 + f, floor: f, tier: t, ch: Math.min(4, Math.floor((f - 1) / 20)), idx: f - 1, name: (t > 1 ? "T" + t + " · " : "") + (adm ? "Floor 100 - THE ADMINISTRATOR" : "Floor " + f + (boss ? " - BOSS" : elite ? " - ELITE" : "")),
+intro: src.t, kind: kind, bonus: { type: "hp", pct: 50 }, survive: 0, energy: 1, level: L, deceive: deceiveOf(t), enemy: H().buildEnemy(e) };
 }
-/** typická postava levelu L (staty rozdělené rovnoměrně, střední gear) - kotva, ke které se síla nepřítele táhne */
-function refHero(L) {
-L = Math.max(1, L | 0); const pts = 3 * (L - 1), g = 1.5;
-return { atk: (8 + 2.2 * (5 + pts * 0.4) + 1.2 * (L - 1)) * g, maxHp: (80 + 12 * (5 + pts * 0.35) + 8 * (L - 1)) * g };
-}
-function pull(v, ref) { v = Math.max(1, v || 1); ref = Math.max(1, ref || v); return Math.pow(v, 0.75) * Math.pow(ref, 0.25); }
-/** typy nepřátel: [HP, ATK] - tank vydrží, glass cannon bolí, specialista má mechaniku */
-const ARCH = { tank: [1.55, 0.72, "🛡 Tank"], glass: [0.62, 1.42, "🗡 Glass cannon"], bal: [1, 1, ""], spec: [0.85, 0.9, "✨ Specialist"] };
-function archOf(src) { if (src.mech) return "spec"; return ["tank", "glass", "bal"][(src.id | 0) % 3]; }
-function jit(seed, k) { let a = ((seed | 0) * 2654435761 + k * 40503) >>> 0; a ^= a >>> 15; a = Math.imul(a, 2246822519) >>> 0; a ^= a >>> 13; return 0.85 + ((a >>> 0) % 1000) / 1000 * 0.3; }
-/** ON-CALL SHIFT (roguelite). me = { atk, maxHp } tvé postavy (bez perků); bez me = starý výpočet podle levelu. */
-function shiftEnemy(L, node, step, asc, seed, me) {
-if (me && me.atk && me.maxHp) return shiftEnemy2(L, node, step, asc, seed, me);
-return shiftEnemyOld(L, node, step, asc, seed);
-}
-function shiftEnemy2(L, node, step, asc, seed, me) {
-const ref = refHero(L), atk = pull(me.atk, ref.atk), hp = pull(me.maxHp, ref.maxHp);
-const curve = 0.72 + 0.58 * Math.min(1, Math.max(0, step) / 9);          // začátek směny ~60-70 %, boss ~130 %
-const ha = 1 + 0.07 * asc, aa = 1 + 0.05 * asc;
-let src, kind, km;
-if (node === "boss") { src = srcOf(THEMED[seed % THEMED.length]); kind = "boss"; km = [2.0, 1.05]; }
-else { const pool = LIST.filter(m => (m.k || "normal") === (node === "elite" ? "elite" : "normal")); src = pool[seed % pool.length]; kind = node === "elite" ? "elite" : "normal"; km = node === "elite" ? [1.4, 1.15] : [1, 1]; }
-const ar = kind === "boss" ? "bal" : archOf(src), A = ARCH[ar];
-const e = { name: kind === "boss" ? "SHIFT BOSS: " + src.e : src.e, icon: src.i, sprite: src.id, pattern: Object.assign({}, kind === "boss" ? P.boss : (P[src.p] || P.normal)), mech: src.mech || "",
-hp: Math.max(10, Math.round(atk * 5.2 * curve * km[0] * A[0] * ha * jit(seed, 1))),
-atk: Math.max(1, Math.round(hp * 0.062 * curve * km[1] * A[1] * aa * jit(seed, 2) * 10) / 10), arch: A[2] };
+/** "typická postava" levelu L (kompatibilita) */
+function refHero(L) { const h = H().stdHero("sysadmin", Math.max(1, L | 0)); return { atk: h.atk, maxHp: h.maxHp }; }
+function jit(seed, k) { let a = ((seed | 0) * 2654435761 + k * 40503) >>> 0; a ^= a >>> 15; a = Math.imul(a, 2246822519) >>> 0; a ^= a >>> 13; return 0.9 + ((a >>> 0) % 1000) / 1000 * 0.2; }
+/** ON-CALL SHIFT (roguelite): nepřátelé tvého levelu, začátek o 3 levely níž, boss o 2 výš; ascension +3 levely a +5 % HP */
+function shiftEnemy(L, node, step, asc, seed) {
+L = Math.max(1, L | 0); asc = asc | 0;
+let src, kind;
+if (node === "boss") { src = srcOf(THEMED[seed % THEMED.length]); kind = "boss"; }
+else { const pool = LIST.filter(m => (m.k || "normal") === (node === "elite" ? "elite" : "normal")); src = pool[seed % pool.length]; kind = node === "elite" ? "elite" : "normal"; }
+const lv = Math.max(1, L - 3 + Math.round(5 * Math.min(1, Math.max(0, step) / 9)) + 3 * asc);
+const e = spec(src, lv, kind, { hpM: (1 + 0.05 * asc) * jit(seed, 1), dmgM: jit(seed, 2) });
+if (kind === "boss") { e.name = "SHIFT BOSS: " + src.e; e.pattern = Object.assign({}, P.boss); e.arch = "bal"; }
 if (kind !== "boss" && e.mech === "compliance") e.mech = "";
-return { id: 2000 + step, name: e.name, intro: (A[2] ? A[2] + ". " : "") + (src.t || ""), kind: kind, bonus: {}, survive: 0, enemy: e };
+const en = H().buildEnemy(e);
+return { id: 2000 + step, name: en.name, intro: (en.archName ? en.archName + ". " : "") + (src.t || ""), kind: kind, bonus: {}, survive: 0, level: lv, deceive: deceiveOf(1 + Math.floor(asc / 2)), enemy: en };
 }
-function shiftEnemyOld(L, node, step, asc, seed) {
-const x = levelToX(L) + step * 0.2, ha = 1 + 0.07 * asc, aa = 1 + 0.05 * asc, F = [0.52, 0.46];
-const pool = LIST.filter(m => (m.k || "normal") === (node === "elite" ? "elite" : "normal"));
-if (node === "boss") {
-const src = srcOf(THEMED[seed % THEMED.length]);
-const e = enemyFrom(src, x, F[0] * 2.6 * ha, F[1] * 1.05 * aa);
-return { id: 2000 + step, name: "SHIFT BOSS: " + src.e, intro: src.t, kind: "boss", bonus: {}, survive: 0, enemy: e };
-}
-const src = pool[seed % pool.length];
-const m = node === "elite" ? [F[0] * 1.4, F[1] * 1.15] : F;
-const e = enemyFrom(src, x, m[0] * ha, m[1] * aa);
-if (e.mech === "compliance") e.mech = "";
-return { id: 2000 + step, name: src.e, intro: src.t, kind: node === "elite" ? "elite" : "normal", bonus: {}, survive: 0, enemy: e };
-}
-/** WORLD BOSS (Quarterly Review): týdenní boss, 10 kol, počítá se damage. */
+/** WORLD BOSS (Quarterly Review): týdenní boss, 15 kol, počítá se damage. */
 const WB = [
 { e: "The Great \"I\" (Annual Edition)", i: "🔠", mech: "great_i", src: 9, t: "Hello fighters, how are you?" },
 { e: "The Pookie (The E) - Bulk Season", i: "🤘", mech: "pookie", src: 18 },
@@ -213,44 +295,43 @@ const WB = [
 { e: "The Administrator (Root Review)", i: "🕶", mech: "admin", src: "admin", t: "Access denied." }
 ];
 function mkName(mk) { return "MK." + (["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][mk] || mk); }
-function worldBoss(idx, L, hpLeft, mk, me) {
+function worldBoss(idx, L, hpLeft, mk) {
 const w = WB[((idx % WB.length) + WB.length) % WB.length], src = srcOf(w.src);
 mk = Math.max(1, mk | 0 || 1);
-const e = enemyFrom(src, levelToX(L), 1, 1 + 0.15 * (mk - 1), { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id });
-if (me && me.maxHp) e.atk = Math.max(1, Math.round(pull(me.maxHp, refHero(L).maxHp) * 0.085 * (1 + 0.15 * (mk - 1)) * 10) / 10);   // v9.4: útok podle tvého HP (dřív exponenciálně podle levelu)
-e.hp = Math.max(1, Math.round(hpLeft));
-e.pattern = Object.assign({}, P.boss);
-return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 turns, deal as much damage as you can.",
-kind: "world", bonus: {}, survive: 0, turnLimit: 15, enemy: e };
+const e = H().buildEnemy(spec(src, Math.max(1, L | 0), "world", { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id, arch: "bal", dmgM: 1.05 * (1 + 0.15 * (mk - 1)), pattern: Object.assign({}, P.boss) }));
+e.maxHp = e.hp = Math.max(1, Math.round(hpLeft));
+return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 rounds, deal as much damage as you can.",
+kind: "world", bonus: {}, survive: 0, turnLimit: 15, level: e.level, enemy: e };
 }
-/** v8.6: CLEAR THE POOL - nekonečná náhodná patra (+6 % za patro), každé 5. elite, každé 25. tematický boss. */
+/** CLEAR THE POOL - nekonečná patra od levelu 46 (+0.8 levelu za patro), každé 5. elite, každé 25. tematický boss. */
 const POOL_MECHS = ["", "", "heal", "drain", "ransom", "llm", "audit"];
+function poolLevel(n) { return 46 + Math.round(0.8 * (Math.max(1, n) - 1)); }
 function poolFloor(n, seed) {
 n = Math.max(1, n | 0);
 const R = (function (a) { return function () { a = (a * 1103515245 + 12345) & 0x7fffffff; return a / 0x7fffffff; }; })(((seed | 0) + n * 7919) & 0x7fffffff || 1);
 for (let i = 0; i < 3; i++) R();
-const boss = n % 25 === 0, elite = !boss && n % 5 === 0;
-const k = 1 + 0.06 * (n - 1);                     // +6 % základní síly za patro
+const boss = n % 25 === 0, elite = !boss && n % 5 === 0, L = poolLevel(n);
 let src, e;
-if (boss) {
-src = srcOf(THEMED.concat(["admin"])[(n / 25 - 1) % (THEMED.length + 1)]);
-e = enemyFrom(src, 45, 2.0 * k, 1.05 * k);
-e.pattern = Object.assign({}, P.boss);
-} else {
+if (boss) { src = srcOf(THEMED.concat(["admin"])[(n / 25 - 1) % (THEMED.length + 1)]); e = spec(src, L, "boss", { pattern: Object.assign({}, P.boss) }); }
+else {
 const pool = LIST.filter(m => (m.k || "normal") === "normal" || m.k === "elite");
 src = pool[Math.floor(R() * pool.length)];
-e = enemyFrom(src, 45, (elite ? 1.4 : 1) * k, (elite ? 1.12 : 1) * k);
+e = spec(src, L, elite ? "elite" : "normal");
 const mech = POOL_MECHS[Math.floor(R() * POOL_MECHS.length)];
 e.mech = mech || (src.mech === "compliance" ? "" : src.mech || "");
+if (e.mech) { e.arch = "spec"; if (!e.pattern.special) e.pattern.special = 2; }
 if (e.mech === "audit") e.pattern.special = Math.max(2, e.pattern.special || 0);
-if (e.mech && !e.pattern.special) e.pattern.special = 2;
 }
 const ticket = 1000 + Math.floor(R() * 9000);
-const name = boss ? "POOL BOSS: " + src.e : "Ticket #" + ticket + ": " + src.e;
-return { id: 4000 + n, floor: n, name: name, intro: src.t, kind: boss ? "boss" : elite ? "elite" : "normal", bonus: {}, survive: 0, enemy: e };
+e.name = boss ? "POOL BOSS: " + src.e : "Ticket #" + ticket + ": " + src.e;
+return { id: 4000 + n, floor: n, name: e.name, intro: src.t, kind: boss ? "boss" : elite ? "elite" : "normal", bonus: {}, survive: 0, level: L, deceive: n >= 50 ? 0.12 : 0, enemy: H().buildEnemy(e) };
 }
-const api = { CHAPTERS: CH, LIST: LIST, mission: mission, setStats: setStats, xpFor: xpFor, gcFor: gcFor, xpToNext: xpToNext, COUNT: 51,
-BOSS_SLOT: BOSS_SLOT, setPrestige: setPrestige, setLevel: setLevel, pmAt: pmAt, prestigeMult: prestigeMult, ADMIN: ADMIN, THEMED: THEMED, TOWER_BOSS: TOWER_BOSS, poolFloor: poolFloor, srcOf: srcOf, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, shiftEnemy: shiftEnemy, refHero: refHero, WB: WB, worldBoss: worldBoss, mkName: mkName };
+function strength(x) { const e = H().buildEnemy({ level: 1 + Math.round(0.8 * x), kind: "normal" }); return [e.maxHp, e.atk]; }
+const REF = []; for (let i = 0; i <= 50; i++) REF.push(refLevel(i));
+const api = { CHAPTERS: CH, LIST: LIST, mission: mission, xpFor: xpFor, gcFor: gcFor, xpAt: xpAt, gcAt: gcAt, xpToNext: xpToNext, COUNT: 51, mLevel: mLevel, ASC_LV: ASC_LV,
+BOSS_SLOT: BOSS_SLOT, setPrestige: function () {}, setLevel: function () {}, setStats: function () {}, pmAt: function () { return 1; }, prestigeMult: function () { return 1; }, ADMIN: ADMIN, THEMED: THEMED, TOWER_BOSS: TOWER_BOSS,
+poolFloor: poolFloor, poolLevel: poolLevel, srcOf: srcOf, refLevel: refLevel, levelToX: levelToX, strength: strength, towerFloor: towerFloor, towerLevel: towerLevel, shiftEnemy: shiftEnemy, refHero: refHero,
+WB: WB, worldBoss: worldBoss, mkName: mkName, REF: REF, deceiveOf: deceiveOf };
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 else root.HSCampaign = api;
 })(typeof window !== "undefined" ? window : this);

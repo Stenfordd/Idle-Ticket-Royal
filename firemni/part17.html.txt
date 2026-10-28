@@ -22,26 +22,29 @@ t: { n: "Trinket", i: "📎", names: ["Paper Clip", "Cardboard Badge", "Wooden R
 const KEYS = ["w", "a", "h", "t"], UMAX = 10, BAG_MAX = 20, POOL_QUANTUM = 50;
 function tierOf(it) { return Math.max(0, Math.min(7, Math.floor((it.lv || 1) / 14))); }
 function name(k, it) { return it ? RAR[it.r].n + " " + PIECES[it.s || k].names[tierOf(it)] + (it.u ? " +" + it.u : "") : "-"; }
-/** síla kusu: % ATK / HP podle levelu itemu, rarity a +upgradu */
-function pw(it) { return (0.05 + (it.lv || 1) * 0.011) * RAR[it.r].k * (1 + 0.07 * (it.u || 0)); }
-function fx(it) {
-const p = pw(it), k = RAR[it.r].k, lv = it.lv || 1, o = { atk: 0, hp: 0, crit: 0, main: 0, vit: 0, luck: 0 };
-if (it.s === "w") { o.atk = p; o.main = Math.round(lv * 0.25 * k); }
-else if (it.s === "a") { o.hp = p; o.vit = Math.round(lv * 0.3 * k); }
-else if (it.s === "h") { o.hp = p * 0.5; o.main = Math.round(lv * 0.2 * k); }
-else { o.atk = p * 0.3; o.hp = p * 0.3; o.crit = 0.01 + it.r * 0.008; o.luck = Math.round(lv * 0.2 * k); }
+/** v11 (High Stakes 2.0): pevné staty jako v SFGame. Zbraň = damage, zbroj = armor, všechno dává staty. Kus nad tvůj level + 10 se počítá jako level + 10. */
+function heroLv() { try { return Math.max(1, (A.HS().level | 0) || 1); } catch (e) { return 999; } }
+function effLv(it, L) { return Math.max(1, Math.min(it.lv || 1, (L || heroLv()) + 10)); }
+function kOf(it) { return RAR[it.r].k * (1 + 0.07 * (it.u || 0)); }
+function fx(it, L) {
+const k = kOf(it), lv = effLv(it, L), o = { wpn: 0, armor: 0, crit: 0, main: 0, vit: 0, luck: 0, capped: lv < (it.lv || 1) };
+if (it.s === "w") { o.wpn = Math.round((6 + 2 * lv) * k * 10) / 10; o.main = Math.round(lv * 0.5 * k); }
+else if (it.s === "a") { o.armor = Math.round(20 * lv * k); o.vit = Math.round(lv * 1.0 * k); }
+else if (it.s === "h") { o.main = Math.round(lv * 0.6 * k); o.vit = Math.round(lv * 0.5 * k); }
+else { o.luck = Math.round(lv * 0.8 * k); o.main = Math.round(lv * 0.4 * k); o.crit = it.r * 0.005; }
 return o;
 }
-function score(it) { if (!it) return 0; const o = fx(it); return o.atk * 100 + o.hp * 90 + o.crit * 400 + o.main * 0.9 + o.vit * 0.6 + o.luck * 0.4; }
-function fxText(it) {
-const o = fx(it), t = [];
-if (o.atk) t.push(`+${Math.round(o.atk * 100)}% ATK`); if (o.hp) t.push(`+${Math.round(o.hp * 100)}% HP`);
+function score(it, L) { if (!it) return 0; const o = fx(it, L); return o.wpn * 3 + o.armor * 0.06 + o.crit * 300 + o.main * 1.2 + o.vit * 0.9 + o.luck * 0.6; }
+function fxText(it, L) {
+const o = fx(it, L), t = [];
+if (o.wpn) t.push(`⚔ ${o.wpn} damage`); if (o.armor) t.push(`🛡 ${o.armor} armor`);
 if (o.main) t.push(`+${o.main} main stat`); if (o.vit) t.push(`+${o.vit} VIT`); if (o.luck) t.push(`+${o.luck} LUCK`); if (o.crit) t.push(`+${(o.crit * 100).toFixed(1)}% crit`);
-return t.join(" · ");
+return t.join(" · ") + (o.capped ? ` <span style="color:var(--amber);">(counts as LV ${effLv(it, L)} until you level up)</span>` : "");
 }
-function multOf(eq) {
-const m = { atk: 1, hp: 1, crit: 0, stats: { main: 0, vit: 0, luck: 0 } };
-KEYS.forEach(k => { const it = eq && eq[k]; if (!it || it.lv == null) return; const o = fx(it); m.atk += o.atk; m.hp += o.hp; m.crit += o.crit; m.stats.main += o.main; m.stats.vit += o.vit; m.stats.luck += o.luck; });
+/** součet výbavy pro HSEngine.buildHero: { wpn, armor, crit, stats } ; L = level nositele (kolega má svůj) */
+function multOf(eq, L) {
+const m = { wpn: 0, armor: 0, crit: 0, stats: { main: 0, vit: 0, luck: 0 }, atk: 1, hp: 1 };
+KEYS.forEach(k => { const it = eq && eq[k]; if (!it || it.lv == null) return; const o = fx(it, L); m.wpn += o.wpn; m.armor += o.armor; m.crit += o.crit; m.stats.main += o.main; m.stats.vit += o.vit; m.stats.luck += o.luck; });
 return m;
 }
 function upCost(it) { return Math.round(150 * Math.pow(it.lv || 1, 1.45) * RAR[it.r].k * Math.pow(1.35, it.u || 0)); }
@@ -62,13 +65,11 @@ return g;
 }
 function vis(eq) { const o = {}; ["w", "a", "t"].forEach(k => { const it = eq && eq[k]; o[k] = { m: it && it.lv != null ? Math.max(0, Math.min(7, tierOf(it) + (it.r >= 3 ? 1 : 0))) : (it && it.m) || 0 }; }); return o; }
 function mult() { return multOf(st().eq); }
+/** v11: level předmětu = level nepřítele (bossové +2, Pool +3) */
 function lvFor(m) {
-const d = A.HS(), P = gameState.prestige || 0, id = m && m.id != null ? m.id : 0;
-if (id < 1000) return Math.round(id + 2 + 4 * P);
-if (id < 2000) return Math.round(10 + (id - 1000) * 0.55 + 4 * P);
-if (id < 3000) return Math.max(1, Math.round(d.level * 0.9));
-if (id < 4000) return Math.max(1, Math.round(d.level * 0.9));
-return Math.round(65 + (id - 4000) * 0.7 + 4 * P);
+const d = A.HS(), id = m && m.id != null ? m.id : 0;
+const L = m && m.enemy && m.enemy.level ? m.enemy.level : m && m.level ? m.level : d.level;
+return Math.max(1, Math.round(L + (m && (m.kind === "boss" || m.kind === "secret") ? 2 : 0) + (id >= 4000 && id < 5000 ? 3 : 0)));
 }
 function rollR(kind) {
 const w = [56, 27, 12, 4, 1]; let r = 0, x = Math.random() * 100;
@@ -83,7 +84,7 @@ if (!m) return null;
 const kind = m.kind || "normal", id = m.id || 0;
 const ch = kind === "boss" || kind === "secret" ? 1 : kind === "elite" ? 0.6 : id >= 4000 ? 0.4 : 0.3;
 if (Math.random() > ch) return null;
-const g = st(), s = KEYS[Math.floor(Math.random() * KEYS.length)];
+const g = st(), s = KEYS[Math.floor(Math.random() * KEYS.length)];   // v11: level předmětu podle nepřítele
 const it = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), s: s, r: rollR(kind), lv: lvFor(m), u: 0 };
 let where = "bag";
 if (!g.eq[s]) { g.eq[s] = it; where = "equipped"; }
@@ -150,8 +151,8 @@ function after() { st(); TT.saveSoon(); if (typeof updateUI === "function") upda
 /** v10.1: startovní výbava Season 2 (Rare zbraň + brnění LV 5) do prázdných slotů */
 function starter() {
 const g = st(); let n = 0;
-["w", "a"].forEach(k => { if (!g.eq[k]) { g.eq[k] = { id: "kit" + k + Date.now().toString(36), s: k, r: 1, lv: 5, u: 0 }; n++; } });
-if (n) { st(); log("⚒ Starter kit: a Rare weapon and armor (LV 5) are waiting in your HIGH STAKES gear.", "special"); TT.saveSoon(); }
+["w", "a"].forEach(k => { if (!g.eq[k]) { g.eq[k] = { id: "kit" + k + Date.now().toString(36), s: k, r: 1, lv: 3, u: 0 }; n++; } });
+if (n) { st(); log("⚒ Starter kit: a Rare weapon and armor (LV 3) are waiting in your HIGH STAKES gear.", "special"); TT.saveSoon(); }
 return n;
 }
 function onPrestige() { /* v10: gear přežívá prestiž, nové dropy jsou ale silnější (+4 LV itemů za prestiž) */ }
@@ -182,10 +183,10 @@ function card() {
 const g = st(), m = multOf(g.eq);
 return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span class="dg-dim">GC: ${short(gameState.coins)}</span></div>
 <div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
-<div class="gr-sum"><span>ATK <b>×${m.atk.toFixed(2)}</b></span><span>HP <b>×${m.hp.toFixed(2)}</b></span><span>Main stat <b>+${m.stats.main}</b></span><span>VIT <b>+${m.stats.vit}</b></span><span>LUCK <b>+${m.stats.luck}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
+<div class="gr-sum"><span>Weapon <b>${m.wpn ? m.wpn.toFixed(1) : "fists"}</b></span><span>Armor <b>${fmt(m.armor)}</b></span><span>Main stat <b>+${m.stats.main}</b></span><span>VIT <b>+${m.stats.vit}</b></span><span>LUCK <b>+${m.stats.luck}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
 <div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()">♻ Salvage all weaker</button>` : ""}</div>
 ${bagHtml()}
-<div class="dg-dim" style="margin-top:8px;">Gear drops from fights: higher chapters, tower floors and Pool floors drop higher-level items (+4 levels per prestige). Rarity: Common → Rare → Epic → Legendary → Mythic. "Main stat" goes to your class's main stat (STR / INT / AGI). Upgrade up to +${UMAX} with GC; give spare pieces to your colleague in the COLLEAGUE tab.</div></div>`;
+<div class="dg-dim" style="margin-top:8px;">Items drop at the level of the enemy that dropped them (bosses +2, Pool +3). Weapon = your damage, armor = less damage taken, every piece gives flat stats. "Main stat" always goes to your class's main stat (STR / AGI / INT). An item above your level + 10 only counts as level + 10 until you catch up. Rarity Common → Mythic ×1 / 1.25 / 1.55 / 1.9 / 2.4, each upgrade +7% (max +${UMAX}). Give spare pieces to your colleague in the COLLEAGUE tab.</div></div>`;
 }
 window.Gear = { st: st, mult: mult, multOf: multOf, vis: vis, up: up, equip: equip, salvage: salvage, salvageWorse: salvageWorse, drop: drop, starter: starter, toCol: toCol, fromCol: fromCol, colGiveHtml: colGiveHtml, card: card, onPrestige: onPrestige, affordable: affordable,
 convert: () => ({}), score: score, fx: fx, name: name, MATS: MATS, RAR: RAR, PIECES: PIECES, upCost: upCost, POOL_QUANTUM: POOL_QUANTUM, lvFor: lvFor };
@@ -199,12 +200,12 @@ TT.onLoaded(() => { try { st(); } catch (e) { console.error(e); } });
 /* HIGH STAKES - ARÉNA (PvP proti uloženým postavám, počítá server) + karta hráče z leaderboardu */
 (function () {
 "use strict";
-const A = window.HS_API, H = window.HSEngine, E = window.DungeonEngine;
+const A = window.HS_API, H = window.HSEngine;
 const $ = (id) => document.getElementById(id);
 const fmt = A.fmt, fmtT = A.fmtT, anim = A.anim, float = A.float, sprite = A.sprite, playerSprite = A.playerSprite;
 const STANCE_TXT = { safe: ["SAFE", "careful AI"], normal: ["NORMAL", "balanced AI"], allin: ["ALL-IN", "gambler AI"] };
 const arena = { data: null, loading: false, err: "", atkStance: "normal", replay: null, timer: 0, busy: false };
-const CLS_IDX = { sysadmin: 0, engineer: 1, cyber: 2 };
+const CN = (c) => (H.CLASSES[c] || {}).name || "", CI = (c) => (H.CLASSES[c] || {}).icon || "";
 function arenaLoad() {
 if (arena.loading) return;
 arena.loading = true; arena.err = "";
@@ -222,7 +223,7 @@ function arenaHtml() {
 const d = A.HS(), a = arena.data;
 if (arena.replay) return arenaReplayHtml();
 const me = a ? a.me : null;
-const myPow = E.power(A.player());
+const myPow = H.power(A.hero());
 let opp = "";
 if (!a) opp = `<div class="dg-dim">${arena.err ? "⚠ " + escapeHtml(arena.err) : "Loading opponents..."}</div>`;
 else if (!a.opponents.length) opp = `<div class="dg-dim">No opponents yet. Your friends need a HIGH STAKES class first.</div>`;
@@ -231,8 +232,8 @@ const ratio = o.power / Math.max(1, myPow);
 const tag = ratio > 1.25 ? `<span style="color:var(--crimson);">STRONGER</span>` : ratio < 0.8 ? `<span style="color:var(--emerald);">WEAKER</span>` : `<span style="color:var(--amber);">EVEN</span>`;
 const cd = o.cooldown > 0;
 const can = me && me.left > 0 && !cd && !arena.busy;
-return `<div class="dg-art"><div style="width:44px;flex:none;">${sprite(CLS_IDX[o.cls] || 0, "p").replace('class="dg-sprite"', 'class="dg-sprite" style="width:40px;height:40px;margin:0;"')}</div>
-<div class="t">${typeof presenceDot === "function" ? presenceDot(o) : ""}<b>${escapeHtml(o.nick)}</b> · ${E.CLASSES[o.cls] ? E.CLASSES[o.cls].icon : ""} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
+return `<div class="dg-art"><div style="width:44px;flex:none;">${A.classSprite(o.cls).replace('class="dg-sprite', 'style="width:40px;height:40px;margin:0;" class="dg-sprite')}</div>
+<div class="t">${typeof presenceDot === "function" ? presenceDot(o) : ""}<b>${escapeHtml(o.nick)}</b> · ${CI(o.cls)} ${escapeHtml(CN(o.cls))} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
 <div class="dg-dim">${escapeHtml(o.title || "")} · power ${fmt(o.power)} ${tag} · missions ${o.best}/51 · ${o.wins}W/${o.losses}L</div></div>
 <button class="btn ${can ? "btn-crimson" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.arenaAttack('${escapeHtml(o.nick).replace(/'/g, "")}')">${cd ? "⏳ " + fmtT(o.cooldown) : "⚔ ATTACK"}</button></div>`;
 }).join("");
@@ -247,8 +248,8 @@ return `<div class="dg-grid2">
 <div class="dg-stances" style="margin:0;">${stanceBtns(arena.atkStance, "arenaAtkStance")}</div>
 <div class="dg-h" style="margin-top:10px;">DEFENSE STANCE <span class="dg-dim" style="font-family:inherit;">(used when others attack you)</span></div>
 <div class="dg-stances" style="margin:0;">${stanceBtns(d.arenaStance, "arenaDefStance")}</div>
-<div class="dg-dim" style="margin-top:8px;">Fights are simulated by the server with your <b>saved</b> gear, HIGH STAKES level and class - your friends fight your build even when you are offline.
-Win = honor + GC. Same opponent once per 20 min. Honor works like chess Elo: beating stronger players gives more.</div></div>
+<div class="dg-dim" style="margin-top:8px;">An AI plays both of you with the same 1v1 rules as your fights (attack, then the other side reacts blind), using your <b>saved</b> stats and gear - your friends fight your build even when you are offline.
+Stance = how your AI plays: SAFE heavies less and never gambles, ALL-IN gambles a lot. Win = honor + GC. Same opponent once per 20 min. Honor works like chess Elo. Want to play it yourself? Challenge a friend in ⚔ DUEL.</div></div>
 <div class="dg-card"><div class="dg-h">RECENT FIGHTS</div>${log}</div>
 </div>
 <div class="dg-card"><div class="dg-h"><span>OPPONENTS</span><span class="dg-dim">sorted by honor</span></div>${opp}</div>`;
@@ -277,12 +278,12 @@ saveGame(() => go());                      // nejdřív uložit aktuální build
 function arenaReplayHtml() {
 const rp = arena.replay, r = rp.r, d = A.HS();
 return `<div class="dg-arena" id="dg-arena">
-<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${E.CLASSES[d.cls].name} · ${STANCE_TXT[arena.atkStance][0]}</div>
+<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${escapeHtml(CN(d.cls))} · ${STANCE_TXT[arena.atkStance][0]}</div>
 <div id="ar-a">${playerSprite()}</div>
 <div class="dg-bar"><div class="hp-p" id="ar-ahp" style="width:100%"></div><div class="sh" id="ar-ash" style="width:0%"></div></div><div class="dg-hpt" id="ar-ahpt"></div></div>
 <div class="dg-vs">VS</div>
-<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(r.opp.nick)}</div><div class="dg-sub">${E.CLASSES[r.opp.cls] ? E.CLASSES[r.opp.cls].name : ""} LV ${r.opp.level} · ${STANCE_TXT[r.defStance][0]}</div>
-<div id="ar-b">${sprite(CLS_IDX[r.opp.cls] || 0, "p")}</div>
+<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(r.opp.nick)}</div><div class="dg-sub">${escapeHtml(CN(r.opp.cls))} LV ${r.opp.level} · ${STANCE_TXT[r.defStance][0]}</div>
+<div id="ar-b">${A.classSprite(r.opp.cls)}</div>
 <div class="dg-bar"><div class="hp-b" id="ar-bhp" style="width:100%"></div><div class="sh" id="ar-bsh" style="width:0%"></div></div><div class="dg-hpt" id="ar-bhpt"></div></div>
 </div>
 <div class="dg-mech" id="ar-res">${r.first === 0 ? "You strike first!" : escapeHtml(r.opp.nick) + " strikes first!"}</div>
@@ -299,28 +300,36 @@ set("ar-ash", rp.sh[0] / m[0] * 100); set("ar-bsh", rp.sh[1] / m[1] * 100);
 const a = $("ar-ahpt"); if (a) a.textContent = fmt(rp.hp[0]) + " / " + fmt(m[0]);
 const b = $("ar-bhpt"); if (b) b.textContent = fmt(rp.hp[1]) + " / " + fmt(m[1]);
 }
+const RX = { block: "blocked", dodgefail: "dodge failed", nododge: "can't dodge magic", channel: "channeled" };
 function arenaLine(e) {
-const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">T${e.t}</span> `;
-if (e.type === "hit") return [T + `${nm(e.i)} ${e.kind === "jp" ? "🎰 <b>JACKPOT</b>" : "hit"} <b>${fmt(e.val)}</b> (${e.mult}×)${e.rev ? " - 🔌 POWER CYCLE!" : ""}`, e.i === 0 ? (e.kind === "jp" ? "y" : "g") : "r"];
-if (e.type === "bf") return [T + `💥 ${nm(e.i)} BACKFIRED for ${fmt(e.val)}`, e.i === 0 ? "r" : "g"];
-if (e.type === "dodge") return [T + `🌀 ${nm(1 - e.i)} dodged`, e.i === 0 ? "r" : "c"];
-if (e.type === "reflect") return [T + `${nm(e.i)} reflected ${fmt(e.val)}`, "c"];
-if (e.type === "heal") return [T + `${nm(e.i)} healed ${fmt(e.val)}`, "g"];
-if (e.type === "dot") return [T + `Zero-day payload ticks ${fmt(e.val)}`, "c"];
+const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">R${e.t}</span> `, i = e.i, j = 1 - e.i, good = (k) => k === 0 ? "g" : "r";
+if (e.type === "hit") {
+const lab = e.a === "gamble" ? "🎰 " + (e.reels ? e.reels.join("") : "") + (e.jp ? " <b>JACKPOT</b>" : "") : e.a === "ult" ? "✨ " + escapeHtml((H.CLASSES[(i === 0 ? A.HS().cls : r.opp.cls)] || {}).skill || "ULTIMATE") : e.a === "heavy" ? "💥 HEAVY" : "⚔ STRIKE";
+const rx = RX[e.outcome] ? ` (${nm(j)} ${RX[e.outcome]}${e.saved ? " " + fmt(e.saved) : ""})` : "";
+return [T + `${nm(i)}: ${lab} for <b>${fmt(e.val)}</b>${e.crit ? " - CRIT" : ""}${rx}${e.counter ? ` · ⚔ counter ${fmt(e.counter)}` : ""}${e.heal ? ` · ❤ +${fmt(e.heal)}` : ""}`, good(i)];
+}
+if (e.type === "dodge") return [T + `💨 ${nm(j)} dodged ${i === 0 ? "your" : nm(i) + "'s"} ${e.a === "heavy" ? "HEAVY" : e.a === "ult" ? "ultimate" : "attack"}`, j === 0 ? "c" : "r"];
+if (e.type === "bf") return [T + `💀 ${nm(i)} BACKFIRED for ${fmt(e.val)}`, i === 0 ? "r" : "g"];
+if (e.type === "ult") return [T + `✨ ${nm(i)}: ${escapeHtml(e.a)} - +${fmt(e.shield)} shield, +${fmt(e.heal)} HP`, good(i)];
+if (e.type === "revive") return [T + `🩸 ${nm(e.who)} rises again with ${fmt(e.val)} HP!`, e.who === 0 ? "g" : "r"];
+if (e.type === "stun") return [T + `😵 ${nm(e.who)} is stunned`, e.who === 0 ? "r" : "g"];
+if (e.type === "end") return [T + (e.why === "time" ? "⏱ Time is up - more HP left wins." : "🏁 K.O."), "y"];
 return [T + e.type, ""];
 }
 function arenaApply(e, animate) {
 const rp = arena.replay;
-rp.hp = e.hp.slice(); rp.sh = e.sh.slice();
+if (e.hp) rp.hp = e.hp.slice(); if (e.sh) rp.sh = e.sh.slice();
 const ln = arenaLine(e); rp.lines.unshift(ln);
 const el = $("ar-log"); if (el) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
 if (animate && !document.hidden) {
-const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a";
-if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit") anim(def, "hit"); }
+const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a", dSide = e.i === 0 ? "b" : "p", aSide = e.i === 0 ? "p" : "b";
+if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit" && e.val) anim(def, "hit"); }
 if (e.type === "bf") anim(atk, "hit");
-const side = (e.type === "hit" || e.type === "dot") ? (e.i === 0 ? "b" : "p") : (e.type === "bf" || e.type === "heal") ? (e.i === 0 ? "p" : "b") : (e.type === "dodge" ? (e.i === 0 ? "b" : "p") : (e.i === 0 ? "b" : "p"));
-const txt = e.type === "hit" ? (e.kind === "jp" ? "JACKPOT " + fmt(e.val) : fmt(e.val)) : e.type === "bf" ? "BACKFIRE" : e.type === "dodge" ? "DODGE" : e.type === "heal" ? "+" + fmt(e.val) : fmt(e.val || 0);
-float(txt, side, e.type === "hit" ? (e.kind === "jp" ? "#ffb800" : "#ffffff") : e.type === "bf" ? "#ff1744" : e.type === "dodge" ? "#00f0ff" : "#00ff88", e.kind === "jp");
+if (e.type === "hit") { float((e.crit ? "CRIT " : e.jp ? "JACKPOT " : "") + fmt(e.val), dSide, e.jp ? "#ffb800" : e.crit ? "#ffb800" : "#ffffff", e.crit || e.jp); if (e.counter) float("COUNTER " + fmt(e.counter), aSide, "#ff4d6d"); if (e.outcome === "block") float("BLOCK", dSide, "#00f0ff"); }
+else if (e.type === "dodge") float("DODGE", dSide, "#00f0ff", true);
+else if (e.type === "bf") float("BACKFIRE", aSide, "#ff1744", true);
+else if (e.type === "ult") float("+" + fmt(e.shield) + " 🛡", aSide, "#00ff88", true);
+else if (e.type === "revive") float("RISE!", e.who === 0 ? "p" : "b", "#ffb800", true);
 }
 arenaBars();
 }
@@ -360,16 +369,16 @@ el.onclick = (e) => { if (e.target === el) el.remove(); };
 el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
 <h2 style="color:var(--cyan);">${escapeHtml(u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
 <div style="display:flex;gap:12px;align-items:center;">
-${cls ? sprite(["sysadmin", "engineer", "cyber"].indexOf(dg.cls), "p") : '<div style="font-size:48px;">👤</div>'}
+${cls ? A.classSprite(dg.cls) : '<div style="font-size:48px;">👤</div>'}
 <div class="tt-body" style="min-height:0;font-size:13px;">
 ${cls ? `🎰 <b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "Not in HIGH STAKES yet<br>"}
-Missions cleared: <b>${dg.best || 0}/51</b> · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
+Missions cleared: <b>${dg.best || 0}/51</b>${dg.camp > 1 ? " · 🔺 Campaign " + dg.camp : ""}${dg.stars ? " · ⭐ " + dg.stars : ""} · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
 Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
 Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
 ${u.gear ? `<br>Gear: ${u.gear}` : ""}
 ${window.Meta ? Meta.badgesHtml(u.ach) : ""}
 </div></div>
-<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px;">${u.ldap !== gameState.ldap && window.Extras ? `<button class="btn btn-cyan" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();Extras.visit(n)">🏠 VISIT OFFICE</button>` : ""}<button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
+<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px;">${u.ldap !== gameState.ldap && cls && A.HS().cls && window.HSDuel ? `<button class="btn btn-crimson" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();HSDuel.challenge(n)">⚔ DUEL</button>` : ""}${u.ldap !== gameState.ldap && window.Extras ? `<button class="btn btn-cyan" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();Extras.visit(n)">🏠 VISIT OFFICE</button>` : ""}<button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
 document.body.appendChild(el);
 }
 A.registerMode("arena", { label: "🏟 ARENA", order: 90,
