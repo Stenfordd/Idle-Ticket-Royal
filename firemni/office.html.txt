@@ -221,7 +221,7 @@ const me = gameState.ldap || "";
 container.innerHTML = messages.map(m => `
 <div class="chat-row">
 <span class="chat-time">${escapeHtml(m.time || "")}</span>
-<span class="chat-author ${m.user === me ? "is-me" : ""}">${escapeHtml(m.user)}:</span>
+<span class="chat-author ${m.user === me ? "is-me" : ""}">${escapeHtml(window.Nick ? Nick.of(m.user) : m.user)}:</span>
 <span class="chat-text">${escapeHtml(m.text)}</span>
 </div>`).join("");
 if (atBottom) scrollChatToBottom();

@@ -21,7 +21,7 @@ resolve(a, {}); return;
 const k = f.intent.k;
 if (a === "block" && (k === "heavy" || k === "unleash" || k === "withdraw")) { parryGame(o => resolve("block", o)); return; }
 if (a === "dodge" && f.intent.shown !== "spell") { dodgeGame(o => resolve("dodge", o)); return; }
-if (a === "channel") { qteRun(done => HSQTE.channel(done, ((f.h.perks || {}).parryEasy ? 1.5 : 1)), cq => resolve("channel", { cq: cq })); return; }
+if (a === "channel") { qteRun(done => HSQTE.channel(done, ((f.h.perks || {}).parryEasy ? 1.4 : 1)), cv => resolve("channel", { cv: cv })); return; }
 resolve(a, {});
 }
 let assistPending = 0;
@@ -142,7 +142,7 @@ else if (e.type === "block") { later(() => { pose("p", "a-block"); sfx("spark", 
 else if (e.type === "perfect") { later(() => { pose("p", "a-block"); sfx("spark", "p", "#63c5ff"); }); float("GOOD BLOCK", "p", "#00ff88", true); dlog(T(e) + `🛡 <b>GOOD BLOCK!</b> ${fmt(e.saved)} absorbed.`, "g"); }
 else if (e.type === "parry") { later(() => { pose("p", "a-parry"); sfx("slowmo"); sfx("spark", "p", "#ffd700"); setTimeout(() => { pose("b", "a-hit"); sfx("cheer"); }, 260); }); float("PARRY!", "p", "#ffd700", true); float(fmt(e.val), "b", "#ffd700", true); dlog(T(e) + `🛡 <b>PARRY!</b> No damage, counter for ${fmt(e.val)} - enemy stunned next round.`, "y"); }
 else if (e.type === "immune") { float("IMMUNE", "p", "#ff4dff", true); dlog(T(e) + "🔮 The spell fizzles - you are immune to magic.", "c"); }
-else if (e.type === "channel") { float("CHANNEL ×" + (e.x || 1.6).toFixed(1), "p", "#ff4dff", e.q === "perfect"); dlog(T(e) + `🔮 ${e.q === "perfect" ? "<b>PERFECT</b> channel" : e.q === "none" ? "Weak channel" : "You channel"} through the hit (-${Math.round((e.red || 0.25) * 1000) / 10}%) - next hit ×${(e.x || 1.6).toFixed(1)}.`, "c"); }
+else if (e.type === "channel") { float("🔮 +" + fmt(e.mana || 0) + " MANA", "p", "#ff4dff", (e.cv || 0) >= 0.8); dlog(T(e) + `🔮 Channel ${Math.round((e.cv || 0) * 100)}% - you take ${Math.round((e.red || 0) * 100)}% less and store <b>${fmt(e.mana || 0)}</b> mana (total ${fmt(e.total || 0)}) for your next hit.`, "c"); }
 else if (e.type === "guess") { if (e.ok) float(e.fx, "p", "#ffd700", true); dlog(T(e) + (e.ok ? `🎯 <b>Right guess!</b> ${e.fx}` : `🎯 Wrong guess - it went for ${({ atk: "an ATTACK", heavy: "a HEAVY", guard: "GUARD", other: "something else" })[e.real] || "something else"}.`), e.ok ? "y" : ""); }
 else if (e.type === "interrupt") { pose("b", "a-hit"); sfx("shake"); float("INTERRUPTED!", "b", "#ffd700", true); dlog(T(e) + "💥 <b>INTERRUPTED!</b> The charged attack is cancelled - it's stunned this round.", "y"); }
 else if (e.type === "edef") dlog(T(e) + "🛡 Enemy raises its guard - your next STRIKE / GAMBLE deals -60% (HEAVY breaks it).", "");
@@ -266,8 +266,8 @@ function dropItem(lines, L) { const gc = Math.round(C.gcAt(L || HS().level, "nor
 const TUT_REACT = { sysadmin: "block", blood: "block", cyber: "dodge", hunter: "dodge", engineer: "channel" };
 function tutSteps(cls) {
 const r = TUT_REACT[cls] || "brace", R0 = H.REACTS[r];
-const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs stamina).", channel: "CHANNEL is a ring mini-game: up to 45% less damage and your next hit up to ×1.6." }[r] || "";
-const heavyR = { block: "Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one: <b>PERFECT</b> = no damage + counter + stun.", dodge: "Tap 💨 <b>DODGE</b>, then jump into a SAFE lane fast (quick = better chance) - a successful dodge avoids the big hit" + (cls === "cyber" ? " and makes your next hit a sure crit." : "."), channel: "Tap 🔮 <b>CHANNEL</b> and hit the ring - PERFECT soaks 45% and your next hit ×1.6." }[r];
+const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs stamina).", channel: "CHANNEL: hold the marker in a moving band - up to 35% less damage, and the absorbed damage comes back as MANA on your next hit." }[r] || "";
+const heavyR = { block: "Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one: <b>PERFECT</b> = no damage + counter + stun.", dodge: "Tap 💨 <b>DODGE</b>, then jump into a SAFE lane fast (quick = better chance) - a successful dodge avoids the big hit" + (cls === "cyber" ? " and makes your next hit a sure crit." : "."), channel: "Tap 🔮 <b>CHANNEL</b> and keep the marker in the moving band - you soak up to 35% and store it as MANA for your next hit." }[r];
 return [
 { ph: "atk", a: "strike", t: "Every round starts with <b>① YOUR ATTACK</b>. ⚔ <b>STRIKE</b> is free. Tap <b>STRIKE</b>.", setup: f => { f.sta = 70; f.forceIntent = { k: "atk" }; } },
 { ph: "react", a: r, t: "<b>② REACT!</b> After your hit the enemy shows its move - here a normal ⚔ ATTACK. " + why + " Tap " + R0.icon + " <b>" + R0.name + "</b>.", setup: f => { f.focus = Math.max(f.focus, 60); f.sta = Math.max(f.sta, 60); } },

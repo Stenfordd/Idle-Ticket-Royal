@@ -763,10 +763,10 @@ lock.releaseLock();
 }
 }
 var WB_COOLDOWN_MS = 60 * 60 * 1000;
-var WB_COUNT = 11;                 // v8.6: rotace přes všech 11 bossů
+var WB_COUNT = 16;                 // v11.4: 11 bossů kampaně + 5 týdenních bossů s vlastní třídou
 var WB_BASE_HP = 3000;
 var WB_CONTRIB = 100;
-var WB_MK_HP = 1.6;            // v8.2: po zabití hned naskočí MK.II, MK.III... (HP ×1.6 za každý MK)
+var WB_MK_HP = 1.8;            // v8.2: po zabití hned naskočí MK.II, MK.III... (HP ×1.6 za každý MK)
 function wbWeek_() { return Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000)); }
 function wbSheet_() {
 var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName('World_Boss');

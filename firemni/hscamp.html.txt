@@ -169,15 +169,20 @@ const WB = [
 { e: "The Cobol (Legacy Migration)", i: "🥟", mech: "cobol", src: 17, t: "Hey Dan, listen..." },
 { e: "Da Polishen (Payroll Day)", i: "🇵🇱", mech: "polishen", src: 29, t: "So guys... about the withdrawals..." },
 { e: "The Supreme Louis (All-Hands)", i: "🫅", mech: "louis", src: 39, t: "¡Hola!" },
-{ e: "The Administrator (Root Review)", i: "🕶", mech: "admin", src: "admin", t: "Access denied." }
+{ e: "The Administrator (Root Review)", i: "🕶", mech: "admin", src: "admin", t: "Access denied." },
+{ e: "The Auditor (Year-End Close)", i: "🧾", mech: "auditor", src: 50, t: "Every single round needs a form.", cls: "AUDITOR: wants a specific move almost every round - obey for bonus damage, ignore it and red tape piles up." },
+{ e: "The Recruiter (Hiring Spree)", i: "📇", mech: "recruiter", src: 28, t: "We're growing the team!", cls: "RECRUITER: hires an intern every 3 rounds (max 3), each heals it 2% per round. HEAVY sends one home, ULTIMATE or a BREAK all of them." },
+{ e: "The Consultant (Best Practices)", i: "💼", mech: "consultant", src: 39, t: "I've seen what you do. Let me do it better.", cls: "CONSULTANT: copies the attack you just used (+15%) - STRIKE → attack, HEAVY → heavy, GAMBLE → spell, BREATHE → guard, ULTIMATE → charged UNLEASH." },
+{ e: "The Server Room (Heatwave)", i: "🔥", mech: "serverroom", src: 38, t: "The AC is broken. Again.", cls: "SERVER ROOM: the same attack twice in a row overheats you (6% HP), and every 4th round a fan failure drains 15 stamina." },
+{ e: "The CEO (Budget Season)", i: "🏢", mech: "ceo", src: 49, t: "We need to talk about costs.", cls: "CEO: every 4 rounds raises a BUDGET SHIELD (12% HP) - STRIKE and GAMBLE chip it at 25%, HEAVY and ULTIMATE at full strength." }
 ];
 function mkName(mk) { return "MK." + (["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][mk] || mk); }
 function worldBoss(idx, L, hpLeft, mk) {
 const w = WB[((idx % WB.length) + WB.length) % WB.length], src = srcOf(w.src);
 mk = Math.max(1, mk | 0 || 1);
-const e = H().buildEnemy(spec(src, Math.max(1, L | 0), "world", { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id, arch: "bal", dmgM: 1.05 * (1 + 0.15 * (mk - 1)), pattern: Object.assign({}, P.boss) }));
+const e = H().buildEnemy(spec(src, Math.max(1, L | 0), "world", { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id, arch: "bal", dmgM: 1.05 * (1 + 0.25 * (mk - 1)), pattern: Object.assign({}, P.boss) }));
 e.maxHp = e.hp = Math.max(1, Math.round(hpLeft));
-return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 rounds, deal as much damage as you can.",
+return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + (w.cls ? w.cls + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 rounds, deal as much damage as you can.",
 kind: "world", bonus: {}, survive: 0, turnLimit: 15, level: e.level, enemy: e };
 }
 /** CLEAR THE POOL - nekonečná patra od levelu 46 (+0.8 levelu za patro), každé 5. elite, každé 25. tematický boss. */

@@ -1,4 +1,9 @@
 <style>
+/* v11.4: event pro High Stakes - svítí ⚔ FIGHT (compact / mobil) a tlačítko HIGH STAKES (PC) */
+@keyframes hsEvGlow { from { box-shadow: 0 0 4px rgba(255,215,0,.3); filter: brightness(1); } to { box-shadow: 0 0 18px 4px rgba(255,215,0,.85); filter: brightness(1.35); } }
+html.hs-event #m-tabs button[data-go="fight"] { color: #ffd700 !important; animation: hsEvGlow .8s ease-in-out infinite alternate; border-radius: 10px; }
+html.hs-event #dg-open-btn { animation: hsEvGlow .8s ease-in-out infinite alternate; border-color: #ffd700 !important; color: #ffd700 !important; }
+@media (prefers-reduced-motion: reduce) { html.hs-event #m-tabs button[data-go="fight"], html.hs-event #dg-open-btn { animation: none; box-shadow: 0 0 12px 3px rgba(255,215,0,.8); } }
 /* ===== META (v8.2): firemní eventy, achievementy, týdenní žebříčky ===== */
 #mt-event { position: fixed; top: 8px; left: 270px; z-index: 150; display: none; align-items: center; gap: 8px; max-width: calc(100% - 24px);
 padding: 5px 12px; border-radius: 16px; cursor: pointer; font: 700 11px 'Orbitron', monospace; color: #fff; white-space: nowrap; overflow: hidden;
@@ -343,6 +348,13 @@ return `<div class="mt-ev ${now ? "now" : ""}"><span class="ic">${u.ev.icon}</sp
 <span class="mt-dim" style="text-align:right;">${new Date(u.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<br>${now ? "<b>NOW</b>" : "in " + fmtWhen(u.start - Date.now())}</span></div>`; }).join("")}</div>
 <div class="mt-card"><div class="mt-h"><span>ALL EVENTS</span></div>${EVENTS.map(e => `<div class="mt-ev"><span class="ic">${e.icon}</span><div><b>${e.name}</b><br><span class="mt-dim">${esc(e.txt)}</span></div></div>`).join("")}</div>`;
 }
+setInterval(function () {
+let c = null; try { c = current(); } catch (e) {}
+const on = !!(c && (c.ev.id === "audit" || c.ev.id === "overtime"));
+document.documentElement.classList.toggle("hs-event", on);
+const b = document.getElementById("dg-open-btn");
+if (b) { const t = on ? "🎰 HIGH STAKES " + c.ev.icon + (c.ev.id === "audit" ? "×2" : " FREE") : "🎰 HIGH STAKES"; if (b.textContent !== t) b.textContent = t; }
+}, 2000);
 window.Meta = { open: open, close: close, tab: tab, mult: mult, current: current, upcoming: upcoming, active: active, chip: chip, EVENTS: EVENTS,
 count: function (k, n) { bump(k, n); setTimeout(check, 300); }, onFight: onFight, onWb: onWb, onClimb: onClimb, onShift: onShift, onCasinoWin: onCasinoWin, check: check, badgesHtml: badgesHtml, ACH: ALL,
 isOpen: () => isOpen, weeklyLoad: wkLoad };

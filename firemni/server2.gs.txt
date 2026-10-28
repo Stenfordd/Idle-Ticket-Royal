@@ -557,7 +557,7 @@ var names = [t.host, t.guest], att = d.atk;
 var opt = {}, ao = t.pick.ao || {}, ro = t.pick.ro || {};
 opt.t = ao.t || 'none'; opt.q = ao.q != null ? ao.q : 0.85;
 if (t.pick.a === 'gamble' && ao.g) { var re = !!ao.g.re && d.sta[att] >= 30; opt.reels = HSEngine.duelReels(c[att], dlRolls_(t), ao.g.hold, re); opt.respin = re; }
-if (ro.parry) opt.parry = ro.parry; if (ro.dq) opt.dq = ro.dq; if (ro.cq) opt.cq = ro.cq; if (ro.rings) opt.rings = ro.rings; if (ro.dqs) opt.dqs = ro.dqs;
+if (ro.parry) opt.parry = ro.parry; if (ro.dq) opt.dq = ro.dq; if (ro.cq) opt.cq = ro.cq; if (ro.cv != null) opt.cv = ro.cv; if (ro.rings) opt.rings = ro.rings; if (ro.dqs) opt.dqs = ro.dqs;
 if (t.pick.a === 'ult' && ao.guess) opt.guess = ao.guess;
 var evs = HSEngine.duelHalf(d, t.pick.a || 'strike', t.pick.r || 'brace', opt);
 delete d.R; delete d.c; d.events = [];
@@ -742,6 +742,7 @@ if (choice === 'block' && T3(opt.rings)) o.rings = T3(opt.rings);
 if (choice === 'dodge' && TIER.indexOf(opt.dq) >= 0) o.dq = opt.dq;
 if (choice === 'dodge' && T3(opt.dqs)) o.dqs = T3(opt.dqs);
 if (choice === 'channel' && TIER.indexOf(opt.cq) >= 0) o.cq = opt.cq;
+if (choice === 'channel' && isFinite(Number(opt.cv))) o.cv = Math.max(0, Math.min(1, Number(opt.cv)));
 t.pick.ro = o;
 }
 t.pick[role] = choice; t.miss[me] = 0; t.rev++;
@@ -749,6 +750,26 @@ if (role === 'a' && d.foc[d.atk] >= 100 && !t.pick.r) t.deadline = Math.max(t.de
 if (t.pick.a && t.pick.r) dlResolve_(t, false);
 dlPut_(t);
 return { ok: true, view: dlView_(t, me) };
+} finally { lock.releaseLock(); }
+}
+function nicksAll_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('tt_nicks') || '{}') || {}; } catch (e) { return {}; } }
+function nickList() { return { ok: true, nicks: nicksAll_() }; }
+function setNick(nick) {
+var me = getUserLdap(), lock = LockService.getScriptLock();
+if (!lock.tryLock(5000)) return { ok: false, reason: 'busy' };
+try {
+var all = nicksAll_();
+nick = cleanTxt_(nick || '', 20).replace(/[\u0000-\u001f]/g, '').replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+if (!nick || nick.toLowerCase() === String(me).toLowerCase()) delete all[me];
+else {
+if (nick.length < 2) return { ok: false, reason: 'short' };
+var low = nick.toLowerCase();
+for (var k in all) if (k !== me && (String(all[k]).toLowerCase() === low || String(k).toLowerCase() === low)) return { ok: false, reason: 'taken' };
+try { var ids = getDb_().saves.getRange(1, 1, getDb_().saves.getLastRow(), 1).getValues(); for (var r = 0; r < ids.length; r++) { var id = String(ids[r][0]); if (id !== me && id.toLowerCase() === low) return { ok: false, reason: 'taken' }; } } catch (e) {}
+all[me] = nick;
+}
+PropertiesService.getScriptProperties().setProperty('tt_nicks', JSON.stringify(all));
+return { ok: true, nick: all[me] || '', nicks: all };
 } finally { lock.releaseLock(); }
 }
 // END-OF-FILE: server2

@@ -1,8 +1,12 @@
-NÁVOD v7 - firemní verze v11.3 (= hra Office Royale v11.3)
+NÁVOD v7.1 - firemní verze v11.4 (= hra Office Royale v11.4)
 
-v11.3: vše za staminu (DODGE 20, CHANNEL 15, focus jen na ultimátku), gear "better at +X", ESC i v boji (prázdná "New Sheet").
-NOVÉ DĚLENÍ SOUBORŮ: každá část hry má vlastní soubory. Tentokrát naposledy vytvoř nové soubory a zkopíruj všech 36.
-Příště se změní jen pár souborů - kopíruj ty, u kterých GitHub ukazuje čerstvé "změněno" (a index + changelog).
+v11.4: CHANNEL = držení v pásu + mana, těžší parry, férovější Mág, 5 nových týdenních bossů a tvrdší MK (×1.8 HP, +25 % ATK),
+svítící FIGHT při eventu, přezdívky (klikni na své jméno nahoře), načítací obrazovka.
+
+TENTOKRÁT ZKOPÍRUJ JEN TYHLE (ostatní jsou beze změny):
+  code, server2, engine, index, office, office2, sync, changelog, meta, hsengine, hsengine2, hscamp,
+  hsqte, hsqte2 (NOVÝ - vytvoř ho: + -> HTML, jméno hsqte2), hs2, hs3, hs_modes, duel, extras
+Pak Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
 
 ======================================================
 KDE JSOU SOUBORY
@@ -11,11 +15,11 @@ https://stenfordd.github.io/Idle-Ticket-Royal/firemni/   (každý soubor má tla
 POZOR: "index.html" na GitHubu je jen tahle stránka. Do Apps Scriptu patří "index.html.txt" (soubor index).
 
 ======================================================
-SOUBORY V APPS SCRIPT PROJEKTU (36)
+SOUBORY V APPS SCRIPT PROJEKTU (37)
 ======================================================
 .gs:   code, server2, engine
 HTML:  index, style, office, office2, casino, sync, minigames, jumpking, prsi, checkers, plant, changelog, meta,
-       dengine, hsengine, hsengine2, hscamp, hsrig, hsqte, hs, hs2, hs3, gear, arena, hs_modes, duel, colleague,
+       dengine, hsengine, hsengine2, hscamp, hsrig, hsqte, hsqte2, hs, hs2, hs3, gear, arena, hs_modes, duel, colleague,
        extras, mobile, theme, room, room2, room3
 
 1) Vytvoř NOVÉ HTML soubory (+ -> HTML, jméno bez .html):
@@ -29,6 +33,18 @@ HTML:  index, style, office, office2, casino, sync, minigames, jumpking, prsi, c
 
 Při prvním spuštění menu "Spustit firemní globální event" se Google zeptá na oprávnění - povol.
 Když se ve hře objeví červená lišta COPY ERROR, vypíše, který soubor se nezkopíroval celý.
+
+======================================================
+CO JE NOVÉHO (v11.4)
+======================================================
+- CHANNEL: drž značku v pohyblivém pásu 2 s -> -10 až -35 % damage a pohlcené damage se uloží jako MANA do další rány.
+- BLOCK víc o skillu: cíl pokaždé jinak velký, kroužek jinak rychlý, falešné kroužky, série perfectů zužuje okno.
+- Mág: proti němu jde zase dodge (poloviční šance), perfect parry proti němu dá protiútok. Duel přepočítaný.
+- 5 nových týdenních bossů s vlastní třídou: Auditor, Recruiter, Consultant, Server Room, CEO.
+- Týdenní boss: každý MK ×1.8 HP a +25 % útok (dřív ×1.6 / +15 %).
+- Při eventu AUDIT WEEK / OVERTIME svítí FIGHT (compact) / tlačítko HIGH STAKES zlatě.
+- Přezdívky: klik na své jméno nahoře (nebo MORE -> NICKNAME). Ukazuje se v žebříčku, chatu, duelu a u weekly bosse.
+- Načítací obrazovka s průběhem a tipy.
 
 ======================================================
 CO JE NOVÉHO (v11.3)

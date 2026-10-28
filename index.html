@@ -1954,7 +1954,7 @@ function renderChatMessages(messages) {
   container.innerHTML = messages.map(m => `
     <div class="chat-row">
       <span class="chat-time">${escapeHtml(m.time || "")}</span>
-      <span class="chat-author ${m.user === me ? "is-me" : ""}">${escapeHtml(m.user)}:</span>
+      <span class="chat-author ${m.user === me ? "is-me" : ""}">${escapeHtml(window.Nick ? Nick.of(m.user) : m.user)}:</span>
       <span class="chat-text">${escapeHtml(m.text)}</span>
     </div>`).join("");
   if (atBottom) scrollChatToBottom();
@@ -2994,7 +2994,7 @@ function updateHud() {
   const g = gameState;
   const coinsTxt = Math.floor(g.coins).toLocaleString();
 
-  setTxt("user-display", g.ldap || "AGENT");
+  setTxt("user-display", (window.Nick ? Nick.of(g.ldap) : g.ldap) || "AGENT");
   setTxt("stat-tickets", Math.floor(g.tickets).toLocaleString());
   setTxt("stat-coins", coinsTxt);
   setTxt("stat-scrap", Math.floor(g.scrap).toLocaleString());
@@ -4117,7 +4117,7 @@ function refreshLeaderboard() {
           const isMe = (u.ldap === gameState.ldap);
           const gn = u.gambleNet || 0;
           return `<tr class="${isMe ? "me" : ""}" onclick="window.Dungeon && Dungeon.showProfile(window.__lbRows[${i}])" title="Click for player card">
-            <td>${i + 1}</td><td>${presenceDot(u)}${escapeHtml(u.ldap)}</td>
+            <td>${i + 1}</td><td>${presenceDot(u)}${escapeHtml(window.Nick ? Nick.of(u.ldap) : u.ldap)}</td>
             <td style="color:var(--crimson);">${u.prestige || 0}</td>
             <td style="color:var(--cyan);">${u.chestLvl || 1}</td>
             <td style="color:#ff4d6d;">${(u.dungeon && u.dungeon.best) || 0}</td>
@@ -6847,6 +6847,16 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "11.4", d: "2026-10-28", i: [
+      "🔮 CHANNEL is a new mini-game: hold the marker inside a moving band for 2 seconds. You take 10-35% less damage and the absorbed damage is stored as <b>MANA</b> - added to your next hit",
+      "🛡 BLOCK takes more skill: the gold target has a different size every time, the ring changes speed, fake rings can show up anywhere and every PERFECT in a row makes the window a bit smaller",
+      "🧙 Mage vs Trojan / Hunter is fair now: Mage hits can be dodged again, just at half the chance. A perfect parry against a Mage still counters. Duel classes re-balanced (Warrior fights are no longer endless)",
+      "📊 5 new weekly bosses with their own class: 🧾 The Auditor (forms every round), 📇 The Recruiter (hires healing interns), 💼 The Consultant (copies your last attack), 🔥 The Server Room (overheats if you repeat attacks) and 🏢 The CEO (budget shield only HEAVY and ULTIMATE break)",
+      "📈 Weekly boss MK levels are much tougher: ×1.8 HP and +25% damage per MK (was ×1.6 / +15%)",
+      "✨ When a High Stakes event runs (AUDIT WEEK, OVERTIME), the ⚔ FIGHT tab / HIGH STAKES button glows gold",
+      "✏ <b>Nicknames</b>: click your name at the top (or MORE → ✏ NICKNAME) and pick the name other players see in the leaderboard, chat, duels and the weekly boss",
+      "⏳ New loading screen with tips while the game starts"
+    ] },
     { v: "11.3", d: "2026-10-28", i: [
       "😮‍💨 Every action now costs <b>stamina</b> - DODGE 20, CHANNEL 15 (BLOCK stays). <b>Focus only charges your ULTIMATE</b>, so the Mage, Trojan and Hunter get it much more often. A successful dodge gives +5 focus",
       "⚖ Duel classes re-balanced for the stamina change",
@@ -7081,6 +7091,11 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 </script>
 
   <style>
+/* v11.4: event pro High Stakes - svítí ⚔ FIGHT (compact / mobil) a tlačítko HIGH STAKES (PC) */
+@keyframes hsEvGlow { from { box-shadow: 0 0 4px rgba(255,215,0,.3); filter: brightness(1); } to { box-shadow: 0 0 18px 4px rgba(255,215,0,.85); filter: brightness(1.35); } }
+html.hs-event #m-tabs button[data-go="fight"] { color: #ffd700 !important; animation: hsEvGlow .8s ease-in-out infinite alternate; border-radius: 10px; }
+html.hs-event #dg-open-btn { animation: hsEvGlow .8s ease-in-out infinite alternate; border-color: #ffd700 !important; color: #ffd700 !important; }
+@media (prefers-reduced-motion: reduce) { html.hs-event #m-tabs button[data-go="fight"], html.hs-event #dg-open-btn { animation: none; box-shadow: 0 0 12px 3px rgba(255,215,0,.8); } }
 /* ===== META (v8.2): firemní eventy, achievementy, týdenní žebříčky ===== */
 #mt-event { position: fixed; top: 8px; left: 270px; z-index: 150; display: none; align-items: center; gap: 8px; max-width: calc(100% - 24px);
   padding: 5px 12px; border-radius: 16px; cursor: pointer; font: 700 11px 'Orbitron', monospace; color: #fff; white-space: nowrap; overflow: hidden;
@@ -7440,6 +7455,14 @@ html.m #mt-screen { height: var(--app-h, 100%); }
   }
 
 
+  // v11.4: když běží event pro High Stakes (AUDIT WEEK, OVERTIME), FIGHT / HIGH STAKES svítí zlatě
+  setInterval(function () {
+    let c = null; try { c = current(); } catch (e) {}
+    const on = !!(c && (c.ev.id === "audit" || c.ev.id === "overtime"));
+    document.documentElement.classList.toggle("hs-event", on);
+    const b = document.getElementById("dg-open-btn");
+    if (b) { const t = on ? "🎰 HIGH STAKES " + c.ev.icon + (c.ev.id === "audit" ? "×2" : " FREE") : "🎰 HIGH STAKES"; if (b.textContent !== t) b.textContent = t; }
+  }, 2000);
   window.Meta = { open: open, close: close, tab: tab, mult: mult, current: current, upcoming: upcoming, active: active, chip: chip, EVENTS: EVENTS,
     count: function (k, n) { bump(k, n); setTimeout(check, 300); }, onFight: onFight, onWb: onWb, onClimb: onClimb, onShift: onShift, onCasinoWin: onCasinoWin, check: check, badgesHtml: badgesHtml, ACH: ALL,
     isOpen: () => isOpen, weeklyLoad: wkLoad };
@@ -8243,7 +8266,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 20 stamina) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
       skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
-      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (15 stamina, a mini-game): up to -45% damage now and your next hit up to ×1.6. Enemies can't dodge your hits and their blocks only work half as well.",
+      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (15 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
     blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 25, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
       desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
@@ -8254,7 +8277,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, dmg: { sysadmin: 0.42, cyber: 0.66, engineer: 0.59, blood: 1.12, hunter: 0.96 } };
+  const PVP = { hp: 2, hpc: { sysadmin: 0.61 }, dmg: { sysadmin: 0.78, cyber: 0.5, engineer: 0.47, blood: 0.89, hunter: 0.72 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -8268,7 +8291,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   const REACTS = {
     block: { name: "BLOCK", icon: "🛡", txt: "less damage, PARRY the big ones" },
     dodge: { name: "DODGE", icon: "💨", sta: 20, txt: "20 stamina · avoid the hit completely (not 🔮 spells)" },
-    channel: { name: "CHANNEL", icon: "🔮", sta: 15, txt: "15 stamina · mini-game: -17.5 / 30 / 45% damage now, next hit ×1.3 (PERFECT ×1.6)" },
+    channel: { name: "CHANNEL", icon: "🔮", sta: 15, txt: "15 stamina · hold the band: -10 to -35% damage, absorbed damage becomes MANA for your next hit" },
     brace: { name: "BREATHE", icon: "😮‍💨", txt: "+15 stamina, +10 focus, cures poison" }
   };
   // starší názvy (save / server / staré odkazy)
@@ -8293,6 +8316,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   /** kategorie tahu nepřítele pro tip (kampaň) */
   const GUESS_PVE = ["atk", "heavy", "guard", "other"];
+  /** v11.4: CHANNEL = držení v pohyblivém pásu; cv 0-1 = podíl času v pásu (staré cq tiery se převedou) */
+  function chanVal(opt) { if (opt && typeof opt.cv === "number" && isFinite(opt.cv)) return clamp(opt.cv, 0, 1); const q = opt && opt.cq; return q === "perfect" ? 0.95 : q === "none" ? 0.3 : 0.7; }
   function guessCat(k) { return k === "atk" ? "atk" : k === "heavy" || k === "unleash" ? "heavy" : k === "defend" ? "guard" : "other"; }
   const ITEMS = {}, MAX_ITEMS_PER_FIGHT = 0;
   const REELS = [["🍒", 30], ["🔔", 22], ["⭐", 12], ["7️⃣", 8], ["💀", 14]];
@@ -8379,7 +8404,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       hp: h.startHp != null ? clamp(Math.round(h.startHp), 1, h.maxHp) : h.maxHp, sta: h.staMax, focus: Math.min(99, 30 + (h.startFocus || 0)),
       shield: Math.round(h.maxHp * (P.shieldStart || 0)), firstHit: !!P.firstStrike, duckUsed: false, revived: false,
       ehp: e.maxHp, emax: e.maxHp, eatk: e.atk, eshield: 0, estacks: 0, eguard: false, estun: false, unleashNext: false,
-      disabled: {}, cd: {}, demand: null, redTape: 0, poison: 0, mgr: 0, bm: 0, halfNext: false, epoison: 0, sureAtk: 0, nocd: 0, guessUsed: false, _sa: false, sureCrit: false, channel: 0, marked: false, dodgeStreak: 0, lastAct: null,
+      disabled: {}, cd: {}, demand: null, redTape: 0, poison: 0, mgr: 0, mana: 0, adds: 0, heat: 0, heatLast: "", eshieldP: 0, bm: 0, halfNext: false, epoison: 0, sureAtk: 0, nocd: 0, guessUsed: false, _sa: false, sureCrit: false, channel: 0, marked: false, dodgeStreak: 0, lastAct: null,
       flamenco: 0, slow: 0, rage: 0, payroll: 0, siesta: false, pastaPending: false, restartPending: false, form: "I", phase2: false,
       intent: null, lastIntent: null, brk: 0, vuln: false, stunNext: false, deceive: Number(mission.deceive) || 0, coin: 0, hotfix: false,
       st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, usedReact: 0, reacts: 0, crits: 0, parries: 0, breaks: 0, forms: 0, maxHit: 0, dodges: 0 }
@@ -8462,6 +8487,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (f.lastIntent === "siesta") return { k: "heavy" };
       if ((f.turn + 1) % 5 === 0) return { k: "siesta" };
     }
+    if (m === "consultant" && f.lastAct) { const mp = { strike: "atk", heavy: "heavy", gamble: "spell", rest: "defend", ult: "charge" }; return { k: mp[f.lastAct] || "atk", sub: "consultant" }; }   // v11.4: kopíruje tvůj poslední útok
     if (m === "italian" && f.pastaPending) { f.pastaPending = false; return { k: "pasta" }; }
     if (m === "polishen" && f.turn % 4 === 0) return { k: "withdraw" };
     if (m === "admin") {
@@ -8478,6 +8504,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const m = f.e.mech;
     // v11.1: na začátku kola se smí chtít jen ÚTOK (reakce se chce až po telegrafu, viz demandReact)
     if (m === "louis") { if (!(f.turn > 0 && f.R() < 0.3)) { f.demand = null; return; } }
+    else if (m === "auditor") { if (f.R() < 0.1) { f.demand = null; return; } }            // v11.4: weekly Auditor chce skoro každé kolo
     else if (m !== "compliance" || f.R() < 0.4) { f.demand = null; return; }
     const pool = ["strike", "heavy", "gamble", "rest"].filter(a => a !== f.demand && !(f.disabled[a] > 0) && !(f.cd[a] > 0) && f.sta >= (ATTACKS[a].sta || 0));
     f.demand = pool.length ? pool[Math.floor(f.R() * pool.length)] : "strike";
@@ -8487,7 +8514,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const m = f.e.mech;
     if (f.demand) return;
     if (m === "cobol") { if (f.R() < 0.3) f.demand = "brace"; return; }
-    if (m !== "compliance" || f.R() < 0.5) return;
+    if (m === "auditor" ? f.R() < 0.3 : (m !== "compliance" || f.R() < 0.5)) return;
     const pool = reactsOf(f.h).filter(x => allowedReact(f, x));
     if (pool.length) f.demand = pool[Math.floor(f.R() * pool.length)];
   }
@@ -8552,7 +8579,14 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const sure = (f.sureCrit || f._sa) && o.crit !== false; if (sure && !f._sa) f.sureCrit = false;
     const r = rawHit(f.R, f.h, f.e, { mult: mult, ignoreArmor: o.ignoreArmor, crit: sure ? true : o.crit, critMul: o.critMul, critAdd: o.critAdd });
     if (r.crit) { f.st.crits++; f.focus = Math.min(100, f.focus + 8); }
-    const val = hurtEnemy(f, r.v);
+    let v0 = r.v;
+    if (f.eshieldP > 0 && o.crit !== false) {                         // v11.4: CEO - rozpočtový štít; plně ho láme jen HEAVY a ULTI
+      const eff = f._kind === "heavy" || f._kind === "ult" ? 1 : 0.25, toS = v0 * eff;
+      if (toS >= f.eshieldP) { v0 = Math.round((toS - f.eshieldP) / eff); f.eshieldP = 0; ev(f, "mech", { msg: "💼 BUDGET SHIELD broken!" }); }
+      else { f.eshieldP = Math.round(f.eshieldP - toS); v0 = 0; }
+    }
+    if (f.mana > 0 && o.crit !== false) { v0 += f.mana; ev(f, "mech", { msg: "🔮 Mana release: +" + f.mana + " damage" }); f.mana = 0; }
+    const val = hurtEnemy(f, v0);
     if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
     if (f.eguard && f.e.ecls === "firewall" && val > 0) { const d = hurtHero(f, val * 0.2, "reflect"); ev(f, "mech", { msg: "🧱 The Firewall reflects " + d + " damage back at you." }); }
     return { val: val, crit: r.crit };
@@ -8634,7 +8668,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     f.turn++;
     if (f.stunNext) { f.stunNext = false; f.estun = true; }
     if (e.mech === "polishen" && f.lastAct === a && a !== "strike") { f.redTape = Math.min(RED_TAPE_MAX, f.redTape + 1); ev(f, "mech", { msg: "🇵🇱 AUDIT: " + A.name + " twice in a row? That's a deduction. RED TAPE ×" + f.redTape }); }
-    f.lastAct = a;
+    if (e.mech === "serverroom" && a !== "rest") {                     // v11.4: Server Room - stejný útok za sebou přehřívá
+      f.heat = a === f.heatLast ? f.heat + 1 : Math.max(0, f.heat - 1); f.heatLast = a;
+      if (f.heat >= 2) { const d0 = hurtHero(f, h.maxHp * 0.06, "heat"); ev(f, "mech", { msg: "🔥 OVERHEATING! " + A.name + " again? The rack burns you for " + d0 + " - switch it up." }); }
+    }
+    f.lastAct = a; f._kind = a;
     formCheck(f, a, "atk");
     if (f.ehp <= 0) return finish(f, true, start);
     f.sta -= A.sta || 0;
@@ -8671,6 +8709,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       addBreak(f, A.brk * (tm === "PERFECT" ? 1.4 : tm === "GOOD" ? 1.2 : 1) + (wasGuard ? 15 : 0));
       if (wasGuard) ev(f, "mech", { msg: "💥 Guard broken! The HEAVY went straight through." });
       if (f.unleashNext) { f.unleashNext = false; f.rmNext = false; f.estun = true; f.st.breaks++; ev(f, "interrupt", {}); }
+      if (f.adds > 0) { f.adds--; ev(f, "mech", { msg: "📇 Your HEAVY sends an intern home (" + f.adds + " left)." }); }
       if (e.mech === "ransom" && Object.keys(f.disabled).length) { f.disabled = {}; ev(f, "mech", { msg: "Decrypted! All actions available again." }); }
     } else if (a === "gamble") {
       f.st.usedGamble++;
@@ -8694,6 +8733,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       }
     } else if (a === "ult") {
       f.focus = 0; f.st.usedSkill++;
+      if (f.adds > 0) { f.adds = 0; ev(f, "mech", { msg: "📇 Your ultimate clears out every intern!" }); }
       const pct = Math.round(q * 100), cls = h.cls, C = CLASSES[cls];
       if (cls === "sysadmin") {
         const sh = Math.round(h.maxHp * 0.3 * q), hh = Math.round(h.maxHp * 0.05 * q);
@@ -8725,7 +8765,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
     if (f.ehp <= 0) return finish(f, true, start);
     if (f.brk >= 100 && !f.estun) {
-      f.brk = 0; f.st.breaks++; f.vuln = true; f.estun = true; f.unleashNext = false; f.rmNext = false; f.mgr = 0;
+      f.brk = 0; f.st.breaks++; f.vuln = true; f.estun = true; f.unleashNext = false; f.rmNext = false; f.mgr = 0; f.adds = 0;
       ev(f, "break", {});
     }
     // ---------- nepřítel ukáže, co chystá
@@ -8781,6 +8821,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (k === "spell" && it.sub === "cobol") mult = 1.5;
       if (k === "spell" && it.sub === "admin") mult = 1.5;
       if (k === "spell" && it.sub === "compliance") mult = 1 + 0.15 * f.redTape;
+      if (it.sub === "consultant") mult *= 1.15;
       const hit = rawHit(R, e, h, { mult: mult * eMult(f) });
       if (hit.crit) hit.v = Math.round(hit.v * 0.75);                 // nepřátelský crit jen ×1.5
       let dmg = hit.v;                                                  // zbroj hráče už započítal rawHit
@@ -8823,8 +8864,9 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         }
       } else {
         if (r === "channel") {                                          // v11.2: CHANNEL mini-hra: -17.5 / 30 / 45 %, další rána ×1.3 (PERFECT ×1.6)
-          const cq = opt.cq === "perfect" || opt.cq === "none" ? opt.cq : "good", red = cq === "perfect" ? 0.45 : cq === "good" ? 0.3 : 0.175;
-          f.channel = (cq === "perfect" ? 1.6 : 1.3) * (1 + ((h.perks || {}).channelBonus || 0)); f.st.reacts++; ev(f, "channel", { q: cq, red: red, x: f.channel }); dmg *= 1 - red;
+          const cv = chanVal(opt), red = 0.1 + 0.25 * cv, mana = Math.round(dmg * red * (0.5 + 0.5 * cv));      // v11.4: -10 až -35 %, pohlcené damage se uloží jako MANA
+          f.channel = 1.35 * (1 + ((h.perks || {}).channelBonus || 0)); f.mana = (f.mana || 0) + mana; f.st.reacts++;
+          ev(f, "channel", { cv: Math.round(cv * 100) / 100, red: red, x: f.channel, mana: mana, total: f.mana }); dmg *= 1 - red;
         }
         hitHero(f, dmg, src, k);
       }
@@ -8873,7 +8915,13 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const h = f.h, e = f.e;
     f.sta = Math.min(h.staMax, f.sta + (h.staGain || 0));          // v11.1: stamina se sama NEDOPLŇUJE (STRIKE +10, BREATHE +30 / +15)
     f.focus = Math.min(100, f.focus + 10);
-    if (f.epoison > 0 && f.ehp > 0) { f.epoison--; const d = hurtEnemy(f, f.emax * 0.04); ev(f, "mech", { msg: "🦠 Infection: -" + d + " HP to " + e.name }); }
+    if (e.mech === "recruiter" && f.ehp > 0) {
+      if (f.adds > 0) { const hh = Math.round(Math.min(f.emax * 0.02, h.atk * 0.5) * f.adds); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); }
+      if (f.turn % 3 === 0 && f.adds < 3 && !f.estun) { f.adds++; ev(f, "mech", { msg: "📇 The Recruiter hires an intern (" + f.adds + "/3) - each one heals it 2% per round. HEAVY sends one home, ULTIMATE or a BREAK all of them." }); }
+    }
+    if (e.mech === "ceo" && f.turn % 4 === 1 && f.turn > 1 && !f.eshieldP) { f.eshieldP = Math.round(Math.min(f.emax * 0.12, h.atk * 4)); ev(f, "mech", { msg: "💼 BUDGET SHIELD (" + f.eshieldP + "): only HEAVY and ULTIMATE break it at full strength." }); }
+    if (e.mech === "serverroom" && f.turn % 4 === 0) { const d0 = Math.min(f.sta, 15); f.sta -= d0; ev(f, "mech", { msg: "🌀 FAN FAILURE: the heat drains " + d0 + " stamina." }); }
+    if (f.epoison > 0 && f.ehp > 0) { f.epoison--; const d = hurtEnemy(f, Math.min(f.emax * 0.04, h.atk * 1.5)); ev(f, "mech", { msg: "🦠 Infection: -" + d + " HP to " + e.name }); }
     if (f.nocd > 0) f.nocd--;
     if (f.poison > 0 && f.hp > 0) { f.poison--; const d = hurtHero(f, h.maxHp * 0.04, "poison"); ev(f, "mech", { msg: "🦠 Poison: -" + d + " HP" }); }
     if (e.ecls === "manager" && f.turn % 3 === 0 && !f.estun) { f.mgr = (f.mgr || 0) + 1; ev(f, "mech", { msg: "📈 \"Let's go team!\" The Manager motivates itself: +" + 12 * f.mgr + "% damage (BREAK it to reset)." }); }
@@ -8991,7 +9039,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function autoOpt(f, a, R, skill) {
     if (a === "heavy") return { t: timingRoll(R, skill == null ? f.h.zone : skill) };
     if (a === "ult") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all, guess: GUESS_PVE[Math.floor(R() * 4)] };
-    if (a === "channel") return { cq: parryRoll(R) };
+    if (a === "channel") return { cv: Math.min(1, Math.max(0, 0.45 + (R() + R() - 1) * 0.35)) };
     if (a === "gamble") { const r = gambleRoll(f), hold = autoHold(r); if (!hold.every(Boolean) && canRespin(f) && R() < 0.85) gambleRespin(f, hold); return {}; }
     if (a === "dodge") return { dq: dodgeRoll(R) };
     if (a === "block" && f.intent && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) {
@@ -9045,9 +9093,9 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const c = [A, B];
     const pv = (h) => PVP.dmg[h.cls] || 1;
     let first = A.firstStrike && !B.firstStrike ? 0 : B.firstStrike && !A.firstStrike ? 1 : (R() < 0.5 ? 0 : 1);
-    const mA = Math.round(A.maxHp * PVP.hp), mB = Math.round(B.maxHp * PVP.hp);
+    const mA = Math.round(A.maxHp * PVP.hp * ((PVP.hpc || {})[A.cls] || 1)), mB = Math.round(B.maxHp * PVP.hp * ((PVP.hpc || {})[B.cls] || 1));
     const d = { R: R, c: c, hp: [mA, mB], max: [mA, mB], pv: [pv(A), pv(B)], sta: [100, 100], foc: [30, 30], sh: [0, 0], sure: [false, false], chan: [0, 0], mark: [false, false],
-      rev: [false, false], streak: [0, 0], vuln: [false, false], cd: [0, 0], bm: [0, 0], ep: [0, 0], sa: [0, 0], nocd: [0, 0], gd: [false, false], gu: [false, false], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
+      rev: [false, false], streak: [0, 0], vuln: [false, false], cd: [0, 0], mana: [0, 0], bm: [0, 0], ep: [0, 0], sa: [0, 0], nocd: [0, 0], gd: [false, false], gu: [false, false], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
     d.armor = [clamp(A.armor / (B.level * 100), 0, A.armorCap), clamp(B.armor / (A.level * 100), 0, B.armorCap)];
     d.dodge = [A.dodge > 0 ? Math.min(0.75, A.dodge + (A.cls === "cyber" ? 0.3 * clamp(A.main / Math.max(1, B.main) - 0.5, 0, 1) : 0)) : 0,
       B.dodge > 0 ? Math.min(0.75, B.dodge + (B.cls === "cyber" ? 0.3 * clamp(B.main / Math.max(1, A.main) - 0.5, 0, 1) : 0)) : 0];
@@ -9131,35 +9179,39 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     }
     // reakce obránce
     const magic = A.cls === "engineer", big = a !== "strike", ult3 = a === "ult";
-    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0;
+    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0;
+    if (!d.mana) d.mana = [0, 0];
     if (hits.length) {
       if (r === "dodge") {
-        const base = magic ? 0 : d.dodge[j] * Math.pow(0.8, d.streak[j] - 1);
+        const base = d.dodge[j] * (magic ? 0.5 : 1) * Math.pow(0.8, d.streak[j] - 1);          // v11.4: proti Mágovi poloviční šance (dřív 0)
         const chOf = (x) => Math.min(0.95, Math.max(0, base * (x === "perfect" ? 1.6 : x === "good" ? 1.15 : x === "none" ? 0.4 : 1)));
         if (ult3 && dqs) {                                                // v11.2: proti ULTI 3 uskoky - každý úspěšný vezme třetinu
           dodged = dqs.filter(x => R() < chOf(x)).length; scale = 1 - dodged / 3;
-          if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : magic ? "nododge" : "dodgefail";
+          if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : "dodgefail";
         } else if (R() < chOf(dq1)) outcome = "dodge", hits = [];
-        else outcome = magic ? "nododge" : "dodgefail";
+        else outcome = "dodgefail";
         if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true; }
       }
       let red = 0;
-      if (r === "channel") { const cq = opt.cq === "perfect" || opt.cq === "none" ? opt.cq : "good"; red = cq === "perfect" ? 0.45 : cq === "good" ? 0.3 : 0.175; d.chan[j] = cq === "perfect" ? 1.6 : 1.3; outcome = "channel"; }
+      let cvD = 0;
+      if (r === "channel") { cvD = chanVal(opt); red = 0.1 + 0.25 * cvD; d.chan[j] = 1.2; outcome = "channel"; }
       if (r === "block") {
         const bk = B.block * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
         if (ult3 && rings) red = rings.reduce((s2, x) => s2 + tierRed(x), 0) / 3;
         else red = big ? tierRed(parry) : bk;
         const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
         if (magic) red *= 0.5;                                            // v11.2: proti Mágovi blok funguje jen z poloviny
-        outcome = full && !magic ? "parry" : "block";
+        outcome = full ? "parry" : "block";                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
       }
       hits.forEach(m => {
         const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul, critAdd: critAdd, crit: forceCrit || undefined });
+        if (d.mana[i] > 0) { h0.v += d.mana[i]; manaOut = d.mana[i]; d.mana[i] = 0; }
         let v = h0.v * scale * (1 - red);
         if (d.gd[j] && v > 0) { d.gd[j] = false; v *= 0.5; }
         saved += h0.v - v; const got = dHurt(d, j, v); total += got; hv.push(got); if (h0.crit) anyCrit = true;
       });
       if (hits.length) d.chan[i] = 0;
+      if (r === "channel" && saved > 0) { manaIn = Math.round(saved * (0.5 + 0.5 * cvD)); d.mana[j] += manaIn; }
       if (a === "ult" && A.cls === "cyber") d.vuln[j] = true;
       if (r === "block" && hits.length && ((a === "strike" && B.counter) || outcome === "parry")) { const c0 = dHit(d, j, i, outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter, {}); counter = dHurt(d, i, c0.v); }
       if (A.lifesteal && total) healSelf += Math.round(total * A.lifesteal);
@@ -9168,7 +9220,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (A.mark) d.mark[i] = true;
     }
     if (healSelf) d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf);
-    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined });
+    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined });
     // v11.2: tip u ulti - uhodl útočník reakci obránce?
     if (a === "ult" && opt.guess && !d.gu[i]) {
       const ok = opt.guess === r;
@@ -9209,7 +9261,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function duelAiReact(d, j, R, style) {
     const h = d.c[j], opp = d.c[1 - j], heavyLikely = (d.sta[1 - j] >= 65 && !(d.cd && d.cd[1 - j] > 0)) || d.foc[1 - j] >= 100;
     if (h.cls === "sysadmin") return duelReactOk(d, j, "block") && d.sta[j] >= h.blockCost + 10 ? "block" : "brace";
-    if (h.dodge > 0 && opp.cls !== "engineer" && duelReactOk(d, j, "dodge") && (heavyLikely || d.sta[j] >= 55)) return "dodge";
+    if (h.dodge > 0 && duelReactOk(d, j, "dodge") && (heavyLikely || d.sta[j] >= 55)) return "dodge";
     if (h.cls === "blood" && duelReactOk(d, j, "block") && d.sta[j] >= 60) return "block";
     if (h.canChannel && duelReactOk(d, j, "channel") && d.sta[j] >= 45) return "channel";
     return "brace";
@@ -9220,7 +9272,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     while (!d.over && g++ < 200) {
       const i = d.atk, j = 1 - i;
       const a = duelAiAtk(d, i, R, st[i]), r = duelAiReact(d, j, R, st[j]), rs = reactsOf(d.c[j]);
-      duelHalf(d, a, r, { t: R() < 0.25 ? "perfect" : "good", parry: parryRoll(R), dq: dodgeRoll(R), cq: parryRoll(R), rings: [parryRoll(R), parryRoll(R), parryRoll(R)], dqs: [dodgeRoll(R), dodgeRoll(R), dodgeRoll(R)], guess: rs[Math.floor(R() * rs.length)] });
+      duelHalf(d, a, r, { t: R() < 0.25 ? "perfect" : "good", parry: parryRoll(R), dq: dodgeRoll(R), cv: Math.min(1, Math.max(0, 0.45 + (R() + R() - 1) * 0.35)), rings: [parryRoll(R), parryRoll(R), parryRoll(R)], dqs: [dodgeRoll(R), dodgeRoll(R), dodgeRoll(R)], guess: rs[Math.floor(R() * rs.length)] });
     }
     return { win: d.win === 0, first: d.first, events: d.events, max: d.max, turns: d.turn };
   }
@@ -9231,7 +9283,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, bonusText: bonusText, FORM_NO: FORM_NO,
     simulate: simulate, autoAttack: autoAttack, autoReact: autoReact, autoPolicy: autoAttack, autoOpt: autoOpt, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, timingRoll: timingRoll,
     reelResult: reelResult, gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM,
-    GUESS_FX: GUESS_FX, GUESS_PVE: GUESS_PVE, guessCat: guessCat, card: card, fromCard: fromCard, PVP: PVP, ATK_KEYS: ATK_KEYS, ECLS: ECLS, dodgeRoll: dodgeRoll, okReels: okReels, duelReels: duelReels, stdHero: stdHero, okAlloc: okAlloc, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
+    chanVal: chanVal, GUESS_FX: GUESS_FX, GUESS_PVE: GUESS_PVE, guessCat: guessCat, card: card, fromCard: fromCard, PVP: PVP, ATK_KEYS: ATK_KEYS, ECLS: ECLS, dodgeRoll: dodgeRoll, okReels: okReels, duelReels: duelReels, stdHero: stdHero, okAlloc: okAlloc, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSEngine = api;
 })(typeof window !== "undefined" ? window : this);
@@ -9416,15 +9468,21 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     { e: "The Cobol (Legacy Migration)", i: "🥟", mech: "cobol", src: 17, t: "Hey Dan, listen..." },
     { e: "Da Polishen (Payroll Day)", i: "🇵🇱", mech: "polishen", src: 29, t: "So guys... about the withdrawals..." },
     { e: "The Supreme Louis (All-Hands)", i: "🫅", mech: "louis", src: 39, t: "¡Hola!" },
-    { e: "The Administrator (Root Review)", i: "🕶", mech: "admin", src: "admin", t: "Access denied." }
+    { e: "The Administrator (Root Review)", i: "🕶", mech: "admin", src: "admin", t: "Access denied." },
+    // v11.4: týdenní bossové s vlastní třídou (mechanikou)
+    { e: "The Auditor (Year-End Close)", i: "🧾", mech: "auditor", src: 50, t: "Every single round needs a form.", cls: "AUDITOR: wants a specific move almost every round - obey for bonus damage, ignore it and red tape piles up." },
+    { e: "The Recruiter (Hiring Spree)", i: "📇", mech: "recruiter", src: 28, t: "We're growing the team!", cls: "RECRUITER: hires an intern every 3 rounds (max 3), each heals it 2% per round. HEAVY sends one home, ULTIMATE or a BREAK all of them." },
+    { e: "The Consultant (Best Practices)", i: "💼", mech: "consultant", src: 39, t: "I've seen what you do. Let me do it better.", cls: "CONSULTANT: copies the attack you just used (+15%) - STRIKE → attack, HEAVY → heavy, GAMBLE → spell, BREATHE → guard, ULTIMATE → charged UNLEASH." },
+    { e: "The Server Room (Heatwave)", i: "🔥", mech: "serverroom", src: 38, t: "The AC is broken. Again.", cls: "SERVER ROOM: the same attack twice in a row overheats you (6% HP), and every 4th round a fan failure drains 15 stamina." },
+    { e: "The CEO (Budget Season)", i: "🏢", mech: "ceo", src: 49, t: "We need to talk about costs.", cls: "CEO: every 4 rounds raises a BUDGET SHIELD (12% HP) - STRIKE and GAMBLE chip it at 25%, HEAVY and ULTIMATE at full strength." }
   ];
   function mkName(mk) { return "MK." + (["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][mk] || mk); }
   function worldBoss(idx, L, hpLeft, mk) {
     const w = WB[((idx % WB.length) + WB.length) % WB.length], src = srcOf(w.src);
     mk = Math.max(1, mk | 0 || 1);
-    const e = H().buildEnemy(spec(src, Math.max(1, L | 0), "world", { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id, arch: "bal", dmgM: 1.05 * (1 + 0.15 * (mk - 1)), pattern: Object.assign({}, P.boss) }));
+    const e = H().buildEnemy(spec(src, Math.max(1, L | 0), "world", { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id, arch: "bal", dmgM: 1.05 * (1 + 0.25 * (mk - 1)), pattern: Object.assign({}, P.boss) }));
     e.maxHp = e.hp = Math.max(1, Math.round(hpLeft));
-    return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 rounds, deal as much damage as you can.",
+    return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + (w.cls ? w.cls + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 rounds, deal as much damage as you can.",
       kind: "world", bonus: {}, survive: 0, turnLimit: 15, level: e.level, enemy: e };
   }
 
@@ -10010,14 +10068,16 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
 
   // ------------------------------------------------------------------ PARRY: kroužek (o = { k: heavy|unleash|withdraw|any, style, easy })
-  const PARRY_WIN = { perfect: 8, good: 18 };
+  const PARRY_WIN = { perfect: 8, good: 18 }, PSTREAK = { n: 0 };
   function parry(o, cb) {
     o = o || {};
     const k = o.k || "heavy", style = o.style || "", n = k === "unleash" ? 3 : 1, dur = k === "unleash" ? 750 : k === "withdraw" ? 1000 : 1100;
-    const wP = PARRY_WIN.perfect * (o.easy || 1), wG = PARRY_WIN.good * (o.easy || 1), from = 150, to = 14, target = 46;
+    // v11.4: víc o skillu - cíl pokaždé jinak velký, kroužek jinak rychlý, občas falešný, série perfectů zužuje okno
+    const sk = Math.max(0.5, Math.pow(0.85, PSTREAK.n)), target = Math.round(36 + rnd() * 20);
+    const wP = PARRY_WIN.perfect * (o.easy || 1) * sk, wG = PARRY_WIN.good * (o.easy || 1) * Math.max(0.7, sk), from = 150, to = 14;
     const title = o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one");
     const ov = open(`<div class="qte-t">${title}</div>
-      <div class="hs-parry ${style}" id="qte-pr"><div class="tgt"></div><div class="ring fake" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
+      <div class="hs-parry ${style}" id="qte-pr"><div class="tgt" style="width:${target}px;height:${target}px;margin:${-target / 2}px 0 0 ${-target / 2}px;"></div><div class="ring fake" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
       <div class="hs-pdots" id="qte-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="qte-res" id="qte-pq">&nbsp;</div>`);
     const res = []; let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, finished = false;
     const ringEl = () => $("qte-ring"), fakeEl = () => $("qte-fake");
@@ -10034,12 +10094,13 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     function done() {
       if (finished) return; finished = true; document.removeEventListener("keydown", key, true);
       const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
+      PSTREAK.n = best === "perfect" ? PSTREAK.n + 1 : 0;
       const txt = n > 1 ? `${res.filter(r => r !== "none").length}/3 blocked` + (best === "perfect" ? " - FULL PARRY!" : "") : best === "perfect" ? "PARRY! 0 damage + counter" : best === "good" ? "GOOD BLOCK!" : "Normal block";
       finish(ov, txt, best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)", cb, n > 1 ? { rings: res } : { parry: best }, 520);
     }
     function startRing() {
       if (finished) return;
-      if (style === "glitch" && rnd() < 0.55) {
+      if (rnd() < (style === "glitch" ? 0.55 : 0.2)) {
         fakeOn = true; const fk = fakeEl(); if (fk) fk.style.display = "";
         const ft0 = performance.now(), fdur = 420 + rnd() * 200, stopAt = 0.45 + rnd() * 0.35;
         const ff = (now) => { const t = (now - ft0) / fdur; place(fakeEl(), from - (from - to) * Math.min(stopAt, Math.pow(t, 1.5))); if (t >= stopAt) { fakeOn = false; const e = fakeEl(); if (e) e.style.display = "none"; timer = setTimeout(realRing, 120 + rnd() * 250); return; } raf = requestAnimationFrame(ff); };
@@ -10051,10 +10112,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (finished) return;
       phase = "ring"; t0 = performance.now(); size = from;
       const r = ringEl(); if (r) r.style.display = "";
+      const dk = dur * (0.8 + rnd() * 0.45), ex = 1.25 + rnd() * 0.8;
       const fr = (now) => {
-        let t = Math.min(1, (now - t0) / dur);
+        let t = Math.min(1, (now - t0) / dk);
         if (style === "lag") t = t < 0.35 ? t : t < 0.55 ? 0.35 : 0.35 + (t - 0.55) * (0.65 / 0.45);
-        let e = Math.pow(t, 1.6); if (style === "steps") e = Math.min(1, Math.floor(e * 8 + 0.5) / 8);
+        let e = Math.pow(t, ex); if (style === "steps") e = Math.min(1, Math.floor(e * 8 + 0.5) / 8);
         size = from - (from - to) * e;
         let dx = 0, dy = 0;
         if (style === "wobble") dx = Math.sin(t * 22) * 16 * (1 - t * 0.5);
@@ -10316,7 +10378,43 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
 
   // ------------------------------------------------------------------ v11.2: CHANNEL, 3× obrana proti ulti, tip, animace ulti
-  function channel(cb, easy) { parry({ k: "heavy", style: "chan", easy: easy || 1, title: "🔮 CHANNEL! Tap when the purple ring meets the blue one" }, o => cb(o.parry)); }
+  /** v11.4 CHANNEL: drž = značka stoupá, pusť = padá. Udrž ji v pohyblivém pásu ~2,2 s. cb(cv 0-1 = podíl času v pásu) */
+  function channel(cb, easy) {
+    const ov = open(`<div class="qte-t">🔮 CHANNEL! Keep the marker inside the moving band</div><div class="qte-h">HOLD (tap and hold / space) to raise it, release to let it fall</div>
+      <div style="position:relative;width:70px;height:220px;border-radius:10px;background:#0b1220;border:2px solid #4c1d95;overflow:hidden;touch-action:none;" id="qte-cf">
+        <div id="qte-cb" style="position:absolute;left:0;right:0;background:rgba(192,132,252,.35);border-top:2px solid #c084fc;border-bottom:2px solid #c084fc;"></div>
+        <div id="qte-cm" style="position:absolute;left:8px;right:8px;height:8px;border-radius:4px;background:#22d3ee;box-shadow:0 0 10px #22d3ee;"></div></div>
+      <div class="qte-bar"><div id="qte-ct"></div></div><div class="qte-res" id="qte-cr">0%</div>`);
+    const DUR = 2200, bandH = 0.26 * (easy || 1);
+    let y = 0.2, vy = 0, by = 0.4, bv = 0, hold = false, inside = 0, tot = 0, t0 = performance.now(), last = t0, raf = 0, done = false, turnAt = 0;
+    const field = ov.querySelector("#qte-cf");
+    const down = (e) => { if (e) e.preventDefault(); hold = true; }, up = (e) => { if (e) e.preventDefault(); hold = false; };
+    field.addEventListener("pointerdown", down); ov.addEventListener("pointerdown", down); ov.addEventListener("pointerup", up); ov.addEventListener("pointercancel", up);
+    const kd = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); hold = true; } }, ku = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); hold = false; } };
+    document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
+    function frame(now) {
+      if (done) return;
+      const dt = Math.min(50, now - last) / 1000; last = now;
+      vy += (hold ? 2.6 : -2.4) * dt; vy = Math.max(-1.2, Math.min(1.2, vy)) * 0.985; y += vy * dt;
+      if (y < 0) { y = 0; vy = 0; } if (y > 1) { y = 1; vy = 0; }
+      if (now >= turnAt) { bv = (rnd() - 0.5) * 1.1; turnAt = now + 250 + rnd() * 450; }
+      by += bv * dt; if (by < 0) { by = 0; bv = Math.abs(bv); } if (by > 1 - bandH) { by = 1 - bandH; bv = -Math.abs(bv); }
+      const inB = y >= by && y <= by + bandH; tot += dt; if (inB) inside += dt;
+      const cb2 = $("qte-cb"), cm = $("qte-cm");
+      if (cb2) { cb2.style.bottom = (by * 100) + "%"; cb2.style.height = (bandH * 100) + "%"; cb2.style.background = inB ? "rgba(34,211,238,.35)" : "rgba(192,132,252,.25)"; }
+      if (cm) cm.style.bottom = "calc(" + (y * 100) + "% - 4px)";
+      const el = now - t0, tb = $("qte-ct"); if (tb) tb.style.width = Math.max(0, 100 - el / DUR * 100) + "%";
+      const cr = $("qte-cr"); if (cr) cr.textContent = Math.round(inside / Math.max(0.01, tot) * 100) + "% in the band";
+      if (el >= DUR) return end();
+      raf = requestAnimationFrame(frame);
+    }
+    function end() {
+      done = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true);
+      const cv = Math.round(inside / Math.max(0.01, tot) * 100) / 100;
+      finish(ov, Math.round(cv * 100) + "% · -" + Math.round((0.1 + 0.25 * cv) * 100) + "% damage, rest becomes MANA", cv >= 0.8 ? "#ffd700" : cv >= 0.5 ? "var(--emerald)" : "var(--text-dim)", cb, cv, 550);
+    }
+    setTimeout(() => { last = performance.now(); t0 = last; raf = requestAnimationFrame(frame); }, 350);
+  }
   function parry3(cb, title) { parry({ k: "unleash", title: title || "☄ ULTIMATE! Parry all 3 rings" }, o => cb(o.rings)); }
   function dodge3(cb, title) {
     const res = [];
@@ -10914,7 +11012,7 @@ html.m #dg-open-btn { display: none; }
     const C0 = H.CLASSES[cls || "sysadmin"], h = hero();
     const rx = { block: `🛡 <b>BLOCK</b> (${h.blockCost} stamina): -${Math.round(h.block * 100)}% (half vs 💥 / ☄, less vs 🔮). Against 💥 HEAVY, ☄ UNLEASH and 💸 tap when the red ring hits gold: <b>PERFECT</b> = 0 damage + counter + stun, <b>GOOD</b> = -35% more.${h.counter ? " Blocking a ⚔ attack COUNTERS for half your damage." : ""}`,
       dodge: `💨 <b>DODGE</b> (${h.dodgeCost} stamina): jump into a safe lane - a fast jump raises the chance, a wrong lane lowers it. A dodge takes no damage at all${cls === "cyber" ? " - and your next hit is a sure crit" : ""}. Doesn't work on 🔮 spells, dodging again right away is less likely.`,
-      channel: `🔮 <b>CHANNEL</b> (15 stamina): tap the ring - -17.5% / GOOD -30% / PERFECT -45% damage now, your next hit ×1.3 (PERFECT ×1.6). You are immune to 🔮 spells.`,
+      channel: `🔮 <b>CHANNEL</b> (15 stamina): hold the marker inside a moving band for 2 s - you take 10-35% less damage and the absorbed damage becomes 🔮 MANA added to your next hit (+35% damage on it too). You are immune to 🔮 spells.`,
       brace: `😮‍💨 <b>BREATHE</b> (react): +15 stamina, +10 focus and cures 🦠 poison.` };
     return `<div class="dg-dim" style="line-height:1.55;"><b>Every round:</b> 1) you attack, 2) the enemy shows its move, 3) you react.<br>
       Stamina does <b>not</b> refill by itself and pays for every action - focus only charges your ultimate (+10 per round).<br>
@@ -11058,7 +11156,7 @@ html.m #dg-open-btn { display: none; }
   function reactHint(f, r) {
     if (r === "block") return f.h.blockCost + " STA · " + blockHint(f);
     if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " STA · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
-    if (r === "channel") return "15 STA · ring: -17-45%";
+    if (r === "channel") return "15 STA · hold: -10-35% + mana";
     return "+15 STA +10 FOC" + (f.poison > 0 ? " · cure" : "");
   }
   function atkHint(f, a) {
@@ -11167,7 +11265,7 @@ html.m #dg-open-btn { display: none; }
     const k = f.intent.k;
     if (a === "block" && (k === "heavy" || k === "unleash" || k === "withdraw")) { parryGame(o => resolve("block", o)); return; }
     if (a === "dodge" && f.intent.shown !== "spell") { dodgeGame(o => resolve("dodge", o)); return; }
-    if (a === "channel") { qteRun(done => HSQTE.channel(done, ((f.h.perks || {}).parryEasy ? 1.5 : 1)), cq => resolve("channel", { cq: cq })); return; }
+    if (a === "channel") { qteRun(done => HSQTE.channel(done, ((f.h.perks || {}).parryEasy ? 1.4 : 1)), cv => resolve("channel", { cv: cv })); return; }
     resolve(a, {});
   }
 
@@ -11292,7 +11390,7 @@ html.m #dg-open-btn { display: none; }
       else if (e.type === "perfect") { later(() => { pose("p", "a-block"); sfx("spark", "p", "#63c5ff"); }); float("GOOD BLOCK", "p", "#00ff88", true); dlog(T(e) + `🛡 <b>GOOD BLOCK!</b> ${fmt(e.saved)} absorbed.`, "g"); }
       else if (e.type === "parry") { later(() => { pose("p", "a-parry"); sfx("slowmo"); sfx("spark", "p", "#ffd700"); setTimeout(() => { pose("b", "a-hit"); sfx("cheer"); }, 260); }); float("PARRY!", "p", "#ffd700", true); float(fmt(e.val), "b", "#ffd700", true); dlog(T(e) + `🛡 <b>PARRY!</b> No damage, counter for ${fmt(e.val)} - enemy stunned next round.`, "y"); }
       else if (e.type === "immune") { float("IMMUNE", "p", "#ff4dff", true); dlog(T(e) + "🔮 The spell fizzles - you are immune to magic.", "c"); }
-      else if (e.type === "channel") { float("CHANNEL ×" + (e.x || 1.6).toFixed(1), "p", "#ff4dff", e.q === "perfect"); dlog(T(e) + `🔮 ${e.q === "perfect" ? "<b>PERFECT</b> channel" : e.q === "none" ? "Weak channel" : "You channel"} through the hit (-${Math.round((e.red || 0.25) * 1000) / 10}%) - next hit ×${(e.x || 1.6).toFixed(1)}.`, "c"); }
+      else if (e.type === "channel") { float("🔮 +" + fmt(e.mana || 0) + " MANA", "p", "#ff4dff", (e.cv || 0) >= 0.8); dlog(T(e) + `🔮 Channel ${Math.round((e.cv || 0) * 100)}% - you take ${Math.round((e.red || 0) * 100)}% less and store <b>${fmt(e.mana || 0)}</b> mana (total ${fmt(e.total || 0)}) for your next hit.`, "c"); }
       else if (e.type === "guess") { if (e.ok) float(e.fx, "p", "#ffd700", true); dlog(T(e) + (e.ok ? `🎯 <b>Right guess!</b> ${e.fx}` : `🎯 Wrong guess - it went for ${({ atk: "an ATTACK", heavy: "a HEAVY", guard: "GUARD", other: "something else" })[e.real] || "something else"}.`), e.ok ? "y" : ""); }
       else if (e.type === "interrupt") { pose("b", "a-hit"); sfx("shake"); float("INTERRUPTED!", "b", "#ffd700", true); dlog(T(e) + "💥 <b>INTERRUPTED!</b> The charged attack is cancelled - it's stunned this round.", "y"); }
       else if (e.type === "edef") dlog(T(e) + "🛡 Enemy raises its guard - your next STRIKE / GAMBLE deals -60% (HEAVY breaks it).", "");
@@ -11424,8 +11522,8 @@ html.m #dg-open-btn { display: none; }
   const TUT_REACT = { sysadmin: "block", blood: "block", cyber: "dodge", hunter: "dodge", engineer: "channel" };
   function tutSteps(cls) {
     const r = TUT_REACT[cls] || "brace", R0 = H.REACTS[r];
-    const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs stamina).", channel: "CHANNEL is a ring mini-game: up to 45% less damage and your next hit up to ×1.6." }[r] || "";
-    const heavyR = { block: "Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one: <b>PERFECT</b> = no damage + counter + stun.", dodge: "Tap 💨 <b>DODGE</b>, then jump into a SAFE lane fast (quick = better chance) - a successful dodge avoids the big hit" + (cls === "cyber" ? " and makes your next hit a sure crit." : "."), channel: "Tap 🔮 <b>CHANNEL</b> and hit the ring - PERFECT soaks 45% and your next hit ×1.6." }[r];
+    const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs stamina).", channel: "CHANNEL: hold the marker in a moving band - up to 35% less damage, and the absorbed damage comes back as MANA on your next hit." }[r] || "";
+    const heavyR = { block: "Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one: <b>PERFECT</b> = no damage + counter + stun.", dodge: "Tap 💨 <b>DODGE</b>, then jump into a SAFE lane fast (quick = better chance) - a successful dodge avoids the big hit" + (cls === "cyber" ? " and makes your next hit a sure crit." : "."), channel: "Tap 🔮 <b>CHANNEL</b> and keep the marker in the moving band - you soak up to 35% and store it as MANA for your next hit." }[r];
     return [
       { ph: "atk", a: "strike", t: "Every round starts with <b>① YOUR ATTACK</b>. ⚔ <b>STRIKE</b> is free. Tap <b>STRIKE</b>.", setup: f => { f.sta = 70; f.forceIntent = { k: "atk" }; } },
       { ph: "react", a: r, t: "<b>② REACT!</b> After your hit the enemy shows its move - here a normal ⚔ ATTACK. " + why + " Tap " + R0.icon + " <b>" + R0.name + "</b>.", setup: f => { f.focus = Math.max(f.focus, 60); f.sta = Math.max(f.sta, 60); } },
@@ -12378,13 +12476,13 @@ html.m #dg-open-btn { display: none; }
     const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
     const wait = Math.max(0, c.me.wait - (Date.now() - wb.at)), dead = false, rw = wbReward(kills, false), rwN = wbReward(kills + 1, false);
     const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
-    const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
+    const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(window.Nick ? Nick.of(p.nick) : p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
     const l = s.last;
     box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
       <div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
         <div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
         <div class="dg-dim">Everyone in the company hits the same boss (always your level). 1 attack per hour, 15 rounds, no energy needed. HP grows with every new attendee.
-        When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.6 HP, +15% ATK).<br>
+        When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.8 HP, +25% ATK).<br>${C.WB[c.idx % C.WB.length].cls ? `<b style="color:var(--amber);">⚙ ${esc(C.WB[c.idx % C.WB.length].cls)}</b><br>` : ""}
         ${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
         Next kill → <b>×${(1 + rwN.buff).toFixed(2)}</b>.</div></div></div>
       ${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING (15 turns)"}</button>`}
@@ -12441,7 +12539,7 @@ html.m #dg-open-btn { display: none; }
       return;
     }
     poolBoardLoad(false);
-    const lb = pb.list ? (pb.list.length ? pb.list.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>floor ${fmt(p.best)}</span></div>`).join("") : `<div class="dg-dim">Nobody yet. Be the first!</div>`) : `<div class="dg-dim">Loading...</div>`;
+    const lb = pb.list ? (pb.list.length ? pb.list.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(window.Nick ? Nick.of(p.nick) : p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>floor ${fmt(p.best)}</span></div>`).join("") : `<div class="dg-dim">Nobody yet. Be the first!</div>`) : `<div class="dg-dim">Loading...</div>`;
     const n = P.best + 1, m = C.poolFloor(n, POOL_SEED), q = window.Gear ? Gear.POOL_QUANTUM : 50;
     const from = Math.floor(P.best / 10) * 10 + 1, cells = [];
     for (let f = from; f < from + 20; f++) cells.push(`<div class="${f <= P.best ? "ok" : f === n ? "nx" : ""} ${f % 25 === 0 ? "bs" : ""}">${f % 25 === 0 ? "☠" : f}</div>`);
@@ -12626,7 +12724,7 @@ html.m #dg-open-btn { display: none; }
       }
       if (choice === "block") return Q.parry({ k: "any", title: "🛡 BLOCK: hit the ring - a PERFECT parry stops a HEAVY / GAMBLE / ULTIMATE" + (vsMage ? " (only half vs a Mage)" : " completely"), easy: h.parryWin || 1 }, o => cb({ parry: o.parry }));
       if (choice === "dodge") return Q.dodge(q => cb({ dq: q }));
-      if (choice === "channel") return Q.channel(q => cb({ cq: q }));
+      if (choice === "channel") return Q.channel(cv => cb({ cv: cv }));
     }
     cb({});
   }
@@ -12658,7 +12756,7 @@ html.m #dg-open-btn { display: none; }
   // ---------- vykreslení
   function bar(cls, v, m) { return `<div class="hs-bar"><div class="${cls}" style="width:${Math.max(0, Math.min(100, v / Math.max(1, m) * 100))}%"></div></div>`; }
   function side(v, i, h) {
-    const nm = v.names[i] || "?", mine = i === v.you;
+    const nm = (window.Nick ? Nick.of(v.names[i]) : v.names[i]) || "?", mine = i === v.you;
     const sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
     const max = v.max ? v.max[i] : (h ? h.maxHp : 1), hp = v.hp ? v.hp[i] : max;
     return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
@@ -12676,7 +12774,7 @@ html.m #dg-open-btn { display: none; }
       const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
       return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
     return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
-      const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "15 STA · ring -17-45%" : "+15 STA +10 FOC";
+      const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "15 STA · hold, mana" : "+15 STA +10 FOC";
       return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
   }
   /** v11.2: rovné podmínky - rozdělení bodů před startem */
@@ -12721,7 +12819,7 @@ html.m #dg-open-btn { display: none; }
     if (v.status === "play") {
       const oi = 1 - v.you, oh = hs[oi];
       role = v.role === "atk" ? `<div class="du-role atk">① YOUR ATTACK<small>${esc(opp)} picks a reaction at the same time - they don't know what you'll do.</small></div>`
-        : `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits can't be dodged" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
+        : `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits are hard to dodge and pierce blocks" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
       role += `<div class="du-timer"><div id="du-tbar" style="width:${left / 35000 * 100}%"></div></div>`;
     }
     const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>
@@ -12730,7 +12828,7 @@ html.m #dg-open-btn { display: none; }
     const wait = v.status === "wait" ? `<div class="dg-card"><div class="du-wait">⏳ Waiting for ${v.target ? "<b>" + esc(v.target) + "</b>" : "an opponent"} to accept (${Math.ceil((v.waitLeft || 0) / 60000)} min left)${v.stake ? " · stake " + fmt(v.stake) + " GC" : " · friendly duel"}${v.mode === "equal" ? " · equal terms" : ""}.<br>Tell them to open HIGH STAKES → ⚔ DUEL.</div>
       <button class="btn" style="width:100%;" onclick="HSDuel.leave()">CANCEL</button></div>` : "";
     if (v.status === "wait") return wait;
-    return `<div class="dg-card"><div class="dg-h"><span>⚔ DUEL · ${esc(v.names[0])} vs ${esc(v.names[1])}</span><span>ROUND ${v.turn || 1}${v.stake ? " · 💰 " + fmt(v.stake * 2) : ""}${v.mode === "equal" ? " · ⚖ equal" : ""}</span></div></div>
+    return `<div class="dg-card"><div class="dg-h"><span>⚔ DUEL · ${esc(window.Nick ? Nick.of(v.names[0]) : v.names[0])} vs ${esc(window.Nick ? Nick.of(v.names[1]) : v.names[1])}</span><span>ROUND ${v.turn || 1}${v.stake ? " · 💰 " + fmt(v.stake * 2) : ""}${v.mode === "equal" ? " · ⚖ equal" : ""}</span></div></div>
       <div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(4) : ""}${side(v, 0, hs[0])}<div class="dg-vs">VS</div>${side(v, 1, hs[1])}</div>
       ${role}${buttons(v, hs)}${res}
       ${v.status === "play" ? `<div style="text-align:right;margin-top:6px;"><button class="btn" style="padding:4px 10px;font-size:11px;" onclick="HSDuel.leave()">🏳 FLEE</button></div>` : ""}
@@ -12740,7 +12838,7 @@ html.m #dg-open-btn { display: none; }
     const L = K.list, d = A.HS();
     const tables = L && L.tables && L.tables.length ? L.tables.map(t => {
       const mine = t.host === me(), forMe = !t.target || t.target === me();
-      return `<div class="dg-art"><div class="ic">${(H.CLASSES[t.cls] || {}).icon || "⚔"}</div><div class="t"><b>${esc(t.host)}</b> · ${esc((H.CLASSES[t.cls] || {}).name || "")} LV ${t.lv || "?"}
+      return `<div class="dg-art"><div class="ic">${(H.CLASSES[t.cls] || {}).icon || "⚔"}</div><div class="t"><b>${esc(window.Nick ? Nick.of(t.host) : t.host)}</b> · ${esc((H.CLASSES[t.cls] || {}).name || "")} LV ${t.lv || "?"}
         <div class="dg-dim">${t.stake ? "💰 " + fmt(t.stake) + " GC" : "friendly"} · ${t.mode === "equal" ? "⚖ equal terms" : "own stats"}${t.target ? " · for " + esc(t.target) : ""}${t.status === "play" ? " · vs " + esc(t.guest) : ""}</div></div>
         ${t.status === "wait" && !mine && forMe ? `<button class="btn btn-crimson" ${gameState.coins >= t.stake && !K.busy ? "" : "disabled"} onclick="HSDuel.join('${t.id}',${t.stake})">⚔ ACCEPT</button>` : `<span class="dg-dim">${t.status === "play" ? "FIGHTING" : mine ? "YOURS" : "PRIVATE"}</span>`}</div>`;
     }).join("") : `<div class="dg-dim">${L ? "No open duels. Create one and tell a friend!" : "Loading..."}</div>`;
@@ -13667,6 +13765,50 @@ html.m #dg-open-btn { display: none; }
     if (t === "stocks") { if (!$("sk-box")) v.innerHTML = skHtml(); const d = skDividends(); if (d) log(`💵 Stock dividends: +${fmt(d)} GC.`, "success"); skRender(); clearInterval(T.sk); T.sk = setInterval(() => { if ($("adv-view-stocks") && $("adv-view-stocks").style.display !== "none") skRender(); else { clearInterval(T.sk); T.sk = null; } }, 15000); }
   }
 
+  // ===================================================================== v11.4: PŘEZDÍVKY
+  const NK = { map: {}, at: 0, busy: false };
+  function nickOf(id) { id = String(id || ""); return NK.map[id] || id; }
+  function nickLoad(force) {
+    if (NK.busy || (!force && Date.now() - NK.at < 60000)) return;
+    if (typeof google === "undefined" || !google.script || !google.script.run) return;
+    NK.busy = true;
+    google.script.run.withSuccessHandler(r => { NK.busy = false; NK.at = Date.now(); if (r && r.ok && r.nicks) { NK.map = r.nicks; nickApply(); } }).withFailureHandler(() => { NK.busy = false; NK.at = Date.now(); }).nickList();
+  }
+  function nickApply() {
+    const u = $("user-display"); if (u && typeof gameState !== "undefined" && gameState.ldap) u.textContent = nickOf(gameState.ldap);
+    if (typeof refreshLeaderboard === "function" && window.__lbRows) try { refreshLeaderboard(); } catch (e) {}
+  }
+  function nickOpen() {
+    const ex = $("nk-ov"); if (ex) ex.remove();
+    const me = typeof gameState !== "undefined" ? gameState.ldap : "", cur = NK.map[me] || "";
+    const el = document.createElement("div"); el.id = "nk-ov"; el.className = "tt-overlay open"; el.style.zIndex = 10040;
+    el.innerHTML = `<div class="tt-modal" style="max-width:380px;"><h2 style="color:var(--cyan);">✏ YOUR NICKNAME</h2>
+      <div class="dg-dim" style="font-size:12px;line-height:1.5;">Other players see this name in the leaderboard, chat, duels and the weekly boss. Your account ID stays <b>${escapeHtml(me)}</b>. Leave it empty to use your ID again.</div>
+      <input id="nk-in" maxlength="20" value="${escapeHtml(cur)}" placeholder="${escapeHtml(me)}" style="width:100%;margin:10px 0;padding:9px;border-radius:8px;border:1px solid var(--border-subtle);background:var(--bg-dark,#0b0f17);color:var(--text-main);font-size:15px;">
+      <div id="nk-msg" style="min-height:16px;font-size:12px;color:var(--crimson);"></div>
+      <div style="display:flex;gap:8px;margin-top:6px;"><button class="btn" style="flex:1;padding:10px;" onclick="document.getElementById('nk-ov').remove()">CANCEL</button><button class="btn btn-gold" style="flex:1;padding:10px;" id="nk-save">SAVE</button></div></div>`;
+    el.onclick = (e) => { if (e.target === el) el.remove(); };
+    document.body.appendChild(el);
+    const inp = $("nk-in"); setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) {} }, 50);
+    const save = () => {
+      const v = inp.value.trim(), msg = $("nk-msg");
+      if (v && v.length < 2) { msg.textContent = "At least 2 characters."; return; }
+      $("nk-save").disabled = true; msg.textContent = "";
+      google.script.run.withSuccessHandler(r => {
+        if (r && r.ok) { NK.map = r.nicks || NK.map; NK.at = Date.now(); nickApply(); el.remove(); log(r.nick ? `✏ Your nickname is now ${escapeHtml(r.nick)}.` : "✏ Nickname removed - you show up as your ID again.", "success"); }
+        else { $("nk-save").disabled = false; msg.textContent = r && r.reason === "taken" ? "Somebody already uses that name." : "Could not save the nickname."; }
+      }).withFailureHandler(() => { $("nk-save").disabled = false; msg.textContent = "Server error - try again."; }).setNick(v);
+    };
+    $("nk-save").onclick = save; inp.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+  }
+  (function nickBoot() {
+    if (typeof gameState === "undefined" || !document.getElementById("user-display")) { setTimeout(nickBoot, 500); return; }
+    const u = $("user-display"); u.style.cursor = "pointer"; u.title = "Click to set your nickname"; u.addEventListener("click", nickOpen);
+    if (!$("nk-pc")) { const b = document.createElement("span"); b.id = "nk-pc"; b.textContent = " ✏"; b.style.cssText = "cursor:pointer;opacity:.7;"; b.title = "Set your nickname"; b.onclick = nickOpen; u.after(b); }
+    const ms = $("m-settings"); if (ms && !$("nk-m")) { const row = ms.querySelector(".row"); const b = document.createElement("button"); b.id = "nk-m"; b.className = "btn btn-gold"; b.type = "button"; b.textContent = "✏ NICKNAME"; b.onclick = nickOpen; (row || ms).appendChild(b); }
+    nickLoad(true); setInterval(() => nickLoad(false), 60000);
+  })();
+  window.Nick = { of: nickOf, open: nickOpen, load: nickLoad, map: () => NK.map };
   window.Extras = { visit: visit, act: act, show: show, bossKey: bkOn, mnMines: mnMines, mnBet: mnBet, mnStart: mnStart, mnPick: mnPick, mnCash: mnCash,
     ltPick: ltPick, ltQuick: ltQuick, ltBuy: ltBuy, ltAct: ltAct, ltAdd: ltAdd, ltRow: ltRow, skBuy: skBuy, skSell: skSell, skBuyGc: skBuyGc, skPick: skPick, skTf: skTfSet, skAmt: function (v) { skAmt = String(v || ""); }, price: price, mnMult: mnMult, poll: poll, coffeeOn: coffeeOn, STOCKS: STOCKS };
 

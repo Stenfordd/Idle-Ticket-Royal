@@ -154,7 +154,7 @@ function updateHud() {
 if (!document.getElementById("stat-tickets")) return;
 const g = gameState;
 const coinsTxt = Math.floor(g.coins).toLocaleString();
-setTxt("user-display", g.ldap || "AGENT");
+setTxt("user-display", (window.Nick ? Nick.of(g.ldap) : g.ldap) || "AGENT");
 setTxt("stat-tickets", Math.floor(g.tickets).toLocaleString());
 setTxt("stat-coins", coinsTxt);
 setTxt("stat-scrap", Math.floor(g.scrap).toLocaleString());

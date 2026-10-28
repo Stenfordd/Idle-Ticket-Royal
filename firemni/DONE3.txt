@@ -1,4 +1,0 @@
-DONE3 - Office Royale v11.3 je dogenerovaná.
-Firemní verze: 36 souborů (nové dělení), postup v 00_NAVOD.txt.
-Čas: 2026-10-28 15:29
-Commit: 5a3928f

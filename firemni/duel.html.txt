@@ -120,7 +120,7 @@ if (choice === "dodge") return Q.dodge3(qs => cb({ dqs: qs }), "💨 ULTIMATE is
 }
 if (choice === "block") return Q.parry({ k: "any", title: "🛡 BLOCK: hit the ring - a PERFECT parry stops a HEAVY / GAMBLE / ULTIMATE" + (vsMage ? " (only half vs a Mage)" : " completely"), easy: h.parryWin || 1 }, o => cb({ parry: o.parry }));
 if (choice === "dodge") return Q.dodge(q => cb({ dq: q }));
-if (choice === "channel") return Q.channel(q => cb({ cq: q }));
+if (choice === "channel") return Q.channel(cv => cb({ cv: cv }));
 }
 cb({});
 }
@@ -150,7 +150,7 @@ setTimeout(() => { const el = $("du-target"); if (el) { el.value = K.target; el.
 }
 function bar(cls, v, m) { return `<div class="hs-bar"><div class="${cls}" style="width:${Math.max(0, Math.min(100, v / Math.max(1, m) * 100))}%"></div></div>`; }
 function side(v, i, h) {
-const nm = v.names[i] || "?", mine = i === v.you;
+const nm = (window.Nick ? Nick.of(v.names[i]) : v.names[i]) || "?", mine = i === v.you;
 const sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
 const max = v.max ? v.max[i] : (h ? h.maxHp : 1), hp = v.hp ? v.hp[i] : max;
 return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
@@ -168,7 +168,7 @@ if (v.role === "atk") return `<div class="hs-acts">${H.PVP_ATK.map(a => { const 
 const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
 return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
 return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
-const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "15 STA · ring -17-45%" : "+15 STA +10 FOC";
+const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "15 STA · hold, mana" : "+15 STA +10 FOC";
 return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
 }
 /** v11.2: rovné podmínky - rozdělení bodů před startem */
@@ -213,7 +213,7 @@ let role = "";
 if (v.status === "play") {
 const oi = 1 - v.you, oh = hs[oi];
 role = v.role === "atk" ? `<div class="du-role atk">① YOUR ATTACK<small>${esc(opp)} picks a reaction at the same time - they don't know what you'll do.</small></div>`
-: `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits can't be dodged" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
+: `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits are hard to dodge and pierce blocks" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
 role += `<div class="du-timer"><div id="du-tbar" style="width:${left / 35000 * 100}%"></div></div>`;
 }
 const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>
@@ -222,7 +222,7 @@ const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" 
 const wait = v.status === "wait" ? `<div class="dg-card"><div class="du-wait">⏳ Waiting for ${v.target ? "<b>" + esc(v.target) + "</b>" : "an opponent"} to accept (${Math.ceil((v.waitLeft || 0) / 60000)} min left)${v.stake ? " · stake " + fmt(v.stake) + " GC" : " · friendly duel"}${v.mode === "equal" ? " · equal terms" : ""}.<br>Tell them to open HIGH STAKES → ⚔ DUEL.</div>
 <button class="btn" style="width:100%;" onclick="HSDuel.leave()">CANCEL</button></div>` : "";
 if (v.status === "wait") return wait;
-return `<div class="dg-card"><div class="dg-h"><span>⚔ DUEL · ${esc(v.names[0])} vs ${esc(v.names[1])}</span><span>ROUND ${v.turn || 1}${v.stake ? " · 💰 " + fmt(v.stake * 2) : ""}${v.mode === "equal" ? " · ⚖ equal" : ""}</span></div></div>
+return `<div class="dg-card"><div class="dg-h"><span>⚔ DUEL · ${esc(window.Nick ? Nick.of(v.names[0]) : v.names[0])} vs ${esc(window.Nick ? Nick.of(v.names[1]) : v.names[1])}</span><span>ROUND ${v.turn || 1}${v.stake ? " · 💰 " + fmt(v.stake * 2) : ""}${v.mode === "equal" ? " · ⚖ equal" : ""}</span></div></div>
 <div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(4) : ""}${side(v, 0, hs[0])}<div class="dg-vs">VS</div>${side(v, 1, hs[1])}</div>
 ${role}${buttons(v, hs)}${res}
 ${v.status === "play" ? `<div style="text-align:right;margin-top:6px;"><button class="btn" style="padding:4px 10px;font-size:11px;" onclick="HSDuel.leave()">🏳 FLEE</button></div>` : ""}
@@ -232,7 +232,7 @@ function lobbyHtml() {
 const L = K.list, d = A.HS();
 const tables = L && L.tables && L.tables.length ? L.tables.map(t => {
 const mine = t.host === me(), forMe = !t.target || t.target === me();
-return `<div class="dg-art"><div class="ic">${(H.CLASSES[t.cls] || {}).icon || "⚔"}</div><div class="t"><b>${esc(t.host)}</b> · ${esc((H.CLASSES[t.cls] || {}).name || "")} LV ${t.lv || "?"}
+return `<div class="dg-art"><div class="ic">${(H.CLASSES[t.cls] || {}).icon || "⚔"}</div><div class="t"><b>${esc(window.Nick ? Nick.of(t.host) : t.host)}</b> · ${esc((H.CLASSES[t.cls] || {}).name || "")} LV ${t.lv || "?"}
 <div class="dg-dim">${t.stake ? "💰 " + fmt(t.stake) + " GC" : "friendly"} · ${t.mode === "equal" ? "⚖ equal terms" : "own stats"}${t.target ? " · for " + esc(t.target) : ""}${t.status === "play" ? " · vs " + esc(t.guest) : ""}</div></div>
 ${t.status === "wait" && !mine && forMe ? `<button class="btn btn-crimson" ${gameState.coins >= t.stake && !K.busy ? "" : "disabled"} onclick="HSDuel.join('${t.id}',${t.stake})">⚔ ACCEPT</button>` : `<span class="dg-dim">${t.status === "play" ? "FIGHTING" : mine ? "YOURS" : "PRIVATE"}</span>`}</div>`;
 }).join("") : `<div class="dg-dim">${L ? "No open duels. Create one and tell a friend!" : "Loading..."}</div>`;

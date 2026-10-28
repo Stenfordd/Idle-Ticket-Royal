@@ -457,6 +457,49 @@ if (t === "mines") { if (!$("mn-grid")) v.innerHTML = mnHtml(); mnDraw(); }
 if (t === "lotto") { if (!$("lt-box")) v.innerHTML = ltHtml(); ltRender(); poll(true); clearInterval(T.lt); T.lt = setInterval(() => { if ($("adv-view-lotto") && $("adv-view-lotto").style.display !== "none") ltRender(); else { clearInterval(T.lt); T.lt = null; } }, 20000); }
 if (t === "stocks") { if (!$("sk-box")) v.innerHTML = skHtml(); const d = skDividends(); if (d) log(`💵 Stock dividends: +${fmt(d)} GC.`, "success"); skRender(); clearInterval(T.sk); T.sk = setInterval(() => { if ($("adv-view-stocks") && $("adv-view-stocks").style.display !== "none") skRender(); else { clearInterval(T.sk); T.sk = null; } }, 15000); }
 }
+const NK = { map: {}, at: 0, busy: false };
+function nickOf(id) { id = String(id || ""); return NK.map[id] || id; }
+function nickLoad(force) {
+if (NK.busy || (!force && Date.now() - NK.at < 60000)) return;
+if (typeof google === "undefined" || !google.script || !google.script.run) return;
+NK.busy = true;
+google.script.run.withSuccessHandler(r => { NK.busy = false; NK.at = Date.now(); if (r && r.ok && r.nicks) { NK.map = r.nicks; nickApply(); } }).withFailureHandler(() => { NK.busy = false; NK.at = Date.now(); }).nickList();
+}
+function nickApply() {
+const u = $("user-display"); if (u && typeof gameState !== "undefined" && gameState.ldap) u.textContent = nickOf(gameState.ldap);
+if (typeof refreshLeaderboard === "function" && window.__lbRows) try { refreshLeaderboard(); } catch (e) {}
+}
+function nickOpen() {
+const ex = $("nk-ov"); if (ex) ex.remove();
+const me = typeof gameState !== "undefined" ? gameState.ldap : "", cur = NK.map[me] || "";
+const el = document.createElement("div"); el.id = "nk-ov"; el.className = "tt-overlay open"; el.style.zIndex = 10040;
+el.innerHTML = `<div class="tt-modal" style="max-width:380px;"><h2 style="color:var(--cyan);">✏ YOUR NICKNAME</h2>
+<div class="dg-dim" style="font-size:12px;line-height:1.5;">Other players see this name in the leaderboard, chat, duels and the weekly boss. Your account ID stays <b>${escapeHtml(me)}</b>. Leave it empty to use your ID again.</div>
+<input id="nk-in" maxlength="20" value="${escapeHtml(cur)}" placeholder="${escapeHtml(me)}" style="width:100%;margin:10px 0;padding:9px;border-radius:8px;border:1px solid var(--border-subtle);background:var(--bg-dark,#0b0f17);color:var(--text-main);font-size:15px;">
+<div id="nk-msg" style="min-height:16px;font-size:12px;color:var(--crimson);"></div>
+<div style="display:flex;gap:8px;margin-top:6px;"><button class="btn" style="flex:1;padding:10px;" onclick="document.getElementById('nk-ov').remove()">CANCEL</button><button class="btn btn-gold" style="flex:1;padding:10px;" id="nk-save">SAVE</button></div></div>`;
+el.onclick = (e) => { if (e.target === el) el.remove(); };
+document.body.appendChild(el);
+const inp = $("nk-in"); setTimeout(() => { try { inp.focus(); inp.select(); } catch (e) {} }, 50);
+const save = () => {
+const v = inp.value.trim(), msg = $("nk-msg");
+if (v && v.length < 2) { msg.textContent = "At least 2 characters."; return; }
+$("nk-save").disabled = true; msg.textContent = "";
+google.script.run.withSuccessHandler(r => {
+if (r && r.ok) { NK.map = r.nicks || NK.map; NK.at = Date.now(); nickApply(); el.remove(); log(r.nick ? `✏ Your nickname is now ${escapeHtml(r.nick)}.` : "✏ Nickname removed - you show up as your ID again.", "success"); }
+else { $("nk-save").disabled = false; msg.textContent = r && r.reason === "taken" ? "Somebody already uses that name." : "Could not save the nickname."; }
+}).withFailureHandler(() => { $("nk-save").disabled = false; msg.textContent = "Server error - try again."; }).setNick(v);
+};
+$("nk-save").onclick = save; inp.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+}
+(function nickBoot() {
+if (typeof gameState === "undefined" || !document.getElementById("user-display")) { setTimeout(nickBoot, 500); return; }
+const u = $("user-display"); u.style.cursor = "pointer"; u.title = "Click to set your nickname"; u.addEventListener("click", nickOpen);
+if (!$("nk-pc")) { const b = document.createElement("span"); b.id = "nk-pc"; b.textContent = " ✏"; b.style.cssText = "cursor:pointer;opacity:.7;"; b.title = "Set your nickname"; b.onclick = nickOpen; u.after(b); }
+const ms = $("m-settings"); if (ms && !$("nk-m")) { const row = ms.querySelector(".row"); const b = document.createElement("button"); b.id = "nk-m"; b.className = "btn btn-gold"; b.type = "button"; b.textContent = "✏ NICKNAME"; b.onclick = nickOpen; (row || ms).appendChild(b); }
+nickLoad(true); setInterval(() => nickLoad(false), 60000);
+})();
+window.Nick = { of: nickOf, open: nickOpen, load: nickLoad, map: () => NK.map };
 window.Extras = { visit: visit, act: act, show: show, bossKey: bkOn, mnMines: mnMines, mnBet: mnBet, mnStart: mnStart, mnPick: mnPick, mnCash: mnCash,
 ltPick: ltPick, ltQuick: ltQuick, ltBuy: ltBuy, ltAct: ltAct, ltAdd: ltAdd, ltRow: ltRow, skBuy: skBuy, skSell: skSell, skBuyGc: skBuyGc, skPick: skPick, skTf: skTfSet, skAmt: function (v) { skAmt = String(v || ""); }, price: price, mnMult: mnMult, poll: poll, coffeeOn: coffeeOn, STOCKS: STOCKS };
 (function boot() {

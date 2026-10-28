@@ -90,9 +90,27 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 <script>window.CLIENT_VERSION = <?!= JSON.stringify(getAppVersion_()) ?>;</script>
 </head>
 <body>
+<div id="tt-load" style="position:fixed;inset:0;z-index:99990;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:radial-gradient(circle at 50% 40%,#1b2340,#0a0d16 70%);color:#e2e8f0;font-family:Orbitron,monospace;text-align:center;padding:20px;transition:opacity .45s;">
+<div style="font-size:clamp(26px,7vw,48px);font-weight:900;letter-spacing:4px;color:#ffb800;text-shadow:0 0 22px rgba(255,184,0,.45);">TICKET TYCOON</div>
+<div style="font-size:12px;letter-spacing:6px;color:#00f0ff;">// CASINO ROYALE v11.4</div>
+<div style="width:min(320px,80vw);height:8px;background:#000;border-radius:4px;overflow:hidden;border:1px solid #334155;margin-top:10px;"><div id="tl-fill" style="height:100%;width:4%;background:linear-gradient(90deg,#00f0ff,#ffb800);transition:width .25s;"></div></div>
+<div id="tl-msg" style="font-size:12px;color:#94a3b8;font-family:sans-serif;">Connecting to the office server...</div>
+<div id="tl-tip" style="max-width:360px;font-size:12px;color:#cbd5e1;font-family:sans-serif;line-height:1.5;min-height:36px;"></div></div>
+<script>(function () {
+var need = ["office", "office2", "casino", "sync", "minigames", "jumpking", "prsi", "checkers", "plant", "changelog", "meta", "dengine", "hsengine", "hsengine2", "hscamp", "hsrig", "hsqte", "hsqte2", "hs", "hs2", "hs3", "gear", "arena", "hs_modes", "duel", "colleague", "extras", "mobile", "theme", "room", "room2", "room3"], el = document.getElementById("tt-load"), f = document.getElementById("tl-fill"), m = document.getElementById("tl-msg"), tp = document.getElementById("tl-tip"), t0 = Date.now(), k = Math.floor(Math.random() * 9);
+var tips = ["💡 Press ESC anywhere and the game hides behind a blank spreadsheet.", "💡 Click your name at the top to set a nickname.", "💡 High Stakes: guess the enemy's next move after your ultimate for a class bonus.", "💡 Stamina pays for every action - BREATHE when you run low.", "💡 Gear that's weaker now may beat yours after a few upgrades.", "💡 The weekly boss changes every week - some have their own rules.", "💡 In a duel, a ready ULTIMATE means BLOCK and DODGE are played 3 times.", "💡 Tap a stock to see your buy price and your trades on the chart.", "💡 When FIGHT glows gold, a High Stakes event is running."];
+function tip() { tp.textContent = tips[k++ % tips.length]; } tip(); var ti = setInterval(tip, 3200);
+var iv = setInterval(function () {
+var got = window.__TT_FILES || {}, n = 0; for (var i = 0; i < need.length; i++) if (got[need[i]]) n++;
+var ok = typeof gameLoaded !== "undefined" && gameLoaded, p = ok ? 1 : n / need.length;
+f.style.width = Math.max(4, Math.round(p * 92 + (ok ? 8 : 0))) + "%";
+m.textContent = ok ? "Ready!" : n < need.length ? "Loading the office... " + n + " / " + need.length : (Date.now() - t0 > 20000 ? "Still loading your save - the server is slow today..." : "Loading your save...");
+if (ok || Date.now() - t0 > 90000) { clearInterval(iv); clearInterval(ti); el.style.opacity = "0"; setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 500); }
+}, 150);
+})();</script>
 <!-- TOP HEADER -->
 <div class="top-bar">
-<div class="brand-title">TICKET TYCOON // CASINO ROYALE v11.3</div>
+<div class="brand-title">TICKET TYCOON // CASINO ROYALE v11.4</div>
 <div class="user-badge">
 <span>AGENT: <strong id="user-display" style="color:var(--cyan);">CONNECTING...</strong></span>
 <span>SEASON: <strong id="season-display" style="color:var(--amber);">6</strong></span>
@@ -491,6 +509,7 @@ Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose
   <?!= include('hscamp'); ?>
   <?!= include('hsrig'); ?>
   <?!= include('hsqte'); ?>
+  <?!= include('hsqte2'); ?>
   <?!= include('hs'); ?>
   <?!= include('hs2'); ?>
   <?!= include('hs3'); ?>
@@ -508,7 +527,7 @@ Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose
 <script>
 /* Kontrola po vložení: když se některý soubor nezkopíroval celý, ukáže se červená lišta s jeho jménem. */
 (function () {
-var need = ["office", "office2", "casino", "sync", "minigames", "jumpking", "prsi", "checkers", "plant", "changelog", "meta", "dengine", "hsengine", "hsengine2", "hscamp", "hsrig", "hsqte", "hs", "hs2", "hs3", "gear", "arena", "hs_modes", "duel", "colleague", "extras", "mobile", "theme", "room", "room2", "room3"], got = window.__TT_FILES || {};
+var need = ["office", "office2", "casino", "sync", "minigames", "jumpking", "prsi", "checkers", "plant", "changelog", "meta", "dengine", "hsengine", "hsengine2", "hscamp", "hsrig", "hsqte", "hsqte2", "hs", "hs2", "hs3", "gear", "arena", "hs_modes", "duel", "colleague", "extras", "mobile", "theme", "room", "room2", "room3"], got = window.__TT_FILES || {};
 var bad = need.filter(function (k) { return !got[k]; });
 if (bad.length) {
 var d = document.createElement("div");

@@ -24,6 +24,16 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "11.4", d: "2026-10-28", i: [
+"🔮 CHANNEL is a new mini-game: hold the marker inside a moving band for 2 seconds. You take 10-35% less damage and the absorbed damage is stored as <b>MANA</b> - added to your next hit",
+"🛡 BLOCK takes more skill: the gold target has a different size every time, the ring changes speed, fake rings can show up anywhere and every PERFECT in a row makes the window a bit smaller",
+"🧙 Mage vs Trojan / Hunter is fair now: Mage hits can be dodged again, just at half the chance. A perfect parry against a Mage still counters. Duel classes re-balanced (Warrior fights are no longer endless)",
+"📊 5 new weekly bosses with their own class: 🧾 The Auditor (forms every round), 📇 The Recruiter (hires healing interns), 💼 The Consultant (copies your last attack), 🔥 The Server Room (overheats if you repeat attacks) and 🏢 The CEO (budget shield only HEAVY and ULTIMATE break)",
+"📈 Weekly boss MK levels are much tougher: ×1.8 HP and +25% damage per MK (was ×1.6 / +15%)",
+"✨ When a High Stakes event runs (AUDIT WEEK, OVERTIME), the ⚔ FIGHT tab / HIGH STAKES button glows gold",
+"✏ <b>Nicknames</b>: click your name at the top (or MORE → ✏ NICKNAME) and pick the name other players see in the leaderboard, chat, duels and the weekly boss",
+"⏳ New loading screen with tips while the game starts"
+] },
 { v: "11.3", d: "2026-10-28", i: [
 "😮‍💨 Every action now costs <b>stamina</b> - DODGE 20, CHANNEL 15 (BLOCK stays). <b>Focus only charges your ULTIMATE</b>, so the Mage, Trojan and Hunter get it much more often. A successful dodge gives +5 focus",
 "⚖ Duel classes re-balanced for the stamina change",

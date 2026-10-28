@@ -111,7 +111,7 @@ document.getElementById("lb-body").innerHTML = data.leaderboard.map((u, i) => {
 const isMe = (u.ldap === gameState.ldap);
 const gn = u.gambleNet || 0;
 return `<tr class="${isMe ? "me" : ""}" onclick="window.Dungeon && Dungeon.showProfile(window.__lbRows[${i}])" title="Click for player card">
-<td>${i + 1}</td><td>${presenceDot(u)}${escapeHtml(u.ldap)}</td>
+<td>${i + 1}</td><td>${presenceDot(u)}${escapeHtml(window.Nick ? Nick.of(u.ldap) : u.ldap)}</td>
 <td style="color:var(--crimson);">${u.prestige || 0}</td>
 <td style="color:var(--cyan);">${u.chestLvl || 1}</td>
 <td style="color:#ff4d6d;">${(u.dungeon && u.dungeon.best) || 0}</td>
