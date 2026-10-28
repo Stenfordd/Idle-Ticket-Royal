@@ -1,10 +1,11 @@
-NÁVOD v6.3 - firemní verze v11.0 (= hra Office Royale v11.0)
+NÁVOD v6.4 - firemní verze v11.1 (= hra Office Royale v11.1)
 
-v11.0: HIGH STAKES 2.0 - nový souboj 1v1 (útok -> nepřítel ukáže tah -> reakce), 5 tříd, staty jako v SFGame,
-ascend High Stakes (Kampaň 2, 3...), tiery toweru, živé DUELY s kamarády, aréna na nových pravidlech.
-Máš-li už v10.x: stejných 28 souborů, žádný nový. Zkopíruj znovu VŠECH 28 (změnil se i server: code, server2, engine).
+v11.1: prestiž High Stakes místo Kampaně 2, 3... (level a staty zůstávají, nepřátelé +67 % za prestiž, upgrady gearu na +0),
+barvy lootu podle prestiže, jednorázový reset gearu s náhradou v GC, mini-hry ultimátek pro každou třídu, DODGE mini-hra,
+mini-hry i v DUELU (35 s na tah), třídy nepřátel, nový útok BREATHE a HEAVY s cooldownem.
+Máš-li už v11.0: přibyl JEDEN nový soubor part24 (HTML). Zkopíruj znovu VŠECH 29 (změnil se i server: code, server2, engine).
 
-Kancelář bez wipe. High Stakes začíná znovu (Season 3, naposledy) - hráči dostanou za starý postup GC, gear zůstává.
+Kancelář bez wipe. Gear v High Stakes se jednou vymaže - hráči dostanou GC (hodnota rozebrání + všechny zaplacené upgrady) a šedou startovní sadu.
 
 ======================================================
 KDE JSOU SOUBORY
@@ -13,20 +14,36 @@ https://stenfordd.github.io/Idle-Ticket-Royal/firemni/   (každý soubor má tla
 POZOR: "index.html" na GitHubu je jen tahle stránka. Do Apps Scriptu patří "index.html.txt" (soubor index).
 
 ======================================================
-SOUBORY V APPS SCRIPT PROJEKTU (28)
+SOUBORY V APPS SCRIPT PROJEKTU (29)
 ======================================================
-.gs:   code, server2 (NOVÝ), engine
+.gs:   code, server2, engine
 HTML:  index, style, office, casino, system, minigames, special, meta, hs_core, hs_ui, hs, prsi, hs_modes, mobile,
-       part13, part14, part15, part16, part17, part18, part19, part20, part21, part22, part23
+       part13, part14, part15, part16, part17, part18, part19, part20, part21, part22, part23, part24 (NOVÝ)
 
-1) Žádný nový soubor - z v10.2 máš všech 28 (code, server2, engine + 25 HTML).
-2) Do KAŽDÉHO z 28 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
+1) Vytvoř nový HTML soubor part24 (+ -> HTML, jméno bez .html). Ostatních 28 už máš z v11.0.
+2) Do KAŽDÉHO z 29 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
 3) Ctrl+S
 4) Deploy > Manage deployments > tužka (edit) > Version: New version > Deploy
 5) Obnov tabulku (F5) - v menu Ticket Tycoon přibude "Spustit firemní globální event". Pak Ticket Tycoon > Bump version.
 
 Při prvním spuštění menu "Spustit firemní globální event" se Google zeptá na oprávnění - povol.
 Když se ve hře objeví červená lišta COPY ERROR, vypíše, který soubor se nezkopíroval celý.
+
+======================================================
+CO JE NOVÉHO (v11.1)
+======================================================
+- PRESTIŽ HIGH STAKES: po Big Massim začneš kampaň znovu. Level a stat body zůstávají, hvězdy se sčítají.
+  Upgrady gearu (i kolegy) spadnou na +0, kampaň, tower a směna začínají znovu, nepřátelé +67 % za každou prestiž.
+- Barvy lootu: na začátku jen šedé věci, bossové mají 25 % na další barvu, každá prestiž odemkne další barvu.
+  Nová zelená barva mezi šedou a modrou. Kolega má 10 % na gear z bossů, jeho gear jde vylepšovat, svůj gear jde sundat.
+- Reset gearu (jednou): starý gear pryč, za něj GC + šedá startovní sada.
+- Stamina se sama nedoplňuje: STRIKE +10, nový útok BREATHE +30 (a vyléčí jed), reakce BREATHE +15. HEAVY má 1 kolo cooldown.
+- Ultimátky = mini-hry: mág počítá 3 příklady (0-3 správně = 75/100/110/125 %), warrior chytá viry a uhýbá bombám,
+  hunter střílí lukem na pohyblivý terč, Trojan opakuje sekvenci, Caffeine Abuser nalévá 3 kafe. DODGE = mini-hra s drahami.
+- DUEL má všechny mini-hry (HEAVY, GAMBLE, ultimátky, PARRY, DODGE) a 35 s na tah.
+- Nepřátelé mají třídy (virus, swarm, firewall, manager, leech, brute). Shadow Admin = Trojan, Blood Walker = Caffeine Abuser.
+- Compliance už nechce reakci, kterou nemůžeš použít. Další stat bod stojí +10 % (dřív víc).
+- Nahoře ve hře se teď ukazuje správná verze (v11.1) místo "v9".
 
 ======================================================
 CO JE NOVÉHO (v11.0)

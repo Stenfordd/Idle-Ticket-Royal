@@ -2,6 +2,17 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "11.1", d: "2026-10-28", i: [
+"🔺 <b>High Stakes PRESTIGE</b> replaces Campaign 2, 3...: after the Big Massi you restart the campaign. You KEEP your level and stat points, your stars add up - but gear upgrades go back to +0 (colleague's too), campaign, tower and shift reset and enemies get <b>+67% stronger</b> per prestige. The pool stays and scales a bit more",
+"🎨 Loot colors are gated: at first only grey items drop, bosses have a 25% chance for the next color and every prestige unlocks one more color (campaign, tower and pool). New green tier between grey and blue",
+"♻ One-time <b>gear reset</b>: all gear was taken off and refunded as GC (salvage value + every upgrade you paid) - you got a fresh grey starter set",
+"🧑‍💼 The colleague has a 10% chance to find gear on boss wins, and you can upgrade colleague gear like your own. You can take off your own gear (↩ Take off)",
+"😮‍💨 Stamina no longer refills by itself: ⚔ STRIKE gives +10, the new <b>BREATHE</b> attack +30 stamina and +15 focus (and cures poison), BREATHE as a reaction +15. 💥 HEAVY has a 1-round cooldown",
+"🎮 New ultimate mini-games for every class: 🧙 Mage solves 3 math problems (0-3 right = 75 / 100 / 110 / 125% power), 🛡 Warrior catches viruses and avoids bombs, 🏹 Hunter shoots a moving target with a bow, 🦠 Trojan repeats an infection sequence, ☕ Caffeine Abuser pours 3 perfect cups. 💨 DODGE is a lane mini-game now",
+"⚔ <b>DUEL</b> has all the mini-games too (HEAVY timing, GAMBLE reels with hold and re-spin, ultimates, BLOCK parry ring, DODGE lanes) and 35 seconds per choice",
+"👾 Enemies have classes: 🦠 virus (poison), 🐛 swarm (double bites), 🧱 firewall (guards and reflects), 📈 manager (stacks damage), 🧛 leech (heals) and 🦍 brute",
+"🦠 Shadow Admin is now the <b>Trojan</b> (BACKDOOR) and 🩸 Blood Walker is the <b>Caffeine Abuser</b> (DOUBLE ESPRESSO). Compliance no longer asks for a reaction you can't use. Extra stat points cost +10% each (was more)"
+] },
 { v: "11.0", d: "2026-10-28", i: [
 "🎰 <b>HIGH STAKES 2.0</b> (Season 3): a real 1v1 fight. Every round ① you attack (⚔ STRIKE, 💥 HEAVY, 🎰 GAMBLE, ✨ ULTIMATE), ② the enemy shows its move (⚔ attack, 💥 heavy, 🔮 spell, ⏳ charge, 🛡 guard) and ③ you react (🛡 BLOCK, 💨 DODGE, 🔮 CHANNEL or 😮‍💨 BREATHE)",
 "🧍 5 classes: 🛡 Firewall Warden (warrior - blocks and counters), 🗡 Shadow Admin (assassin - dodges, 2.5× crits), 🧙 Code Wizard (mage - +75% damage, immune to spells, glass cannon), 🩸 Blood Walker (lifesteal, rises again) and 🏹 Bug Hunter (double hits, first strike, marks the target). One free class change",

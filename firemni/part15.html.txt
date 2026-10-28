@@ -1,553 +1,111 @@
-<script type="text/plain" data-tt="ttbig3" data-i="1">
-(function () {
-"use strict";
-const H = window.HSEngine, C = window.HSCampaign;
-const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-const ENERGY_BASE = 16, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
-function EMAX() { return ENERGY_BASE + (window.Plant ? Plant.fx("energy") : 0); }   // v8.7: Office Plant Sap Reserve
-const STAT_INFO = { str: ["STR", "damage + defence against STR"], agi: ["AGI", "damage + defence against AGI"], int: ["INT", "damage + defence against INT"],
-vit: ["VIT", "max HP (VIT × class multiplier × level)"], luck: ["LUCK", "crit chance (against the enemy's level, max 50%), gamble odds, timing zone"] };
-const SEASON = 3, STAR_PCT = 0.003;
-const BOSS_TITLES = { louis: "Siesta Survivor", italian: "Ate the Spaghetti", cobol: "Bryndza Approved", polishen: "Survived the Withdrawal", admin: "Root Access" };
-const SPRITE_IDX = { sysadmin: 0, engineer: 1, cyber: 2, blood: 0, hunter: 2 };
-let view = "camp", chSel = 0, open = false, fight = null, fightMission = null, fightCtx = null, busyAnim = false, result = null, flog = [];
-function HS() {
-const g = gameState;
-if (!g.hs || typeof g.hs !== "object") g.hs = {};
-const d = g.hs;
-if (!H.CLASSES[d.cls]) d.cls = null;
-d.level = Math.max(1, Math.floor(Number(d.level) || 1));
-d.xp = Math.max(0, Number(d.xp) || 0);
-if (!d.stats || typeof d.stats !== "object") d.stats = {};
-["str", "agi", "int", "vit", "luck"].forEach(k => { d.stats[k] = Math.max(0, Math.floor(Number(d.stats[k]) || 0)); });
-delete d.stats.end;
-d.bp = Math.max(0, Math.floor(Number(d.bp) || 0));                       // v11: body koupené za GC
-const spent = Object.values(d.stats).reduce((a, b) => a + b, 0);
-if (spent > H.statPoints(d.level) + d.bp) d.stats = {};
-d.pts = Math.max(0, H.statPoints(d.level) + d.bp - Object.values(d.stats).reduce((a, b) => a + b, 0));
-if (typeof d.energy !== "number" || !isFinite(d.energy)) { d.energy = EMAX(); d.energyAt = Date.now(); }
-if (!d.energyAt) d.energyAt = Date.now();
-if (!d.stars || typeof d.stars !== "object") d.stars = {};
-if (!d.sm || typeof d.sm !== "object") d.sm = {};
-Object.keys(d.sm).forEach(id => { d.sm[id] = (Number(d.sm[id]) || 0) & 7; d.stars[id] = H.starCount(d.sm[id]); });
-if (!d.camp || typeof d.camp !== "object") d.camp = { n: 1, top: 1, s: {} };
-if (!d.camp.s || typeof d.camp.s !== "object") d.camp.s = {};
-d.camp.top = Math.max(1, Math.floor(Number(d.camp.top) || 1));
-d.camp.n = Math.max(1, Math.min(d.camp.top, Math.floor(Number(d.camp.n) || 1)));
-delete d.items;
-d.wins = Math.max(0, Number(d.wins) || 0); d.losses = Math.max(0, Number(d.losses) || 0);
-if (d.arenaStance !== "safe" && d.arenaStance !== "normal" && d.arenaStance !== "allin") d.arenaStance = "normal";
-if (!d.t6 || typeof d.t6 !== "object") d.t6 = {};
-Object.keys(C.BOSS_SLOT).forEach(id => { if (d.stars[id] > 0) d.t6[C.BOSS_SLOT[id]] = true; });
-if (!d.tower || typeof d.tower !== "object") d.tower = { best: 0 };
-d.tower.best = Math.max(0, Math.min(100, Math.floor(Number(d.tower.best) || 0)));
-if (!d.tower.tb || typeof d.tower.tb !== "object") d.tower.tb = {};
-d.tower.t = Math.max(1, Math.min(towerTop(d), Math.floor(Number(d.tower.t) || 1)));
-if (!d.shift || typeof d.shift !== "object") d.shift = { best: 0, asc: 0, runs: 0, clears: 0 };
-if (!d.wb || typeof d.wb !== "object") d.wb = {};
-if (!d.pool || typeof d.pool !== "object") d.pool = { best: 0, unlocked: false };
-d.pool.best = Math.max(0, Math.floor(Number(d.pool.best) || 0));
-if (d.pool.run !== undefined) delete d.pool.run;
-if (d.tower.best >= 100) d.pool.unlocked = true;
-if (!d.bt || typeof d.bt !== "object") d.bt = {};
-if (d.tsel && !d.bt[d.tsel]) d.tsel = "";
-if (d.legacyBest == null) d.legacyBest = 0;
-d.tier = 1; d.branch = ""; d.artifacts = {}; d.equipped = []; d.promos = {}; d.exec = false;
-if (d.season !== SEASON && typeof gameLoaded !== "undefined" && gameLoaded) seasonReset(d);
-if (d.season === SEASON && typeof gameLoaded !== "undefined" && gameLoaded) {
-if (d.cls && !d.kit && window.Gear && Gear.starter) { d.kit = 1; setTimeout(() => { try { Gear.starter(); } catch (e) {} }, 0); }
+<style>
+/* ===== HIGH STAKES (akční souboj) - doplňky k dg-* stylům ===== */
+.dg-top h1 { min-width: 120px; }
+.hs-ch { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.hs-ch .btn { flex: 1 0 18%; padding: 6px 2px; font-size: 10px; line-height: 1.2; }
+.hs-ch .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.hs-ms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.hs-m { display: flex; gap: 8px; align-items: center; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; cursor: pointer; min-width: 0; }
+.hs-m:hover { border-color: var(--cyan); }
+.hs-m.locked { opacity: .4; cursor: default; }
+.hs-m.boss { border-color: rgba(255,23,68,.5); background: linear-gradient(90deg, rgba(255,23,68,.12), transparent); }
+.hs-m.compliance { border-color: rgba(255,184,0,.45); }
+.hs-m .ic { font-size: 22px; width: 30px; text-align: center; flex: none; }
+.hs-m .t { flex: 1; min-width: 0; }
+.hs-m .t b { display: block; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-stars { color: #ffd700; font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
+.hs-stars .off { color: #3b4252; }
+.hs-fight { position: relative; }
+.hs-bars { display: grid; gap: 3px; margin-top: 4px; }
+.hs-bar { height: 8px; background: #000; border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden; position: relative; }
+.hs-bar > div { height: 100%; transition: width .25s; }
+.hs-bar .hp { background: linear-gradient(90deg, #00c070, #00ff88); }
+.hs-bar .ehp { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
+.hs-bar .sta { background: linear-gradient(90deg, #f59e0b, #fde047); }
+.hs-bar .foc { background: linear-gradient(90deg, #a855f7, #ff4dff); }
+.hs-bar .brk { background: linear-gradient(90deg, #64748b, #e2e8f0); }
+.hs-bar.full .brk { background: #ffd700; }
+.hs-intent.charge { background: rgba(255,184,0,.2); border-color: var(--amber); color: var(--amber); animation: tabGlow .4s ease-in-out infinite alternate; }
+.hs-intent.unleash { background: rgba(255,23,68,.4); border-color: #ff1744; color: #fff; animation: tabGlow .25s ease-in-out infinite alternate; }
+.hs-intent.stun { color: #ffd700; }
+.hs-parry { position: relative; width: 150px; height: 150px; cursor: pointer; touch-action: none; }
+.hs-parry .tgt { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 4px solid #ffd700; box-shadow: 0 0 12px #ffd700; }
+.hs-parry .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 4px solid #ff1744; box-shadow: 0 0 10px #ff1744; }
+.hs-parry .ring.fake { border-color: #94a3b8; box-shadow: 0 0 8px #94a3b8; opacity: .8; border-style: dashed; }
+.hs-parry.spiral .ring { border-style: dashed; }
+.hs-pdots { display: flex; gap: 6px; margin-top: 8px; min-height: 12px; }
+.hs-pdots span { width: 12px; height: 12px; border-radius: 50%; background: #1e2636; border: 1px solid #334155; }
+.hs-pdots span.perfect { background: #ffd700; } .hs-pdots span.good { background: var(--emerald); } .hs-pdots span.none { background: var(--crimson); }
+.hs-ports { position: relative; width: 86%; height: 130px; background: #050a08; border: 1px solid #14532d; border-radius: 6px; overflow: hidden; }
+.hs-port { position: absolute; padding: 6px 10px; font: 800 12px 'Orbitron', monospace; color: #00ff88; background: rgba(0,255,136,.12); border: 1px solid #00ff88; border-radius: 6px; cursor: pointer; animation: portIn .15s ease-out; }
+.hs-port.hit { background: #00ff88; color: #000; } .hs-port.gone { opacity: 0; pointer-events: none; transition: opacity .15s; }
+@keyframes portIn { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.hs-help-btn { padding: 1px 8px; font-size: 11px; border-radius: 50%; min-width: 22px; }
+.hs-hsec { font: 800 10px 'Orbitron', monospace; color: var(--amber); letter-spacing: 1px; margin: 10px 0 4px; }
+.hs-hrow { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.hs-hrow .i { width: 22px; flex: none; text-align: center; }
+.hs-hrow b { color: var(--text-main); font-family: 'Orbitron', monospace; font-size: 10.5px; }
+.hs-coach { margin-top: 8px; padding: 9px 10px; border-radius: 8px; background: linear-gradient(180deg, rgba(0,240,255,.10), rgba(0,240,255,.03)); border: 1px solid rgba(0,240,255,.45); font-size: 12px; line-height: 1.45; color: var(--text-main); }
+.hs-coach-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font: 800 11px 'Orbitron', monospace; color: var(--cyan); letter-spacing: 1px; }
+.hs-coach-h .btn { padding: 3px 8px; font-size: 9px; }
+.hs-coach-ok { color: var(--emerald); font-weight: 700; margin-bottom: 3px; }
+.hs-reel { cursor: pointer; color: inherit; font-family: inherit; padding: 0; }
+.hs-reel.held { border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan) inset, 0 0 8px var(--cyan); position: relative; }
+.hs-reel.held::after { content: "HOLD"; position: absolute; bottom: -15px; left: 0; right: 0; font: 800 9px 'Orbitron', monospace; color: var(--cyan); }
+.hs-gbtns { display: flex; gap: 6px; margin-top: 14px; }
+.hs-gbtns .btn { padding: 9px 12px; font-size: 11px; }
+.hs-bar .sh { position: absolute; top: 0; left: 0; background: rgba(0,240,255,.55); }
+.hs-lbl { display: flex; justify-content: space-between; font: 700 9px 'Orbitron', monospace; color: var(--text-dim); }
+.hs-intent { display: inline-flex; align-items: center; gap: 4px; margin: 4px auto 0; padding: 3px 10px; border-radius: 12px; font: 800 12px 'Orbitron', monospace; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); }
+.hs-intent.heavy { background: rgba(255,23,68,.25); border-color: var(--crimson); color: #ff8fa3; animation: tabGlow .5s ease-in-out infinite alternate; }
+.hs-intent.defend { color: var(--cyan); }
+.hs-intent.special { color: #ff4dff; }
+.hs-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 6px; margin-top: 6px; }
+.hs-phase { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font: 800 11px 'Orbitron', monospace; letter-spacing: 1px; }
+.hs-phase .p-atk { color: var(--amber); } .hs-phase .p-react { color: var(--cyan); animation: tabGlow .5s ease-in-out infinite alternate; }
+.hs-phase small { font: 400 11px sans-serif; letter-spacing: 0; color: var(--text-dim); }
+.hs-acts .btn.react { border-color: var(--cyan); }
+.hs-camps { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.hs-camps .btn { padding: 5px 10px; font-size: 11px; }
+.hs-camps .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.hs-asc { border-color: var(--amber) !important; background: linear-gradient(90deg, rgba(255,184,0,.12), transparent); }
+.hs-buy { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; padding: 8px; border-radius: 8px; background: var(--bg-panel-elevated); }
+.hs-acts .btn { padding: 9px 2px; font-size: 11px; line-height: 1.2; }
+.hs-acts .btn small { display: block; font-size: 8.5px; opacity: .75; font-family: inherit; letter-spacing: 0; }
+.hs-acts .btn.off { opacity: .32; }
+.hs-acts .btn.lock { text-decoration: line-through; }
+.hs-items { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.hs-items .btn { flex: 1; padding: 6px 2px; font-size: 10px; }
+.hs-ov { position: absolute; inset: 0; background: rgba(5,7,11,.82); display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 5; border-radius: 8px; }
+.hs-timing { width: 86%; height: 34px; background: #111827; border: 2px solid #fff; border-radius: 6px; position: relative; overflow: hidden; cursor: pointer; }
+.hs-timing .g { position: absolute; top: 0; bottom: 0; background: rgba(0,255,136,.45); }
+.hs-timing .p { position: absolute; top: 0; bottom: 0; background: rgba(255,215,0,.85); }
+.hs-timing .n { position: absolute; top: -4px; bottom: -4px; width: 4px; background: #ff1744; box-shadow: 0 0 8px #ff1744; }
+.hs-reels { display: flex; gap: 8px; }
+.hs-reel { width: 64px; height: 64px; background: #111827; border: 2px solid var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+.hs-reel.spin { animation: megaSpin .08s linear infinite; }
+.hs-ovt { font: 800 13px 'Orbitron', monospace; color: var(--amber); margin-top: 10px; text-align: center; }
+.hs-stat { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12px; }
+.hs-stat b { width: 54px; font-family: 'Orbitron', monospace; font-size: 11px; }
+.hs-stat .v { width: 34px; text-align: right; font-family: 'Orbitron', monospace; color: var(--amber); }
+.hs-stat .d { flex: 1; font-size: 10px; color: var(--text-dim); }
+.hs-res { text-align: center; padding: 14px 8px; }
+.hs-res .big { font: 900 24px 'Orbitron', monospace; letter-spacing: 2px; }
+.hs-res .st { font-size: 30px; color: #ffd700; letter-spacing: 4px; margin: 6px 0; }
+.hs-res .st .off { color: #2a3245; }
+.hs-goals { text-align: left; display: inline-block; font-size: 12px; margin: 2px 0 8px; line-height: 1.6; }
+.hs-goals .ok { color: var(--emerald); } .hs-goals .no { color: var(--text-dim); }
+.hs-goals .new { color: #ffd700; font: 800 9px 'Orbitron', monospace; } .hs-goals .had { color: #8b6f00; font-size: 10px; }
+.hs-form { margin-top: 6px; padding: 6px 10px; border: 1px dashed var(--amber); border-radius: 6px; font-size: 11px; color: var(--amber); background: rgba(255,184,0,.06); text-align: center; }
+.hs-form b { color: #fff; } .hs-form .rt { display: block; color: var(--crimson); font-weight: 700; }
+.hs-acts .btn.want { box-shadow: 0 0 0 2px var(--amber) inset; }
+.dg-tabs .casino-tab-btn.tdot { position: relative; }
+.dg-tabs .casino-tab-btn.tdot::after { content: ""; position: absolute; top: 4px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); }
+@media (max-width: 700px) {
+.hs-ms { grid-template-columns: 1fr; }
+.hs-acts { grid-template-columns: repeat(3, 1fr); }
+.hs-acts .btn { font-size: 10px; padding: 8px 1px; }
 }
-return d;
-}
-function towerTop(d) { let t = 1; const tb = (d.tower && d.tower.tb) || {}; while ((t === 1 ? d.tower.best : Number(tb[t]) || 0) >= 100) t++; return t; }
-function towerBest(d, t) { d = d || HS(); t = t || d.tower.t; return t === 1 ? d.tower.best : Math.max(0, Math.min(100, Number(d.tower.tb[t]) || 0)); }
-function towerFloorsTotal(d) { d = d || HS(); let s = d.tower.best; Object.keys(d.tower.tb).forEach(k => { if (Number(k) > 1) s += Math.min(100, Number(d.tower.tb[k]) || 0); }); return s; }
-/** v11: HIGH STAKES 2.0 = SEASON 3. Nový souboj a staty -> level, kampaň, tower, pool a směna od nuly (naposledy - prestiž kanceláře už High Stakes nemaže).
-*  Gear zůstává (přepočítá se), třída se dá jednou změnit zdarma. Kompenzace podle férového vzorce (jen High Stakes, bez Auto GC). */
-function seasonReset(d) {
-const lvl = d.level || 1, cl = Object.keys(d.stars || {}).filter(k => d.stars[k] > 0).length, tw = (d.tower && d.tower.best) || 0, pl = (d.pool && d.pool.best) || 0;
-const played = !!d.cls || lvl > 1 || cl > 0, P = gameState.prestige || 0;
-const gc = played ? Math.round((20000 * Math.pow(lvl, 1.5) + 30000 * cl + 15000 * tw + 40000 * pl) * (1 + 0.25 * P)) : 0;
-const oldCls = d.cls;
-d.season = SEASON;
-d.level = 1; d.xp = 0; d.stats = {}; d.pts = 0; d.bp = 0; d.stars = {}; d.sm = {}; d.camp = { n: 1, top: 1, s: {} };
-d.tower = { best: 0, t: 1, tb: {} }; d.pool = { best: 0, unlocked: false }; d.shift = { best: 0, asc: 0, runs: 0, clears: 0 };
-d.energy = EMAX(); d.energyAt = Date.now(); d.wins = 0; d.losses = 0; d.legacyBest = 0; d.tut = 0; d.frc = 1;
-if (d.col && typeof d.col === "object") d.col.target = null;
-d.cls = null; d.prevCls = H.CLASSES[oldCls] ? oldCls : "";                // každý si vybere z 5 nových tříd
-if (played) {
-gameState.coins += gc; d.s3 = { gc: gc, lvl: lvl, cl: cl, tw: tw, pl: pl, p: P, at: Date.now() };
-log(`🎰 HIGH STAKES 2.0 (SEASON 3): a real 1v1 fight (attack, then react to what the enemy shows), 5 classes, SFGame-style stats and High Stakes ascends. Level and progress start from zero - for the last time, office prestige never resets High Stakes again. Your gear stays. +${fmt(gc)} GC for your old LV ${lvl}.`, "special");
-if (window.TT && TT.saveSoon) TT.saveSoon();
-}
-}
-const D = HS;
-function smOf(n, d) { d = d || HS(); n = n || d.camp.n; if (n <= 1) return d.sm; const s = d.camp.s[n] = d.camp.s[n] || {}; if (!s.sm || typeof s.sm !== "object") s.sm = {}; return s.sm; }
-function campStars(n, d) { const sm = smOf(n, d); return Object.keys(sm).reduce((a, k) => a + H.starCount(sm[k] || 0), 0); }
-function cleared(d, n) { d = d || HS(); const sm = smOf(n || 1, d); return Object.keys(sm).filter(k => (sm[k] || 0) > 0).length; }
-function totalStars(d) { d = d || HS(); let s = 0; for (let n = 1; n <= d.camp.top; n++) s += campStars(n, d); return s; }
-function clearedAny(id, d) { d = d || HS(); for (let n = 1; n <= d.camp.top; n++) if ((smOf(n, d)[id] || 0) > 0) return true; return false; }
-function maxChest() { return Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1); }
-function unlocked() { const d = HS(); return (gameState.prestige || 0) >= 1 || maxChest() >= 10 || !!d.cls; }
-function regenEnergy() {
-const d = HS(), now = Date.now();
-if (d.energy >= EMAX()) { d.energyAt = now; return; }
-const n = Math.floor((now - d.energyAt) / ENERGY_MS);
-if (n > 0) { d.energy = Math.min(EMAX(), d.energy + n); d.energyAt = d.energy >= EMAX() ? now : d.energyAt + n * ENERGY_MS; }
-}
-/** v11: výbava = Gear.mult() { wpn, armor, crit, stats } */
-function gear() { return window.Gear ? Gear.mult() : { wpn: 0, armor: 0, crit: 0, stats: {} }; }
-function towerBonus() { return Math.min(0.3, 0.01 * Math.floor(towerFloorsTotal() / 10)); }
-function hero() {
-const d = HS(), h = H.buildHero(Object.assign({}, d, { bonus: towerBonus() }), gear());
-if (window.Plant) { h.startFocus = Plant.fx("focus"); h.parryWin = Plant.fx("parry"); h.wildCherry = Plant.fx("wildCherry"); }
-return h;
-}
-function t6Unlocked(slot) { return !!HS().t6[slot]; }
-function t6Slots() { const t = HS().t6; return SLOTS.filter(s => t[s]); }
-function player() { return hero(); }
-function title(d) {
-d = d || HS();
-if (!d.cls) return "Rookie";
-if (d.tsel && d.bt && d.bt[d.tsel] && BOSS_TITLES[d.tsel]) return BOSS_TITLES[d.tsel];
-if (d.camp.top >= 2) return "Ascended ×" + (d.camp.top - 1);
-const c = cleared(d, 1);
-return c >= 51 ? "Compliance Survivor" : c >= 50 ? "High Roller" : c >= 40 ? "Boardroom Brawler" : c >= 30 ? "Cloud Crusher" : c >= 20 ? "Breach Buster" : c >= 10 ? "Server Room Survivor" : "Helpdesk Hero";
-}
-function wbBuff() { const w = HS().wb; return w.buffWeek && w.buffWeek === (window.HSModes && HSModes.week ? HSModes.week() : "") ? (Number(w.buff) || 0) : 0; }
-/** v11: hvězdy se sčítají přes všechny kampaně (klidně 200+), každá +0.3 % kanceláře */
-function netMultBonus() { const d = HS(); return (1 + STAR_PCT * totalStars(d) + (clearedAny(50, d) ? 0.1 : 0)) * (1 + wbBuff()); }
-function clickCritBonus() { return HS().cls === "engineer" ? 0.03 : 0; }
-const sprite = (i, k) => HSArt.sprite(i, k), enemySprite = (m) => HSArt.enemySprite(m);
-function playerSprite() { const cls = HS().cls || "sysadmin"; return window.HSRig ? HSRig.player(cls, window.Gear ? Gear.st() : null) : sprite(SPRITE_IDX[cls] || 0, "p"); }
-function classSprite(cls) { return window.HSRig ? HSRig.player(cls, null) : sprite(SPRITE_IDX[cls] || 0, "p"); }
-const RIG_MAP = { "atk-l": "a-quick", "atk-r": "a-quick", "hit": "a-hit" };
-function anim(id, cls) {
-if (window.HSRig && RIG_MAP[cls] && HSRig.act(id, RIG_MAP[cls])) return;
-const el = $(id); const s = el && el.firstElementChild; if (!s) return; s.classList.remove(cls); void s.getBoundingClientRect(); s.classList.add(cls); setTimeout(() => s.classList.remove(cls), 400);
-}
-function pose(side, kind) { if (window.HSRig && HSRig.act(side === "p" ? "dg-ps" : "dg-bs", kind)) return; anim(side === "p" ? "dg-ps" : "dg-bs", kind === "a-hit" ? "hit" : side === "p" ? "atk-l" : "atk-r"); }
-function sfx(kind, side, color) { if (!window.HSRig) return; if (kind === "spark") HSRig.spark(side, color); else if (kind === "shake") HSRig.fx("shake", 320); else if (kind === "cheer") HSRig.fx("cheer", 1500); else if (kind === "slowmo") HSRig.fx("slowmo", 520); }
-function float(txt, side, color, big) {
-const ar = $("dg-arena"); if (!ar || document.hidden) return;
-const el = document.createElement("div");
-el.className = "dg-float" + (big ? " big" : "");
-el.textContent = txt; el.style.color = color;
-el.style.left = (side === "b" ? (big ? 52 : 60) + Math.random() * 10 : 8 + Math.random() * 10) + "%";
-el.style.top = (30 + Math.random() * 20) + "%";
-ar.appendChild(el);
-setTimeout(() => el.remove(), 1150);
-}
-function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); const d = HS(); if (d.cls && !d.tut && !fight) setTimeout(tutStart, 300); }
-function askFlee() {
-if (!fight || fight.over) return true;
-if (busyAnim) return false;
-if (!window.confirm("You are in the middle of a fight.\nFlee and leave? (counts as a loss, energy is not refunded)")) return false;
-flee(); return true;
-}
-function closeScreen() { if (fight && !fight.over && !askFlee()) return; if (MODES[view] && MODES[view].busy && MODES[view].busy() && MODES[view].leave && !MODES[view].leave()) return; open = false; $("dg-screen").classList.remove("open"); if (window.ttRepaint) window.ttRepaint(); }
-const MODES = {};
-function registerMode(id, def) { MODES[id] = def; renderTabs(); }
-function renderTabs() {
-const box = $("dg-tabs"); if (!box) return;
-const ids = Object.keys(MODES).sort((a, b) => (MODES[a].order || 50) - (MODES[b].order || 50));
-const html = ids.map(id => `<button class="casino-tab-btn${id === view ? " active" : ""}${MODES[id].dot && MODES[id].dot() ? " tdot" : ""}" id="dg-t-${id}" onclick="Dungeon.tab('${id}')">${MODES[id].label}</button>`).join("");
-if (box.__h !== html) { box.innerHTML = html; box.__h = html; }
-}
-function tab(t) {
-if (!MODES[t]) return;
-if (fight && !fight.over && !askFlee()) return;
-if (MODES[view] && MODES[view].busy && MODES[view].busy() && !(MODES[view].leave && MODES[view].leave())) return;
-view = t; result = null; fight = null; fightCtx = null;
-renderTabs(); render();
-}
-function renderKeys() {
-const d = HS(), el = $("dg-keys"); if (!el) return;
-const next = d.energy >= EMAX() ? "" : " (" + fmtT(ENERGY_MS - (Date.now() - d.energyAt)) + ")";
-const kh = `⚡${d.energy}/${EMAX()}${next}<span class="dg-kstar"> ⭐${totalStars(d)}</span>`;
-if (el.__h !== kh) { el.innerHTML = kh; el.__h = kh; }
-el.title = "Energy: +1 every 12 min, max " + EMAX();
-const tb = $("dg-tokbtn");
-if (tb) {
-const show = gameState.slotTokens > 0 && d.energy < EMAX() && !(fight && !fight.over);
-const t = `🎟→+${TOKEN_ENERGY}⚡ (${gameState.slotTokens})`;
-tb.style.display = show ? "" : "none"; if (tb.textContent !== t) tb.textContent = t;
-tb.title = "Turn 1 Slot Token into " + TOKEN_ENERGY + " energy";
-}
-}
-function fmtT(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
-function render() {
-if (!open) return;
-regenEnergy(); renderKeys();
-const box = $("dg-inner"), d = HS();
-if (!unlocked()) { box.innerHTML = lockedHtml(); return; }
-if (!d.cls) { box.innerHTML = classPickHtml(false); return; }
-if (fight) { box.innerHTML = fightHtml(); fightRefresh(); restoreLog(); if (result) showResult(); return; }
-renderTabs();
-(MODES[view] || MODES.camp).render(box);
-}
-registerMode("camp", { label: "📖 CAMPAIGN", order: 10, render: function (box) { box.innerHTML = campHtml(); } });
-registerMode("hero", { label: "🧍 HERO", order: 80, render: function (box) { box.innerHTML = heroHtml(); }, dot: function () { try { return !!(window.Gear && Gear.affordable()) || HS().pts > 0; } catch (e) { return false; } } });
-function lockedHtml() {
-return `<div class="dg-card dg-lock"><div class="big">🔒</div>
-<div style="font:800 15px Orbitron,monospace;color:var(--crimson);margin:8px 0;">HIGH STAKES LOCKED</div>
-<div class="dg-dim">Reach <b>chest level 10</b> (you: ${maxChest()}) or <b>Prestige 1</b> to unlock HIGH STAKES:
-a 1v1 fighting game - every round you attack, the enemy shows its move and you react: block, dodge, channel or breathe.
-5 chapters of office horror from the Helpdesk to the Boardroom, then ascend to Campaign 2, 3... Office prestige <b>never resets</b> High Stakes.</div></div>`;
-}
-function classPickHtml(respec) {
-const d = HS(), free = respec && d.frc;
-return `<div class="dg-card"><div class="dg-h">${respec ? "CHANGE CLASS (" + (free ? "FREE once" : fmt(respecCost()) + " GC") + ")" : "WELCOME TO HIGH STAKES 2.0 - CHOOSE YOUR CLASS"}</div>
-${!respec && d.s3 && !d.s3.seen ? `<div class="dg-card" style="border-color:var(--amber);margin:0 0 10px;"><b style="color:var(--amber);">🎰 HIGH STAKES 2.0 · SEASON 3</b><div class="dg-dim">A real 1v1 fight: every round you <b>attack</b>, the enemy shows what it does next and you <b>react</b> (block, dodge, channel or breathe). Five classes, SFGame-style stats you can also buy with GC, and High Stakes ascends: after the Big Massi, Campaign 2 starts with stronger enemies and better rewards - your stars add up across all campaigns. Office prestige never resets High Stakes again. Your gear stayed. For your old progress (LV ${d.s3.lvl}) you got <b style="color:var(--amber);">+${fmt(d.s3.gc)} GC</b>.</div></div>` : ""}
-<div class="dg-dim" style="margin-bottom:8px;">Each round: 1) you attack, 2) the enemy shows its move (⚔ attack, 💥 HEAVY, 🔮 spell, ⏳ charge, 🛡 guard), 3) you react. ${respec ? "Level and stars stay, your stat points are refunded." : ""}</div>
-<div class="dg-classes">${H.CLASS_IDS.map(k => { const c = H.CLASSES[k];
-return `<div class="dg-class" onclick="Dungeon.pickClass('${k}')">${classSprite(k)}<div class="ic">${c.icon}</div>
-<div style="font:800 12px Orbitron,monospace;margin:4px 0;">${c.name}</div><div class="dg-dim" style="margin-bottom:4px;"><b>${c.role}</b> · main stat ${STAT_INFO[c.main][0]} · ${c.hpM}× HP</div><div class="dg-dim">${c.desc}<br><b>✨ ${c.skill}</b>: ${c.skillTxt}</div></div>`; }).join("")}</div>
-${respec ? `<div style="text-align:right;margin-top:8px;"><button class="btn" onclick="Dungeon.tab('hero')">CANCEL</button></div>` : ""}</div>`;
-}
-function starHtml(n, max) { let s = ""; for (let i = 0; i < (max || 3); i++) s += i < n ? "★" : `<span class="off">★</span>`; return `<span class="hs-stars">${s}</span>`; }
-function maskHtml(m) { return `<span class="hs-stars">${[1, 2, 4].map(b => m & b ? "★" : `<span class="off">★</span>`).join("")}</span>`; }
-function starGoals(m) { const b = m.bonus || {}; return ["Win the fight", "Win with 50%+ HP left", b.type === "turns" ? H.bonusText(b) : H.bonusText(b) + " - or win within " + H.QUICK_WIN + " rounds"]; }
-function missionOpen(id, n) {
-const sm = smOf(n);
-if (id === 50) return (sm[49] || 0) > 0;
-return id === 0 || (sm[id - 1] || 0) > 0;
-}
-function chapterOpen(ci, n) { return ci === 0 || missionOpen(ci * 10, n); }
-function canAscend(d) { d = d || HS(); return (smOf(d.camp.top, d)[49] || 0) > 0; }
-function campHtml() {
-const d = HS(), xpN = C.xpToNext(d.level), n = d.camp.n;
-const camps = []; for (let k = 1; k <= d.camp.top; k++) camps.push(`<button class="btn ${k === n ? "sel" : ""}" onclick="Dungeon.camp(${k})">${k === 1 ? "📖" : "🔺"} Campaign ${k}<br><small>${campStars(k, d)}/153★ · LV ${C.mLevel(0, k)}+</small></button>`);
-const asc = canAscend(d) ? `<div class="dg-card hs-asc"><div class="dg-h"><span>🔺 ASCEND HIGH STAKES</span><span>Campaign ${d.camp.top + 1}</span></div>
-<div class="dg-dim">You beat the Big Massi in Campaign ${d.camp.top}. Ascend to start <b>Campaign ${d.camp.top + 1}</b>: the same 51 missions with enemies <b>+${C.ASC_LV} levels</b> (from LV ${C.mLevel(0, d.camp.top + 1)}), bigger XP / GC / gear${d.camp.top + 1 >= 3 ? " and enemies that sometimes FAKE their moves" : ""}. Nothing is lost: your level, gear and all stars stay - new stars add on top (every star = +${(STAR_PCT * 100).toFixed(1)}% office income).</div>
-<button class="btn btn-gold" style="width:100%;padding:10px;margin-top:8px;" onclick="Dungeon.ascend()">🔺 ASCEND TO CAMPAIGN ${d.camp.top + 1}</button></div>` : "";
-const chs = C.CHAPTERS.map((c, i) => {
-const sm = smOf(n), got = c.missions.reduce((a, _, mi) => a + H.starCount(sm[i * 10 + mi] || 0), 0);
-return `<button class="btn ${chSel === i ? "sel" : ""}" ${chapterOpen(i, n) ? "" : "disabled"} onclick="Dungeon.chapter(${i})">${c.icon} ${i + 1}<br><small>${chapterOpen(i, n) ? got + "/30★" : "🔒"}</small></button>`;
-}).join("") + (missionOpen(50, n) ? `<button class="btn ${chSel === 5 ? "sel" : ""}" onclick="Dungeon.chapter(5)">📋 ?<br><small>SECRET</small></button>` : "");
-const ch = C.CHAPTERS[chSel], sm = smOf(n);
-const ids = chSel === 5 ? [50] : ch.missions.map((_, mi) => chSel * 10 + mi);
-const ms = ids.map(id => {
-const m = C.mission(id, n), st = sm[id] || 0, op = missionOpen(id, n);
-return `<div class="hs-m ${op ? "" : "locked"} ${m.kind === "boss" || m.kind === "secret" ? "boss" : ""} ${m.kind === "compliance" ? "compliance" : ""}" ${op ? `onclick="Dungeon.mission(${id})"` : ""}>
-<div class="ic">${op ? m.enemy.icon : "🔒"}</div><div class="t"><b>${m.idx + 1}. ${escapeHtml(m.name)}</b>
-<span class="dg-dim">LV ${m.level} · ${m.kind === "normal" ? "" : m.kind.toUpperCase() + " · "}⚡${m.energy}</span></div>${maskHtml(st)}</div>`;
-}).join("");
-return `<div class="dg-card"><div class="dg-h"><span>${H.CLASSES[d.cls].icon} ${escapeHtml(gameState.ldap)} · LV ${d.level} · ${title()}</span><span style="color:var(--text-dim);">⭐ ${totalStars()} total</span></div>
-<div class="dg-dim">${statLine()} · all stars boost the office: <b>×${netMultBonus().toFixed(2)}</b>${d.pts ? ` · <b style="color:var(--emerald);">${d.pts} stat points to spend!</b>` : ""}</div>
-<div class="dg-xp"><div style="width:${Math.min(100, d.xp / xpN * 100)}%"></div></div></div>
-${d.camp.top > 1 ? `<div class="hs-camps">${camps.join("")}</div>` : ""}${asc}
-<div class="hs-ch">${chs}</div>
-<div class="dg-card"><div class="dg-h"><span>${n > 1 ? "🔺" + n + " · " : ""}${chSel === 5 ? "📋 SECRET" : ch.icon + " Chapter " + (chSel + 1) + ": " + ch.name}</span></div>
-<div class="dg-dim" style="margin-bottom:8px;">${chSel === 5 ? "You beat the whole company. One email remains unread..." : ch.desc}</div>
-<div class="hs-ms">${ms}</div></div>`;
-}
-function campSel(k) { const d = HS(); d.camp.n = Math.max(1, Math.min(d.camp.top, k | 0)); chSel = 0; TT.saveSoon(); render(); }
-function ascend() {
-const d = HS(); if (!canAscend(d)) return;
-d.camp.top++; d.camp.n = d.camp.top; chSel = 0;
-log(`🔺 HIGH STAKES ASCENDED: Campaign ${d.camp.top} is open - enemies start at LV ${C.mLevel(0, d.camp.top)}. Your stars from earlier campaigns stay.`, "special");
-try { TT.announce("ASCENDED TO CAMPAIGN " + d.camp.top, "HIGH STAKES", 0, 0); } catch (e) {}
-if (window.Meta && Meta.check) try { Meta.check(); } catch (e) {}
-TT.saveSoon(); updateUI(); render();
-}
-function statLine() {
-const h = hero(), L = h.level, ref = H.buildEnemy({ level: L });
-const armor = Math.round(Math.min(h.armorCap, h.armor / (L * 100)) * 100), crit = Math.round(H.critOf(h, ref) * 100);
-const dodge = h.dodge > 0 ? Math.round(Math.min(0.75, h.dodge + (h.cls === "cyber" ? 0.3 * Math.max(0, Math.min(1, h.main / ref.def - 0.5)) : 0)) * 100) : 0;
-return `❤ <b>${fmt(h.maxHp)}</b> · ⚔ <b>${fmt(h.atk)}</b> · 🛡 armor <b>${armor}%</b>${dodge ? ` · 💨 dodge <b>${dodge}%</b>` : ""} · 💥 crit <b>${crit}%</b>`;
-}
-function bpCost(d) { d = d || HS(); return Math.round(100000 * Math.pow(1.06, d.bp + 1)); }
-function respecCost() { const d = HS(); return d.frc ? 0 : Math.round(50000000 * Math.pow(2, d.rc || 0)); }
-function resetCost() { return Math.round(Math.max(20000, 2000 * Math.pow(HS().level, 1.4))); }
-function heroHtml() {
-const d = HS(), h = hero(), g = gear(), C0 = H.CLASSES[d.cls];
-const mk = C0.main;
-const keys = [mk, "vit", "luck"];
-const gv = { main: (g.stats || {}).main || 0, vit: (g.stats || {}).vit || 0, luck: (g.stats || {}).luck || 0 };
-const rows = keys.map(k => { const base = 10 + d.stats[k], add = k === mk ? gv.main : gv[k];
-return `<div class="hs-stat"><b>${STAT_INFO[k][0]}${k === mk ? " ★" : ""}</b><span class="v">${base}${add ? ` <small style="color:var(--emerald);">+${add}</small>` : ""}</span><span class="d">${k === mk ? "★ your main stat: damage + defence (enemy damage is lower while your " + STAT_INFO[k][0] + " is close to its)" : STAT_INFO[k][1]}</span>
-<button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} data-hold="stat-${k}" onclick="Dungeon.stat('${k}',1)">+1</button>
-<button class="btn" style="padding:3px 8px;" ${d.pts >= 5 ? "" : "disabled"} onclick="Dungeon.stat('${k}',5)">+5</button></div>`; }).join("");
-const bc = bpCost(d), bok = gameState.coins >= bc;
-return (window.Gear ? Gear.card() : "") + `<div class="dg-grid2">
-<div class="dg-card"><div class="dg-h"><span>${C0.icon} ${C0.name} · LV ${d.level}</span><span>${title()}</span></div>
-<div style="display:flex;gap:10px;align-items:center;">${playerSprite()}<div class="dg-dim">${statLine()}<br>${C0.role} · ${C0.hpM}× HP · reactions: ${H.reactsOf(h).map(r => H.REACTS[r].icon + " " + H.REACTS[r].name).join(", ")}<br>HEAVY timing zone ${Math.round(h.zone * 100)}% · weapon ${g.wpn ? g.wpn.toFixed(1) : "fists"}<br>✨ <b>${C0.skill}</b>: ${C0.skillTxt}<br>Wins ${d.wins} · Losses ${d.losses}</div></div>
-${titlesHtml(d)}
-<div class="dg-h" style="margin-top:10px;"><span>STAT POINTS</span><span style="color:${d.pts ? "var(--emerald)" : "var(--text-dim)"};">${d.pts} free</span></div>${rows}
-<div class="hs-buy"><div class="dg-dim" style="flex:1;min-width:160px;">💰 <b>Buy a stat point</b> (${d.bp} bought). Every point costs 6% more than the last.</div>
-<button class="btn ${bok ? "btn-gold" : ""}" ${bok ? "" : "disabled"} data-hold="hs-bp" onclick="Dungeon.buyPoint()">+1 point · ${fmtShort(bc)} GC</button></div>
-<div class="dg-dim" style="margin-top:6px;">+5 points every level. ★ = your class's main stat. Damage = weapon × (1 + max(yours/2, yours − enemy's/2) / 10): a main stat above the enemy's hits much harder. Green numbers come from your ⚒ gear.</div>
-<div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 🎟)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmtShort(resetCost())} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${d.frc ? "FREE" : fmtShort(respecCost()) + " GC"})</button></div></div>
-<div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>${howHtml(d.cls)}</div></div>`;
-}
-function howHtml(cls) {
-const C0 = H.CLASSES[cls || "sysadmin"], h = hero();
-const rx = { block: `🛡 <b>BLOCK</b> (${h.blockCost} stamina): -${Math.round(h.block * 100)}% (half vs 💥 / ☄, less vs 🔮). Against 💥 HEAVY, ☄ UNLEASH and 💸 tap when the red ring hits gold: <b>PERFECT</b> = 0 damage + counter + stun, <b>GOOD</b> = -35% more.${h.counter ? " Blocking a ⚔ attack COUNTERS for half your damage." : ""}`,
-dodge: `💨 <b>DODGE</b> (${h.dodgeCost} focus): a chance to take no damage at all${cls === "cyber" ? " - and your next hit is a sure crit" : ""}. Doesn't work on 🔮 spells, dodging again right away is less likely.`,
-channel: `🔮 <b>CHANNEL</b> (30 focus): -25% damage now and your next hit deals ×1.6. You are immune to 🔮 spells.`,
-brace: `😮‍💨 <b>BREATHE</b>: +10 stamina and +10 focus on top of the normal +15 / +10 per round.` };
-return `<div class="dg-dim" style="line-height:1.55;"><b>Every round:</b> 1) you attack, 2) the enemy shows its move, 3) you react.<br>
-⚔ <b>STRIKE</b> free · 💥 <b>HEAVY</b> 30 stamina, stop the needle: 1.3× / green 1.7× / gold 2.2×, breaks a 🛡 guard and interrupts a ⏳ charge · 🎰 <b>GAMBLE</b> 20 stamina, HOLD reels + 1 re-spin · ✨ <b>${C0.skill}</b> at 100 focus: ${C0.skillTxt}<br>
-${H.reactsOf(h).map(r => rx[r]).join("<br>")}<br>
-💢 Fill the enemy's <b>BREAK</b> bar to stun it for a round (your next hit 1.5×). 🎭 From Campaign 3 enemies sometimes FAKE their move.</div>`;
-}
-function titlesHtml(d) {
-const keys = Object.keys(BOSS_TITLES);
-return `<div class="dg-h" style="margin-top:10px;"><span>BOSS TITLES</span><span class="dg-dim">${keys.filter(k => d.bt[k]).length}/${keys.length}</span></div><div class="dg-row" style="flex-wrap:wrap;">` +
-keys.map(k => d.bt[k] ? `<button class="btn ${d.tsel === k ? "btn-gold" : ""}" style="padding:3px 8px;" onclick="Dungeon.setTitle('${k}')">${BOSS_TITLES[k]}</button>` : `<span class="dg-dim" style="padding:3px 6px;">🔒 ???</span>`).join("") +
-(d.tsel ? `<button class="btn" style="padding:3px 8px;" onclick="Dungeon.setTitle('')">default</button>` : "") + `</div>`;
-}
-function setTitle(k) { const d = HS(); d.tsel = k && d.bt[k] ? k : ""; TT.saveSoon(); render(); }
-/** v10.2+: prestiž kanceláře High Stakes NEMAŽE; malý trvalý bonus +3 % XP a GC za prestiž */
-function onPrestige() {
-const d = HS();
-if (d.tower.best >= 100) d.pool.unlocked = true;
-log(`🎰 HIGH STAKES keeps all your progress. New permanent bonus: +${3 * (gameState.prestige || 0)}% High Stakes XP and GC.`, "special");
-}
-function presBonus() { return 1 + 0.03 * (gameState.prestige || 0); }
-function pickClass(k) {
-const d = HS(); if (!H.CLASSES[k]) return;
-if (d.cls && d.cls !== k) {
-const cost = respecCost();
-if (gameState.coins < cost) { log(`Changing class costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost; if (d.frc) d.frc = 0; else d.rc = (d.rc || 0) + 1;
-d.stats = {}; log(`HIGH STAKES: class changed to ${H.CLASSES[k].name}. Your stat points were refunded.`, "special");
-} else if (!d.cls) log(`🎰 HIGH STAKES: welcome, ${escapeHtml(gameState.ldap)} the ${H.CLASSES[k].name}!`, "special");
-if (d.s3) d.s3.seen = 1;
-d.cls = k; view = "camp"; HS(); if (window.Gear && Gear.starter && !d.kit) { d.kit = 1; Gear.starter(); }
-TT.saveSoon(); updateUI(); render();
-if (!d.tut) setTimeout(tutStart, 300);
-}
-function respec() { $("dg-inner").innerHTML = classPickHtml(true); }
-function fmtShort(n) { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "K" : n.toLocaleString(); }
-function bribeCost(f) { return Math.round(Math.max(5000, 400 * Math.pow(HS().level, 1.3)) * (1 + 0.25 * (gameState.prestige || 0)) * Math.pow(2, (f && f.bribes) || 0)); }
-function bribe() {
-const f = fight; if (!f || f.over || !f.demand || f.bribed || f.e.mech !== "compliance") return;
-const c = bribeCost(f); if (gameState.coins < c) { log(`A bribe costs ${fmt(c)} GC.`, "warning"); return; }
-gameState.coins -= c; f.bribes = (f.bribes || 0) + 1; f.bribed = true;
-const d = HS(); d.br = (d.br || 0) + 1;
-log(`💼 Bribed the auditor for ${fmt(c)} GC (${d.br} total).`, "special");
-if (window.Meta && Meta.check) try { Meta.check(); } catch (e) {}
-TT.saveSoon(); updateUI(); fightRefresh();
-}
-function stat(k, n) { const d = HS(); if (k !== H.CLASSES[d.cls].main && k !== "vit" && k !== "luck") return; n = Math.min(n, d.pts); if (n <= 0) { TT.holdStop = true; return; } d.stats[k] += n; HS(); TT.saveSoon(); render(); }
-function buyPoint() {
-const d = HS(), c = bpCost(d);
-if (gameState.coins < c) { TT.holdStop = true; log(`A stat point costs ${fmt(c)} GC.`, "warning"); return; }
-gameState.coins -= c; d.bp++; HS(); TT.saveSoon(); updateUI(); render();
-}
-function resetStats() {
-const d = HS(), cost = resetCost();
-if (gameState.coins < cost) { log(`Resetting stats costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost; d.stats = {}; HS(); TT.saveSoon(); updateUI(); render();
-}
-function chapter(i) { chSel = i; render(); }
-function tokenEnergy() {
-const d = HS(); regenEnergy();
-if (gameState.slotTokens < 1 || d.energy >= EMAX()) return;
-gameState.slotTokens -= 1; d.energy = Math.min(EMAX(), d.energy + TOKEN_ENERGY);
-if (d.energy >= EMAX()) d.energyAt = Date.now();
-TT.saveSoon(); updateUI(); if (fight) renderKeys(); else render();
-}
-function mission(id) {
-const d = HS(), n = d.camp.n;
-if (!missionOpen(id, n)) return;
-const m = C.mission(id, n), sm = smOf(n)[id] || 0, st = sm ? 1 : 0;
-const el = document.createElement("div");
-el.className = "tt-overlay open"; el.id = "hs-intro"; el.style.zIndex = 10000;
-el.onclick = (e) => { if (e.target === el) el.remove(); };
-const boss = m.kind === "boss" || m.kind === "secret";
-el.innerHTML = `<div class="tt-modal" style="border-color:${boss ? "var(--crimson)" : "var(--cyan)"};">
-<h2 style="color:${boss ? "var(--crimson)" : "var(--cyan)"};">${m.enemy.icon} ${escapeHtml(m.name)}</h2>
-<div style="display:flex;gap:12px;align-items:center;">${enemySprite(m)}<div class="tt-body" style="min-height:0;font-size:13px;">${escapeHtml(m.intro)}<br><br>
-<b>${escapeHtml(m.enemy.name)}</b> · LV ${m.level} (you: ${d.level}) · ❤ ${fmt(m.enemy.maxHp)} · ⚔ ~${fmt(m.enemy.atk)}${m.enemy.archName ? " · " + m.enemy.archName : ""}${n > 1 ? `<br>🔺 Campaign ${n}${m.deceive ? " · 🎭 fakes its moves sometimes" : ""}` : ""}</div></div>
-<div class="dg-dim" style="margin-top:8px;line-height:1.6;">${starGoals(m).map((t, i) => `<span style="color:${sm & (1 << i) ? "#ffd700" : "var(--text-dim)"};">${sm & (1 << i) ? "★" : "☆"}</span> ${escapeHtml(t)}`).join("<br>")}</div>
-<div class="dg-dim" style="margin-top:4px;">Each star is its own goal and stays earned. Rewards: ${fmt(C.xpFor(id, !st, n))} XP, ${fmt(C.gcFor(id, !st, n))} GC${!st ? " (first clear)" : ""}</div>
-<div style="display:flex;gap:8px;margin-top:12px;"><button class="btn btn-gold" style="flex:2;padding:11px;" onclick="Dungeon.start(${id})">⚔ FIGHT (⚡${m.energy})</button>
-<button class="btn" style="flex:1;" onclick="this.closest('.tt-overlay').remove()">BACK</button></div></div>`;
-document.body.appendChild(el);
-}
-function start(id) {
-const intro = $("hs-intro"); if (intro) intro.remove();
-const d = HS(), m = C.mission(id, d.camp.n);
-regenEnergy();
-if (d.energy < m.energy && !freeEnergy()) { log(`HIGH STAKES: not enough energy (${m.energy} needed). +1 every 12 min.`, "warning"); render(); return; }
-spendEnergy(m.energy);
-beginFight(m, { mode: "camp" });
-}
-function freeEnergy() { return !!(window.Meta && Meta.mult("energy") === 0); }
-function spendEnergy(n) {
-const d = HS(); regenEnergy();
-if (freeEnergy()) return true;
-if (d.energy < n) return false;
-d.energy -= n;
-if (d.energy < EMAX() && d.energy + n >= EMAX()) d.energyAt = Date.now();
-return true;
-}
-/** ctx: { mode, prepHero(hero), onEnd(f) -> {title, color, lines, buttons:[{label, cls, fn}]}, hud(f), onStep(f, a, evs) } */
-function beginFight(m, ctx) {
-const hh = hero();
-if (ctx && ctx.prepHero) ctx.prepHero(hh);
-fight = H.newFight(hh, m, Math.floor(TT.rnd() * 2147483647) + 1);
-fightMission = m; fightCtx = ctx || { mode: "camp" }; result = null; flog = [];
-if (fightCtx.mode === "camp") view = "camp";
-TT.saveSoon();
-render();
-if (window.HSRig) { HSRig.act("dg-ps", "a-enter"); HSRig.act("dg-bs", "a-enter"); }
-dlog(`⚔ ${escapeHtml(m.enemy.name)} (LV ${m.enemy.level}) appears!`, "y");
-play(fight.events.slice());
-}
-const TELE = { atk: ["⚔", "ATTACK", ""], heavy: ["💥", "HEAVY", "heavy"], spell: ["🔮", "SPELL", "special"], unleash: ["☄", "UNLEASH", "unleash"], withdraw: ["💸", "WITHDRAWAL", "unleash"], "?": ["❓", "???", "special"] };
-function intentHtml() {
-const f = fight; if (!f || f.over) return "";
-if (f.phase === "react") {
-const it = f.intent, x = TELE[it.shown] || TELE.atk;
-const imm = it.shown === "spell" && f.h.spellImmune ? " · IMMUNE" : "";
-return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}${it.shown !== "?" && it.val ? " ~" + fmt(it.val) : ""}${imm}</span>`;
-}
-if (f.unleashNext) return `<span class="hs-intent unleash">☄ UNLEASH NEXT - HEAVY interrupts!</span>`;
-if (f.stunNext) return `<span class="hs-intent stun">😵 STUNNED this round</span>`;
-if (f.eguard) return `<span class="hs-intent defend">🛡 GUARDING - HEAVY breaks it</span>`;
-if (f.siesta) return `<span class="hs-intent stun">😴 ASLEEP - next hit +50%</span>`;
-return `<span class="hs-intent" style="opacity:.6;">… waiting for your move</span>`;
-}
-function blockHint(f) {
-const h = f.h, k = f.intent.shown === "?" ? "atk" : f.intent.shown, b = h.block;
-if (k === "atk") return "-" + Math.round(b * 100) + "%" + (h.counter ? " · counter" : "");
-if (k === "spell") return "-" + Math.round(b * 40) + "%";
-if (k === "withdraw") return "only a PARRY";
-return "-" + Math.round(b * 50) + "% · PARRY ring";
-}
-function reactHint(f, r) {
-if (r === "block") return f.h.blockCost + " STA · " + blockHint(f);
-if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " FOC · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
-if (r === "channel") return "30 FOC · -25%, next ×1.6";
-return "+10 STA +10 FOC";
-}
-function atkHint(f, a) {
-if (a === "strike") return f.h.double ? "free · 2 × 60%" : "free";
-if (a === "heavy") return f.cd.heavy > 0 ? "COOLDOWN" : "30 STA" + (f.unleashNext ? " · INTERRUPT" : f.eguard ? " · break guard" : "");
-if (a === "gamble") return "20 STA";
-return "100 focus";
-}
-function actsHtml() {
-const f = fight; if (!f || f.over) return "";
-const flee = `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">FLEE<small>lose</small></button>`;
-if (f.phase === "react") {
-return H.reactsOf(f.h).map((r, i) => { const R0 = H.REACTS[r];
-return `<button class="btn btn-cyan react" id="hs-a-${r}" onclick="Dungeon.act('${r}')">${R0.icon} ${R0.name}<small id="hs-as-${r}">${reactHint(f, r)}</small></button>`; }).join("") + flee;
-}
-return ["strike", "heavy", "gamble", "ult"].map(a => { const A0 = H.ATTACKS[a];
-return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${a === "ult" ? "✨ " + H.CLASSES[f.h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small id="hs-as-${a}">${atkHint(f, a)}</small></button>`; }).join("") + flee;
-}
-function fightHtml() {
-const f = fight, m = fightMission, h = f.h;
-return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span style="display:flex;gap:6px;align-items:center;"><span id="hs-turn">ROUND 0</span><button type="button" class="btn hs-help-btn" onclick="Dungeon.help()" title="How to fight">?</button></span></div>
-<div class="dg-dim" id="hs-hud">${fightCtx && fightCtx.hud ? fightCtx.hud(f) : "★ win · ★ 50%+ HP · ★ " + escapeHtml(starGoals(m)[2])}</div></div>
-<div class="hs-form" id="hs-form" style="display:none;"></div>
-<div class="hs-fight">
-<div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(fightCtx && (fightCtx.mode === "pool" || fightCtx.mode === "boss") ? 4 : (m.ch != null ? m.ch : 0)) : ""}
-<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${H.CLASSES[h.cls].name} LV ${h.level}</div>
-<div id="dg-ps">${playerSprite()}</div>
-<div class="hs-bars">
-<div class="hs-lbl"><span>HP</span><span id="hs-hpt"></span></div><div class="hs-bar"><div class="hp" id="hs-hp"></div><div class="sh" id="hs-sh"></div></div>
-<div class="hs-lbl"><span>STAMINA</span><span id="hs-stat"></span></div><div class="hs-bar"><div class="sta" id="hs-sta"></div></div>
-<div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div></div></div>
-<div class="dg-vs">VS</div>
-<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div class="dg-sub">LV ${f.e.level}${f.e.archName ? " · " + f.e.archName : ""}</div><div id="hs-intent">${intentHtml()}</div>
-<div id="dg-bs">${enemySprite(m)}</div>
-<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div>
-<div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div></div></div>
-</div>
-<div class="dg-mech" id="dg-mech"></div>
-<div class="hs-coach" id="hs-coach" style="display:none;"></div>
-<div class="hs-phase" id="hs-phase"></div>
-<div class="hs-acts" id="hs-acts"></div>
-<div id="hs-ov-slot"></div>
-</div>
-<div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>`;
-}
-function fightRefresh() {
-const f = fight; if (!f) return;
-if (tut && fightCtx && fightCtx.tutorial) { const c = $("hs-coach"); if (c && !c.innerHTML) tutCoach(); }
-const h = f.h;
-const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
-const txt = (id, t) => { const el = $(id); if (el) el.textContent = t; };
-set("hs-hp", f.hp / h.maxHp * 100); set("hs-sh", f.shield / h.maxHp * 100); set("hs-sta", f.sta / h.staMax * 100); set("hs-foc", f.focus);
-set("hs-ehp", f.ehp / f.emax * 100); set("hs-brk", f.brk);
-const bb = $("hs-brkb"); if (bb) bb.classList.toggle("full", !!f.vuln); if (f.vuln) set("hs-brk", 100);
-txt("hs-brkt", f.vuln ? "VULNERABLE 1.5×" : Math.floor(f.brk) + " / 100");
-txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
-txt("hs-stat", Math.floor(f.sta) + " / " + h.staMax); txt("hs-foct", Math.floor(f.focus) + " / 100");
-txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
-txt("hs-turn", "ROUND " + Math.max(1, f.turn + (f.phase === "atk" ? 1 : 0)) + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
-if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
-const it = $("hs-intent"); if (it) { const ih = intentHtml(); if (it.__h !== ih) { it.innerHTML = ih; it.__h = ih; } }
-const ph = $("hs-phase");
-if (ph) { const t = f.over ? "" : f.phase === "react" ? `<span class="p-react">② REACT!</span><small>${escapeHtml(f.e.name)} shows its move - pick your reaction</small>` : `<span class="p-atk">① YOUR ATTACK</span><small>${f.channel ? "🔮 channeled ×1.6 · " : ""}${f.sureCrit ? "🎯 sure crit · " : ""}${f.vuln ? "💢 vulnerable ×1.5 · " : ""}then it reacts with its move</small>`;
-if (ph.__h !== t) { ph.innerHTML = t; ph.__h = t; } }
-const box = $("hs-acts");
-if (box) { const key = f.over ? "over" : f.phase + "|" + f.turn; if (box.__k !== key) { box.innerHTML = actsHtml(); box.__k = key; } }
-const keys = f.phase === "react" ? H.reactsOf(h) : ["strike", "heavy", "gamble", "ult"];
-keys.forEach(a => {
-const b = $("hs-a-" + a); if (!b) return;
-const ok = H.allowed(f, a) && !f.over && !busyAnim;
-b.disabled = !ok; b.classList.toggle("off", !ok); b.classList.toggle("lock", !!f.disabled[a]);
-b.classList.toggle("want", !!f.demand && f.demand === a && !f.over);
-const sm = $("hs-as-" + a); if (sm) { const t = f.disabled[a] ? "LOCKED" : f.phase === "react" ? reactHint(f, a) : atkHint(f, a); if (sm.textContent !== t) sm.textContent = t; }
-});
-const fb = $("hs-form");
-if (fb) {
-fb.style.display = f.demand && !f.over ? "" : (f.redTape ? "" : "none");
-const nm = f.demand ? H.ACTIONS[f.demand].name : "";
-fb.innerHTML = (f.demand && !f.over ? (f.e.mech === "cobol" ? `🥟 "Do you want a bryndza?" - answer with <b>BREATHE</b> ("yes, thanks") or he gets offended`
-: f.e.mech === "louis" ? `🫅 SUPREME DECREE: use <b>${nm}</b> this round - anything else adds red tape`
-: `📋 FORM ${H.FORM_NO[f.demand]}: use <b>${nm}</b> this round (bonus damage) - anything else adds red tape` +
-(f.e.mech === "compliance" ? (f.bribed ? ` <b style="color:var(--emerald);">💼 bribed - play anything</b>` : ` <button class="btn btn-gold" style="padding:2px 8px;font-size:11px;margin-left:6px;" ${gameState.coins >= bribeCost(f) ? "" : "disabled"} onclick="Dungeon.bribe()">💼 BRIBE ${fmtShort(bribeCost(f))} GC</button>`) : "")) : "") +
-(f.redTape ? `<span class="rt">RED TAPE ×${f.redTape}: -${8 * f.redTape}% damage, -${4 * f.redTape}% dodge</span>` : "");
-}
-const fl = $("hs-a-flee"); if (fl) { fl.disabled = f.over || busyAnim; fl.style.visibility = fightCtx && fightCtx.tutorial ? "hidden" : ""; }
-}
-function dlog(t, cls) {
-flog.unshift({ t: t, c: cls || "" }); flog = flog.slice(0, 80);
-const el = $("dg-log"); if (!el) return;
-const div = document.createElement("div"); if (cls) div.className = cls; div.innerHTML = t;
-el.prepend(div); while (el.childNodes.length > 80) el.removeChild(el.lastChild);
-}
-function restoreLog() { const el = $("dg-log"); if (el) el.innerHTML = flog.slice().reverse().map(x => `<div class="${x.c}">${x.t}</div>`).join(""); }
-function act(a) {
-const f = fight; if (!f || f.over || busyAnim || !H.allowed(f, a)) return;
-if (f.phase === "atk") {
-if (a === "heavy") { timingGame(q => resolve("heavy", { t: q })); return; }
-if (a === "gamble") { gambleGame(); return; }
-if (a === "ult") { ultGame(o => resolve("ult", o)); return; }
-resolve(a, {}); return;
-}
-const k = f.intent.k;
-if (a === "block" && (k === "heavy" || k === "unleash" || k === "withdraw")) { parryGame(o => resolve("block", o)); return; }
-resolve(a, {});
-}
-let assistPending = 0;
-function resolve(a, opt) {
-const f = fight; if (!f || f.over) return;
-opt = Object.assign({}, opt || {});
-const isAtk = f.phase === "atk";
-if (isAtk && assistPending) { opt.assist = assistPending; opt.assistName = (A_col() || {}).name || "Your colleague"; assistPending = 0; }
-const evs = isAtk ? H.attack(f, a, opt) : H.react(f, a, opt);
-if (!f.over && !f.colUsed && fightCtx && fightCtx.mode !== "tutorial" && evs.some(e => e.type === "parry" || e.type === "skill" || e.type === "dodge") && window.Colleague && Colleague.awake && Colleague.awake() && TT.rnd() < 0.6) {
-f.colUsed = true; assistPending = Math.max(1, Math.round((Colleague.hero ? Colleague.hero().atk : hero().atk * 0.4) * 1.5));
-dlog(`🧑‍💼 <b>${escapeHtml((A_col() || {}).name || "Your colleague")}</b> saw that and is running in to help - bonus hit on your next attack!`, "g");
-}
-if (fightCtx && fightCtx.onStep) { const wasOver = f.over; if (wasOver && tut && !tut.done) { f.over = false; f.win = false; f.phase = "atk"; } fightCtx.onStep(f, a, evs, isAtk); }
-play(evs);
-busyAnim = true; fightRefresh();
-setTimeout(() => { busyAnim = false; after(); }, f.over ? 0 : evs.some(e => e.type === "telegraph") ? 520 : 380);
-}
-function A_col() { const d = HS(); return d.col && d.col.unlocked ? d.col : null; }
-function colRunIn() {
-const c = A_col(), ps = document.getElementById("dg-ps"); if (!c || !ps || !window.HSRig || !ps.parentNode) return;
-const box = document.createElement("div");</script>
+</style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["part15"] = 1;</script>
 <!-- END-OF-FILE: part15 -->

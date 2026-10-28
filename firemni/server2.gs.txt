@@ -500,7 +500,7 @@ return { ok: true, now: Date.now(), ev: m96Event_(),
 lotto: { round: s.round, drawAt: s.drawAt, pool: s.pool, price: LOTTO_PRICE, max: LOTTO_MAX, n: LOTTO_N, k: LOTTO_K, mine: s.t[me] || [], players: Object.keys(s.t).length, last: s.last, pay: Number(pay[me]) || 0 },
 inbox: ((v.inbox || {})[me] || []).length };
 }
-var DL_MAX_TABLES = 4, DL_TURN_MS = 15000, DL_WAIT_MS = 300000, DL_IDLE_MS = 20 * 60000, DL_RAKE = 0.05, DL_MAX_MISS = 3, DL_MAX_STAKE = 1000000000;
+var DL_MAX_TABLES = 4, DL_TURN_MS = 35000, DL_WAIT_MS = 300000, DL_IDLE_MS = 20 * 60000, DL_RAKE = 0.05, DL_MAX_MISS = 3, DL_MAX_STAKE = 1000000000;
 function dlGet_(id) { var raw = CacheService.getScriptCache().get('dl_' + id); if (!raw) raw = prsProps_().getProperty('dl_' + id); return raw ? JSON.parse(raw) : null; }
 function dlPut_(t) { var j = JSON.stringify(t); CacheService.getScriptCache().put('dl_' + t.id, j, 21600); prsProps_().setProperty('dl_' + t.id, j); }
 function dlDel_(id) { CacheService.getScriptCache().remove('dl_' + id); prsProps_().deleteProperty('dl_' + id); }
@@ -537,11 +537,16 @@ function dlResolve_(t, auto) {
 var c = dlHeroes_(t), d = t.ds;
 d.R = HSEngine.rng((t.seed + d.half * 7919 + 13) >>> 0); d.c = c; d.events = [];
 var names = [t.host, t.guest], att = d.atk;
-var evs = HSEngine.duelHalf(d, t.pick.a || 'strike', t.pick.r || 'brace', {});
+var opt = {}, ao = t.pick.ao || {}, ro = t.pick.ro || {};
+opt.t = ao.t || 'none'; opt.q = ao.q != null ? ao.q : 0.85;
+if (t.pick.a === 'gamble' && ao.g) { var re = !!ao.g.re && d.sta[att] >= 30; opt.reels = HSEngine.duelReels(c[att], dlRolls_(t), ao.g.hold, re); opt.respin = re; }
+if (ro.parry) opt.parry = ro.parry; if (ro.dq) opt.dq = ro.dq;
+var evs = HSEngine.duelHalf(d, t.pick.a || 'strike', t.pick.r || 'brace', opt);
 delete d.R; delete d.c; d.events = [];
 t.lastEv = evs; t.evSeq = (t.evSeq || 0) + 1; t.pick = { a: '', r: '' }; t.moved = Date.now(); t.deadline = Date.now() + DL_TURN_MS; t.rev++;
 evs.forEach(function (e) {
-if (e.type === 'hit') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.label || e.a) + ' ' + e.val + (e.crit ? ' CRIT' : '') + (e.outcome === 'block' ? ' (blocked)' : e.outcome === 'dodgefail' ? ' (dodge failed)' : '') + (e.counter ? ', counter ' + e.counter : ''));
+if (e.type === 'hit') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE ' + Math.round((e.q || 1) * 100) + '%' : (e.label || e.a)) + (e.timing ? ' (' + e.timing + ')' : '') + (e.reels ? ' ' + e.reels.join('') : '') + ' ' + e.val + (e.crit ? ' CRIT' : '') + (e.outcome === 'block' ? ' (blocked)' : e.outcome === 'parry' ? ' (PARRIED!)' : e.outcome === 'dodgefail' ? ' (dodge failed)' : '') + (e.counter ? ', counter ' + e.counter : ''));
+else if (e.type === 'rest') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' catches a breath (+30 stamina)');
 else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[1 - e.i] + ' dodged');
 else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
 else if (e.type === 'revive') dlLog_(t, names[e.who] + ' rises again!');
@@ -649,6 +654,8 @@ t.seen = t.seen || {}; t.seen[me] = 1; dlPut_(t);
 return { ok: true };
 } finally { lock.releaseLock(); }
 }
+/** v11.1: 6 náhodných čísel na gamble válce v tomto půlkole (klient je ukáže, server z nich spočítá stejné válce) */
+function dlRolls_(t) { var d = t.ds, R = HSEngine.rng(((t.seed || 1) + (d ? d.half : 0) * 104729 + 77) >>> 0), a = []; for (var k = 0; k < 6; k++) a.push(Math.round(R() * 1e6) / 1e6); return a; }
 function dlView_(t, me) {
 var you = t.host === me ? 0 : t.guest === me ? 1 : -1, d = t.ds || null;
 var role = '', picked = false, oppPicked = false;
@@ -659,6 +666,7 @@ picked = !!t.pick[role === 'atk' ? 'a' : 'r']; oppPicked = !!t.pick[role === 'at
 return { id: t.id, rev: t.rev, status: t.status, host: t.host, guest: t.guest, target: t.target || '', stake: t.stake, mode: t.mode, you: you, names: [t.host, t.guest],
 cls: t.cls || [t.hostCls, ''], lv: t.lv || [t.hostLv, 0], cards: t.cards, max: t.max || null,
 hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh : null, sure: d ? d.sure : null, chan: d ? d.chan : null, atk: d ? d.atk : -1, turn: d ? d.turn : 0, half: d ? d.half : 0,
+cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null,
 role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
 winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-14) };
 }
@@ -676,8 +684,9 @@ if (!t) return { ok: true, gone: true, pay: pay };
 if (Number(rev) === t.rev && !pay.length) return { ok: true, same: true, rev: t.rev, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0 };
 return { ok: true, view: dlView_(t, me), pay: pay };
 }
-/** choice = útok (strike/heavy/gamble/ult), když útočíš, nebo reakce (block/dodge/channel/brace), když se bráníš */
-function dlMove(id, choice) {
+/** choice = útok (strike/heavy/gamble/rest/ult), když útočíš, nebo reakce (block/dodge/channel/brace), když se bráníš.
+*  opt (v11.1) = výsledek mini-hry: { h: půlkolo, t, q, g: { hold, re }, parry, dq } */
+function dlMove(id, choice, opt) {
 var me = getUserLdap(), lock = prsLock_();
 try {
 var t = dlGet_(id); if (!t || t.status !== 'play') return { ok: false, reason: 'gone' };
@@ -686,9 +695,22 @@ if (t.status !== 'play') { dlPut_(t); return { ok: false, reason: 'over', view: 
 var you = t.host === me ? 0 : t.guest === me ? 1 : -1; if (you < 0) return { ok: false, reason: 'seat' };
 var d = t.ds, role = d.atk === you ? 'a' : 'r';
 choice = String(choice || '');
-var okA = ['strike', 'heavy', 'gamble', 'ult'], okR = ['block', 'dodge', 'channel', 'brace'];
+var okA = ['strike', 'heavy', 'gamble', 'rest', 'ult'], okR = ['block', 'dodge', 'channel', 'brace'];
 if ((role === 'a' ? okA : okR).indexOf(choice) < 0) return { ok: false, reason: 'choice', view: dlView_(t, me) };
 if (t.pick[role]) return { ok: false, reason: 'picked', view: dlView_(t, me) };
+opt = opt && typeof opt === 'object' ? opt : {};
+if (opt.h != null && Number(opt.h) !== d.half) return { ok: false, reason: 'late', view: dlView_(t, me) };
+var TIER = ['perfect', 'good', 'none'], o = {};
+if (role === 'a') {
+if (choice === 'heavy' && TIER.indexOf(opt.t) >= 0) o.t = opt.t;
+if (choice === 'ult' && isFinite(Number(opt.q))) o.q = Math.max(0.7, Math.min(1.25, Number(opt.q)));
+if (choice === 'gamble' && opt.g && Array.isArray(opt.g.hold)) o.g = { hold: [0, 1, 2].map(function (k) { return !!opt.g.hold[k]; }), re: !!opt.g.re };
+t.pick.ao = o;
+} else {
+if (choice === 'block' && TIER.indexOf(opt.parry) >= 0) o.parry = opt.parry;
+if (choice === 'dodge' && TIER.indexOf(opt.dq) >= 0) o.dq = opt.dq;
+t.pick.ro = o;
+}
 t.pick[role] = choice; t.miss[me] = 0; t.rev++;
 if (t.pick.a && t.pick.r) dlResolve_(t, false);
 dlPut_(t);

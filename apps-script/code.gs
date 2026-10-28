@@ -759,7 +759,7 @@ var API_ALLOWED_ = {
   dlJoin: function (a) { return dlJoin(a[0]); },
   dlLeave: function (a) { return dlLeave(a[0]); },
   dlPoll: function (a) { return dlPoll(a[0], a[1]); },
-  dlMove: function (a) { return dlMove(a[0], a[1]); }
+  dlMove: function (a) { return dlMove(a[0], a[1], a[2]); }
 };
 
 function doPost(e) {
@@ -1962,10 +1962,10 @@ function metaPoll() {
 
 // ==========================================================================
 // v11 HIGH STAKES DUEL - živý 1v1 souboj s kamarádem (stoly jako Dáma: CacheService + Script Properties, výplaty přes frontu).
-// Každé půlkolo: útočník volí útok, obránce NASLEPO reakci. Až jsou obě volby (nebo vyprší 15 s), server půlkolo spočítá HSEngine.duelHalf.
+// Každé půlkolo: útočník volí útok, obránce NASLEPO reakci. Až jsou obě volby (nebo vyprší 35 s), server půlkolo spočítá HSEngine.duelHalf.
 // Vklad strhává klient (jako u Dámy), server drží bank a vyplácí přes dlPoll. Režim 'equal' = obě postavy přepočítané na stejný level a gear.
 // ==========================================================================
-var DL_MAX_TABLES = 4, DL_TURN_MS = 15000, DL_WAIT_MS = 300000, DL_IDLE_MS = 20 * 60000, DL_RAKE = 0.05, DL_MAX_MISS = 3, DL_MAX_STAKE = 1000000000;
+var DL_MAX_TABLES = 4, DL_TURN_MS = 35000, DL_WAIT_MS = 300000, DL_IDLE_MS = 20 * 60000, DL_RAKE = 0.05, DL_MAX_MISS = 3, DL_MAX_STAKE = 1000000000;
 function dlGet_(id) { var raw = CacheService.getScriptCache().get('dl_' + id); if (!raw) raw = prsProps_().getProperty('dl_' + id); return raw ? JSON.parse(raw) : null; }
 function dlPut_(t) { var j = JSON.stringify(t); CacheService.getScriptCache().put('dl_' + t.id, j, 21600); prsProps_().setProperty('dl_' + t.id, j); }
 function dlDel_(id) { CacheService.getScriptCache().remove('dl_' + id); prsProps_().deleteProperty('dl_' + id); }
@@ -2002,11 +2002,17 @@ function dlResolve_(t, auto) {
   var c = dlHeroes_(t), d = t.ds;
   d.R = HSEngine.rng((t.seed + d.half * 7919 + 13) >>> 0); d.c = c; d.events = [];
   var names = [t.host, t.guest], att = d.atk;
-  var evs = HSEngine.duelHalf(d, t.pick.a || 'strike', t.pick.r || 'brace', {});
+  var opt = {}, ao = t.pick.ao || {}, ro = t.pick.ro || {};
+  // v11.1: výsledky mini-her (HEAVY timing, ulti, gamble válce, parry, dodge) - hodnoty jsou už pročištěné v dlMove
+  opt.t = ao.t || 'none'; opt.q = ao.q != null ? ao.q : 0.85;
+  if (t.pick.a === 'gamble' && ao.g) { var re = !!ao.g.re && d.sta[att] >= 30; opt.reels = HSEngine.duelReels(c[att], dlRolls_(t), ao.g.hold, re); opt.respin = re; }
+  if (ro.parry) opt.parry = ro.parry; if (ro.dq) opt.dq = ro.dq;
+  var evs = HSEngine.duelHalf(d, t.pick.a || 'strike', t.pick.r || 'brace', opt);
   delete d.R; delete d.c; d.events = [];
   t.lastEv = evs; t.evSeq = (t.evSeq || 0) + 1; t.pick = { a: '', r: '' }; t.moved = Date.now(); t.deadline = Date.now() + DL_TURN_MS; t.rev++;
   evs.forEach(function (e) {
-    if (e.type === 'hit') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.label || e.a) + ' ' + e.val + (e.crit ? ' CRIT' : '') + (e.outcome === 'block' ? ' (blocked)' : e.outcome === 'dodgefail' ? ' (dodge failed)' : '') + (e.counter ? ', counter ' + e.counter : ''));
+    if (e.type === 'hit') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE ' + Math.round((e.q || 1) * 100) + '%' : (e.label || e.a)) + (e.timing ? ' (' + e.timing + ')' : '') + (e.reels ? ' ' + e.reels.join('') : '') + ' ' + e.val + (e.crit ? ' CRIT' : '') + (e.outcome === 'block' ? ' (blocked)' : e.outcome === 'parry' ? ' (PARRIED!)' : e.outcome === 'dodgefail' ? ' (dodge failed)' : '') + (e.counter ? ', counter ' + e.counter : ''));
+    else if (e.type === 'rest') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' catches a breath (+30 stamina)');
     else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[1 - e.i] + ' dodged');
     else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
     else if (e.type === 'revive') dlLog_(t, names[e.who] + ' rises again!');
@@ -2114,6 +2120,8 @@ function dlLeave(id) {
     return { ok: true };
   } finally { lock.releaseLock(); }
 }
+/** v11.1: 6 náhodných čísel na gamble válce v tomto půlkole (klient je ukáže, server z nich spočítá stejné válce) */
+function dlRolls_(t) { var d = t.ds, R = HSEngine.rng(((t.seed || 1) + (d ? d.half : 0) * 104729 + 77) >>> 0), a = []; for (var k = 0; k < 6; k++) a.push(Math.round(R() * 1e6) / 1e6); return a; }
 function dlView_(t, me) {
   var you = t.host === me ? 0 : t.guest === me ? 1 : -1, d = t.ds || null;
   var role = '', picked = false, oppPicked = false;
@@ -2124,6 +2132,7 @@ function dlView_(t, me) {
   return { id: t.id, rev: t.rev, status: t.status, host: t.host, guest: t.guest, target: t.target || '', stake: t.stake, mode: t.mode, you: you, names: [t.host, t.guest],
     cls: t.cls || [t.hostCls, ''], lv: t.lv || [t.hostLv, 0], cards: t.cards, max: t.max || null,
     hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh : null, sure: d ? d.sure : null, chan: d ? d.chan : null, atk: d ? d.atk : -1, turn: d ? d.turn : 0, half: d ? d.half : 0,
+    cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null,
     role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
     winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-14) };
 }
@@ -2141,8 +2150,9 @@ function dlPoll(id, rev) {
   if (Number(rev) === t.rev && !pay.length) return { ok: true, same: true, rev: t.rev, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0 };
   return { ok: true, view: dlView_(t, me), pay: pay };
 }
-/** choice = útok (strike/heavy/gamble/ult), když útočíš, nebo reakce (block/dodge/channel/brace), když se bráníš */
-function dlMove(id, choice) {
+/** choice = útok (strike/heavy/gamble/rest/ult), když útočíš, nebo reakce (block/dodge/channel/brace), když se bráníš.
+ *  opt (v11.1) = výsledek mini-hry: { h: půlkolo, t, q, g: { hold, re }, parry, dq } */
+function dlMove(id, choice, opt) {
   var me = getUserLdap(), lock = prsLock_();
   try {
     var t = dlGet_(id); if (!t || t.status !== 'play') return { ok: false, reason: 'gone' };
@@ -2151,9 +2161,22 @@ function dlMove(id, choice) {
     var you = t.host === me ? 0 : t.guest === me ? 1 : -1; if (you < 0) return { ok: false, reason: 'seat' };
     var d = t.ds, role = d.atk === you ? 'a' : 'r';
     choice = String(choice || '');
-    var okA = ['strike', 'heavy', 'gamble', 'ult'], okR = ['block', 'dodge', 'channel', 'brace'];
+    var okA = ['strike', 'heavy', 'gamble', 'rest', 'ult'], okR = ['block', 'dodge', 'channel', 'brace'];
     if ((role === 'a' ? okA : okR).indexOf(choice) < 0) return { ok: false, reason: 'choice', view: dlView_(t, me) };
     if (t.pick[role]) return { ok: false, reason: 'picked', view: dlView_(t, me) };
+    opt = opt && typeof opt === 'object' ? opt : {};
+    if (opt.h != null && Number(opt.h) !== d.half) return { ok: false, reason: 'late', view: dlView_(t, me) };
+    var TIER = ['perfect', 'good', 'none'], o = {};
+    if (role === 'a') {
+      if (choice === 'heavy' && TIER.indexOf(opt.t) >= 0) o.t = opt.t;
+      if (choice === 'ult' && isFinite(Number(opt.q))) o.q = Math.max(0.7, Math.min(1.25, Number(opt.q)));
+      if (choice === 'gamble' && opt.g && Array.isArray(opt.g.hold)) o.g = { hold: [0, 1, 2].map(function (k) { return !!opt.g.hold[k]; }), re: !!opt.g.re };
+      t.pick.ao = o;
+    } else {
+      if (choice === 'block' && TIER.indexOf(opt.parry) >= 0) o.parry = opt.parry;
+      if (choice === 'dodge' && TIER.indexOf(opt.dq) >= 0) o.dq = opt.dq;
+      t.pick.ro = o;
+    }
     t.pick[role] = choice; t.miss[me] = 0; t.rev++;
     if (t.pick.a && t.pick.r) dlResolve_(t, false);
     dlPut_(t);
@@ -2184,31 +2207,32 @@ function dlMove(id, choice) {
 
   // ------------------------------------------------------------------ TŘÍDY (id sysadmin/engineer/cyber zůstávají kvůli savům)
   const CLASSES = {
-    sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.7, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 30, dodge: 0, counter: 0.5, dmgM: 1.12,
+    sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 30, dodge: 0, counter: 0.5, dmgM: 1.25,
       desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 30 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
-    cyber: { name: "Shadow Admin", role: "Assassin", icon: "🗡", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 30, dmgM: 1.15,
-      desc: "Assassin. DODGE (50%, up to 75% with AGI, only 30 focus) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
-      skill: "EXPLOIT", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
-    engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.6, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
+    cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 30, dmgM: 1.15,
+      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, only 30 focus) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
+      skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
+    engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
       desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL focus: -25% damage now and your next hit ×1.6.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
-    blood: { name: "Blood Walker", role: "Blood Walker", icon: "🩸", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 25, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
-      desc: "Heals 15% of the damage dealt and has a 25% chance to rise once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
-      skill: "BLOOD PACT", skillTxt: "2.6× hit that heals you for 60% of the damage." },
-    hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 30, firstStrike: true, mark: 0.15,
+    blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 25, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
+      desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
+      skill: "DOUBLE ESPRESSO", skillTxt: "2.6× hit that heals you for 60% of the damage." },
+    hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4.2, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 30, firstStrike: true, mark: 0.15,
       desc: "Hits twice (2 × 60%), strikes first in every fight and MARKS the target (+15% damage taken). Only 35% dodge.",
       skill: "HEADHUNT", skillTxt: "4 arrows × 0.9 - every arrow can crit." }
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, dmg: { sysadmin: 0.87, cyber: 0.68, engineer: 0.68, blood: 1.19, hunter: 0.94 } };
+  const PVP = { hp: 2, dmg: { sysadmin: 0.65, cyber: 0.86, engineer: 0.86, blood: 1.22, hunter: 1.05 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
   const ATTACKS = {
-    strike: { name: "STRIKE", icon: "⚔", sta: 0, mult: 1, brk: 10, txt: "free · 1× hit" },
-    heavy: { name: "HEAVY", icon: "💥", sta: 30, mult: 1.7, brk: 20, txt: "30 STA · stop the needle: 1.7× / gold 2.2× · breaks a guard, interrupts a charge" },
+    strike: { name: "STRIKE", icon: "⚔", sta: 0, gain: 10, mult: 1, brk: 10, txt: "free · 1× hit · +10 stamina" },
+    heavy: { name: "HEAVY", icon: "💥", sta: 30, cd: 1, mult: 1.7, brk: 20, txt: "30 STA · stop the needle: 1.7× / gold 2.2× · breaks a guard, interrupts a charge · then 1 round cooldown" },
+    rest: { name: "BREATHE", icon: "😮‍💨", sta: 0, gain: 30, foc: 0, brk: 0, txt: "no attack · +30 stamina, +15 focus, cures poison" },
     gamble: { name: "GAMBLE", icon: "🎰", sta: 20, mult: 0, brk: 0, txt: "20 STA · slot machine, HOLD + 1 re-spin" },
     ult: { name: "ULTIMATE", icon: "✨", foc: 100, brk: 40, txt: "100 focus" }
   };
@@ -2216,10 +2240,20 @@ function dlMove(id, choice) {
     block: { name: "BLOCK", icon: "🛡", txt: "less damage, PARRY the big ones" },
     dodge: { name: "DODGE", icon: "💨", foc: 35, txt: "35 focus · avoid the hit completely (not 🔮 spells)" },
     channel: { name: "CHANNEL", icon: "🔮", foc: 30, txt: "30 focus · -25% damage now, your next hit ×1.6" },
-    brace: { name: "BREATHE", icon: "😮‍💨", txt: "+10 stamina, +10 focus" }
+    brace: { name: "BREATHE", icon: "😮‍💨", txt: "+15 stamina, +10 focus, cures poison" }
   };
   // starší názvy (save / server / staré odkazy)
   const ACTIONS = Object.assign({}, ATTACKS, REACTS);
+  const ATK_KEYS = ["strike", "heavy", "gamble", "rest", "ult"];
+  /** v11.1: TŘÍDY NEPŘÁTEL (běžní a elitní nepřátelé, bossové mají vlastní mechaniky) */
+  const ECLS = {
+    virus: { n: "🦠 Virus", t: "its hits POISON you (4% max HP per round for 2 rounds) - BREATHE cures it" },
+    swarm: { n: "🐛 Swarm", t: "attacks in two quick bites" },
+    firewall: { n: "🧱 Firewall", t: "guards a lot and reflects 20% of your damage while guarding" },
+    manager: { n: "📈 Manager", t: "motivates itself every 3rd round (+12% damage, stacks) - a BREAK resets it" },
+    leech: { n: "🧛 Leech", t: "heals 30% of the damage it deals" },
+    brute: { n: "🦍 Brute", t: "more HP, hits harder and swings HEAVY more often" }
+  };
   const ITEMS = {}, MAX_ITEMS_PER_FIGHT = 0;
   const REELS = [["🍒", 30], ["🔔", 22], ["⭐", 12], ["7️⃣", 8], ["💀", 14]];
 
@@ -2263,15 +2297,19 @@ function dlMove(id, choice) {
   // ------------------------------------------------------------------ NEPŘÁTELÉ
   const ARCH = { tank: { hp: 1.45, dmg: 0.8, armor: 0.3, def: 1.15, n: "🛡 Tank" }, glass: { hp: 0.72, dmg: 1.32, armor: 0.05, def: 0.85, n: "🗡 Glass cannon" },
     bal: { hp: 1, dmg: 1, armor: 0.15, def: 1, n: "" }, spec: { hp: 0.92, dmg: 0.95, armor: 0.12, def: 1, n: "✨ Specialist" } };
-  const KIND = { normal: [1, 1], compliance: [1.05, 1], elite: [1.2, 1.03], mini: [1.35, 1.05], boss: [1.5, 1.05], secret: [1.8, 1.1], world: [1, 1] };
+  const KIND = { normal: [1, 1], compliance: [1.05, 1], elite: [1.2, 1.03], mini: [1.3, 1.05], boss: [1.4, 1.05], secret: [1.7, 1.1], world: [1, 1] };
   /** o = { level, arch, kind, hpM, dmgM, name, icon, mech, pattern, sprite, k } */
   function buildEnemy(o) {
     const L = Math.max(1, Math.round(o.level || 1)), t = typical(L, o.k || 1.4), A = ARCH[o.arch] || ARCH.bal, K = KIND[o.kind] || KIND.normal;
+    const ec = ECLS[o.ecls] ? o.ecls : "", ps = 1 + 0.67 * Math.max(0, Number(o.ps) || 0);          // ps = High Stakes prestiž (+67 % HP a damage za každou)
+    const eh = ec === "brute" ? 1.12 : ec === "swarm" ? 0.92 : ec === "firewall" ? 1.05 : 1, ed = ec === "brute" ? 1.08 : ec === "leech" ? 0.92 : ec === "virus" ? 0.9 : 1;
     const e = Object.assign({}, o, {
       enemy: true, level: L, main: t.main, def: t.main * A.def, luck: t.luck * 0.8, vit: t.vit,
-      maxHp: Math.max(5, Math.round(t.vit * ENEMY_HPM * (L + 6) * HPK * A.hp * K[0] * (o.hpM || 1))),
-      wpn: t.wpn * ENEMY_DMG * A.dmg * K[1] * (o.dmgM || 1), armorRed: A.armor, dmgM: 1, critX: 2, critAdd: 0, archName: A.n
+      maxHp: Math.max(5, Math.round(t.vit * ENEMY_HPM * (L + 6) * HPK * A.hp * K[0] * (o.hpM || 1) * eh * ps)),
+      wpn: t.wpn * ENEMY_DMG * A.dmg * K[1] * (o.dmgM || 1) * ed * ps, armorRed: A.armor, dmgM: 1, critX: 2, critAdd: 0, ecls: ec, archName: ec ? ECLS[ec].n : A.n
     });
+    if (ec === "brute") e.pattern = Object.assign({}, e.pattern || { atk: 6, heavy: 2, defend: 1 }, { heavy: ((e.pattern || {}).heavy || 2) * 2 });
+    if (ec === "firewall") e.pattern = Object.assign({}, e.pattern || { atk: 6, heavy: 2, defend: 1 }, { defend: Math.max(3, ((e.pattern || {}).defend || 1) * 3) });
     e.hp = e.maxHp; e.atk = estDmg(e, L, t.main);
     return e;
   }
@@ -2301,7 +2339,7 @@ function dlMove(id, choice) {
       hp: h.startHp != null ? clamp(Math.round(h.startHp), 1, h.maxHp) : h.maxHp, sta: h.staMax, focus: Math.min(99, 30 + (h.startFocus || 0)),
       shield: Math.round(h.maxHp * (P.shieldStart || 0)), firstHit: !!P.firstStrike, duckUsed: false, revived: false,
       ehp: e.maxHp, emax: e.maxHp, eatk: e.atk, eshield: 0, estacks: 0, eguard: false, estun: false, unleashNext: false,
-      disabled: {}, cd: {}, demand: null, redTape: 0, sureCrit: false, channel: 0, marked: false, dodgeStreak: 0, lastAct: null,
+      disabled: {}, cd: {}, demand: null, redTape: 0, poison: 0, mgr: 0, sureCrit: false, channel: 0, marked: false, dodgeStreak: 0, lastAct: null,
       flamenco: 0, slow: 0, rage: 0, payroll: 0, siesta: false, pastaPending: false, restartPending: false, form: "I", phase2: false,
       intent: null, lastIntent: null, brk: 0, vuln: false, stunNext: false, deceive: Number(mission.deceive) || 0, coin: 0, hotfix: false,
       st: { usedGamble: 0, usedItem: 0, perfectBlocks: 0, jackpots: 0, usedSkill: 0, perfectPower: 0, usedBlock: 0, usedReact: 0, reacts: 0, crits: 0, parries: 0, breaks: 0, forms: 0, maxHit: 0, dodges: 0 }
@@ -2394,15 +2432,24 @@ function dlMove(id, choice) {
   }
 
   // ---------- formuláře (Compliance / Louis / Cobol): udělej X
-  const FORM_NO = { strike: "ST-12", heavy: "PW-99", gamble: "GM-7", block: "27-B", dodge: "DG-6", channel: "CH-3", brace: "BR-1" };
+  const FORM_NO = { strike: "ST-12", heavy: "PW-99", gamble: "GM-7", rest: "RS-0", block: "27-B", dodge: "DG-6", channel: "CH-3", brace: "BR-1" };
   const RED_TAPE_MAX = 6;
   function pickDemand(f) {
     const m = f.e.mech;
-    if (m === "cobol") { f.demand = f.turn > 0 && f.R() < 0.3 ? "brace" : null; return; }      // "Do you want a bryndza?" -> BREATHE ("yes, thanks")
+    // v11.1: na začátku kola se smí chtít jen ÚTOK (reakce se chce až po telegrafu, viz demandReact)
     if (m === "louis") { if (!(f.turn > 0 && f.R() < 0.3)) { f.demand = null; return; } }
-    else if (m !== "compliance") { f.demand = null; return; }
-    const pool = ["strike", "heavy", "gamble", "brace"].concat(reactsOf(f.h).filter(r => r !== "brace")).filter(a => a !== f.demand && !(f.disabled[a] > 0));
+    else if (m !== "compliance" || f.R() < 0.4) { f.demand = null; return; }
+    const pool = ["strike", "heavy", "gamble", "rest"].filter(a => a !== f.demand && !(f.disabled[a] > 0) && !(f.cd[a] > 0) && f.sta >= (ATTACKS[a].sta || 0));
     f.demand = pool.length ? pool[Math.floor(f.R() * pool.length)] : "strike";
+  }
+  /** po telegrafu (jen když se opravdu reaguje): Compliance chce reakci, kterou zrovna můžeš udělat; Cobol nabízí bryndzu (BREATHE) */
+  function demandReact(f) {
+    const m = f.e.mech;
+    if (f.demand) return;
+    if (m === "cobol") { if (f.R() < 0.3) f.demand = "brace"; return; }
+    if (m !== "compliance" || f.R() < 0.5) return;
+    const pool = reactsOf(f.h).filter(x => allowedReact(f, x));
+    if (pool.length) f.demand = pool[Math.floor(f.R() * pool.length)];
   }
   function formCheck(f, act, phase) {
     if (!f.demand) return;
@@ -2465,10 +2512,12 @@ function dlMove(id, choice) {
     const sure = f.sureCrit && o.crit !== false; if (sure) f.sureCrit = false;
     const r = rawHit(f.R, f.h, f.e, { mult: mult, ignoreArmor: o.ignoreArmor, crit: sure ? true : o.crit, critMul: o.critMul });
     if (r.crit) { f.st.crits++; f.focus = Math.min(100, f.focus + 8); }
-    return { val: hurtEnemy(f, r.v), crit: r.crit };
+    const val = hurtEnemy(f, r.v);
+    if (f.eguard && f.e.ecls === "firewall" && val > 0) { const d = hurtHero(f, val * 0.2, "reflect"); ev(f, "mech", { msg: "🧱 The Firewall reflects " + d + " damage back at you." }); }
+    return { val: val, crit: r.crit };
   }
 
-  function eMult(f) { let m = 1; if (f.e.mech === "pookie") m *= 1 + 0.05 * f.estacks; if (f.rage > 0) m *= 1.3; return m; }
+  function eMult(f) { let m = 1; if (f.e.mech === "pookie") m *= 1 + 0.05 * f.estacks; if (f.rage > 0) m *= 1.3; if (f.mgr) m *= 1 + 0.12 * f.mgr; return m; }
   function hurtHero(f, dmg, src) {
     const P = f.h.perks || {};
     if (f.h.dr && src !== "backfire" && src !== "withdraw") dmg *= 1 - f.h.dr;
@@ -2555,9 +2604,14 @@ function dlMove(id, choice) {
         ev(f, "pact", { a: a, val: r1.val + r2.val, crit: r1.crit || r2.crit, hits: [r1.val, r2.val] });
       } else { const r = myHit(f, m); ev(f, "pact", { a: a, val: r.val, crit: r.crit }); }
       consumeBuffs(f); f.marked = f.marked || !!h.mark;
-      f.focus = Math.min(100, f.focus + 5);
+      f.focus = Math.min(100, f.focus + 5); f.sta = Math.min(h.staMax, f.sta + A.gain);
       addBreak(f, A.brk * (f.eguard ? 0.5 : 1));
+    } else if (a === "rest") {
+      f.sta = Math.min(h.staMax, f.sta + A.gain); f.focus = Math.min(100, f.focus + 15);
+      const cured = f.poison > 0; f.poison = 0;
+      ev(f, "rest", { cured: cured });
     } else if (a === "heavy") {
+      f.cd.heavy = A.cd + 1;
       const tm = opt.t === "perfect" ? "PERFECT" : opt.t === "good" ? "GOOD" : opt.t === "auto" ? "" : "";
       const base = opt.t === "perfect" ? 2.2 : opt.t === "good" ? 1.7 : opt.t === "auto" ? 1.7 : 1.3;
       if (tm === "PERFECT") f.st.perfectPower++;
@@ -2609,11 +2663,11 @@ function dlMove(id, choice) {
         f.estacks = 0; f.eshield = 0; f.rage = 0; f.flamenco = 0; f.disabled = {}; f.eguard = false;
         const all = opt.all == null ? true : !!opt.all;
         if (all) f.brk = 100; else addBreak(f, 50);
-        ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Exploit (" + pct + "%) for " + r.val + " - enemy buffs wiped" + (all ? " and its defences BROKEN" : "") });
+        ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Backdoor (" + pct + "%) for " + r.val + " - enemy buffs wiped" + (all ? " and its defences BROKEN" : "") });
       } else if (cls === "blood") {
         const r = myHit(f, 2.6 * q * myMult(f, "ult")); consumeBuffs(f);
         const hh = Math.round(r.val * 0.6); f.hp = Math.min(h.maxHp, f.hp + hh); addBreak(f, 35 * q);
-        ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, heal: hh, msg: "Blood Pact (" + pct + "%) for " + r.val + " - you drink " + hh + " HP" });
+        ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, heal: hh, msg: "Double espresso (" + pct + "%) for " + r.val + " - the caffeine gives you " + hh + " HP" });
       } else {
         let sum = 0, crits = 0; const m = myMult(f, "ult");
         for (let i = 0; i < 4; i++) { const r = myHit(f, 0.9 * q * m); sum += r.val; if (r.crit) crits++; }
@@ -2625,7 +2679,7 @@ function dlMove(id, choice) {
     if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
     if (f.ehp <= 0) return finish(f, true, start);
     if (f.brk >= 100 && !f.estun) {
-      f.brk = 0; f.st.breaks++; f.vuln = true; f.estun = true; f.unleashNext = false; f.rmNext = false;
+      f.brk = 0; f.st.breaks++; f.vuln = true; f.estun = true; f.unleashNext = false; f.rmNext = false; f.mgr = 0;
       ev(f, "break", {});
     }
     // ---------- nepřítel ukáže, co chystá
@@ -2633,6 +2687,7 @@ function dlMove(id, choice) {
     ev(f, "telegraph", { k: f.intent.k, shown: f.intent.shown, val: f.intent.val });
     if (!isDmgIntent(f.intent.k)) { enemyAct(f, "none", {}); endRound(f); return f.events.slice(start); }
     f.phase = "react";
+    demandReact(f);
     return f.events.slice(start);
   }
 
@@ -2657,7 +2712,7 @@ function dlMove(id, choice) {
   function enemyAct(f, r, opt) {
     const h = f.h, e = f.e, R = f.R, it = f.intent, k = it.k;
     f.phase = "atk";
-    if (r === "brace") { f.sta = Math.min(h.staMax, f.sta + 10); f.focus = Math.min(100, f.focus + 10); }
+    if (r === "brace") { f.sta = Math.min(h.staMax, f.sta + 15); f.focus = Math.min(100, f.focus + 10); if (f.poison > 0) { f.poison = 0; ev(f, "mech", { msg: "😮‍💨 You catch your breath - the poison is gone." }); } }
     f.dodgeStreak = r === "dodge" ? f.dodgeStreak + 1 : 0;
     if (it.feint) ev(f, "mech", { msg: "🎭 A FEINT! It showed " + (it.shown === "atk" ? "⚔ ATTACK" : "💥 HEAVY") + " but did " + (k === "atk" ? "⚔ ATTACK" : "💥 HEAVY") + "." });
     if (isDmgIntent(k)) {
@@ -2674,7 +2729,8 @@ function dlMove(id, choice) {
       const src = k === "unleash" ? "heavy" : k === "spell" ? (it.sub === "llm" ? "hallucination" : "spell") : k;
       if (k === "spell" && h.spellImmune) { ev(f, "immune", {}); f.st.reacts++; }
       else if (r === "dodge") {
-        const ch = Math.max(0, f.dodgeCh * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0));
+        const dq = opt.dq === "perfect" ? 1.6 : opt.dq === "good" ? 1.15 : opt.dq === "none" ? 0.4 : 1;          // v11.1: dodge mini-hra
+        const ch = Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));
         if (R() < ch) {
           f.st.dodges++; f.st.reacts++; f.focus = Math.min(100, f.focus + 10);
           if (h.cls === "cyber") f.sureCrit = true;
@@ -2722,7 +2778,13 @@ function dlMove(id, choice) {
   }
   function hitHero(f, dmg, src, k) {
     if (k === "withdraw") { const d = hurtHero(f, dmg, "withdraw"); f.ehp = Math.min(f.emax, f.ehp + d); ev(f, "mech", { msg: "💸 \"The withdrawal from your life.\" She takes " + d + " HP and keeps it." }); return d; }
-    return hurtHero(f, dmg, src);
+    const ec = f.e.ecls;
+    let d = 0;
+    if (ec === "swarm") { d = hurtHero(f, dmg * 0.55, src) + hurtHero(f, dmg * 0.55, src); }
+    else d = hurtHero(f, dmg, src);
+    if (d > 0 && ec === "virus" && f.hp > 0) { if (!f.poison) ev(f, "mech", { msg: "🦠 Infected! You lose 4% HP for 2 rounds - BREATHE cures it." }); f.poison = 2; }
+    if (d > 0 && ec === "leech") { const hh = Math.round(d * 0.3); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); }
+    return d;
   }
   function special(f) {
     const e = f.e, R = f.R;
@@ -2746,8 +2808,10 @@ function dlMove(id, choice) {
   }
   function endRound(f) {
     const h = f.h, e = f.e;
-    f.sta = Math.min(h.staMax, f.sta + 15 + (h.staGain || 0));
+    f.sta = Math.min(h.staMax, f.sta + (h.staGain || 0));          // v11.1: stamina se sama NEDOPLŇUJE (STRIKE +10, BREATHE +30 / +15)
     f.focus = Math.min(100, f.focus + 10);
+    if (f.poison > 0 && f.hp > 0) { f.poison--; const d = hurtHero(f, h.maxHp * 0.04, "poison"); ev(f, "mech", { msg: "🦠 Poison: -" + d + " HP" }); }
+    if (e.ecls === "manager" && f.turn % 3 === 0 && !f.estun) { f.mgr = (f.mgr || 0) + 1; ev(f, "mech", { msg: "📈 \"Let's go team!\" The Manager motivates itself: +" + 12 * f.mgr + "% damage (BREAK it to reset)." }); }
     const P = h.perks || {};
     if (P.regen && f.hp > 0) f.hp = Math.min(h.maxHp, f.hp + Math.round(h.maxHp * P.regen));
     Object.keys(f.disabled).forEach(a => { if (--f.disabled[a] <= 0) delete f.disabled[a]; });
@@ -2833,9 +2897,11 @@ function dlMove(id, choice) {
     if (f.demand && ATTACKS[f.demand] && can(f.demand)) return f.demand;
     if (can("ult")) return "ult";
     if ((f.unleashNext || f.eguard || f.siesta) && can("heavy")) return "heavy";
-    const reserve = h.block > 0 ? h.blockCost + 10 : 0;
+    if (f.poison > 0 && f.hp < h.maxHp * 0.5 && R() < 0.6) return "rest";
+    const reserve = h.block > 0 ? h.blockCost : 0;
+    if (f.sta < 30 + reserve * 0.5 && R() < (h.block > 0 ? 0.55 : 0.35)) return "rest";
     if (style === "allin" && can("gamble") && R() < 0.35) return "gamble";
-    if (can("heavy") && f.sta - 30 >= reserve && (f.sta >= 70 || R() < 0.45)) return "heavy";
+    if (can("heavy") && f.sta - 30 >= reserve && (f.sta >= 65 || R() < 0.5)) return "heavy";
     if (style !== "safe" && can("gamble") && f.sta - 20 >= reserve + 20 && R() < 0.12) return "gamble";
     return "strike";
   }
@@ -2843,23 +2909,25 @@ function dlMove(id, choice) {
     const h = f.h, it = f.intent || {}, k = it.shown === "?" ? "atk" : (it.shown || it.k);
     const can = (r) => allowedReact(f, r);
     if (f.demand && REACTS[f.demand] && can(f.demand)) return f.demand;
-    if (k === "spell") { if (h.spellImmune) return "brace"; return can("block") ? "block" : "brace"; }
+    if (k === "spell") { if (h.spellImmune) return "brace"; return can("block") && f.sta >= h.blockCost + 20 ? "block" : "brace"; }
     const big = k === "heavy" || k === "unleash" || k === "withdraw";
     if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel") && f.focus < 90) return "channel"; return "brace"; }
-    if (h.cls === "sysadmin") return can("block") ? "block" : "brace";
-    if (h.cls === "blood") return can("block") && f.sta >= 55 ? "block" : "brace";
+    if (h.cls === "sysadmin") return can("block") && f.sta >= h.blockCost + 10 ? "block" : "brace";
+    if (h.cls === "blood") return can("block") && f.sta >= 60 ? "block" : "brace";
     if (h.cls === "engineer") return can("channel") && f.focus >= 30 && f.focus < 60 ? "channel" : "brace";
     if (can("dodge") && f.focus >= 80 && f.focus < 95) return "dodge";
     return "brace";
   }
   function timingRoll(R, zone) { const r = R(); return r < zone * 0.35 ? "perfect" : r < zone * 1.9 ? "good" : "none"; }
-  const PARRY_SKILL = { perfect: 0.3, good: 0.45 };
+  const PARRY_SKILL = { perfect: 0.3, good: 0.45, dodge: { perfect: 0.3, good: 0.45 } };
   const ULT_SKILL = { q: 1.0, sd: 0.1, all: 0.6 };
   function parryRoll(R) { const r = R(); return r < PARRY_SKILL.perfect ? "perfect" : r < PARRY_SKILL.perfect + PARRY_SKILL.good ? "good" : "none"; }
+  function dodgeRoll(R) { const r = R(), D = PARRY_SKILL.dodge; return r < D.perfect ? "perfect" : r < D.perfect + D.good ? "good" : "none"; }
   function autoOpt(f, a, R, skill) {
     if (a === "heavy") return { t: timingRoll(R, skill == null ? f.h.zone : skill) };
     if (a === "ult") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all };
     if (a === "gamble") { const r = gambleRoll(f), hold = autoHold(r); if (!hold.every(Boolean) && canRespin(f) && R() < 0.85) gambleRespin(f, hold); return {}; }
+    if (a === "dodge") return { dq: dodgeRoll(R) };
     if (a === "block" && f.intent && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) {
       if (f.intent.k === "unleash") return { rings: [parryRoll(R), parryRoll(R), parryRoll(R)] };
       return { parry: parryRoll(R) };
@@ -2894,7 +2962,8 @@ function dlMove(id, choice) {
   }
   function power(h) { if (!h) return 0; return Math.round(Math.sqrt(estDmg(h, h.level, h.level * 4.75 + 10) * h.maxHp * (h.cls === "sysadmin" ? 1.5 : h.cls === "engineer" ? 1.1 : 1.25))); }
 
-  const PVP_ATK = ["strike", "heavy", "gamble", "ult"];
+  const PVP_ATK = ["strike", "heavy", "gamble", "rest", "ult"];
+  const SYMS = ["🍒", "🔔", "⭐", "7️⃣", "💀"];
   /** d = stav duelu: dva bojovníci, střídají se v útoku. V jednom půlkole volí útočník útok a obránce naslepo reakci. */
   function duelNew(A, B, seed) {
     const R = rng(seed || 1);
@@ -2903,14 +2972,20 @@ function dlMove(id, choice) {
     let first = A.firstStrike && !B.firstStrike ? 0 : B.firstStrike && !A.firstStrike ? 1 : (R() < 0.5 ? 0 : 1);
     const mA = Math.round(A.maxHp * PVP.hp), mB = Math.round(B.maxHp * PVP.hp);
     const d = { R: R, c: c, hp: [mA, mB], max: [mA, mB], pv: [pv(A), pv(B)], sta: [100, 100], foc: [30, 30], sh: [0, 0], sure: [false, false], chan: [0, 0], mark: [false, false],
-      rev: [false, false], streak: [0, 0], vuln: [false, false], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
+      rev: [false, false], streak: [0, 0], vuln: [false, false], cd: [0, 0], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
     d.armor = [clamp(A.armor / (B.level * 100), 0, A.armorCap), clamp(B.armor / (A.level * 100), 0, B.armorCap)];
     d.dodge = [A.dodge > 0 ? Math.min(0.75, A.dodge + (A.cls === "cyber" ? 0.3 * clamp(A.main / Math.max(1, B.main) - 0.5, 0, 1) : 0)) : 0,
       B.dodge > 0 ? Math.min(0.75, B.dodge + (B.cls === "cyber" ? 0.3 * clamp(B.main / Math.max(1, A.main) - 0.5, 0, 1) : 0)) : 0];
     return d;
   }
   function dEv(d, type, x) { const e = Object.assign({ t: d.turn, i: d.atk, type: type, hp: d.hp.slice(), sh: d.sh.slice() }, x || {}); d.events.push(e); return e; }
-  function duelAtkOk(d, i, a) { if (a === "strike") return true; if (a === "heavy") return d.sta[i] >= 30; if (a === "gamble") return d.sta[i] >= 20; if (a === "ult") return d.foc[i] >= 100; return false; }
+  function duelAtkOk(d, i, a) {
+    if (a === "strike" || a === "rest") return true;
+    if (a === "heavy") return d.sta[i] >= 30 && !((d.cd || [])[i] > 0);
+    if (a === "gamble") return d.sta[i] >= 20;
+    if (a === "ult") return d.foc[i] >= 100;
+    return false;
+  }
   function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.foc[i] >= h.dodgeCost; if (r === "channel") return d.foc[i] >= 30; return true; }
   function dHurt(d, i, v) {
     v = Math.max(0, Math.round(v)); const s = Math.min(d.sh[i], v); d.sh[i] -= s; d.hp[i] -= v - s;
@@ -2928,64 +3003,83 @@ function dlMove(id, choice) {
     const r = rawHit(d.R, A, Object.assign({}, B, { armorRed: o.ignoreArmor ? 0 : d.armor[b] }), { mult: m, crit: sure ? true : undefined, critMul: o.critMul });
     return r;
   }
-  /** jedno půlkolo: útočník d.atk dá útok a, obránce reaguje r. opt.t timing (živý duel: bez mini-her, HEAVY = 1.7×) */
+  /** v11.1: válce v duelu z předem daných čísel (server je losuje za každé půlkolo) - klient i server dostanou stejný výsledek */
+  function duelReels(h, rolls, hold, re) {
+    let k = 0; const f = { h: h, R: () => Number(rolls[k++ % rolls.length]) || 0 };
+    const a = spinReels(f); if (!re) return a;
+    const b = spinReels(f); return a.map((s, i) => hold && hold[i] ? s : b[i]);
+  }
+  function okReels(x) { return Array.isArray(x) && x.length === 3 && x.every(s => SYMS.indexOf(s) >= 0) ? x.slice() : null; }
+  /** jedno půlkolo: útočník d.atk dá útok a, obránce naslepo reaguje r.
+   *  opt (v11.1 - quick time eventy v duelu): { t: HEAVY timing, q: síla ulti 0.7-1.25, reels: válce z gamble mini-hry,
+   *        parry: tier obránce při BLOCKu (proti HEAVY / GAMBLE / ULTI), dq: dodge mini-hra obránce } */
   function duelHalf(d, a, r, opt) {
     if (d.over) return [];
     opt = opt || {};
+    if (!d.cd) d.cd = [0, 0];
     const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
     if (!duelAtkOk(d, i, a)) a = "strike";
     if (!duelReactOk(d, j, r)) r = "brace";
+    const q = clamp(opt.q == null ? 1 : Number(opt.q) || 0.7, 0.7, 1.25);
+    if (a === "gamble" && opt.respin && d.sta[i] >= ATTACKS.gamble.sta + RESPIN_STA) d.sta[i] -= RESPIN_STA;
     if (a === "heavy") d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
+    d.cd[i] = a === "heavy" ? 1 : 0;
     if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.foc[j] -= B.dodgeCost; if (r === "channel") d.foc[j] -= 30;
-    if (r === "brace") { d.sta[j] = Math.min(100, d.sta[j] + 10); d.foc[j] = Math.min(100, d.foc[j] + 10); }
+    if (r === "brace") { d.sta[j] = Math.min(100, d.sta[j] + 15); d.foc[j] = Math.min(100, d.foc[j] + 10); }
     d.streak[j] = r === "dodge" ? d.streak[j] + 1 : 0;
     // útok
-    let hits = [], kind = a, label = ATTACKS[a].name, ignoreArmor = false, critMul = 1, gres = null, healSelf = 0;
-    if (a === "strike") hits = A.double ? [0.6, 0.6] : [1];
-    else if (a === "heavy") hits = A.double ? [0.6 * 1.7, 0.6 * 1.7] : [opt.t === "perfect" ? 2.2 : 1.7];
+    let hits = [], label = ATTACKS[a].name, ignoreArmor = false, critMul = 1, gres = null, healSelf = 0, timing = "";
+    if (a === "strike") { hits = A.double ? [0.6, 0.6] : [1]; d.sta[i] = Math.min(100, d.sta[i] + 10); }
+    else if (a === "rest") { d.sta[i] = Math.min(100, d.sta[i] + 30); d.foc[i] = Math.min(100, d.foc[i] + 15); }
+    else if (a === "heavy") { const m = opt.t === "perfect" ? 2.2 : opt.t === "none" ? 1.3 : 1.7; timing = opt.t === "perfect" ? "PERFECT" : opt.t === "none" ? "MISS" : "GOOD"; hits = A.double ? [0.6 * m, 0.6 * m] : [m]; }
     else if (a === "gamble") {
-      const reels = (function () { const f0 = { h: A, R: R }; return spinReels(f0); })();
+      const reels = okReels(opt.reels) || spinReels({ h: A, R: R });
       gres = reelResult(reels); gres.reels = reels;
       if (gres.bf) { const s = dHurt(d, i, estDmg(A, A.level) * gres.self); dEv(d, "bf", { val: s, reels: reels }); hits = []; }
       else { hits = gres.mult > 0 ? [gres.mult] : []; if (gres.heal) healSelf = Math.round(d.max[i] * gres.heal); d.foc[i] = Math.min(100, d.foc[i] + gres.foc); }
     } else if (a === "ult") {
       d.foc[i] = 0;
-      if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3), hh = Math.round(d.max[i] * 0.05); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); healSelf = 0; hits = [1.4]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh }); }
-      else if (A.cls === "engineer") { hits = [3.2]; critMul = 2; }
-      else if (A.cls === "cyber") { hits = [2.8]; ignoreArmor = true; d.chan[j] = 0; }
-      else if (A.cls === "blood") { hits = [2.6]; }
-      else hits = [0.9, 0.9, 0.9, 0.9];
+      if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3 * q), hh = Math.round(d.max[i] * 0.05 * q); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); hits = [1.4 * q]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh, q: q }); }
+      else if (A.cls === "engineer") { hits = [3.2 * q]; critMul = 2; }
+      else if (A.cls === "cyber") { hits = [2.8 * q]; ignoreArmor = true; d.chan[j] = 0; }
+      else if (A.cls === "blood") { hits = [2.6 * q]; }
+      else hits = [0.9 * q, 0.9 * q, 0.9 * q, 0.9 * q];
     }
     // reakce obránce proti každé ráně
-    const magic = A.cls === "engineer";
-    let total = 0, anyCrit = false, outcome = "hit", saved = 0, counter = 0;
+    const magic = A.cls === "engineer", big = a !== "strike";
+    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0;
     if (hits.length) {
       if (r === "dodge") {
-        const ch = magic ? 0 : Math.max(0, d.dodge[j] * Math.pow(0.8, d.streak[j] - 1));
+        const dq = opt.dq === "perfect" ? 1.6 : opt.dq === "good" ? 1.15 : opt.dq === "none" ? 0.4 : 1;
+        const ch = magic ? 0 : Math.min(0.95, Math.max(0, d.dodge[j] * dq * Math.pow(0.8, d.streak[j] - 1)));
         if (R() < ch) { outcome = "dodge"; d.foc[j] = Math.min(100, d.foc[j] + 10); if (B.cls === "cyber") d.sure[j] = true; hits = []; }
         else outcome = magic ? "nododge" : "dodgefail";
       }
       if (r === "channel") { d.chan[j] = 1.6; outcome = "channel"; }
-      const red = r === "block" ? B.block * (a === "strike" ? 1 : 0.5) : r === "channel" ? 0.25 : 0;
+      let red = r === "block" ? B.block * (a === "strike" ? 1 : 0.5) : r === "channel" ? 0.25 : 0;
+      if (r === "block" && big && opt.parry === "perfect") { red = 1; outcome = "parry"; }
+      else if (r === "block" && big && opt.parry === "good") red = Math.min(0.95, red + 0.35);
       hits.forEach(m => {
         const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul });
         const v = h0.v * (1 - red); saved += h0.v - v; total += dHurt(d, j, v); if (h0.crit) anyCrit = true;
       });
       if (hits.length) d.chan[i] = 0;
       if (a === "ult" && A.cls === "cyber") d.vuln[j] = true;
-      if (r === "block" && hits.length) { outcome = "block"; if (a === "strike" && B.counter) { const c0 = dHit(d, j, i, B.counter, {}); counter = dHurt(d, i, c0.v); } }
+      if (r === "block" && hits.length) {
+        if (outcome !== "parry") outcome = "block";
+        if ((a === "strike" && B.counter) || outcome === "parry") { const c0 = dHit(d, j, i, outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter, {}); counter = dHurt(d, i, c0.v); }
+      }
       if (A.lifesteal && total) healSelf += Math.round(total * A.lifesteal);
       if (a === "ult" && A.cls === "blood") healSelf += Math.round(total * 0.6);
       if (A.mark) d.mark[i] = true;
     }
     if (healSelf) d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf);
-    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null });
+    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined });
     // konec půlkola
     if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
     d.half++;
-    if (d.half % 2 === 0) { for (let k = 0; k < 2; k++) { d.sta[k] = Math.min(100, d.sta[k] + 15); d.foc[k] = Math.min(100, d.foc[k] + 10); } d.turn++; }
+    if (d.half % 2 === 0) { for (let k = 0; k < 2; k++) d.foc[k] = Math.min(100, d.foc[k] + 10); d.turn++; }      // v11.1: stamina se sama nedoplňuje
     d.atk = j;
-    if (d.skipNext === j) { d.skipNext = -1; dEv(d, "stun", { who: j }); d.half++; if (d.half % 2 === 0) d.turn++; d.atk = i; }
     if (d.turn > 30) return duelEnd(d, d.hp[0] / d.max[0] >= d.hp[1] / d.max[1] ? 0 : 1, start, "time");
     return d.events.slice(start);
   }
@@ -2994,16 +3088,17 @@ function dlMove(id, choice) {
   function duelAiAtk(d, i, R, style) {
     if (duelAtkOk(d, i, "ult")) return "ult";
     const st = d.sta[i], h = d.c[i], reserve = h.block > 0 ? h.blockCost : 0;
+    if (st < 30 + reserve * 0.5 && R() < 0.5) return "rest";
     if (style === "allin" && st >= 20 && R() < 0.35) return "gamble";
-    if (st - 30 >= reserve && (st >= 70 || R() < 0.4)) return "heavy";
+    if (duelAtkOk(d, i, "heavy") && st - 30 >= reserve && (st >= 65 || R() < 0.45)) return "heavy";
     if (style !== "safe" && st - 20 >= reserve + 10 && R() < 0.12) return "gamble";
     return "strike";
   }
   function duelAiReact(d, j, R, style) {
-    const h = d.c[j], opp = d.c[1 - j], heavyLikely = d.sta[1 - j] >= 70 || d.foc[1 - j] >= 100;
-    if (h.cls === "sysadmin") return duelReactOk(d, j, "block") ? "block" : "brace";
+    const h = d.c[j], opp = d.c[1 - j], heavyLikely = (d.sta[1 - j] >= 65 && !(d.cd && d.cd[1 - j] > 0)) || d.foc[1 - j] >= 100;
+    if (h.cls === "sysadmin") return duelReactOk(d, j, "block") && d.sta[j] >= h.blockCost + 10 ? "block" : "brace";
     if (h.dodge > 0 && opp.cls !== "engineer" && duelReactOk(d, j, "dodge") && (heavyLikely || d.foc[j] >= 80) && d.foc[j] < 100 - (style === "safe" ? 0 : 5)) return "dodge";
-    if (h.cls === "blood" && duelReactOk(d, j, "block") && d.sta[j] >= 55) return "block";
+    if (h.cls === "blood" && duelReactOk(d, j, "block") && d.sta[j] >= 60) return "block";
     if (h.canChannel && duelReactOk(d, j, "channel") && d.foc[j] < 60) return "channel";
     return "brace";
   }
@@ -3012,7 +3107,7 @@ function dlMove(id, choice) {
     let g = 0;
     while (!d.over && g++ < 200) {
       const i = d.atk, j = 1 - i;
-      duelHalf(d, duelAiAtk(d, i, R, st[i]), duelAiReact(d, j, R, st[j]), { t: R() < 0.25 ? "perfect" : "good" });
+      duelHalf(d, duelAiAtk(d, i, R, st[i]), duelAiReact(d, j, R, st[j]), { t: R() < 0.25 ? "perfect" : "good", parry: parryRoll(R), dq: dodgeRoll(R) });
     }
     return { win: d.win === 0, first: d.first, events: d.events, max: d.max, turns: d.turn };
   }
@@ -3023,7 +3118,7 @@ function dlMove(id, choice) {
     stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, bonusText: bonusText, FORM_NO: FORM_NO,
     simulate: simulate, autoAttack: autoAttack, autoReact: autoReact, autoPolicy: autoAttack, autoOpt: autoOpt, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, timingRoll: timingRoll,
     reelResult: reelResult, gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM,
-    card: card, fromCard: fromCard, PVP: PVP, stdHero: stdHero, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
+    card: card, fromCard: fromCard, PVP: PVP, ATK_KEYS: ATK_KEYS, ECLS: ECLS, dodgeRoll: dodgeRoll, okReels: okReels, duelReels: duelReels, stdHero: stdHero, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSEngine = api;
 })(typeof window !== "undefined" ? window : this);
