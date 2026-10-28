@@ -1,4 +1,0 @@
-DONE4 - Office Royale v11.4 je dogenerovaná.
-Firemní verze: zkopíruj jen 19 změněných souborů + nový hsqte2 (seznam v 00_NAVOD.txt).
-Čas: 2026-10-28 16:36
-Commit: 839ef89

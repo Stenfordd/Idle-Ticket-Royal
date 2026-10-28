@@ -1,11 +1,10 @@
-NÁVOD v7.1 - firemní verze v11.4 (= hra Office Royale v11.4)
+NÁVOD v7.2 - firemní verze v11.5 (= hra Office Royale v11.5)
 
-v11.4: CHANNEL = držení v pásu + mana, těžší parry, férovější Mág, 5 nových týdenních bossů a tvrdší MK (×1.8 HP, +25 % ATK),
-svítící FIGHT při eventu, přezdívky (klikni na své jméno nahoře), načítací obrazovka.
+v11.5: CHANNEL začíná uprostřed, akce dražší (DODGE 25, CHANNEL 20, BLOCK 35/30), varování na nízkou staminu,
+ukazatel many, série perfectů u parry, odveta v duelu, zlatá ikona ♻ u rozebírání.
 
-TENTOKRÁT ZKOPÍRUJ JEN TYHLE (ostatní jsou beze změny):
-  code, server2, engine, index, office, office2, sync, changelog, meta, hsengine, hsengine2, hscamp,
-  hsqte, hsqte2 (NOVÝ - vytvoř ho: + -> HTML, jméno hsqte2), hs2, hs3, hs_modes, duel, extras
+TENTOKRÁT ZKOPÍRUJ JEN TYHLE (žádný nový soubor, ostatní beze změny):
+  changelog, duel, engine, gear, hs, hs2, hs3, hsengine, hsqte2, index
 Pak Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
 
 ======================================================

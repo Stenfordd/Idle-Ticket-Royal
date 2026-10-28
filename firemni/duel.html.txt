@@ -64,9 +64,9 @@ return [a, b];
 }
 function cleanStake(x) { const n = Math.floor(Number(String(x).replace(/[^0-9.]/g, "")) || 0); return Math.max(0, Math.min((K.list && K.list.maxStake) || 1e9, n)); }
 function refund(s) { if (s > 0) { gameState.coins += s; updateUI(); TT.saveSoon(); } }
-function create() {
+function create(o) {
 if (K.busy) return;
-const stake = cleanStake($("du-stake") ? $("du-stake").value : 0), mode = $("du-mode") ? $("du-mode").value : "own", target = ($("du-target") ? $("du-target").value : "").trim();
+const stake = o ? cleanStake(o.stake) : cleanStake($("du-stake") ? $("du-stake").value : 0), mode = o ? (o.mode === "equal" ? "equal" : "own") : $("du-mode") ? $("du-mode").value : "own", target = o ? String(o.target || "") : ($("du-target") ? $("du-target").value : "").trim();
 K.stake = stake; K.mode = mode; K.target = target;
 if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
 K.busy = true; draw();
@@ -90,6 +90,15 @@ else { refund(stake); say({ already: "You already have a duel.", gone: "That due
 catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
 finally { K.busy = false; }
 });
+}
+/** v11.5: odveta - stejný soupeř, stejná sázka i pravidla */
+async function rematch() {
+const v = K.view; if (!v || v.status !== "done" || K.busy || v.you < 0) return;
+const o = { stake: v.stake || 0, mode: v.mode, target: v.names[1 - v.you] };
+if (gameState.coins < o.stake) { say("Not enough GC for the same stake.", "var(--crimson)"); return; }
+K.busy = true; try { await run("dlLeave", [K.id]); } catch (e) {}
+K.busy = false; K.id = ""; K.view = null; K.rev = -1; clearTimeout(K.pollT);
+create(o);
 }
 async function leave() {
 if (K.busy || !K.id) return; const v = K.view;
@@ -168,7 +177,7 @@ if (v.role === "atk") return `<div class="hs-acts">${H.PVP_ATK.map(a => { const 
 const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
 return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
 return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
-const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "15 STA · hold, mana" : "+15 STA +10 FOC";
+const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "20 STA · hold, mana" : "+15 STA +10 FOC";
 return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
 }
 /** v11.2: rovné podmínky - rozdělení bodů před startem */
@@ -218,7 +227,7 @@ role += `<div class="du-timer"><div id="du-tbar" style="width:${left / 35000 * 1
 }
 const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>
 <div class="dg-dim" style="margin-top:6px;">${esc(v.why)}${v.winner === me() && v.win ? " · +" + fmt(v.win) + " GC" : ""}</div>
-<button class="btn btn-gold" style="margin-top:10px;width:100%;" onclick="HSDuel.leave()">◀ BACK TO DUELS</button></div>` : "";
+<div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-crimson" style="flex:1;" onclick="HSDuel.rematch()">⚔ REMATCH${v.stake ? " (" + fmt(v.stake) + " GC)" : ""}</button><button class="btn btn-gold" style="flex:1;" onclick="HSDuel.leave()">◀ BACK TO DUELS</button></div></div>` : "";
 const wait = v.status === "wait" ? `<div class="dg-card"><div class="du-wait">⏳ Waiting for ${v.target ? "<b>" + esc(v.target) + "</b>" : "an opponent"} to accept (${Math.ceil((v.waitLeft || 0) / 60000)} min left)${v.stake ? " · stake " + fmt(v.stake) + " GC" : " · friendly duel"}${v.mode === "equal" ? " · equal terms" : ""}.<br>Tell them to open HIGH STAKES → ⚔ DUEL.</div>
 <button class="btn" style="width:100%;" onclick="HSDuel.leave()">CANCEL</button></div>` : "";
 if (v.status === "wait") return wait;
@@ -277,7 +286,7 @@ if (window.HSRig && (e.type === "hit" || e.type === "dodge")) { HSRig.act("du-s"
 setInterval(() => { if (onTab() && K.view && K.view.status === "play") { const b = $("du-tbar"); if (b) b.style.width = Math.max(0, (K.view.left || 0) - (Date.now() - K.recvAt)) / (K.view.setup ? 45000 : 35000) * 100 + "%"; } }, 250);
 A.registerMode("duel", { label: "⚔ DUEL", order: 92, render: function () { draw(); if (!K.list || Date.now() - K.listAt > 8000) loadList(); if (K.id) poll(); },
 dot: function () { return !!(K.view && K.view.status === "play" && K.view.role && !K.view.picked) || !!(K.list && K.list.tables && K.list.tables.some(t => t.status === "wait" && t.target === me())); } });
-window.HSDuel = { al: al, ready: ready, create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
+window.HSDuel = { rematch: rematch, al: al, ready: ready, create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
 (function boot() {
 if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 300); return; }
 TT.onLoaded(() => setTimeout(loadList, 8000));

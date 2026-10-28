@@ -26,6 +26,7 @@
 .gr-act .btn { flex: 1; }
 .gr-bag { max-height: none; }
 }
+.gr-rc { color: #ffb800; font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif; font-weight: 700; text-shadow: 0 0 6px rgba(255,184,0,.5); }
 </style>
 <script>
 (function () {
@@ -247,14 +248,14 @@ if (!g.bag.length) return `<div class="dg-dim" style="margin-top:6px;">Your gear
 const items = g.bag.slice().sort((a, b) => KEYS.indexOf(a.s) - KEYS.indexOf(b.s) || score(b) - score(a));
 return `<div class="gr-bag">${items.map(it => `<div class="gr-piece" style="--gm:${RAR[it.r].c};"><div class="gr-ic">${PIECES[it.s].i}</div>
 <div class="gr-t"><b>${esc(name(it.s, it))}</b><span class="gr-fx">LV ${it.lv} · ${fxText(it)} · ${cmp(it, g.eq[it.s])}</span></div>
-<div class="gr-act"><button class="btn btn-cyan" onclick="Gear.equip('${it.id}')">Equip</button><button class="btn" onclick="Gear.salvage('${it.id}')">♻ ${short(salvageGc(it))}</button></div></div>`).join("")}</div>`;
+<div class="gr-act"><button class="btn btn-cyan" onclick="Gear.equip('${it.id}')">Equip</button><button class="btn gr-salv" onclick="Gear.salvage('${it.id}')"><span class="gr-rc">♻&#xFE0E;</span> Salvage +${short(salvageGc(it))} GC</button></div></div>`).join("")}</div>`;
 }
 function card() {
 const g = st(), m = multOf(g.eq);
 return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span class="dg-dim">GC: ${short(gameState.coins)}</span></div>
 <div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
 <div class="gr-sum"><span>Weapon <b>${m.wpn ? m.wpn.toFixed(1) : "fists"}</b></span><span>Armor <b>${fmt(m.armor)}</b></span><span>Main stat <b>+${m.stats.main}</b></span><span>VIT <b>+${m.stats.vit}</b></span><span>LUCK <b>+${m.stats.luck}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
-<div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()">♻ Salvage hopeless (weaker even at +10)</button>` : ""}</div>
+<div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()"><span class="gr-rc">♻&#xFE0E;</span> Salvage hopeless (weaker even at +10)</button>` : ""}</div>
 ${bagHtml()}
 <div class="dg-dim" style="margin-top:8px;">Items drop at the level of the enemy that dropped them (bosses +2, Pool +3). What colour can drop depends on your <b>High Stakes prestige</b>: now up to <b style="color:${RAR[capOf(hsP())].c};">${RAR[capOf(hsP())].n}</b>, bosses 25% for ${RAR[Math.min(RMAX, capOf(hsP()) + 1)].n}. Upgrades reset to +0 when you prestige High Stakes. Weapon = your damage, armor = less damage taken, every piece gives flat stats. "Main stat" always goes to your class's main stat (STR / AGI / INT). An item above your level + 10 only counts as level + 10 until you catch up. Rarity Common → Mythic ×1 / 1.12 / 1.25 / 1.55 / 1.9 / 2.4, each upgrade +7% (max +${UMAX}). Give spare pieces to your colleague in the COLLEAGUE tab.</div></div>`;
 }

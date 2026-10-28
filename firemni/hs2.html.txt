@@ -314,7 +314,7 @@ function howHtml(cls) {
 const C0 = H.CLASSES[cls || "sysadmin"], h = hero();
 const rx = { block: `🛡 <b>BLOCK</b> (${h.blockCost} stamina): -${Math.round(h.block * 100)}% (half vs 💥 / ☄, less vs 🔮). Against 💥 HEAVY, ☄ UNLEASH and 💸 tap when the red ring hits gold: <b>PERFECT</b> = 0 damage + counter + stun, <b>GOOD</b> = -35% more.${h.counter ? " Blocking a ⚔ attack COUNTERS for half your damage." : ""}`,
 dodge: `💨 <b>DODGE</b> (${h.dodgeCost} stamina): jump into a safe lane - a fast jump raises the chance, a wrong lane lowers it. A dodge takes no damage at all${cls === "cyber" ? " - and your next hit is a sure crit" : ""}. Doesn't work on 🔮 spells, dodging again right away is less likely.`,
-channel: `🔮 <b>CHANNEL</b> (15 stamina): hold the marker inside a moving band for 2 s - you take 10-35% less damage and the absorbed damage becomes 🔮 MANA added to your next hit (+35% damage on it too). You are immune to 🔮 spells.`,
+channel: `🔮 <b>CHANNEL</b> (20 stamina): hold the marker inside a moving band for 2 s - you take 10-35% less damage and the absorbed damage becomes 🔮 MANA added to your next hit (+35% damage on it too). You are immune to 🔮 spells.`,
 brace: `😮‍💨 <b>BREATHE</b> (react): +15 stamina, +10 focus and cures 🦠 poison.` };
 return `<div class="dg-dim" style="line-height:1.55;"><b>Every round:</b> 1) you attack, 2) the enemy shows its move, 3) you react.<br>
 Stamina does <b>not</b> refill by itself and pays for every action - focus only charges your ultimate (+10 per round).<br>
@@ -452,7 +452,7 @@ return "-" + Math.round(b * 50) + "% · PARRY ring";
 function reactHint(f, r) {
 if (r === "block") return f.h.blockCost + " STA · " + blockHint(f);
 if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " STA · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
-if (r === "channel") return "15 STA · hold: -10-35% + mana";
+if (r === "channel") return "20 STA · hold: -10-35% + mana";
 return "+15 STA +10 FOC" + (f.poison > 0 ? " · cure" : "");
 }
 function atkHint(f, a) {
@@ -510,7 +510,10 @@ set("hs-ehp", f.ehp / f.emax * 100); set("hs-brk", f.brk);
 const bb = $("hs-brkb"); if (bb) bb.classList.toggle("full", !!f.vuln); if (f.vuln) set("hs-brk", 100);
 txt("hs-brkt", f.vuln ? "VULNERABLE 1.5×" : Math.floor(f.brk) + " / 100");
 txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
-txt("hs-stat", Math.floor(f.sta) + " / " + h.staMax); txt("hs-foct", Math.floor(f.focus) + " / 100");
+const defCost = Math.min.apply(null, [h.block > 0 ? h.blockCost : 999, h.dodge > 0 ? h.dodgeCost : 999, h.canChannel ? H.REACTS.channel.sta : 999]);
+const low = defCost < 999 && f.sta < defCost && !f.over, sb = $("hs-sta"); if (sb && sb.parentNode) sb.parentNode.classList.toggle("low", low);
+txt("hs-stat", low ? "LOW · BREATHE? " + Math.floor(f.sta) + " / " + h.staMax : Math.floor(f.sta) + " / " + h.staMax);
+txt("hs-foct", (f.mana > 0 ? "🔮 " + fmt(f.mana) + " mana · " : "") + Math.floor(f.focus) + " / 100");
 txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
 txt("hs-turn", "ROUND " + Math.max(1, f.turn + (f.phase === "atk" ? 1 : 0)) + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
 if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
@@ -531,9 +534,6 @@ const sm = $("hs-as-" + a); if (sm) { const t = f.disabled[a] ? "LOCKED" : f.pha
 const fb = $("hs-form");
 if (fb) {
 fb.style.display = f.demand && !f.over ? "" : (f.redTape ? "" : "none");
-const nm = f.demand ? H.ACTIONS[f.demand].name : "";
-fb.innerHTML = (f.demand && !f.over ? (f.e.mech === "cobol" ? `🥟 "Do you want a bryndza?" - answer with <b>BREATHE</b> ("yes, thanks") or he gets offended`
-: f.e.mech === "louis" ? `🫅 SUPREME DECREE: use <b>${nm}</b> this round - anything else adds red tape`
-: `📋 FORM ${H.FORM_NO[f.demand]}: use <b>${nm}</b> this round (bonus damage) - anything else adds red tape` +</script>
+const nm = f.demand ? H.ACTIONS[f.demand].name : "";</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hs2"] = 1;</script>
 <!-- END-OF-FILE: hs2 -->

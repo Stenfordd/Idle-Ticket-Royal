@@ -77,6 +77,8 @@ html.m #dg-open-btn { display: none; }
 .dg-classes { grid-template-columns: 1fr 1fr; }
 .dg-sprite { width: 76px; height: 76px; }
 }
+@keyframes hsLow { from { box-shadow: 0 0 0 1px rgba(255,23,68,.4); } to { box-shadow: 0 0 10px 2px rgba(255,23,68,.9); } }
+.hs-bar.low { animation: hsLow .6s ease-in-out infinite alternate; } .hs-bar.low .sta { background: linear-gradient(90deg, #ff1744, #ff6b6b) !important; }
 </style>
 <div id="dg-screen">
 <div class="dg-top">

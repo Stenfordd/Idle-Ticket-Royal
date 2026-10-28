@@ -24,6 +24,15 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "11.5", d: "2026-10-28", i: [
+"🔮 CHANNEL starts with the marker and the band in the middle and a short pause, so you can catch the rhythm before it counts",
+"😮‍💨 Actions cost a bit more stamina: DODGE 25, CHANNEL 20, BLOCK 35 (Warrior) / 30 (Caffeine Abuser). Duel classes re-balanced",
+"⚠ The stamina bar blinks red with \"LOW · BREATHE?\" when you can't afford your defence in the next reaction",
+"🔮 Your stored MANA shows next to the focus bar",
+"🔥 Parry shows your PERFECT streak and how much smaller the window got",
+"⚔ DUEL: a REMATCH button after the fight - same opponent, same stake and rules",
+"♻ Salvage buttons got a gold recycle icon and say \"Salvage +X GC\""
+] },
 { v: "11.4", d: "2026-10-28", i: [
 "🔮 CHANNEL is a new mini-game: hold the marker inside a moving band for 2 seconds. You take 10-35% less damage and the absorbed damage is stored as <b>MANA</b> - added to your next hit",
 "🛡 BLOCK takes more skill: the gold target has a different size every time, the ring changes speed, fake rings can show up anywhere and every PERFECT in a row makes the window a bit smaller",

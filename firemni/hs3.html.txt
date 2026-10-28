@@ -1,4 +1,7 @@
-<script type="text/plain" data-tt="tt_hs_1" data-i="2">(f.e.mech === "compliance" ? (f.bribed ? ` <b style="color:var(--emerald);">💼 bribed - play anything</b>` : ` <button class="btn btn-gold" style="padding:2px 8px;font-size:11px;margin-left:6px;" ${gameState.coins >= bribeCost(f) ? "" : "disabled"} onclick="Dungeon.bribe()">💼 BRIBE ${fmtShort(bribeCost(f))} GC</button>`) : "")) : "") +
+<script type="text/plain" data-tt="tt_hs_1" data-i="2">fb.innerHTML = (f.demand && !f.over ? (f.e.mech === "cobol" ? `🥟 "Do you want a bryndza?" - answer with <b>BREATHE</b> ("yes, thanks") or he gets offended`
+: f.e.mech === "louis" ? `🫅 SUPREME DECREE: use <b>${nm}</b> this round - anything else adds red tape`
+: `📋 FORM ${H.FORM_NO[f.demand]}: use <b>${nm}</b> this round (bonus damage) - anything else adds red tape` +
+(f.e.mech === "compliance" ? (f.bribed ? ` <b style="color:var(--emerald);">💼 bribed - play anything</b>` : ` <button class="btn btn-gold" style="padding:2px 8px;font-size:11px;margin-left:6px;" ${gameState.coins >= bribeCost(f) ? "" : "disabled"} onclick="Dungeon.bribe()">💼 BRIBE ${fmtShort(bribeCost(f))} GC</button>`) : "")) : "") +
 (f.redTape ? `<span class="rt">RED TAPE ×${f.redTape}: -${8 * f.redTape}% damage, -${4 * f.redTape}% dodge</span>` : "");
 }
 const fl = $("hs-a-flee"); if (fl) { fl.disabled = f.over || busyAnim; fl.style.visibility = fightCtx && fightCtx.tutorial ? "hidden" : ""; }

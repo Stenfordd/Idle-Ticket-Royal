@@ -6847,6 +6847,15 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "11.5", d: "2026-10-28", i: [
+      "🔮 CHANNEL starts with the marker and the band in the middle and a short pause, so you can catch the rhythm before it counts",
+      "😮‍💨 Actions cost a bit more stamina: DODGE 25, CHANNEL 20, BLOCK 35 (Warrior) / 30 (Caffeine Abuser). Duel classes re-balanced",
+      "⚠ The stamina bar blinks red with \"LOW · BREATHE?\" when you can't afford your defence in the next reaction",
+      "🔮 Your stored MANA shows next to the focus bar",
+      "🔥 Parry shows your PERFECT streak and how much smaller the window got",
+      "⚔ DUEL: a REMATCH button after the fight - same opponent, same stake and rules",
+      "♻ Salvage buttons got a gold recycle icon and say \"Salvage +X GC\""
+    ] },
     { v: "11.4", d: "2026-10-28", i: [
       "🔮 CHANNEL is a new mini-game: hold the marker inside a moving band for 2 seconds. You take 10-35% less damage and the absorbed damage is stored as <b>MANA</b> - added to your next hit",
       "🛡 BLOCK takes more skill: the gold target has a different size every time, the ring changes speed, fake rings can show up anywhere and every PERFECT in a row makes the window a bit smaller",
@@ -8259,25 +8268,25 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
   // ------------------------------------------------------------------ TŘÍDY (id sysadmin/engineer/cyber zůstávají kvůli savům)
   const CLASSES = {
-    sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 30, dodge: 0, counter: 0.5, dmgM: 1.25,
-      desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 30 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
+    sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
+      desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
-    cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 20, dmgM: 1.15,
-      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 20 stamina) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
+    cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 25, dmgM: 1.15,
+      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 25 stamina) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
       skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
-      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (15 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
+      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (20 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
-    blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 25, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
+    blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 30, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
       desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
       skill: "DOUBLE ESPRESSO", skillTxt: "2.6× hit that heals you for 60% of the damage." },
-    hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4.2, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 20, firstStrike: true, mark: 0.15,
+    hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4.2, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 25, firstStrike: true, mark: 0.15,
       desc: "Hits twice (2 × 60%, HEAVY too), strikes first in every fight and MARKS the target (+15% damage taken). Only 35% dodge.",
       skill: "HEADHUNT", skillTxt: "4 arrows × 0.9 - every arrow can crit." }
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, hpc: { sysadmin: 0.61 }, dmg: { sysadmin: 0.78, cyber: 0.5, engineer: 0.47, blood: 0.89, hunter: 0.72 } };
+  const PVP = { hp: 2, hpc: { sysadmin: 0.6 }, dmg: { sysadmin: 0.78, cyber: 0.46, engineer: 0.45, blood: 0.89, hunter: 0.67 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -8290,8 +8299,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const REACTS = {
     block: { name: "BLOCK", icon: "🛡", txt: "less damage, PARRY the big ones" },
-    dodge: { name: "DODGE", icon: "💨", sta: 20, txt: "20 stamina · avoid the hit completely (not 🔮 spells)" },
-    channel: { name: "CHANNEL", icon: "🔮", sta: 15, txt: "15 stamina · hold the band: -10 to -35% damage, absorbed damage becomes MANA for your next hit" },
+    dodge: { name: "DODGE", icon: "💨", sta: 25, txt: "25 stamina · avoid the hit completely (not 🔮 spells)" },
+    channel: { name: "CHANNEL", icon: "🔮", sta: 20, txt: "20 stamina · hold the band: -10 to -35% damage, absorbed damage becomes MANA for your next hit" },
     brace: { name: "BREATHE", icon: "😮‍💨", txt: "+15 stamina, +10 focus, cures poison" }
   };
   // starší názvy (save / server / staré odkazy)
@@ -8345,7 +8354,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       wpn: wpn, armor: (Number(gear.armor) || 0) * C.armorM, armorCap: C.armorCap,
       maxHp: Math.max(10, Math.round(vit * C.hpM * (L + 6) * HPK * (1 + bonus))),
       dmgM: C.dmgM || 1, critX: C.critX || 2, critAdd: (C.critAdd || 0) + (Number(gear.crit) || 0),
-      block: C.block || 0, blockCost: C.blockCost || 25, dodge: C.dodge || 0, dodgeCost: C.dodgeCost || 20, canChannel: !!C.channel, spellImmune: !!C.spellImmune,
+      block: C.block || 0, blockCost: C.blockCost || 25, dodge: C.dodge || 0, dodgeCost: C.dodgeCost || 25, canChannel: !!C.channel, spellImmune: !!C.spellImmune,
       lifesteal: C.lifesteal || 0, revive: C.revive || 0, counter: C.counter || 0, double: !!C.double, firstStrike: !!C.firstStrike, mark: C.mark || 0,
       dr: 0, staMax: 100, staGain: 0,
       zone: Math.min(0.42, 0.16 + luck / (luck + 40 + 6 * L) * 0.3 + (cls === "engineer" ? 0.06 : 0)),
@@ -10075,7 +10084,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     // v11.4: víc o skillu - cíl pokaždé jinak velký, kroužek jinak rychlý, občas falešný, série perfectů zužuje okno
     const sk = Math.max(0.5, Math.pow(0.85, PSTREAK.n)), target = Math.round(36 + rnd() * 20);
     const wP = PARRY_WIN.perfect * (o.easy || 1) * sk, wG = PARRY_WIN.good * (o.easy || 1) * Math.max(0.7, sk), from = 150, to = 14;
-    const title = o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one");
+    const title = (o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one")) +
+      (PSTREAK.n ? `<div style="font-size:11px;color:#ff9f43;margin-top:4px;">🔥 PERFECT ×${PSTREAK.n} in a row - the window is ${Math.round((1 - sk) * 100)}% smaller</div>` : "");
     const ov = open(`<div class="qte-t">${title}</div>
       <div class="hs-parry ${style}" id="qte-pr"><div class="tgt" style="width:${target}px;height:${target}px;margin:${-target / 2}px 0 0 ${-target / 2}px;"></div><div class="ring fake" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
       <div class="hs-pdots" id="qte-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="qte-res" id="qte-pq">&nbsp;</div>`);
@@ -10095,6 +10105,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (finished) return; finished = true; document.removeEventListener("keydown", key, true);
       const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
       PSTREAK.n = best === "perfect" ? PSTREAK.n + 1 : 0;
+      if (PSTREAK.n >= 2) { const pq = $("qte-pq"); if (pq) pq.insertAdjacentHTML("afterend", `<div class="qte-res" style="color:#ff9f43;">🔥 PERFECT STREAK ×${PSTREAK.n}</div>`); }
       const txt = n > 1 ? `${res.filter(r => r !== "none").length}/3 blocked` + (best === "perfect" ? " - FULL PARRY!" : "") : best === "perfect" ? "PARRY! 0 damage + counter" : best === "good" ? "GOOD BLOCK!" : "Normal block";
       finish(ov, txt, best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)", cb, n > 1 ? { rings: res } : { parry: best }, 520);
     }
@@ -10386,7 +10397,9 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         <div id="qte-cm" style="position:absolute;left:8px;right:8px;height:8px;border-radius:4px;background:#22d3ee;box-shadow:0 0 10px #22d3ee;"></div></div>
       <div class="qte-bar"><div id="qte-ct"></div></div><div class="qte-res" id="qte-cr">0%</div>`);
     const DUR = 2200, bandH = 0.26 * (easy || 1);
-    let y = 0.2, vy = 0, by = 0.4, bv = 0, hold = false, inside = 0, tot = 0, t0 = performance.now(), last = t0, raf = 0, done = false, turnAt = 0;
+    // v11.5: značka i pás začínají UPROSTŘED a prvních 0,4 s se nic nehýbe (chytíš rytmus); počítá se až potom
+    const GRACE = 400;
+    let y = 0.5, vy = 0, by = 0.5 - bandH / 2, bv = 0, hold = false, inside = 0, tot = 0, t0 = performance.now(), last = t0, raf = 0, done = false, turnAt = 0;
     const field = ov.querySelector("#qte-cf");
     const down = (e) => { if (e) e.preventDefault(); hold = true; }, up = (e) => { if (e) e.preventDefault(); hold = false; };
     field.addEventListener("pointerdown", down); ov.addEventListener("pointerdown", down); ov.addEventListener("pointerup", up); ov.addEventListener("pointercancel", up);
@@ -10395,17 +10408,20 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     function frame(now) {
       if (done) return;
       const dt = Math.min(50, now - last) / 1000; last = now;
+      const el = now - t0, live = el >= GRACE;
+      if (live) {
       vy += (hold ? 2.6 : -2.4) * dt; vy = Math.max(-1.2, Math.min(1.2, vy)) * 0.985; y += vy * dt;
       if (y < 0) { y = 0; vy = 0; } if (y > 1) { y = 1; vy = 0; }
       if (now >= turnAt) { bv = (rnd() - 0.5) * 1.1; turnAt = now + 250 + rnd() * 450; }
       by += bv * dt; if (by < 0) { by = 0; bv = Math.abs(bv); } if (by > 1 - bandH) { by = 1 - bandH; bv = -Math.abs(bv); }
-      const inB = y >= by && y <= by + bandH; tot += dt; if (inB) inside += dt;
+      }
+      const inB = y >= by && y <= by + bandH; if (live) { tot += dt; if (inB) inside += dt; }
       const cb2 = $("qte-cb"), cm = $("qte-cm");
       if (cb2) { cb2.style.bottom = (by * 100) + "%"; cb2.style.height = (bandH * 100) + "%"; cb2.style.background = inB ? "rgba(34,211,238,.35)" : "rgba(192,132,252,.25)"; }
       if (cm) cm.style.bottom = "calc(" + (y * 100) + "% - 4px)";
-      const el = now - t0, tb = $("qte-ct"); if (tb) tb.style.width = Math.max(0, 100 - el / DUR * 100) + "%";
-      const cr = $("qte-cr"); if (cr) cr.textContent = Math.round(inside / Math.max(0.01, tot) * 100) + "% in the band";
-      if (el >= DUR) return end();
+      const tb = $("qte-ct"); if (tb) tb.style.width = Math.max(0, 100 - Math.max(0, el - GRACE) / DUR * 100) + "%";
+      const cr = $("qte-cr"); if (cr) cr.textContent = live ? Math.round(inside / Math.max(0.01, tot) * 100) + "% in the band" : "get ready...";
+      if (el >= DUR + GRACE) return end();
       raf = requestAnimationFrame(frame);
     }
     function end() {
@@ -10554,6 +10570,8 @@ html.m #dg-open-btn { display: none; }
   .dg-classes { grid-template-columns: 1fr 1fr; }
   .dg-sprite { width: 76px; height: 76px; }
 }
+@keyframes hsLow { from { box-shadow: 0 0 0 1px rgba(255,23,68,.4); } to { box-shadow: 0 0 10px 2px rgba(255,23,68,.9); } }
+.hs-bar.low { animation: hsLow .6s ease-in-out infinite alternate; } .hs-bar.low .sta { background: linear-gradient(90deg, #ff1744, #ff6b6b) !important; }
 </style>
 
 <div id="dg-screen">
@@ -11012,7 +11030,7 @@ html.m #dg-open-btn { display: none; }
     const C0 = H.CLASSES[cls || "sysadmin"], h = hero();
     const rx = { block: `🛡 <b>BLOCK</b> (${h.blockCost} stamina): -${Math.round(h.block * 100)}% (half vs 💥 / ☄, less vs 🔮). Against 💥 HEAVY, ☄ UNLEASH and 💸 tap when the red ring hits gold: <b>PERFECT</b> = 0 damage + counter + stun, <b>GOOD</b> = -35% more.${h.counter ? " Blocking a ⚔ attack COUNTERS for half your damage." : ""}`,
       dodge: `💨 <b>DODGE</b> (${h.dodgeCost} stamina): jump into a safe lane - a fast jump raises the chance, a wrong lane lowers it. A dodge takes no damage at all${cls === "cyber" ? " - and your next hit is a sure crit" : ""}. Doesn't work on 🔮 spells, dodging again right away is less likely.`,
-      channel: `🔮 <b>CHANNEL</b> (15 stamina): hold the marker inside a moving band for 2 s - you take 10-35% less damage and the absorbed damage becomes 🔮 MANA added to your next hit (+35% damage on it too). You are immune to 🔮 spells.`,
+      channel: `🔮 <b>CHANNEL</b> (20 stamina): hold the marker inside a moving band for 2 s - you take 10-35% less damage and the absorbed damage becomes 🔮 MANA added to your next hit (+35% damage on it too). You are immune to 🔮 spells.`,
       brace: `😮‍💨 <b>BREATHE</b> (react): +15 stamina, +10 focus and cures 🦠 poison.` };
     return `<div class="dg-dim" style="line-height:1.55;"><b>Every round:</b> 1) you attack, 2) the enemy shows its move, 3) you react.<br>
       Stamina does <b>not</b> refill by itself and pays for every action - focus only charges your ultimate (+10 per round).<br>
@@ -11156,7 +11174,7 @@ html.m #dg-open-btn { display: none; }
   function reactHint(f, r) {
     if (r === "block") return f.h.blockCost + " STA · " + blockHint(f);
     if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " STA · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
-    if (r === "channel") return "15 STA · hold: -10-35% + mana";
+    if (r === "channel") return "20 STA · hold: -10-35% + mana";
     return "+15 STA +10 FOC" + (f.poison > 0 ? " · cure" : "");
   }
   function atkHint(f, a) {
@@ -11215,7 +11233,11 @@ html.m #dg-open-btn { display: none; }
     const bb = $("hs-brkb"); if (bb) bb.classList.toggle("full", !!f.vuln); if (f.vuln) set("hs-brk", 100);
     txt("hs-brkt", f.vuln ? "VULNERABLE 1.5×" : Math.floor(f.brk) + " / 100");
     txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
-    txt("hs-stat", Math.floor(f.sta) + " / " + h.staMax); txt("hs-foct", Math.floor(f.focus) + " / 100");
+    // v11.5: varování na staminu (nestačí na tvou obranu) a ukazatel many
+    const defCost = Math.min.apply(null, [h.block > 0 ? h.blockCost : 999, h.dodge > 0 ? h.dodgeCost : 999, h.canChannel ? H.REACTS.channel.sta : 999]);
+    const low = defCost < 999 && f.sta < defCost && !f.over, sb = $("hs-sta"); if (sb && sb.parentNode) sb.parentNode.classList.toggle("low", low);
+    txt("hs-stat", low ? "LOW · BREATHE? " + Math.floor(f.sta) + " / " + h.staMax : Math.floor(f.sta) + " / " + h.staMax);
+    txt("hs-foct", (f.mana > 0 ? "🔮 " + fmt(f.mana) + " mana · " : "") + Math.floor(f.focus) + " / 100");
     txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
     txt("hs-turn", "ROUND " + Math.max(1, f.turn + (f.phase === "atk" ? 1 : 0)) + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
     if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
@@ -11689,6 +11711,7 @@ html.m #dg-open-btn { display: none; }
   .gr-act .btn { flex: 1; }
   .gr-bag { max-height: none; }
 }
+.gr-rc { color: #ffb800; font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif; font-weight: 700; text-shadow: 0 0 6px rgba(255,184,0,.5); }
 </style>
 <script>
 (function () {
@@ -11925,14 +11948,14 @@ html.m #dg-open-btn { display: none; }
     const items = g.bag.slice().sort((a, b) => KEYS.indexOf(a.s) - KEYS.indexOf(b.s) || score(b) - score(a));
     return `<div class="gr-bag">${items.map(it => `<div class="gr-piece" style="--gm:${RAR[it.r].c};"><div class="gr-ic">${PIECES[it.s].i}</div>
       <div class="gr-t"><b>${esc(name(it.s, it))}</b><span class="gr-fx">LV ${it.lv} · ${fxText(it)} · ${cmp(it, g.eq[it.s])}</span></div>
-      <div class="gr-act"><button class="btn btn-cyan" onclick="Gear.equip('${it.id}')">Equip</button><button class="btn" onclick="Gear.salvage('${it.id}')">♻ ${short(salvageGc(it))}</button></div></div>`).join("")}</div>`;
+      <div class="gr-act"><button class="btn btn-cyan" onclick="Gear.equip('${it.id}')">Equip</button><button class="btn gr-salv" onclick="Gear.salvage('${it.id}')"><span class="gr-rc">♻&#xFE0E;</span> Salvage +${short(salvageGc(it))} GC</button></div></div>`).join("")}</div>`;
   }
   function card() {
     const g = st(), m = multOf(g.eq);
     return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span class="dg-dim">GC: ${short(gameState.coins)}</span></div>
       <div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
       <div class="gr-sum"><span>Weapon <b>${m.wpn ? m.wpn.toFixed(1) : "fists"}</b></span><span>Armor <b>${fmt(m.armor)}</b></span><span>Main stat <b>+${m.stats.main}</b></span><span>VIT <b>+${m.stats.vit}</b></span><span>LUCK <b>+${m.stats.luck}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
-      <div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()">♻ Salvage hopeless (weaker even at +10)</button>` : ""}</div>
+      <div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()"><span class="gr-rc">♻&#xFE0E;</span> Salvage hopeless (weaker even at +10)</button>` : ""}</div>
       ${bagHtml()}
       <div class="dg-dim" style="margin-top:8px;">Items drop at the level of the enemy that dropped them (bosses +2, Pool +3). What colour can drop depends on your <b>High Stakes prestige</b>: now up to <b style="color:${RAR[capOf(hsP())].c};">${RAR[capOf(hsP())].n}</b>, bosses 25% for ${RAR[Math.min(RMAX, capOf(hsP()) + 1)].n}. Upgrades reset to +0 when you prestige High Stakes. Weapon = your damage, armor = less damage taken, every piece gives flat stats. "Main stat" always goes to your class's main stat (STR / AGI / INT). An item above your level + 10 only counts as level + 10 until you catch up. Rarity Common → Mythic ×1 / 1.12 / 1.25 / 1.55 / 1.9 / 2.4, each upgrade +7% (max +${UMAX}). Give spare pieces to your colleague in the COLLEAGUE tab.</div></div>`;
   }
@@ -12667,9 +12690,9 @@ html.m #dg-open-btn { display: none; }
   // ---------- akce
   function cleanStake(x) { const n = Math.floor(Number(String(x).replace(/[^0-9.]/g, "")) || 0); return Math.max(0, Math.min((K.list && K.list.maxStake) || 1e9, n)); }
   function refund(s) { if (s > 0) { gameState.coins += s; updateUI(); TT.saveSoon(); } }
-  function create() {
+  function create(o) {
     if (K.busy) return;
-    const stake = cleanStake($("du-stake") ? $("du-stake").value : 0), mode = $("du-mode") ? $("du-mode").value : "own", target = ($("du-target") ? $("du-target").value : "").trim();
+    const stake = o ? cleanStake(o.stake) : cleanStake($("du-stake") ? $("du-stake").value : 0), mode = o ? (o.mode === "equal" ? "equal" : "own") : $("du-mode") ? $("du-mode").value : "own", target = o ? String(o.target || "") : ($("du-target") ? $("du-target").value : "").trim();
     K.stake = stake; K.mode = mode; K.target = target;
     if (gameState.coins < stake) { say("Not enough GC.", "var(--crimson)"); return; }
     K.busy = true; draw();
@@ -12693,6 +12716,15 @@ html.m #dg-open-btn { display: none; }
       catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
       finally { K.busy = false; }
     });
+  }
+  /** v11.5: odveta - stejný soupeř, stejná sázka i pravidla */
+  async function rematch() {
+    const v = K.view; if (!v || v.status !== "done" || K.busy || v.you < 0) return;
+    const o = { stake: v.stake || 0, mode: v.mode, target: v.names[1 - v.you] };
+    if (gameState.coins < o.stake) { say("Not enough GC for the same stake.", "var(--crimson)"); return; }
+    K.busy = true; try { await run("dlLeave", [K.id]); } catch (e) {}
+    K.busy = false; K.id = ""; K.view = null; K.rev = -1; clearTimeout(K.pollT);
+    create(o);
   }
   async function leave() {
     if (K.busy || !K.id) return; const v = K.view;
@@ -12774,7 +12806,7 @@ html.m #dg-open-btn { display: none; }
       const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
       return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
     return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
-      const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "15 STA · hold, mana" : "+15 STA +10 FOC";
+      const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "20 STA · hold, mana" : "+15 STA +10 FOC";
       return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
   }
   /** v11.2: rovné podmínky - rozdělení bodů před startem */
@@ -12824,7 +12856,7 @@ html.m #dg-open-btn { display: none; }
     }
     const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>
       <div class="dg-dim" style="margin-top:6px;">${esc(v.why)}${v.winner === me() && v.win ? " · +" + fmt(v.win) + " GC" : ""}</div>
-      <button class="btn btn-gold" style="margin-top:10px;width:100%;" onclick="HSDuel.leave()">◀ BACK TO DUELS</button></div>` : "";
+      <div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-crimson" style="flex:1;" onclick="HSDuel.rematch()">⚔ REMATCH${v.stake ? " (" + fmt(v.stake) + " GC)" : ""}</button><button class="btn btn-gold" style="flex:1;" onclick="HSDuel.leave()">◀ BACK TO DUELS</button></div></div>` : "";
     const wait = v.status === "wait" ? `<div class="dg-card"><div class="du-wait">⏳ Waiting for ${v.target ? "<b>" + esc(v.target) + "</b>" : "an opponent"} to accept (${Math.ceil((v.waitLeft || 0) / 60000)} min left)${v.stake ? " · stake " + fmt(v.stake) + " GC" : " · friendly duel"}${v.mode === "equal" ? " · equal terms" : ""}.<br>Tell them to open HIGH STAKES → ⚔ DUEL.</div>
       <button class="btn" style="width:100%;" onclick="HSDuel.leave()">CANCEL</button></div>` : "";
     if (v.status === "wait") return wait;
@@ -12884,7 +12916,7 @@ html.m #dg-open-btn { display: none; }
 
   A.registerMode("duel", { label: "⚔ DUEL", order: 92, render: function () { draw(); if (!K.list || Date.now() - K.listAt > 8000) loadList(); if (K.id) poll(); },
     dot: function () { return !!(K.view && K.view.status === "play" && K.view.role && !K.view.picked) || !!(K.list && K.list.tables && K.list.tables.some(t => t.status === "wait" && t.target === me())); } });
-  window.HSDuel = { al: al, ready: ready, create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
+  window.HSDuel = { rematch: rematch, al: al, ready: ready, create: create, join: join, leave: leave, pick: pick, challenge: challenge, refresh: function () { K.list = null; loadList(); }, _k: K };
   (function boot() {
     if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 300); return; }
     TT.onLoaded(() => setTimeout(loadList, 8000));
