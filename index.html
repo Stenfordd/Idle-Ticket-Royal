@@ -6847,6 +6847,12 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "11.3", d: "2026-10-28", i: [
+      "😮‍💨 Every action now costs <b>stamina</b> - DODGE 20, CHANNEL 15 (BLOCK stays). <b>Focus only charges your ULTIMATE</b>, so the Mage, Trojan and Hunter get it much more often. A successful dodge gives +5 focus",
+      "⚖ Duel classes re-balanced for the stamina change",
+      "⚒ Gear: a new item that is weaker now shows when it would beat your gear - \"better at +3 (cost)\". ♻ Salvage only scraps pieces that stay weaker even at +10",
+      "📊 ESC works everywhere now - in a fight, in High Stakes and in mini-games it hides the game behind a blank \"New Sheet\" spreadsheet (no more SLA report). ESC again brings you back exactly where you were"
+    ] },
     { v: "11.2", d: "2026-10-28", i: [
       "🎯 <b>Guess after your ultimate</b>: after the mini-game you guess the enemy's next move (in a duel: your opponent's reaction). Right guess = a class effect once per fight: 🧙 Blood Magic (next 3 hits heal you), 🛡 Firewall Up (shield + next hit halved), 🦠 Infection (poison), 🏹 Marked for Death (next 2 attacks crit), ☕ Sugar Rush (+40 stamina, HEAVY without cooldown)",
       "🎬 Short animations for every ultimate (tap to skip)",
@@ -8234,10 +8240,10 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 30 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
     cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 20, dmgM: 1.15,
-      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 20 focus) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
+      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 20 stamina) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
       skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
-      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL focus (a mini-game): up to -45% damage now and your next hit up to ×1.6. Enemies can't dodge your hits and their blocks only work half as well.",
+      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (15 stamina, a mini-game): up to -45% damage now and your next hit up to ×1.6. Enemies can't dodge your hits and their blocks only work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
     blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 25, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
       desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
@@ -8248,7 +8254,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, dmg: { sysadmin: 0.47, cyber: 0.79, engineer: 0.74, blood: 1.15, hunter: 1.0 } };
+  const PVP = { hp: 2, dmg: { sysadmin: 0.42, cyber: 0.66, engineer: 0.59, blood: 1.12, hunter: 0.96 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -8261,8 +8267,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const REACTS = {
     block: { name: "BLOCK", icon: "🛡", txt: "less damage, PARRY the big ones" },
-    dodge: { name: "DODGE", icon: "💨", foc: 20, txt: "20 focus · avoid the hit completely (not 🔮 spells)" },
-    channel: { name: "CHANNEL", icon: "🔮", foc: 30, txt: "30 focus · mini-game: -17.5 / 30 / 45% damage now, next hit ×1.3 (PERFECT ×1.6)" },
+    dodge: { name: "DODGE", icon: "💨", sta: 20, txt: "20 stamina · avoid the hit completely (not 🔮 spells)" },
+    channel: { name: "CHANNEL", icon: "🔮", sta: 15, txt: "15 stamina · mini-game: -17.5 / 30 / 45% damage now, next hit ×1.3 (PERFECT ×1.6)" },
     brace: { name: "BREATHE", icon: "😮‍💨", txt: "+15 stamina, +10 focus, cures poison" }
   };
   // starší názvy (save / server / staré odkazy)
@@ -8412,8 +8418,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const k = f.intent ? f.intent.k : "";
     if (r === "dodge" && (k === "spell")) return false;
     if (r === "block") return f.sta >= f.h.blockCost;
-    if (r === "dodge") return f.focus >= f.h.dodgeCost;
-    if (r === "channel") return f.focus >= REACTS.channel.foc;
+    if (r === "dodge") return f.sta >= f.h.dodgeCost;                   // v11.3: všechny reakce stojí STAMINU, focus je jen na ultimátku
+    if (r === "channel") return f.sta >= REACTS.channel.sta;
     return true;
   }
   function allowed(f, a) { return ATTACKS[a] ? allowedAtk(f, a) : allowedReact(f, a); }
@@ -8755,8 +8761,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     formCheck(f, r, "react");
     if (f.ehp <= 0) { f.phase = "atk"; return finish(f, true, start); }
     if (r === "block") f.sta -= f.h.blockCost;
-    if (r === "dodge") f.focus -= f.h.dodgeCost;
-    if (r === "channel") f.focus -= REACTS.channel.foc;
+    if (r === "dodge") f.sta -= f.h.dodgeCost;
+    if (r === "channel") f.sta -= REACTS.channel.sta;
     if (r !== "brace") f.st.usedReact++;
     enemyAct(f, r, opt);
     endRound(f);
@@ -8786,7 +8792,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         const dq = opt.dq === "perfect" ? 1.6 : opt.dq === "good" ? 1.15 : opt.dq === "none" ? 0.4 : 1;          // v11.1: dodge mini-hra
         const ch = Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));
         if (R() < ch) {
-          f.st.dodges++; f.st.reacts++; f.focus = Math.min(100, f.focus + 10);
+          f.st.dodges++; f.st.reacts++; f.focus = Math.min(100, f.focus + 5);
           if (h.cls === "cyber") f.sureCrit = true;
           ev(f, "dodge", { heavy: k !== "atk", sure: h.cls === "cyber" });
         } else { ev(f, "dodgefail", {}); hitHero(f, dmg, src, k); }
@@ -8970,11 +8976,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (f.demand && REACTS[f.demand] && can(f.demand)) return f.demand;
     if (k === "spell") { if (h.spellImmune) return "brace"; return can("block") && f.sta >= h.blockCost + 20 ? "block" : "brace"; }
     const big = k === "heavy" || k === "unleash" || k === "withdraw";
-    if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel") && f.focus < 90) return "channel"; return "brace"; }
+    if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel")) return "channel"; return "brace"; }
     if (h.cls === "sysadmin") return can("block") && f.sta >= h.blockCost + 10 ? "block" : "brace";
     if (h.cls === "blood") return can("block") && f.sta >= 60 ? "block" : "brace";
-    if (h.cls === "engineer") return can("channel") && f.focus >= 30 && f.focus < 60 ? "channel" : "brace";
-    if (can("dodge") && f.focus >= 80 && f.focus < 95) return "dodge";
+    if (h.cls === "engineer") return can("channel") && f.sta >= 45 ? "channel" : "brace";
+    if (can("dodge") && f.sta >= 55) return "dodge";
     return "brace";
   }
   function timingRoll(R, zone) { const r = R(); return r < zone * 0.35 ? "perfect" : r < zone * 1.9 ? "good" : "none"; }
@@ -9055,7 +9061,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (a === "ult") return d.foc[i] >= 100;
     return false;
   }
-  function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.foc[i] >= h.dodgeCost; if (r === "channel") return d.foc[i] >= 30; return true; }
+  function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.sta[i] >= h.dodgeCost; if (r === "channel") return d.sta[i] >= REACTS.channel.sta; return true; }
   function dHurt(d, i, v) {
     v = Math.max(0, Math.round(v)); const s = Math.min(d.sh[i], v); d.sh[i] -= s; d.hp[i] -= v - s;
     if (v > 0) d.foc[i] = Math.min(100, d.foc[i] + 8);
@@ -9102,7 +9108,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     d.cd[i] = a === "heavy" && !(d.nocd[i] > 0) ? 1 : 0;
     if (d.nocd[i] > 0) d.nocd[i]--;
     const sure = d.sa[i] > 0 && a !== "rest"; if (sure) d.sa[i]--;
-    if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.foc[j] -= B.dodgeCost; if (r === "channel") d.foc[j] -= 30;
+    if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.sta[j] -= B.dodgeCost; if (r === "channel") d.sta[j] -= REACTS.channel.sta;
     if (r === "brace") { d.sta[j] = Math.min(100, d.sta[j] + 15); d.foc[j] = Math.min(100, d.foc[j] + 10); }
     d.streak[j] = r === "dodge" ? d.streak[j] + 1 : 0;
     // útok
@@ -9135,7 +9141,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
           if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : magic ? "nododge" : "dodgefail";
         } else if (R() < chOf(dq1)) outcome = "dodge", hits = [];
         else outcome = magic ? "nododge" : "dodgefail";
-        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 10); if (B.cls === "cyber") d.sure[j] = true; }
+        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true; }
       }
       let red = 0;
       if (r === "channel") { const cq = opt.cq === "perfect" || opt.cq === "none" ? opt.cq : "good"; red = cq === "perfect" ? 0.45 : cq === "good" ? 0.3 : 0.175; d.chan[j] = cq === "perfect" ? 1.6 : 1.3; outcome = "channel"; }
@@ -9203,9 +9209,9 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function duelAiReact(d, j, R, style) {
     const h = d.c[j], opp = d.c[1 - j], heavyLikely = (d.sta[1 - j] >= 65 && !(d.cd && d.cd[1 - j] > 0)) || d.foc[1 - j] >= 100;
     if (h.cls === "sysadmin") return duelReactOk(d, j, "block") && d.sta[j] >= h.blockCost + 10 ? "block" : "brace";
-    if (h.dodge > 0 && opp.cls !== "engineer" && duelReactOk(d, j, "dodge") && (heavyLikely || d.foc[j] >= 80) && d.foc[j] < 100 - (style === "safe" ? 0 : 5)) return "dodge";
+    if (h.dodge > 0 && opp.cls !== "engineer" && duelReactOk(d, j, "dodge") && (heavyLikely || d.sta[j] >= 55)) return "dodge";
     if (h.cls === "blood" && duelReactOk(d, j, "block") && d.sta[j] >= 60) return "block";
-    if (h.canChannel && duelReactOk(d, j, "channel") && d.foc[j] < 60) return "channel";
+    if (h.canChannel && duelReactOk(d, j, "channel") && d.sta[j] >= 45) return "channel";
     return "brace";
   }
   function duelAI(A, B, seed, sa, sb) {
@@ -10907,11 +10913,11 @@ html.m #dg-open-btn { display: none; }
   function howHtml(cls) {
     const C0 = H.CLASSES[cls || "sysadmin"], h = hero();
     const rx = { block: `🛡 <b>BLOCK</b> (${h.blockCost} stamina): -${Math.round(h.block * 100)}% (half vs 💥 / ☄, less vs 🔮). Against 💥 HEAVY, ☄ UNLEASH and 💸 tap when the red ring hits gold: <b>PERFECT</b> = 0 damage + counter + stun, <b>GOOD</b> = -35% more.${h.counter ? " Blocking a ⚔ attack COUNTERS for half your damage." : ""}`,
-      dodge: `💨 <b>DODGE</b> (${h.dodgeCost} focus): jump into a safe lane - a fast jump raises the chance, a wrong lane lowers it. A dodge takes no damage at all${cls === "cyber" ? " - and your next hit is a sure crit" : ""}. Doesn't work on 🔮 spells, dodging again right away is less likely.`,
-      channel: `🔮 <b>CHANNEL</b> (30 focus): tap the ring - -17.5% / GOOD -30% / PERFECT -45% damage now, your next hit ×1.3 (PERFECT ×1.6). You are immune to 🔮 spells.`,
+      dodge: `💨 <b>DODGE</b> (${h.dodgeCost} stamina): jump into a safe lane - a fast jump raises the chance, a wrong lane lowers it. A dodge takes no damage at all${cls === "cyber" ? " - and your next hit is a sure crit" : ""}. Doesn't work on 🔮 spells, dodging again right away is less likely.`,
+      channel: `🔮 <b>CHANNEL</b> (15 stamina): tap the ring - -17.5% / GOOD -30% / PERFECT -45% damage now, your next hit ×1.3 (PERFECT ×1.6). You are immune to 🔮 spells.`,
       brace: `😮‍💨 <b>BREATHE</b> (react): +15 stamina, +10 focus and cures 🦠 poison.` };
     return `<div class="dg-dim" style="line-height:1.55;"><b>Every round:</b> 1) you attack, 2) the enemy shows its move, 3) you react.<br>
-      Stamina does <b>not</b> refill by itself - focus gets +10 per round.<br>
+      Stamina does <b>not</b> refill by itself and pays for every action - focus only charges your ultimate (+10 per round).<br>
       ⚔ <b>STRIKE</b> free, +10 stamina · 💥 <b>HEAVY</b> 30 stamina, 1-round cooldown, stop the needle: 1.3× / green 1.7× / gold 2.2×, breaks a 🛡 guard and interrupts a ⏳ charge · 🎰 <b>GAMBLE</b> 20 stamina, HOLD reels + 1 re-spin · 😮‍💨 <b>BREATHE</b> no attack, +30 stamina +15 focus, cures poison · ✨ <b>${C0.skill}</b> at 100 focus: ${C0.skillTxt} - played as a mini-game (70-125% power). Then 🎯 guess the enemy's next move - right = <b>${H.GUESS_FX[cls || "sysadmin"].n}</b> (${H.GUESS_FX[cls || "sysadmin"].t}, once per fight)<br>
       ${H.reactsOf(h).map(r => rx[r]).join("<br>")}<br>
       💢 Fill the enemy's <b>BREAK</b> bar to stun it for a round (your next hit 1.5×). 🎭 After a few High Stakes prestiges enemies sometimes FAKE their move. Normal enemies have a class (🦠 virus, 🐛 swarm, 🧱 firewall, 📈 manager, 🧛 leech, 🦍 brute) - see ❓ in a fight.</div>`;
@@ -11051,8 +11057,8 @@ html.m #dg-open-btn { display: none; }
   }
   function reactHint(f, r) {
     if (r === "block") return f.h.blockCost + " STA · " + blockHint(f);
-    if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " FOC · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
-    if (r === "channel") return "30 FOC · ring: -17-45%";
+    if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " STA · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
+    if (r === "channel") return "15 STA · ring: -17-45%";
     return "+15 STA +10 FOC" + (f.poison > 0 ? " · cure" : "");
   }
   function atkHint(f, a) {
@@ -11418,7 +11424,7 @@ html.m #dg-open-btn { display: none; }
   const TUT_REACT = { sysadmin: "block", blood: "block", cyber: "dodge", hunter: "dodge", engineer: "channel" };
   function tutSteps(cls) {
     const r = TUT_REACT[cls] || "brace", R0 = H.REACTS[r];
-    const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs focus).", channel: "CHANNEL is a ring mini-game: up to 45% less damage and your next hit up to ×1.6." }[r] || "";
+    const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs stamina).", channel: "CHANNEL is a ring mini-game: up to 45% less damage and your next hit up to ×1.6." }[r] || "";
     const heavyR = { block: "Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one: <b>PERFECT</b> = no damage + counter + stun.", dodge: "Tap 💨 <b>DODGE</b>, then jump into a SAFE lane fast (quick = better chance) - a successful dodge avoids the big hit" + (cls === "cyber" ? " and makes your next hit a sure crit." : "."), channel: "Tap 🔮 <b>CHANNEL</b> and hit the ring - PERFECT soaks 45% and your next hit ×1.6." }[r];
     return [
       { ph: "atk", a: "strike", t: "Every round starts with <b>① YOUR ATTACK</b>. ⚔ <b>STRIKE</b> is free. Tap <b>STRIKE</b>.", setup: f => { f.sta = 70; f.forceIntent = { k: "atk" }; } },
@@ -11517,7 +11523,7 @@ html.m #dg-open-btn { display: none; }
       <div class="hs-hsec">ENEMY CLASSES</div>
       ${Object.keys(H.ECLS).map(k => row(H.ECLS[k].n.split(" ")[0], H.ECLS[k].n.split(" ").slice(1).join(" ").toUpperCase(), H.ECLS[k].t + ".")).join("")}
       <div class="hs-hsec">TIPS</div>
-      <div class="dg-dim" style="line-height:1.55;">Stamina does NOT refill by itself: STRIKE +10, BRACE +15, BREATHE +30. Focus +10 every round. HEAVY has a 1-round cooldown. 📋 Forms / decrees: do the asked move for bonus damage, otherwise RED TAPE lowers your damage.<br>
+      <div class="dg-dim" style="line-height:1.55;">Stamina does NOT refill by itself: STRIKE +10, BRACE +15, BREATHE +30. Every action costs stamina - focus only charges your ULTIMATE (+10 every round, more from hits). HEAVY has a 1-round cooldown. 📋 Forms / decrees: do the asked move for bonus damage, otherwise RED TAPE lowers your damage.<br>
       Keys on PC: 1-5 = the buttons in order, space = timing / parry, 1-3 = dodge lanes.</div>
       <div style="margin-top:12px;"><button class="btn btn-cyan" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">GOT IT</button></div></div>`;
     document.body.appendChild(el);
@@ -11771,9 +11777,9 @@ html.m #dg-open-btn { display: none; }
   }
   function salvageWorse() {
     const g = st(); let n = 0, gc = 0;
-    g.bag = g.bag.filter(it => { if (score(it) < score(g.eq[it.s])) { n++; gc += salvageGc(it); return false; } return true; });
+    g.bag = g.bag.filter(it => { if (score(Object.assign({}, it, { u: UMAX })) <= score(g.eq[it.s])) {   /* v11.3: nerozebírá věci, které by po upgradu byly lepší */ n++; gc += salvageGc(it); return false; } return true; });
     gameState.coins += gc;
-    log(n ? `♻ Salvaged ${n} weaker item${n === 1 ? "" : "s"} for +${fmt(gc)} GC.` : "Nothing weaker than your equipped gear.", n ? "success" : "warning"); after();
+    log(n ? `♻ Salvaged ${n} weaker item${n === 1 ? "" : "s"} for +${fmt(gc)} GC.` : "Nothing to salvage - every spare piece could beat your gear with upgrades.", n ? "success" : "warning"); after();
   }
   function up(id) {
     const f = find(id); if (!f) { TT.holdStop = true; return; }
@@ -11799,7 +11805,11 @@ html.m #dg-open-btn { display: none; }
   function cmp(it, cur) {
     if (!cur) return `<span class="gr-up">empty slot</span>`;
     const d = score(it) - score(cur);
-    return d > 0 ? `<span class="gr-up">▲ better</span>` : `<span class="gr-dn">▼ weaker</span>`;
+    if (d > 0) return `<span class="gr-up">▲ better</span>`;
+    // v11.3: slabší teď, ale po pár upgradech by byl lepší?
+    const x = Object.assign({}, it); let gc = 0;
+    while (x.u < UMAX) { gc += upCost(x); x.u++; if (score(x) > score(cur)) return `<span class="gr-dn">▼ weaker now</span> <span class="gr-up">· better at +${x.u} (${fmt(gc)} GC)</span>`; }
+    return `<span class="gr-dn">▼ weaker${it.u < UMAX ? " even at +" + UMAX : ""}</span>`;
   }
   function pieceHtml(k) {
     const g = st(), it = g.eq[k], P = PIECES[k];
@@ -11824,7 +11834,7 @@ html.m #dg-open-btn { display: none; }
     return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span class="dg-dim">GC: ${short(gameState.coins)}</span></div>
       <div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
       <div class="gr-sum"><span>Weapon <b>${m.wpn ? m.wpn.toFixed(1) : "fists"}</b></span><span>Armor <b>${fmt(m.armor)}</b></span><span>Main stat <b>+${m.stats.main}</b></span><span>VIT <b>+${m.stats.vit}</b></span><span>LUCK <b>+${m.stats.luck}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
-      <div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()">♻ Salvage all weaker</button>` : ""}</div>
+      <div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()">♻ Salvage hopeless (weaker even at +10)</button>` : ""}</div>
       ${bagHtml()}
       <div class="dg-dim" style="margin-top:8px;">Items drop at the level of the enemy that dropped them (bosses +2, Pool +3). What colour can drop depends on your <b>High Stakes prestige</b>: now up to <b style="color:${RAR[capOf(hsP())].c};">${RAR[capOf(hsP())].n}</b>, bosses 25% for ${RAR[Math.min(RMAX, capOf(hsP()) + 1)].n}. Upgrades reset to +0 when you prestige High Stakes. Weapon = your damage, armor = less damage taken, every piece gives flat stats. "Main stat" always goes to your class's main stat (STR / AGI / INT). An item above your level + 10 only counts as level + 10 until you catch up. Rarity Common → Mythic ×1 / 1.12 / 1.25 / 1.55 / 1.9 / 2.4, each upgrade +7% (max +${UMAX}). Give spare pieces to your colleague in the COLLEAGUE tab.</div></div>`;
   }
@@ -12666,7 +12676,7 @@ html.m #dg-open-btn { display: none; }
       const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
       return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
     return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
-      const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " FOC · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "30 FOC · ring -17-45%" : "+15 STA +10 FOC";
+      const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "15 STA · ring -17-45%" : "+15 STA +10 FOC";
       return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
   }
   /** v11.2: rovné podmínky - rozdělení bodů před startem */
@@ -13270,47 +13280,36 @@ html.m #dg-open-btn { display: none; }
   const T = { mn: null, lt: null, sk: null };
 
   // ===================================================================== 1) BOSS KEY (ESC)
-  const BK_ROWS = (function () {
-    const pri = ["P1", "P2", "P2", "P3", "P3", "P3", "P4"], st = ["Resolved", "Resolved", "In progress", "Waiting for customer", "Resolved", "Escalated", "Closed"], team = ["Service Desk", "Network", "Identity & Access", "Workplace", "Apps L2", "Infra"];
-    const out = []; let s = 7;
-    const r = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
-    for (let i = 0; i < 60; i++) {
-      const sla = Math.round(70 + r() * 30), d = 1 + Math.floor(r() * 28);
-      out.push(["INC" + (204310 + Math.floor(r() * 9000)), pri[Math.floor(r() * pri.length)], team[Math.floor(r() * team.length)], "2026-10-" + String(d).padStart(2, "0"),
-        (r() * 9).toFixed(1) + " h", sla + "%", st[Math.floor(r() * st.length)], sla >= 90 ? "Met" : "Breached"]);
-    }
-    return out;
-  })();
+  // v11.3: prázdná nová tabulka (žádný SLA report) - "New Sheet", list Sheet1
   function bkBuild() {
     if ($("bk-sheet")) return $("bk-sheet");
-    const cols = "ABCDEFGHIJKL".split(""), W = [110, 60, 140, 100, 90, 70, 150, 80, 80, 80, 80, 80];
-    const hdr = ["Ticket ID", "Priority", "Assignment group", "Opened", "Time to resolve", "SLA %", "Status", "SLA met", "", "", "", ""];
-    let h = `<div class="bk-top"><div class="bk-ic"></div><div><div class="bk-title">Q4 SLA Report - Service Desk (weekly)</div></div></div>
+    const cols = "ABCDEFGHIJKLMNOP".split("");
+    let h = `<div class="bk-top"><div class="bk-ic"></div><div><div class="bk-title">New Sheet</div></div></div>
       <div class="bk-menu"><span>File</span><span>Edit</span><span>View</span><span>Insert</span><span>Format</span><span>Data</span><span>Tools</span><span>Help</span></div>
       <div class="bk-tool">↶ ↷ 🖨 &nbsp; 100% ▾ &nbsp; $ % .0 .00 123 &nbsp; Default ▾ &nbsp; 10 ▾ &nbsp; <b>B</b> <i>I</i> <s>S</s> A</div>
-      <div class="bk-fx"><span class="nm" id="bk-nm">A1</span><span>fx</span><span id="bk-fv">Ticket ID</span></div><div class="bk-grid"><table><colgroup><col style="width:46px">${W.map(w => `<col style="width:${w}px">`).join("")}</colgroup>
-      <tr><th class="rn"></th>${cols.map(c => `<th>${c}</th>`).join("")}</tr><tr class="hd"><td class="rn">1</td>${hdr.map(x => `<td>${x}</td>`).join("")}</tr>`;
-    BK_ROWS.forEach((r, i) => { h += `<tr><td class="rn">${i + 2}</td>${r.map((x, j) => `<td class="${j === 7 ? (x === "Met" ? "ok" : "bad") : ""}">${x}</td>`).join("")}<td></td><td></td><td></td><td></td></tr>`; });
-    h += `</table></div><div class="bk-tabs"><span class="on">SLA weekly</span><span>Backlog</span><span>Pivot</span></div>`;
+      <div class="bk-fx"><span class="nm" id="bk-nm">A1</span><span>fx</span><span id="bk-fv"></span></div><div class="bk-grid"><table><colgroup><col style="width:46px">${cols.map(() => `<col style="width:100px">`).join("")}</colgroup>
+      <tr><th class="rn"></th>${cols.map(c => `<th>${c}</th>`).join("")}</tr>`;
+    for (let i = 1; i <= 80; i++) h += `<tr><td class="rn">${i}</td>${cols.map(() => "<td></td>").join("")}</tr>`;
+    h += `</table></div><div class="bk-tabs"><span>＋</span><span class="on">Sheet1</span></div>`;
     const el = document.createElement("div"); el.id = "bk-sheet"; el.innerHTML = h; document.body.appendChild(el);
     el.addEventListener("click", function (ev) {
       const td = ev.target.closest("td"); if (!td || td.classList.contains("rn")) return;
       el.querySelectorAll("td.sel").forEach(x => x.classList.remove("sel")); td.classList.add("sel");
       const tr = td.parentNode, ri = [...tr.parentNode.children].indexOf(tr), ci = [...tr.children].indexOf(td);
-      $("bk-nm").textContent = "ABCDEFGHIJKL"[ci - 1] + ri; $("bk-fv").textContent = td.textContent;
+      $("bk-nm").textContent = cols[ci - 1] + ri; $("bk-fv").textContent = "";
       if (typeof handleManualClick === "function") try { handleManualClick(ev); } catch (e) {}   // tiket se potichu vyřeší
     });
     return el;
   }
-  function bkOn() { const el = bkBuild(); el.classList.add("open"); document.title = "Q4 SLA Report - Service Desk"; }
+  function bkOn() { const el = bkBuild(); el.classList.add("open"); document.title = "New Sheet"; }
   function bkOff() { const el = $("bk-sheet"); if (el) el.classList.remove("open"); document.title = window.__irTitle || document.title; }
   function bkOpen() { const el = $("bk-sheet"); return !!(el && el.classList.contains("open")); }
-  function modalOpen() { return !!document.querySelector('#dg-screen.open, #mt-screen.open, #pl-screen.open, #cl-ov.open, .tt-overlay.open, #ir-visit, #ir-conflict'); }
+  function modalOpen() { return !!document.querySelector('#cl-ov.open, .tt-overlay.open, #ir-visit, #ir-conflict'); }
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
     if (bkOpen()) { e.preventDefault(); e.stopImmediatePropagation(); bkOff(); return; }
-    if (modalOpen()) return;                                                   // ESC nejdřív zavře otevřené okno (jejich vlastní handlery)
-    e.preventDefault(); bkOn();
+    if (modalOpen()) return;                                                   // ESC nejdřív zavře dialogy (novinky, potvrzení...)
+    e.preventDefault(); e.stopImmediatePropagation(); bkOn();                  // v11.3: i v boji / High Stakes / minihrách - hra pod tím zůstane, jak byla
   }, true);
   function bkButton() {
     const host = document.querySelector(".top-bar .user-badge") || document.querySelector(".top-bar");

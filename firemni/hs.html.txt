@@ -1,557 +1,201 @@
-<script>
-(function () {
-"use strict";
-const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
-const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
-let view = "ach", isOpen = false;
-const EVENTS = [
-{ id: "payday", icon: "💸", name: "PAYDAY", txt: "Auto GC ×2" },
-{ id: "coffee", icon: "☕", name: "COFFEE MACHINE BROKE", txt: "Nobody can relax: clicks ×3, auto GC ×0.5" },
-{ id: "audit", icon: "📋", name: "AUDIT WEEK", txt: "HIGH STAKES: XP ×2, campaign GC ×2" },
-{ id: "supply", icon: "📦", name: "SUPPLY DROP", txt: "Opening chests costs 50% less scrap" },
-{ id: "overtime", icon: "🌙", name: "OVERTIME", txt: "HIGH STAKES fights cost no energy" }
-];
-const HOUR = 3600000, EV_LEN = 10 * 60000;
-function h32(n) { n = Math.imul(n ^ 0x5bd1e995, 0x27d4eb2d); n ^= n >>> 15; n = Math.imul(n, 0x165667b1); n ^= n >>> 13; return n >>> 0; }
-function slotEvent(slot) { const h = h32(slot * 7 + 12345); return { ev: EVENTS[h % EVENTS.length], start: slot * HOUR + (h32(slot + 999) % 50) * 60000 }; }
-function current(now) {
-now = now || Date.now();
-const fe = window.__irForcedEv;                                             // v9.6: event odpálený adminem z menu tabulky (přednost)
-if (fe && fe.end > now && (fe.start || 0) <= now) { const ev = EVENTS.find(x => x.id === fe.id); if (ev) return { ev: ev, end: fe.end, forced: true }; }
-const s = slotEvent(Math.floor(now / HOUR));
-return now >= s.start && now < s.start + EV_LEN ? { ev: s.ev, end: s.start + EV_LEN } : null;
-}
-function upcoming(n, now) {
-now = now || Date.now(); const out = []; let slot = Math.floor(now / HOUR);
-while (out.length < n) { const s = slotEvent(slot); if (s.start + EV_LEN > now) out.push({ ev: s.ev, start: s.start, end: s.start + EV_LEN }); slot++; }
-return out;
-}
-function active(id) { const c = current(); return !!(c && c.ev.id === id); }
-/** násobiče pro ekonomiku: click, auto, chest, hsxp, hsgc, energy (0 = zdarma) */
-function mult(k) {
-const c = current(); if (!c) return 1;
-const id = c.ev.id;
-if (k === "auto") return id === "payday" ? 2 : id === "coffee" ? 0.5 : 1;
-if (k === "click") return id === "coffee" ? 3 : 1;
-if (k === "chest") return id === "supply" ? 0.5 : 1;
-if (k === "hsxp" || k === "hsgc") return id === "audit" ? 2 : 1;
-if (k === "energy") return id === "overtime" ? 0 : 1;
-return 1;
-}
-const fmtT = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
-const fmtWhen = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " min"; };
-let lastEv = "";
-function tickEvent() {
-const c = current(), el = $("mt-event"); if (!el) return;
-if (!c) { el.classList.remove("on"); lastEv = ""; return; }
-const html = `<span>${c.ev.icon}</span><span>${c.ev.name}</span><small>${c.ev.txt}</small><b>${fmtT(c.end - Date.now())}</b>`;
-if (el.innerHTML !== html) el.innerHTML = html;
-el.classList.add("on");
-const key = c.ev.id + c.end;
-if (lastEv !== key && typeof gameState !== "undefined" && gameState.ldap) {
-lastEv = key;
-log(`${c.ev.icon} COMPANY EVENT: ${c.ev.name} for 10 minutes - ${c.ev.txt}!`, "special");
-const S = st(); if (S && S.lastEv !== key) { S.lastEv = key; S.c.events = (S.c.events || 0) + 1; TT.saveSoon(); }
-if (typeof updateUI === "function") updateUI();
-}
-}
-function chip() { const c = current(); return c ? `<span class="buff-chip on" title="${esc(c.ev.txt)}">${c.ev.icon} ${c.ev.name} ${fmtT(c.end - Date.now())}</span>` : ""; }
-function st() {
-if (typeof gameState === "undefined") return null;
-const d = window.Dungeon && Dungeon.state ? Dungeon.state() : (gameState.hs = gameState.hs || {});
-if (!d.ach || typeof d.ach !== "object") d.ach = {};
-const a = d.ach;
-if (!a.u || typeof a.u !== "object") a.u = {};
-if (!a.c || typeof a.c !== "object") a.c = {};
-return a;
-}
-function wk() {
-const d = window.Dungeon && Dungeon.state ? Dungeon.state() : (gameState.hs = gameState.hs || {});
-if (!d.wk || typeof d.wk !== "object") d.wk = {};
-const w = d.wk, now = week();
-if (w.week !== now) { w.week = now; w.best = {}; }
-if (!w.best || typeof w.best !== "object") w.best = {};
-if (!w.claimed || typeof w.claimed !== "object") w.claimed = {};
-return w;
-}
-function week() { return Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000)); }
-const lo = () => gameState.loadout || {};
-const eq = () => Object.values(lo()).filter(Boolean);
-const hs = () => (window.Dungeon && Dungeon.state ? Dungeon.state() : {});
-const cnt = (k) => Number((st() || { c: {} }).c[k]) || 0;
-const starsTotal = () => window.Dungeon && Dungeon.totalStars ? Dungeon.totalStars() : Object.values(hs().stars || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-const cleared = (id) => window.Dungeon && Dungeon.clearedAny ? (Dungeon.clearedAny(id) ? 1 : 0) : ((hs().stars || {})[id] || 0) > 0 ? 1 : 0;
-const maxChest = () => Math.max(gameState.maxChestLevel || 1, gameState.chestLevel || 1);
-const ACH = [
-["OFFICE", [
-["prestige_1", "🔁", "New Hire. Again.", "Prestige once", () => gameState.prestige || 0, 1],
-["prestige_5", "🪜", "Career Ladder", "Reach Prestige 5", () => gameState.prestige || 0, 5],
-["prestige_10", "🏢", "Lifer", "Reach Prestige 10", () => gameState.prestige || 0, 10],
-["chest_20", "📦", "Box Opener", "Chest level 20", maxChest, 20],
-["chest_40", "🎁", "Mythic Hunter", "Chest level 40", maxChest, 40],
-["chest_75", "🗝", "Chest Whisperer", "Chest level 75", maxChest, 75],
-["tokens_10", "🎟", "Token Collector", "Hold 10 Slot Tokens at once", () => gameState.slotTokens || 0, 10]
-]],
-["GEAR", [
-["gear_mythic", "🟥", "Red Alert", "Equip a Mythic (T5) item", () => eq().some(i => i.tier >= 5) ? 1 : 0, 1],
-["gear_quantum", "🌌", "Prismatic", "Equip a Quantum (T6) item", () => eq().some(i => i.tier >= 6) ? 1 : 0, 1],
-["gear_dress", "👔", "Dress Code", "All 6 slots Legendary (T4) or better", () => eq().filter(i => i.tier >= 4).length, 6],
-["forge_10", "⚒", "Blacksmith", "Upgrade an item to ⚒10", () => Math.max(0, ...eq().map(i => (typeof enhOf === "function" ? enhOf(i) : "").length)), 10],
-["forge_15", "🔥", "Perfectionist", "Upgrade an item to ⚒15", () => Math.max(0, ...eq().map(i => (typeof enhOf === "function" ? enhOf(i) : "").length)), 15]
-]],
-["CASINO", [
-["casino_1m", "🍀", "Lucky Break", "Win 1M GC in a single casino payout", () => cnt("casinoBest"), 1e6],
-["casino_1b", "🐋", "Whale", "Win 1B GC in a single casino payout", () => cnt("casinoBest"), 1e9],
-["casino_net", "🏦", "House Always Loses", "Be +10M GC up on gambling overall", () => Math.max(0, gameState.gambleNet || 0), 1e7],
-["prsi_win", "♣", "Prší Champion", "Win 10 Prší tables", () => cnt("prsiWins"), 10],
-["prsi_stack", "7️⃣", "Seven Stack", "Stack sevens up to +6 cards in Prší", () => cnt("prsiStack"), 1],
-["ck_win", "⛀", "Checkers Champion", "Win 5 games of checkers", () => cnt("ckWins"), 5]
-]],
-["HIGH STAKES", [
-["hs_class", "🧍", "Pick A Side", "Choose a HIGH STAKES class", () => hs().cls ? 1 : 0, 1],
-["hs_lv10", "⬆", "Promoted", "HIGH STAKES level 10", () => hs().level || 1, 10],
-["hs_lv30", "🎖", "Veteran", "HIGH STAKES level 30", () => hs().level || 1, 30],
-["hs_ch1", "☎", "Hello Fighters", "Beat The Great \"I\"", () => cleared(9), 1],
-["hs_ch3", "🔓", "Breach Buster", "Beat the Ransomware Executive", () => cleared(29), 1],
-["hs_ch5", "👑", "Massi's Favourite", "Beat The Big Massi", () => cleared(49), 1],
-["hs_secret", "📋", "They Actually Came", "Beat The Compliance Control", () => cleared(50), 1],
-["hs_stars75", "⭐", "Star Collector", "Collect 75 campaign stars", starsTotal, 75],
-["hs_stars153", "🌟", "Perfect Record", "Collect 153 campaign stars", starsTotal, 153],
-["hs_stars300", "💫", "Constellation", "Collect 300 stars across all campaigns", starsTotal, 300],
-["hs_asc2", "🔺", "Ascended", "Prestige High Stakes once", () => Math.max((hs().hsp || 0) + 1, (hs().camp || {}).top || 1) - 1, 1],
-["hs_asc3", "🔱", "Higher Stakes", "Reach High Stakes prestige 2", () => Math.max((hs().hsp || 0) + 1, (hs().camp || {}).top || 1) - 1, 2],
-["hs_duel", "⚔", "Duelist", "Win a live duel against a friend", () => cnt("duelWins"), 1],
-["hs_onehit", "👊", "One Punch", "Win a fight in a single turn", () => cnt("oneTurn"), 1],
-["hs_jackpot", "7️⃣", "Triple Seven", "Hit a 777 jackpot in a fight", () => cnt("jackpots"), 1],
-["hs_parry", "🛡", "Parry God", "Land 25 parries", () => cnt("parries"), 25],
-["hs_break", "💢", "Breaker", "Break enemies 50 times", () => cnt("breaks"), 50],
-["hs_forms", "🖋", "By The Book", "Fill out 30 compliance forms", () => cnt("forms"), 30]
-]],
-["MODES", [
-["tower_50", "🗼", "Halfway Up", "Server Tower floor 50", () => (hs().tower || {}).best || 0, 50],
-["tower_100", "🏁", "Top Floor", "Server Tower floor 100", () => (hs().tower || {}).best || 0, 100],
-["shift_clear", "📟", "Survived The Shift", "Clear an On-Call Shift", () => (hs().shift || {}).clears || 0, 1],
-["shift_asc5", "🔥", "Burnout Proof", "Unlock Shift Ascension 5", () => (hs().shift || {}).asc || 0, 5],
-["wb_kill", "📊", "Quarterly Killer", "Land the final blow on the weekly boss", () => cnt("wbKills"), 1],
-["wb_mk3", "🤖", "Hostile Takeover", "Take down a weekly boss MK.III or higher", () => cnt("wbMaxMk"), 3],
-["climb_100", "🧗", "Halfway To The Roof", "Climb 100 m in Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 100],
-["climb_200", "🏙", "Roof Access", "Reach 200 m in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 200],
-["climb_280", "👑", "Top Of The Tower", "Reach the new roof (280 m) in the Corporate Climb", () => Math.floor((hs().jk || {}).best || 0), 280],
-["bribe_10", "💼", "Creative Accounting", "Bribe the Compliance auditor 10 times", () => Math.floor(hs().br || 0), 10]
-]],
-["SOCIAL", [
-["events_10", "🎉", "Party Animal", "Be online for 10 company events", () => cnt("events"), 10],
-["weekly_top", "🏅", "Employee Of The Week", "Finish top 3 on a weekly board", () => cnt("weeklyTop"), 1]
-]]
-];
-const ALL = []; ACH.forEach(g => g[1].forEach(a => ALL.push({ id: a[0], icon: a[1], name: a[2], desc: a[3], cur: a[4], goal: a[5], cat: g[0] })));
-const BY = {}; ALL.forEach(a => { BY[a.id] = a; });
-const REWARD_TOKENS = 1;
-function prog(a) { let v = 0; try { v = Number(a.cur()) || 0; } catch (e) {} return Math.min(1, v / a.goal); }
-let checking = false;
-function check() {
-const S = st(); if (!S || checking || !gameState.ldap) return;
-checking = true;
-const got = [];
-ALL.forEach(a => { if (!S.u[a.id] && prog(a) >= 1) { S.u[a.id] = Date.now(); got.push(a); } });
-checking = false;
-if (!got.length) return;
-gameState.slotTokens = (gameState.slotTokens || 0) + REWARD_TOKENS * got.length;
-got.forEach((a, i) => { log(`🏆 ACHIEVEMENT UNLOCKED: ${a.icon} ${a.name} - ${a.desc} (+${REWARD_TOKENS} 🎟)`, "special"); setTimeout(() => toast(a), i * 1600); });
-TT.saveSoon(); if (typeof updateUI === "function") updateUI();
-if (isOpen) render();
-}
-function toast(a) {
-if (document.hidden) return;
-const el = document.createElement("div"); el.className = "mt-toast";
-el.innerHTML = `<span class="ic">${a.icon}</span><div><b>ACHIEVEMENT UNLOCKED</b>${esc(a.name)} · +${REWARD_TOKENS} 🎟</div>`;
-el.onclick = () => { el.remove(); open("ach"); };
-const n = document.querySelectorAll(".mt-toast").length;
-if (document.documentElement.classList.contains("m")) { el.style.bottom = "auto"; el.style.top = "calc(" + (58 + n * 58) + "px + env(safe-area-inset-top))"; el.style.left = "8px"; el.style.right = "8px"; }   // v8.8: na mobilu nahoře, ať nepřekrývá tlačítka
-else el.style.bottom = (70 + n * 62) + "px";
-document.body.appendChild(el); setTimeout(() => el.remove(), 4200);
-}
-function badgesHtml(ids) {
-ids = (ids || []).filter(id => BY[id]);
-if (!ids.length) return "";
-return `<div class="mt-dim" style="margin-top:8px;">🏆 Achievements <b>${ids.length}/${ALL.length}</b></div><div class="mt-badges">${ids.map(id => `<span title="${esc(BY[id].name)}: ${esc(BY[id].desc)}">${BY[id].icon}</span>`).join("")}</div>`;
-}
-function bump(k, n) { const S = st(); if (!S || !n) return; S.c[k] = (Number(S.c[k]) || 0) + n; }
-function onFight(f) {
-if (!f || !f.st) return;
-bump("jackpots", f.st.jackpots); bump("parries", f.st.parries); bump("breaks", f.st.breaks); bump("forms", f.st.forms);
-if (f.win && f.turn <= 1) bump("oneTurn", 1);
-setTimeout(check, 300);
-}
-function onWb(dmg, kill, mk) {
-const S = st(); if (!S) return;
-if (kill) { bump("wbKills", 1); S.c.wbMaxMk = Math.max(Number(S.c.wbMaxMk) || 0, mk || 1); }
-setTimeout(check, 300);
-}
-function onClimb(best) { submit("climb", Math.floor(best * 10) / 10); setTimeout(check, 300); }
-function onShift(asc, steps) { submit("shift", (asc | 0) * 11 + Math.min(10, steps | 0)); setTimeout(check, 300); }
-function onCasinoWin(amount) {
-const S = st(); if (!S || !(amount > 0)) return;
-if (amount > (Number(S.c.casinoBest) || 0)) S.c.casinoBest = amount;
-submit("casino", amount);
-setTimeout(check, 300);
-}
-const CATS = {
-climb: { icon: "🧗", name: "CORPORATE CLIMB", unit: (v) => v.toFixed(1) + " m" },
-shift: { icon: "📟", name: "ON-CALL SHIFT", unit: (v) => (Math.floor(v / 11) ? "ASC " + Math.floor(v / 11) + " · " : "") + (v % 11) + "/10" },
-wbdmg: { icon: "📊", name: "WORLD BOSS DAMAGE", unit: (v) => short(v) },
-casino: { icon: "🎰", name: "BIGGEST CASINO WIN", unit: (v) => short(v) + " GC" }
-};
-const PRIZE = [3, 2, 1];
-const wkSt = { data: null, at: 0, loading: false, err: "" };
-function submit(cat, val) {
-if (typeof google === "undefined" || !google.script || !google.script.run) return;
-const w = wk(); if (!(val > (Number(w.best[cat]) || 0))) return;
-w.best[cat] = val; TT.saveSoon();
-google.script.run.withSuccessHandler(() => { wkSt.at = 0; }).withFailureHandler(() => {}).weeklySubmit(cat, val);
-}
-function wkLoad(force) {
-if (wkSt.loading || (!force && wkSt.data && Date.now() - wkSt.at < 30000)) return;
-if (typeof google === "undefined" || !google.script || !google.script.run) return;
-wkSt.loading = true;
-google.script.run.withSuccessHandler(r => {
-wkSt.loading = false; wkSt.at = Date.now();
-if (r && r.ok) { wkSt.data = r; wkSt.err = ""; claim(); } else wkSt.err = "Could not load the weekly boards.";
-if (isOpen && view === "weekly") render();
-}).withFailureHandler(e => { wkSt.loading = false; wkSt.err = String(e && e.message || e); if (isOpen && view === "weekly") render(); }).weeklyState();
-}
-/** top 3 minulého týdne: 3 / 2 / 1 Slot Token za každý žebříček */
-function claim() {
-const r = wkSt.data, w = wk(); if (!r || !r.last) return;
-const lw = String(r.week - 1); if (w.claimed[lw]) return;
-w.claimed[lw] = 1;
-Object.keys(w.claimed).forEach(k => { if (Number(k) < r.week - 4) delete w.claimed[k]; });
-let tok = 0; const parts = [];
-Object.keys(CATS).forEach(c => { const i = (r.last[c] || []).findIndex(x => x.nick === gameState.ldap); if (i >= 0 && i < 3) { tok += PRIZE[i]; parts.push(`#${i + 1} ${CATS[c].name}`); } });
-if (tok) {
-gameState.slotTokens = (gameState.slotTokens || 0) + tok; bump("weeklyTop", 1);
-log(`🏅 WEEKLY BOARDS: last week you finished ${parts.join(", ")} → +${tok} 🎟 Slot Tokens!`, "special");
-if (typeof updateUI === "function") updateUI();
-setTimeout(check, 300);
-}
-TT.saveSoon();
-}
-const TABS = { ach: "🏆 ACHIEVEMENTS", weekly: "📅 WEEKLY", events: "🎉 EVENTS" };
-function open(v) { if (v && TABS[v]) view = v; isOpen = true; $("mt-screen").classList.add("open"); check(); if (view === "weekly") wkLoad(true); render(); }
-function close() { isOpen = false; $("mt-screen").classList.remove("open"); }
-function tab(v) { view = v; if (v === "weekly") wkLoad(false); render(); }
-function render() {
-if (!isOpen) return;
-const S = st() || { u: {} }, n = Object.keys(S.u).filter(k => BY[k]).length;
-$("mt-count").textContent = `${n}/${ALL.length} 🏆`;
-$("mt-tabs").innerHTML = Object.keys(TABS).map(k => `<button class="casino-tab-btn${k === view ? " active" : ""}" onclick="Meta.tab('${k}')">${TABS[k]}</button>`).join("");
-const box = $("mt-inner");
-if (view === "ach") box.innerHTML = achHtml(S, n);
-else if (view === "weekly") box.innerHTML = weeklyHtml();
-else box.innerHTML = eventsHtml();
-}
-function achHtml(S, n) {
-return `<div class="mt-card"><div class="mt-h"><span>🏆 ACHIEVEMENTS</span><span>${n}/${ALL.length}</span></div>
-<div class="mt-dim">Every achievement gives <b>+${REWARD_TOKENS} 🎟 Slot Token</b> and a badge on your player card. Progress never resets (not even on prestige).</div>
-<div class="mt-pb" style="height:7px;margin-top:6px;"><div style="width:${n / ALL.length * 100}%"></div></div></div>` +
-ACH.map(g => `<div class="mt-cat">${g[0]}</div><div class="mt-grid">${g[1].map(x => { const a = BY[x[0]], done = !!S.u[a.id], p = done ? 1 : prog(a);
-let cur = 0; try { cur = Number(a.cur()) || 0; } catch (e) {}
-return `<div class="mt-a ${done ? "done" : ""}"><div class="ic">${a.icon}</div><div class="t"><b>${esc(a.name)}</b><span>${esc(a.desc)}${done ? " · ✔ " + new Date(S.u[a.id]).toLocaleDateString() : " · " + short(Math.min(cur, a.goal)) + " / " + short(a.goal)}</span>
-<div class="mt-pb"><div style="width:${p * 100}%"></div></div></div></div>`; }).join("")}</div>`).join("");
-}
-function weeklyHtml() {
-const r = wkSt.data;
-const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
-if (!r) return `<div class="mt-card"><div class="mt-dim">${wkSt.err ? "⚠ " + esc(wkSt.err) : "Loading the weekly boards..."}</div></div>`;
-const me = gameState.ldap;
-return `<div class="mt-card"><div class="mt-h"><span>📅 WEEKLY BOARDS</span><span class="mt-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
-<div class="mt-dim">Four boards, new every Monday. Top 3 on each board get <b>3 / 2 / 1 🎟 Slot Tokens</b> (collected automatically next week).</div></div>
-<div class="mt-lb">${Object.keys(CATS).map(c => { const C = CATS[c], rows = r.cur[c] || [], last = r.last[c] || [];
-return `<div class="mt-card"><div class="mt-h"><span>${C.icon} ${C.name}</span><span class="mt-dim">you: ${r.mine[c] ? C.unit(r.mine[c]) : "-"}</span></div>
-${rows.length ? rows.map((x, i) => `<div class="mt-row ${x.nick === me ? "me" : ""}"><span>${i < 3 ? ["🥇", "🥈", "🥉"][i] : (i + 1) + "."} ${esc(x.nick)}</span><span>${C.unit(x.v)}</span></div>`).join("") : `<div class="mt-dim">Nobody yet this week.</div>`}
-<div class="mt-dim" style="margin-top:6px;">Last week: ${last.length ? last.map((x, i) => ["🥇", "🥈", "🥉"][i] + " " + esc(x.nick)).join(" ") : "-"}</div></div>`; }).join("")}</div>`;
-}
-function eventsHtml() {
-const c = current(), up = upcoming(8);
-return `<div class="mt-card"><div class="mt-h"><span>🎉 COMPANY EVENTS</span></div>
-<div class="mt-dim">Every hour there is a 10-minute company event at a random minute - the same time for everyone. Watch for the banner at the top.</div></div>
-${c ? `<div class="mt-card" style="border-color:var(--amber);"><div class="mt-h"><span>${c.ev.icon} NOW: ${c.ev.name}</span><span style="color:var(--amber);">${fmtT(c.end - Date.now())} left</span></div><div class="mt-dim">${esc(c.ev.txt)}</div></div>` : ""}
-<div class="mt-card"><div class="mt-h"><span>SCHEDULE</span></div>${up.map(u => { const now = Date.now() >= u.start;
-return `<div class="mt-ev ${now ? "now" : ""}"><span class="ic">${u.ev.icon}</span><div style="flex:1;"><b>${u.ev.name}</b><br><span class="mt-dim">${esc(u.ev.txt)}</span></div>
-<span class="mt-dim" style="text-align:right;">${new Date(u.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<br>${now ? "<b>NOW</b>" : "in " + fmtWhen(u.start - Date.now())}</span></div>`; }).join("")}</div>
-<div class="mt-card"><div class="mt-h"><span>ALL EVENTS</span></div>${EVENTS.map(e => `<div class="mt-ev"><span class="ic">${e.icon}</span><div><b>${e.name}</b><br><span class="mt-dim">${esc(e.txt)}</span></div></div>`).join("")}</div>`;
-}
-window.Meta = { open: open, close: close, tab: tab, mult: mult, current: current, upcoming: upcoming, active: active, chip: chip, EVENTS: EVENTS,
-count: function (k, n) { bump(k, n); setTimeout(check, 300); }, onFight: onFight, onWb: onWb, onClimb: onClimb, onShift: onShift, onCasinoWin: onCasinoWin, check: check, badgesHtml: badgesHtml, ACH: ALL,
-isOpen: () => isOpen, weeklyLoad: wkLoad };
-function boot() {
-if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded) { setTimeout(boot, 100); return; }
-const badge = document.querySelector(".user-badge");
-if (badge && !$("mt-open-btn")) {
-const b = document.createElement("button"); b.id = "mt-open-btn"; b.className = "btn btn-gold"; b.textContent = "🏆 HALL OF FAME"; b.onclick = () => open();
-const hsb = $("dg-open-btn"); if (hsb && hsb.parentNode === badge) badge.insertBefore(b, hsb.nextSibling); else badge.insertBefore(b, badge.firstChild);
-}
-const more = $("m-settings");
-if (more && !$("mt-more")) {
-const p = document.createElement("div"); p.className = "panel"; p.id = "mt-more"; p.setAttribute("data-tab", "more");
-p.innerHTML = `<div class="panel-header">🏆 HALL OF FAME</div><div class="row" style="display:flex;gap:6px;"><button class="btn btn-gold" style="flex:1;" onclick="Meta.open('ach')">ACHIEVEMENTS</button><button class="btn btn-cyan" style="flex:1;" onclick="Meta.open('weekly')">WEEKLY</button><button class="btn" style="flex:1;" onclick="Meta.open('events')">EVENTS</button></div>`;
-more.parentNode.insertBefore(p, more);
-}
-const prevWin = TT.win;
-TT.win = function (amount) { prevWin.apply(this, arguments); try { onCasinoWin(Math.floor(Number(amount)) || 0); } catch (e) {} };
-TT.onLoaded(() => { setTimeout(check, 2500); setTimeout(() => wkLoad(true), 6000); });
-setInterval(tickEvent, 1000); tickEvent();
-setInterval(check, 5000);
-setInterval(() => { if (isOpen && view === "events") render(); }, 1000);
-document.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") close(); });
-}
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
-})();
-</script>
 <style>
-/* ===== FX layer (fx.html) - jen transform/opacity, jednorázové animace, žádná nová smyčka ===== */
-:root { --fx-ease: cubic-bezier(.2,.8,.2,1); }
-/* --- obecné doladění (funguje i s FX vypnutými) --- */
-.btn { transition: transform .12s var(--fx-ease), box-shadow .15s, filter .15s, background .15s, border-color .15s, color .15s; }
-.btn:not(:disabled):hover { filter: brightness(1.18); }
-.btn:not(:disabled):active { transform: translateY(1px) scale(.975); filter: brightness(.95); }
-.btn:disabled { cursor: not-allowed; }
-:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
-.item-card { transition: transform .15s var(--fx-ease), border-color .15s, box-shadow .2s; }
-.item-card:hover { transform: translateY(-1px); }
-.item-card.t3 { box-shadow: inset 3px 0 12px -8px var(--rarity-t3); }
-.item-card.t4 { box-shadow: inset 3px 0 14px -7px var(--rarity-t4); }
-.item-card.t5 { box-shadow: inset 3px 0 16px -6px var(--rarity-t5); }
-.item-card.t6 { box-shadow: inset 3px 0 18px -5px var(--rarity-t6); }
-* { scrollbar-width: thin; scrollbar-color: #2a3345 transparent; }
-/* --- ovládací přepínač --- */
-#fx-toggle {
-position: fixed; left: 10px; bottom: 10px; z-index: 50;
-font: 700 10px 'Orbitron', monospace; letter-spacing: .5px;
-padding: 5px 9px; border-radius: 4px; cursor: pointer;
-background: rgba(13,17,26,.85); color: var(--text-dim); border: 1px solid var(--border-subtle);
+/* ===================== HIGH STAKES (samostatná obrazovka ve stejné stránce, žádný iframe) ===================== */
+#dg-screen { position: fixed; inset: 0; z-index: 200; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #1a0b14 0%, var(--bg-core, #07090e) 55%); color: var(--text-main); }
+#dg-screen.open { display: flex; }
+html.m #dg-screen { height: var(--app-h, 100%); }
+.dg-top { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
+.dg-top h1 { font: 900 15px 'Orbitron', monospace; letter-spacing: 2px; color: var(--crimson); margin: 0; flex: 1; text-shadow: 0 0 10px rgba(255,23,68,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-keys { font: 700 11px 'Orbitron', monospace; color: var(--amber); white-space: nowrap; }
+.dg-tabs { flex: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px; }
+.dg-tabs button { flex: 1 1 96px; min-width: 0; }
+.dg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
+.dg-inner { max-width: 980px; margin: 0 auto; }
+.dg-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.dg-h { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--cyan); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.dg-dim { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+.dg-dim b { color: var(--amber); }
+.dg-arena { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; padding: 10px 6px; background: linear-gradient(180deg, #0b0f18, #10070c); border: 1px solid rgba(255,23,68,.25); border-radius: 8px; overflow: hidden; }
+.dg-side { text-align: center; min-width: 0; }
+.dg-name { font: 700 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-sub { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-sprite { width: 96px; height: 96px; margin: 6px auto; image-rendering: pixelated; display: block; transition: transform .12s; }
+.dg-sprite.hit { animation: dgHit .3s; }
+.dg-sprite.atk-l { animation: dgAtkL .35s; }
+.dg-sprite.atk-r { animation: dgAtkR .35s; }
+.dg-sprite.dead { filter: grayscale(1) brightness(.4); transform: rotate(8deg) translateY(8px); }
+@keyframes dgHit { 0%,100% { transform: none; filter: none; } 30% { transform: translateX(-5px); filter: brightness(2) sepia(1) hue-rotate(-40deg); } 60% { transform: translateX(4px); } }
+@keyframes dgAtkL { 50% { transform: translateX(26px) scale(1.06); } }
+@keyframes dgAtkR { 50% { transform: translateX(-26px) scale(1.06); } }
+.dg-vs { font: 900 18px 'Orbitron', monospace; color: var(--text-dim); }
+.dg-bar { height: 10px; background: #000; border: 1px solid var(--border-subtle); border-radius: 5px; overflow: hidden; position: relative; }
+.dg-bar > div { height: 100%; transition: width .25s; }
+.dg-bar .hp-p { background: linear-gradient(90deg, #00c070, #00ff88); }
+.dg-bar .hp-b { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
+.dg-bar .sh { position: absolute; top: 0; left: 0; height: 100%; background: rgba(0,240,255,.55); }
+.dg-hpt { font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin-top: 2px; }
+.dg-float { position: absolute; pointer-events: none; font: 900 18px 'Orbitron', monospace; text-shadow: 0 0 8px currentColor, 0 1px 0 #000; animation: dgFloat 1.1s ease-out forwards; white-space: nowrap; z-index: 3; }
+.dg-float.big { font-size: 26px; }
+@keyframes dgFloat { 0% { opacity: 0; transform: translateY(6px) scale(.6); } 15% { opacity: 1; transform: translateY(-6px) scale(1.15); } 100% { opacity: 0; transform: translateY(-46px) scale(1); } }
+.dg-mech { font-size: 11px; color: var(--amber); text-align: center; margin-top: 6px; min-height: 15px; }
+.dg-stances { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+.dg-stances button { padding: 9px 4px; font-size: 11px; line-height: 1.25; }
+.dg-stances button small { display: block; font-size: 9px; opacity: .75; font-family: inherit; }
+.dg-stances button.sel { box-shadow: 0 0 0 2px var(--amber) inset, 0 0 12px rgba(255,184,0,.4); color: var(--amber); }
+.dg-stances button.want { animation: tabGlow .6s ease-in-out infinite alternate; }
+.dg-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dg-row .btn { padding: 8px 10px; }
+.dg-log { height: 150px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,.45); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px 8px; display: flex; flex-direction: column-reverse; gap: 2px; }
+.dg-log div { line-height: 1.25; color: #8b9bb4; }
+.dg-log .g { color: var(--emerald); } .dg-log .r { color: var(--crimson); } .dg-log .y { color: var(--amber); } .dg-log .c { color: var(--cyan); }
+.dg-floor { display: flex; align-items: center; gap: 8px; }
+.dg-floor .num { font: 900 22px 'Orbitron', monospace; color: var(--crimson); min-width: 54px; text-align: center; }
+.dg-xp { height: 6px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.dg-xp div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--emerald)); }
+.dg-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dg-tier { padding: 6px 8px; border-left: 3px solid #2a3245; margin-bottom: 4px; font-size: 11px; background: rgba(255,255,255,.02); border-radius: 0 4px 4px 0; }
+.dg-tier.on { border-left-color: var(--emerald); }
+.dg-tier.next { border-left-color: var(--amber); }
+.dg-tier b { font-family: 'Orbitron', monospace; font-size: 10px; }
+.dg-art { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-panel-elevated); border-radius: 6px; margin-bottom: 4px; font-size: 11px; }
+.dg-art .ic { font-size: 22px; width: 28px; text-align: center; }
+.dg-art .t { flex: 1; min-width: 0; }
+.dg-art.eq { box-shadow: 0 0 0 1px var(--amber) inset; }
+.dg-classes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.dg-class { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; }
+.dg-class:hover { border-color: var(--cyan); }
+.dg-class .ic { font-size: 30px; }
+.dg-lock { text-align: center; padding: 30px 12px; }
+.dg-lock .big { font-size: 46px; }
+.dg-promo { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-panel-elevated); border-radius: 6px; margin-bottom: 4px; font-size: 11px; }
+.dg-promo .ic { font-size: 22px; }
+.dg-promo.done { opacity: .55; }
+#dg-open-btn { padding: 3px 9px; font-size: 11px; }
+html.m #dg-open-btn { display: none; }
+.lb-table tbody tr { cursor: pointer; }
+@media (max-width: 700px) {
+.dg-grid2 { grid-template-columns: 1fr; }
+.dg-classes { grid-template-columns: 1fr 1fr; }
+.dg-sprite { width: 76px; height: 76px; }
 }
-#fx-toggle:hover { color: var(--cyan); border-color: var(--cyan); }
-/* --- plovoucí +N při kliku --- */
-.fx-float {
-position: fixed; z-index: 60; pointer-events: none; left: 0; top: 0;
-font: 800 16px 'Orbitron', monospace; color: var(--cyan);
-text-shadow: 0 0 8px rgba(0,240,255,.7), 0 1px 0 #000;
-opacity: 0; will-change: transform, opacity;
-}
-.fx-float.go { animation: fxFloat .75s var(--fx-ease) forwards; }
-.fx-float.crit { color: var(--amber); font-size: 20px; text-shadow: 0 0 10px rgba(255,184,0,.9), 0 1px 0 #000; }
-.fx-float.hot { color: var(--crimson); font-size: 13px; text-shadow: 0 0 8px rgba(255,23,68,.8); }
-@keyframes fxFloat {
-0%   { opacity: 0; transform: translate(var(--fx-x), var(--fx-y)) scale(.7); }
-15%  { opacity: 1; transform: translate(var(--fx-x), calc(var(--fx-y) - 14px)) scale(1.15); }
-100% { opacity: 0; transform: translate(calc(var(--fx-x) + var(--fx-dx)), calc(var(--fx-y) - 70px)) scale(.9); }
-}
-/* --- číslo "poskočí" při změně --- */
-.fx-pop { animation: fxPop .28s var(--fx-ease); }
-@keyframes fxPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
-/* --- výhra / prohra --- */
-.fx-win  { animation: fxWin .7s var(--fx-ease); }
-.fx-loss { animation: fxShake .35s linear; }
-@keyframes fxWin {
-0% { transform: scale(.96); filter: brightness(1); }
-30% { transform: scale(1.05); filter: brightness(1.6) drop-shadow(0 0 10px rgba(0,255,136,.7)); }
-100% { transform: scale(1); filter: brightness(1); }
-}
-@keyframes fxShake {
-0%,100% { transform: translateX(0); } 20% { transform: translateX(-4px); }
-40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); }
-}
-/* --- bedna: text výsledku --- */
-.fx-chest { animation: fxChest .5s var(--fx-ease); }
-@keyframes fxChest { 0% { opacity: 0; transform: translateY(6px) scale(.98); } 100% { opacity: 1; transform: none; } }
-/* --- celoobrazovkový záblesk (vzácný drop, prestiž) --- */
-#fx-flash {
-position: fixed; inset: 0; z-index: 55; pointer-events: none; opacity: 0;
-background: radial-gradient(ellipse at center, var(--fx-c, #fff) 0%, transparent 70%);
-}
-#fx-flash.go { animation: fxFlash .9s ease-out; }
-@keyframes fxFlash { 0% { opacity: 0; } 12% { opacity: .38; } 100% { opacity: 0; } }
-/* --- velký banner uprostřed (prestiž, velká výhra) --- */
-#fx-banner {
-position: fixed; left: 50%; top: 22%; z-index: 65; pointer-events: none; opacity: 0;
-transform: translate(-50%, 0); text-align: center;
-font: 900 34px 'Orbitron', monospace; letter-spacing: 3px; color: var(--amber);
-text-shadow: 0 0 18px rgba(255,184,0,.6), 0 2px 0 #000; white-space: nowrap;
-}
-#fx-banner small { display: block; font-size: 14px; letter-spacing: 2px; margin-top: 6px; color: var(--text-main); }
-#fx-banner.go { animation: fxBanner 1.7s var(--fx-ease) forwards; }
-@keyframes fxBanner {
-0% { opacity: 0; transform: translate(-50%, 14px) scale(.8); }
-14% { opacity: 1; transform: translate(-50%, 0) scale(1.06); }
-24% { transform: translate(-50%, 0) scale(1); }
-78% { opacity: 1; }
-100% { opacity: 0; transform: translate(-50%, -18px) scale(1); }
-}
-/* --- vstupní animace panelů (jednorázově) --- */
-.fx-intro .panel { animation: fxIn .5s var(--fx-ease) backwards; }
-.fx-intro .panel:nth-child(2) { animation-delay: .06s; }
-.fx-intro .panel:nth-child(3) { animation-delay: .12s; }
-.fx-intro .panel:nth-child(4) { animation-delay: .18s; }
-@keyframes fxIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-/* --- FX vypnuto / reduced motion --- */
-html.fx-off .fx-float, html.fx-off #fx-flash, html.fx-off #fx-banner { display: none !important; }
-html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-chest, html.fx-off .fx-intro .panel { animation: none !important; }
-@media (max-width: 700px) { #fx-banner { font-size: 22px; } }
 </style>
-<div id="fx-flash"></div>
-<div id="fx-banner"></div>
-<button id="fx-toggle" type="button" title="Zapnout / vypnout efekty">✨ FX: ON</button>
-<script>
-(function () {
-"use strict";
-var $ = function (id) { return document.getElementById(id); };
-var on = true;
-var saved = null;
-try { saved = localStorage.getItem("tt_fx"); } catch (e) {}
-if (saved === "0") on = false;
-else if (saved === null) { try { if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) on = false; } catch (e) {} }   // systémové "méně animací" jen jako výchozí, tlačítko má vždy poslední slovo
-function applyOn() {
-document.documentElement.classList.toggle("fx-off", !on);
-var t = $("fx-toggle"); if (t) t.textContent = "✨ FX: " + (on ? "ON" : "OFF");
+<div id="dg-screen">
+<div class="dg-top">
+<button class="btn btn-cyan" onclick="Dungeon.close()">◀<span class="dg-back-t"> OFFICE</span></button>
+<h1><span class="dg-hic">🎰 </span>HIGH STAKES</h1>
+<button class="btn btn-cyan" id="dg-tokbtn" style="display:none;padding:3px 8px;font-size:10px;" onclick="Dungeon.tokenEnergy()"></button>
+<span class="dg-keys" id="dg-keys">⚡ -</span>
+</div>
+<div class="dg-tabs" id="dg-tabs"></div>
+<div class="dg-body"><div class="dg-inner" id="dg-inner"></div></div>
+</div>
+<style>
+/* ===== HIGH STAKES (akční souboj) - doplňky k dg-* stylům ===== */
+.dg-top h1 { min-width: 120px; }
+.hs-ch { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.hs-ch .btn { flex: 1 0 18%; padding: 6px 2px; font-size: 10px; line-height: 1.2; }
+.hs-ch .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.hs-ms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.hs-m { display: flex; gap: 8px; align-items: center; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 8px; cursor: pointer; min-width: 0; }
+.hs-m:hover { border-color: var(--cyan); }
+.hs-m.locked { opacity: .4; cursor: default; }
+.hs-m.boss { border-color: rgba(255,23,68,.5); background: linear-gradient(90deg, rgba(255,23,68,.12), transparent); }
+.hs-m.compliance { border-color: rgba(255,184,0,.45); }
+.hs-m .ic { font-size: 22px; width: 30px; text-align: center; flex: none; }
+.hs-m .t { flex: 1; min-width: 0; }
+.hs-m .t b { display: block; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hs-stars { color: #ffd700; font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
+.hs-stars .off { color: #3b4252; }
+.hs-fight { position: relative; }
+.hs-bars { display: grid; gap: 3px; margin-top: 4px; }
+.hs-bar { height: 8px; background: #000; border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden; position: relative; }
+.hs-bar > div { height: 100%; transition: width .25s; }
+.hs-bar .hp { background: linear-gradient(90deg, #00c070, #00ff88); }
+.hs-bar .ehp { background: linear-gradient(90deg, #c8102e, #ff4d6d); }
+.hs-bar .sta { background: linear-gradient(90deg, #f59e0b, #fde047); }
+.hs-bar .foc { background: linear-gradient(90deg, #a855f7, #ff4dff); }
+.hs-bar .brk { background: linear-gradient(90deg, #64748b, #e2e8f0); }
+.hs-bar.full .brk { background: #ffd700; }
+.hs-intent.charge { background: rgba(255,184,0,.2); border-color: var(--amber); color: var(--amber); animation: tabGlow .4s ease-in-out infinite alternate; }
+.hs-intent.unleash { background: rgba(255,23,68,.4); border-color: #ff1744; color: #fff; animation: tabGlow .25s ease-in-out infinite alternate; }
+.hs-intent.stun { color: #ffd700; }
+.hs-parry { position: relative; width: 150px; height: 150px; cursor: pointer; touch-action: none; }
+.hs-parry .tgt { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 4px solid #ffd700; box-shadow: 0 0 12px #ffd700; }
+.hs-parry .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 4px solid #ff1744; box-shadow: 0 0 10px #ff1744; }
+.hs-parry .ring.fake { border-color: #94a3b8; box-shadow: 0 0 8px #94a3b8; opacity: .8; border-style: dashed; }
+.hs-parry.spiral .ring { border-style: dashed; }
+.hs-pdots { display: flex; gap: 6px; margin-top: 8px; min-height: 12px; }
+.hs-pdots span { width: 12px; height: 12px; border-radius: 50%; background: #1e2636; border: 1px solid #334155; }
+.hs-pdots span.perfect { background: #ffd700; } .hs-pdots span.good { background: var(--emerald); } .hs-pdots span.none { background: var(--crimson); }
+.hs-ports { position: relative; width: 86%; height: 130px; background: #050a08; border: 1px solid #14532d; border-radius: 6px; overflow: hidden; }
+.hs-port { position: absolute; padding: 6px 10px; font: 800 12px 'Orbitron', monospace; color: #00ff88; background: rgba(0,255,136,.12); border: 1px solid #00ff88; border-radius: 6px; cursor: pointer; animation: portIn .15s ease-out; }
+.hs-port.hit { background: #00ff88; color: #000; } .hs-port.gone { opacity: 0; pointer-events: none; transition: opacity .15s; }
+@keyframes portIn { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.hs-help-btn { padding: 1px 8px; font-size: 11px; border-radius: 50%; min-width: 22px; }
+.hs-hsec { font: 800 10px 'Orbitron', monospace; color: var(--amber); letter-spacing: 1px; margin: 10px 0 4px; }
+.hs-hrow { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+.hs-hrow .i { width: 22px; flex: none; text-align: center; }
+.hs-hrow b { color: var(--text-main); font-family: 'Orbitron', monospace; font-size: 10.5px; }
+.hs-coach { margin-top: 8px; padding: 9px 10px; border-radius: 8px; background: linear-gradient(180deg, rgba(0,240,255,.10), rgba(0,240,255,.03)); border: 1px solid rgba(0,240,255,.45); font-size: 12px; line-height: 1.45; color: var(--text-main); }
+.hs-coach-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font: 800 11px 'Orbitron', monospace; color: var(--cyan); letter-spacing: 1px; }
+.hs-coach-h .btn { padding: 3px 8px; font-size: 9px; }
+.hs-coach-ok { color: var(--emerald); font-weight: 700; margin-bottom: 3px; }
+.hs-reel { cursor: pointer; color: inherit; font-family: inherit; padding: 0; }
+.hs-reel.held { border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan) inset, 0 0 8px var(--cyan); position: relative; }
+.hs-reel.held::after { content: "HOLD"; position: absolute; bottom: -15px; left: 0; right: 0; font: 800 9px 'Orbitron', monospace; color: var(--cyan); }
+.hs-gbtns { display: flex; gap: 6px; margin-top: 14px; }
+.hs-gbtns .btn { padding: 9px 12px; font-size: 11px; }
+.hs-bar .sh { position: absolute; top: 0; left: 0; background: rgba(0,240,255,.55); }
+.hs-lbl { display: flex; justify-content: space-between; font: 700 9px 'Orbitron', monospace; color: var(--text-dim); }
+.hs-intent { display: inline-flex; align-items: center; gap: 4px; margin: 4px auto 0; padding: 3px 10px; border-radius: 12px; font: 800 12px 'Orbitron', monospace; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); }
+.hs-intent.heavy { background: rgba(255,23,68,.25); border-color: var(--crimson); color: #ff8fa3; animation: tabGlow .5s ease-in-out infinite alternate; }
+.hs-intent.defend { color: var(--cyan); }
+.hs-intent.special { color: #ff4dff; }
+.hs-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 6px; margin-top: 6px; }
+.hs-phase { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font: 800 11px 'Orbitron', monospace; letter-spacing: 1px; }
+.hs-phase .p-atk { color: var(--amber); } .hs-phase .p-react { color: var(--cyan); animation: tabGlow .5s ease-in-out infinite alternate; }
+.hs-phase small { font: 400 11px sans-serif; letter-spacing: 0; color: var(--text-dim); }
+.hs-acts .btn.react { border-color: var(--cyan); }
+.hs-camps { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.hs-camps .btn { padding: 5px 10px; font-size: 11px; }
+.hs-camps .btn.sel { box-shadow: 0 0 0 2px var(--amber) inset; color: var(--amber); }
+.hs-asc { border-color: var(--amber) !important; background: linear-gradient(90deg, rgba(255,184,0,.12), transparent); }
+.hs-buy { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; padding: 8px; border-radius: 8px; background: var(--bg-panel-elevated); }
+.hs-acts .btn { padding: 9px 2px; font-size: 11px; line-height: 1.2; }
+.hs-acts .btn small { display: block; font-size: 8.5px; opacity: .75; font-family: inherit; letter-spacing: 0; }
+.hs-acts .btn.off { opacity: .32; }
+.hs-acts .btn.lock { text-decoration: line-through; }
+.hs-items { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.hs-items .btn { flex: 1; padding: 6px 2px; font-size: 10px; }
+.hs-ov { position: absolute; inset: 0; background: rgba(5,7,11,.82); display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 5; border-radius: 8px; }
+.hs-timing { width: 86%; height: 34px; background: #111827; border: 2px solid #fff; border-radius: 6px; position: relative; overflow: hidden; cursor: pointer; }
+.hs-timing .g { position: absolute; top: 0; bottom: 0; background: rgba(0,255,136,.45); }
+.hs-timing .p { position: absolute; top: 0; bottom: 0; background: rgba(255,215,0,.85); }
+.hs-timing .n { position: absolute; top: -4px; bottom: -4px; width: 4px; background: #ff1744; box-shadow: 0 0 8px #ff1744; }
+.hs-reels { display: flex; gap: 8px; }
+.hs-reel { width: 64px; height: 64px; background: #111827; border: 2px solid var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+.hs-reel.spin { animation: megaSpin .08s linear infinite; }
+.hs-ovt { font: 800 13px 'Orbitron', monospace; color: var(--amber); margin-top: 10px; text-align: center; }
+.hs-stat { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12px; }
+.hs-stat b { width: 54px; font-family: 'Orbitron', monospace; font-size: 11px; }
+.hs-stat .v { width: 34px; text-align: right; font-family: 'Orbitron', monospace; color: var(--amber); }
+.hs-stat .d { flex: 1; font-size: 10px; color: var(--text-dim); }
+.hs-res { text-align: center; padding: 14px 8px; }
+.hs-res .big { font: 900 24px 'Orbitron', monospace; letter-spacing: 2px; }
+.hs-res .st { font-size: 30px; color: #ffd700; letter-spacing: 4px; margin: 6px 0; }
+.hs-res .st .off { color: #2a3245; }
+.hs-goals { text-align: left; display: inline-block; font-size: 12px; margin: 2px 0 8px; line-height: 1.6; }
+.hs-goals .ok { color: var(--emerald); } .hs-goals .no { color: var(--text-dim); }
+.hs-goals .new { color: #ffd700; font: 800 9px 'Orbitron', monospace; } .hs-goals .had { color: #8b6f00; font-size: 10px; }
+.hs-form { margin-top: 6px; padding: 6px 10px; border: 1px dashed var(--amber); border-radius: 6px; font-size: 11px; color: var(--amber); background: rgba(255,184,0,.06); text-align: center; }
+.hs-form b { color: #fff; } .hs-form .rt { display: block; color: var(--crimson); font-weight: 700; }
+.hs-acts .btn.want { box-shadow: 0 0 0 2px var(--amber) inset; }
+.dg-tabs .casino-tab-btn.tdot { position: relative; }
+.dg-tabs .casino-tab-btn.tdot::after { content: ""; position: absolute; top: 4px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--crimson); }
+@media (max-width: 700px) {
+.hs-ms { grid-template-columns: 1fr; }
+.hs-acts { grid-template-columns: repeat(3, 1fr); }
+.hs-acts .btn { font-size: 10px; padding: 8px 1px; }
 }
-applyOn();
-$("fx-toggle").addEventListener("click", function () {
-on = !on; applyOn();
-try { localStorage.setItem("tt_fx", on ? "1" : "0"); } catch (e) {}
-});
-function canFx() { return on && !document.hidden; }
-function retrigger(el, cls) {
-if (!el) return;
-el.classList.remove(cls);
-void el.offsetWidth;            // restart animace
-el.classList.add(cls);
-}
-document.body.classList.add("fx-intro");
-setTimeout(function () { document.body.classList.remove("fx-intro"); }, 1200);
-var POOL = [], poolIdx = 0, lastFloat = 0;
-for (var i = 0; i < 14; i++) {
-var d = document.createElement("div");
-d.className = "fx-float";
-d.addEventListener("animationend", function (ev) { ev.target.classList.remove("go"); });
-document.body.appendChild(d); POOL.push(d);
-}
-var btn = $("btn-click");
-function spawnFloat(x, y) {
-if (!canFx()) return;
-var now = performance.now();
-var crit = window.__lastCrit;
-if (now - lastFloat < 70 && !crit) return;           // max ~14 / s (crit se ukáže vždy)
-lastFloat = now;
-var cv = $("click-val");
-var el = POOL[poolIdx++ % POOL.length];
-var base = cv ? cv.textContent.trim() : "1";
-if (crit === "heat") el.textContent = "🔥 TOO HOT";
-else if (crit) { var n = Number(base.replace(/,/g, "")); el.textContent = "CRIT +" + (isFinite(n) ? (Math.round(n * 3 * 100) / 100).toLocaleString() : base); }
-else el.textContent = "+" + base;
-el.classList.toggle("crit", !!crit && crit !== "heat");
-el.classList.toggle("hot", crit === "heat");
-el.style.setProperty("--fx-x", (x - 14) + "px");
-el.style.setProperty("--fx-y", (y - 24) + "px");
-el.style.setProperty("--fx-dx", (Math.random() * 40 - 20).toFixed(0) + "px");
-el.classList.remove("go"); void el.offsetWidth; el.classList.add("go");
-}
-window.__fxTap = spawnFloat;                   // mobil: dotykové ťuknutí (mobile.html)
-if (btn) btn.addEventListener("click", function (ev) {
-if (!ev.isTrusted) return;
-var r = btn.getBoundingClientRect();
-spawnFloat(ev.detail > 0 ? ev.clientX : r.left + r.width / 2, ev.detail > 0 ? ev.clientY : r.top + r.height / 2);
-});
-["stat-coins", "stat-scrap", "stat-click", "stat-mult"].forEach(function (id) {
-var el = $(id); if (!el) return;
-var last = 0, first = true;
-new MutationObserver(function () {
-if (first) { first = false; return; }
-if (!canFx()) return;
-var n = performance.now(); if (n - last < 600) return; last = n;
-retrigger(el, "fx-pop");
-}).observe(el, { childList: true, characterData: true, subtree: true });
-});
-document.addEventListener("animationend", function (e) {
-if (e.target && e.target.classList) {
-["fx-pop", "fx-win", "fx-loss", "fx-chest"].forEach(function (c) { e.target.classList.remove(c); });
-}
-});
-var flash = $("fx-flash"), banner = $("fx-banner"), bannerTimer = 0;
-function doFlash(color) {
-if (!canFx()) return;
-flash.style.setProperty("--fx-c", color);
-retrigger(flash, "go");
-}
-flash.addEventListener("animationend", function () { flash.classList.remove("go"); });
-function doBanner(html, color) {
-if (!canFx()) return;
-banner.style.color = color || "var(--amber)";
-banner.innerHTML = html;
-retrigger(banner, "go");
-}
-banner.addEventListener("animationend", function () { banner.classList.remove("go"); });
-function amount(txt) {
-var m = /([+-])\s*([\d][\d,]*)\s*GC/.exec(txt);
-return m ? Number(m[2].replace(/,/g, "")) : 0;
-}
-function watchResult(id, target) {
-var el = $(id); if (!el) return;
-var lastTxt = "";
-new MutationObserver(function () {
-var t = (el.textContent || "").trim();
-if (!t || t === lastTxt) return;
-lastTxt = t;
-if (!canFx()) return;
-var box = target ? $(target) : el;
-if (/\b(WIN|SUCCESS|OVERDRIVE|JACKPOT)\b/.test(t)) {
-retrigger(box, "fx-win");
-var a = amount(t);
-if (a >= 5000) { doFlash("#00ff88"); doBanner("+" + a.toLocaleString() + " GC", "var(--emerald)"); }
-} else if (/\b(LOSS|FAILED|CRASH|BUST)\b/.test(t)) {
-retrigger(box, "fx-loss");
-}
-}).observe(el, { childList: true, characterData: true, subtree: true });
-}
-watchResult("roulette-result");
-watchResult("slots-banner");
-watchResult("bj-result");
-watchResult("consult-display");
-watchResult("cr-msg");
-watchResult("pc-msg");
-watchResult("sd-msg");
-var chest = $("chest-result");
-if (chest) {
-var lastChest = "";
-var COLORS = { 3: "#a855f7", 4: "#fbbf24", 5: "#f43f5e", 6: "#00ffcc" };
-new MutationObserver(function () {
-var t = chest.textContent || "";
-if (!t || t === lastChest) return; lastChest = t;
-if (!canFx()) return;
-retrigger(chest, "fx-chest");
-var best = 0, re = /T([1-6])×/g, m;
-while ((m = re.exec(t))) best = Math.max(best, Number(m[1]));
-if (best >= 3) doFlash(COLORS[best]);
-if (best >= 5) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
-if (/SLOT TOKEN/.test(t)) doBanner("🎟 SLOT TOKEN!", "var(--amber)");
-}).observe(chest, { childList: true, characterData: true, subtree: true });
-}
-var pl = $("prestige-lvl");
-if (pl) {
-var lastP = null;
-new MutationObserver(function () {
-var v = (pl.textContent || "").trim();
-if (lastP === null) { lastP = v; return; }
-if (v === lastP) return;
-lastP = v;
-doFlash("#ffb800");
-doBanner("ASCENDED", "var(--amber)");
-banner.innerHTML = "ASCENDED<small>PRESTIGE " + v + "</small>";
-}).observe(pl, { childList: true, characterData: true, subtree: true });
-}
-})();
-</script>
+</style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hs"] = 1;</script>
 <!-- END-OF-FILE: hs -->

@@ -2246,10 +2246,10 @@ function dlMove(id, choice, opt) {
       desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 30 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
     cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 20, dmgM: 1.15,
-      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 20 focus) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
+      desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 20 stamina) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
       skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
-      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL focus (a mini-game): up to -45% damage now and your next hit up to ×1.6. Enemies can't dodge your hits and their blocks only work half as well.",
+      desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (15 stamina, a mini-game): up to -45% damage now and your next hit up to ×1.6. Enemies can't dodge your hits and their blocks only work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
     blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 25, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
       desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
@@ -2260,7 +2260,7 @@ function dlMove(id, choice, opt) {
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, dmg: { sysadmin: 0.47, cyber: 0.79, engineer: 0.74, blood: 1.15, hunter: 1.0 } };
+  const PVP = { hp: 2, dmg: { sysadmin: 0.42, cyber: 0.66, engineer: 0.59, blood: 1.12, hunter: 0.96 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -2273,8 +2273,8 @@ function dlMove(id, choice, opt) {
   };
   const REACTS = {
     block: { name: "BLOCK", icon: "🛡", txt: "less damage, PARRY the big ones" },
-    dodge: { name: "DODGE", icon: "💨", foc: 20, txt: "20 focus · avoid the hit completely (not 🔮 spells)" },
-    channel: { name: "CHANNEL", icon: "🔮", foc: 30, txt: "30 focus · mini-game: -17.5 / 30 / 45% damage now, next hit ×1.3 (PERFECT ×1.6)" },
+    dodge: { name: "DODGE", icon: "💨", sta: 20, txt: "20 stamina · avoid the hit completely (not 🔮 spells)" },
+    channel: { name: "CHANNEL", icon: "🔮", sta: 15, txt: "15 stamina · mini-game: -17.5 / 30 / 45% damage now, next hit ×1.3 (PERFECT ×1.6)" },
     brace: { name: "BREATHE", icon: "😮‍💨", txt: "+15 stamina, +10 focus, cures poison" }
   };
   // starší názvy (save / server / staré odkazy)
@@ -2424,8 +2424,8 @@ function dlMove(id, choice, opt) {
     const k = f.intent ? f.intent.k : "";
     if (r === "dodge" && (k === "spell")) return false;
     if (r === "block") return f.sta >= f.h.blockCost;
-    if (r === "dodge") return f.focus >= f.h.dodgeCost;
-    if (r === "channel") return f.focus >= REACTS.channel.foc;
+    if (r === "dodge") return f.sta >= f.h.dodgeCost;                   // v11.3: všechny reakce stojí STAMINU, focus je jen na ultimátku
+    if (r === "channel") return f.sta >= REACTS.channel.sta;
     return true;
   }
   function allowed(f, a) { return ATTACKS[a] ? allowedAtk(f, a) : allowedReact(f, a); }
@@ -2767,8 +2767,8 @@ function dlMove(id, choice, opt) {
     formCheck(f, r, "react");
     if (f.ehp <= 0) { f.phase = "atk"; return finish(f, true, start); }
     if (r === "block") f.sta -= f.h.blockCost;
-    if (r === "dodge") f.focus -= f.h.dodgeCost;
-    if (r === "channel") f.focus -= REACTS.channel.foc;
+    if (r === "dodge") f.sta -= f.h.dodgeCost;
+    if (r === "channel") f.sta -= REACTS.channel.sta;
     if (r !== "brace") f.st.usedReact++;
     enemyAct(f, r, opt);
     endRound(f);
@@ -2798,7 +2798,7 @@ function dlMove(id, choice, opt) {
         const dq = opt.dq === "perfect" ? 1.6 : opt.dq === "good" ? 1.15 : opt.dq === "none" ? 0.4 : 1;          // v11.1: dodge mini-hra
         const ch = Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));
         if (R() < ch) {
-          f.st.dodges++; f.st.reacts++; f.focus = Math.min(100, f.focus + 10);
+          f.st.dodges++; f.st.reacts++; f.focus = Math.min(100, f.focus + 5);
           if (h.cls === "cyber") f.sureCrit = true;
           ev(f, "dodge", { heavy: k !== "atk", sure: h.cls === "cyber" });
         } else { ev(f, "dodgefail", {}); hitHero(f, dmg, src, k); }
@@ -2982,11 +2982,11 @@ function dlMove(id, choice, opt) {
     if (f.demand && REACTS[f.demand] && can(f.demand)) return f.demand;
     if (k === "spell") { if (h.spellImmune) return "brace"; return can("block") && f.sta >= h.blockCost + 20 ? "block" : "brace"; }
     const big = k === "heavy" || k === "unleash" || k === "withdraw";
-    if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel") && f.focus < 90) return "channel"; return "brace"; }
+    if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel")) return "channel"; return "brace"; }
     if (h.cls === "sysadmin") return can("block") && f.sta >= h.blockCost + 10 ? "block" : "brace";
     if (h.cls === "blood") return can("block") && f.sta >= 60 ? "block" : "brace";
-    if (h.cls === "engineer") return can("channel") && f.focus >= 30 && f.focus < 60 ? "channel" : "brace";
-    if (can("dodge") && f.focus >= 80 && f.focus < 95) return "dodge";
+    if (h.cls === "engineer") return can("channel") && f.sta >= 45 ? "channel" : "brace";
+    if (can("dodge") && f.sta >= 55) return "dodge";
     return "brace";
   }
   function timingRoll(R, zone) { const r = R(); return r < zone * 0.35 ? "perfect" : r < zone * 1.9 ? "good" : "none"; }
@@ -3067,7 +3067,7 @@ function dlMove(id, choice, opt) {
     if (a === "ult") return d.foc[i] >= 100;
     return false;
   }
-  function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.foc[i] >= h.dodgeCost; if (r === "channel") return d.foc[i] >= 30; return true; }
+  function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.sta[i] >= h.dodgeCost; if (r === "channel") return d.sta[i] >= REACTS.channel.sta; return true; }
   function dHurt(d, i, v) {
     v = Math.max(0, Math.round(v)); const s = Math.min(d.sh[i], v); d.sh[i] -= s; d.hp[i] -= v - s;
     if (v > 0) d.foc[i] = Math.min(100, d.foc[i] + 8);
@@ -3114,7 +3114,7 @@ function dlMove(id, choice, opt) {
     d.cd[i] = a === "heavy" && !(d.nocd[i] > 0) ? 1 : 0;
     if (d.nocd[i] > 0) d.nocd[i]--;
     const sure = d.sa[i] > 0 && a !== "rest"; if (sure) d.sa[i]--;
-    if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.foc[j] -= B.dodgeCost; if (r === "channel") d.foc[j] -= 30;
+    if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.sta[j] -= B.dodgeCost; if (r === "channel") d.sta[j] -= REACTS.channel.sta;
     if (r === "brace") { d.sta[j] = Math.min(100, d.sta[j] + 15); d.foc[j] = Math.min(100, d.foc[j] + 10); }
     d.streak[j] = r === "dodge" ? d.streak[j] + 1 : 0;
     // útok
@@ -3147,7 +3147,7 @@ function dlMove(id, choice, opt) {
           if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : magic ? "nododge" : "dodgefail";
         } else if (R() < chOf(dq1)) outcome = "dodge", hits = [];
         else outcome = magic ? "nododge" : "dodgefail";
-        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 10); if (B.cls === "cyber") d.sure[j] = true; }
+        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true; }
       }
       let red = 0;
       if (r === "channel") { const cq = opt.cq === "perfect" || opt.cq === "none" ? opt.cq : "good"; red = cq === "perfect" ? 0.45 : cq === "good" ? 0.3 : 0.175; d.chan[j] = cq === "perfect" ? 1.6 : 1.3; outcome = "channel"; }
@@ -3215,9 +3215,9 @@ function dlMove(id, choice, opt) {
   function duelAiReact(d, j, R, style) {
     const h = d.c[j], opp = d.c[1 - j], heavyLikely = (d.sta[1 - j] >= 65 && !(d.cd && d.cd[1 - j] > 0)) || d.foc[1 - j] >= 100;
     if (h.cls === "sysadmin") return duelReactOk(d, j, "block") && d.sta[j] >= h.blockCost + 10 ? "block" : "brace";
-    if (h.dodge > 0 && opp.cls !== "engineer" && duelReactOk(d, j, "dodge") && (heavyLikely || d.foc[j] >= 80) && d.foc[j] < 100 - (style === "safe" ? 0 : 5)) return "dodge";
+    if (h.dodge > 0 && opp.cls !== "engineer" && duelReactOk(d, j, "dodge") && (heavyLikely || d.sta[j] >= 55)) return "dodge";
     if (h.cls === "blood" && duelReactOk(d, j, "block") && d.sta[j] >= 60) return "block";
-    if (h.canChannel && duelReactOk(d, j, "channel") && d.foc[j] < 60) return "channel";
+    if (h.canChannel && duelReactOk(d, j, "channel") && d.sta[j] >= 45) return "channel";
     return "brace";
   }
   function duelAI(A, B, seed, sa, sb) {

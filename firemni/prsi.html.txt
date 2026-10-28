@@ -1,428 +1,316 @@
+<style>
+/* ===== PRŠÍ (v8.3) - karetní hra pro 2-4 hráče, vítěz bere bank ===== */
+.pr-wrap { font-size: 12px; }
+.pr-info { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
+.pr-info b { color: var(--amber); }
+.pr-create { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.pr-create select { background: #05070b; color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px; font-size: 12px; }
+.pr-tables { display: grid; gap: 6px; }
+.pr-trow { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; }
+.pr-trow .t { flex: 1; min-width: 0; }
+.pr-trow .t b { color: var(--amber); }
+.pr-felt { position: relative; background: radial-gradient(ellipse at 50% 45%, #1d6b3a 0%, #0f4424 60%, #0a2e18 100%); border: 3px solid #5b3a1e; border-radius: 18px; padding: 10px; min-height: 330px; box-shadow: inset 0 0 40px rgba(0,0,0,.55); }
+.pr-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; font: 700 11px 'Orbitron', monospace; color: #e7ffe9; flex-wrap: wrap; }
+.pr-top .pot { color: #ffd700; }
+.pr-opps { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.pr-opp { min-width: 92px; padding: 6px 8px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.12); text-align: center; color: #e7ffe9; }
+.pr-opp.turn { border-color: #ffd700; box-shadow: 0 0 12px rgba(255,215,0,.5); }
+.pr-opp.out { opacity: .4; }
+.pr-opp .nm { font: 700 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.pr-backs { display: flex; justify-content: center; margin: 4px 0 2px; height: 30px; }
+.pr-backs i { display: block; width: 20px; height: 30px; margin-left: -12px; border-radius: 3px; border: 1px solid #fff; background: repeating-linear-gradient(45deg, #8b1d2c 0 4px, #6b1220 4px 8px); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.pr-backs i:first-child { margin-left: 0; }
+.pr-tbar { height: 4px; background: rgba(0,0,0,.4); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.pr-tbar div { height: 100%; background: linear-gradient(90deg, #ffd700, #ff1744); transition: width .9s linear; }
+.pr-center { display: flex; justify-content: center; align-items: center; gap: 22px; margin: 10px 0; min-height: 104px; }
+.pr-deck { position: relative; cursor: pointer; }
+.pr-deck .pr-card { background: repeating-linear-gradient(45deg, #8b1d2c 0 5px, #6b1220 5px 10px); }
+.pr-deck .cnt { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font: 700 10px 'Orbitron', monospace; color: #e7ffe9; }
+.pr-deck.can .pr-card { box-shadow: 0 0 0 2px #ffd700, 0 0 14px rgba(255,215,0,.6); }
+.pr-pile { position: relative; width: 70px; height: 100px; }
+.pr-pile .pr-card { position: absolute; left: 0; top: 0; }
+.pr-pile .pr-card.under { transform: rotate(-9deg) translate(-6px, 2px); filter: brightness(.8); }
+.pr-badges { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 74px; }
+.pr-badge { font: 800 11px 'Orbitron', monospace; padding: 3px 8px; border-radius: 10px; background: rgba(0,0,0,.4); color: #fff; display: flex; align-items: center; gap: 4px; }
+.pr-badge.pen { background: #b91c1c; animation: tabGlow .5s ease-in-out infinite alternate; }
+.pr-badge.skip { background: #a16207; }
+.pr-badge svg { width: 16px; height: 16px; }
+.pr-card { width: 70px; height: 100px; border-radius: 7px; background: #fbf7ec; border: 1px solid #c9bfa6; box-shadow: 0 2px 4px rgba(0,0,0,.45); position: relative; color: #1f2937; user-select: none; -webkit-user-select: none; flex: none; }
+.pr-card .rk { position: absolute; top: 3px; left: 5px; font: 800 15px 'Orbitron', monospace; line-height: 1; }
+.pr-card .rk2 { position: absolute; bottom: 3px; right: 5px; font: 800 15px 'Orbitron', monospace; line-height: 1; transform: rotate(180deg); }
+.pr-card .si { position: absolute; top: 4px; right: 4px; width: 15px; height: 15px; }
+.pr-card .big { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; transform: translate(-50%, -50%); }
+.pr-card .fc { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 900 24px 'Orbitron', monospace; opacity: .9; }
+.pr-card .fc + .big { width: 22px; height: 22px; top: 74%; }
+.pr-card.s0 .rk, .pr-card.s0 .rk2, .pr-card.s0 .fc { color: #c81e3a; }
+.pr-card.s1 .rk, .pr-card.s1 .rk2, .pr-card.s1 .fc { color: #b07a00; }
+.pr-card.s2 .rk, .pr-card.s2 .rk2, .pr-card.s2 .fc { color: #15803d; }
+.pr-card.s3 .rk, .pr-card.s3 .rk2, .pr-card.s3 .fc { color: #7c4a1e; }
+.pr-hand { display: flex; gap: 6px; overflow-x: auto; padding: 14px 4px 8px; justify-content: safe center; -webkit-overflow-scrolling: touch; }
+.pr-hand .pr-card { transition: transform .12s, filter .12s, opacity .12s; }
+.pr-hand .pr-card.ok { cursor: pointer; box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,.75); transform: translateY(-8px); }
+.pr-hand .pr-card.ok:hover { transform: translateY(-14px); }
+.pr-hand .pr-card.no { filter: grayscale(.75) brightness(.55); }
+.pr-me { text-align: center; font: 700 11px 'Orbitron', monospace; color: #e7ffe9; }
+.pr-me.turn { color: #ffd700; }
+.pr-acts { display: flex; gap: 6px; justify-content: center; margin-top: 6px; flex-wrap: wrap; }
+.pr-acts .btn { padding: 9px 16px; }
+.pr-log { margin-top: 8px; max-height: 120px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,.4); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 5px 8px; display: flex; flex-direction: column-reverse; }
+.pr-log div { color: #8b9bb4; line-height: 1.35; }
+.pr-pick { position: absolute; inset: 0; background: rgba(5,7,11,.82); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 4; }
+.pr-pick .row { display: flex; gap: 8px; }
+.pr-pick button { width: 66px; height: 66px; border-radius: 10px; background: #fbf7ec; border: 2px solid #c9bfa6; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font: 700 9px 'Orbitron', monospace; color: #1f2937; }
+.pr-pick button svg { width: 34px; height: 34px; }
+.pr-done { text-align: center; padding: 20px 8px; color: #fff; }
+.pr-done .big { font: 900 22px 'Orbitron', monospace; color: #ffd700; letter-spacing: 2px; }
+.pr-seat { display: inline-block; padding: 6px 10px; margin: 3px; border-radius: 8px; background: rgba(0,0,0,.3); border: 1px dashed rgba(255,255,255,.25); color: #e7ffe9; font: 700 11px 'Orbitron', monospace; }
+.pr-seat.on { border-style: solid; border-color: #ffd700; }
+@media (max-width: 700px) {
+.pr-card { width: 54px; height: 78px; }
+.pr-card .rk, .pr-card .rk2 { font-size: 12px; }
+.pr-card .big { width: 28px; height: 28px; }
+.pr-card .fc { font-size: 18px; }
+.pr-pile { width: 54px; height: 78px; }
+.pr-center { gap: 14px; min-height: 84px; }
+}
+</style>
 <script>
-/**
-* IDLE ROYALE - DUNGEON ENGINE (čistá logika bez DOM; stejný kód běží ve hře i v simulaci pro ladění čísel)
-* Tahový souboj: hráč udeří (útok se losuje z tabulky podle třídy a postoje), pak boss.
-* Každý postoj má průměr (EV) přesně 1.00× ATK - postoj mění jen riziko, ne průměrný damage.
-*/
-(function (root) {
+(function () {
 "use strict";
-function rng(seed) {
-let a = (seed >>> 0) || 1;
-return function () {
-a |= 0; a = (a + 0x6D2B79F5) | 0;
-let t = Math.imul(a ^ (a >>> 15), 1 | a);
-t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-}
-const RAW = {
-sysadmin: {
-safe:   [[0.25, 0.70, "low"], [0.55, 1.00, "mid"], [0.20, 1.38, "high"]],
-normal: [[0.15, 0.40, "low"], [0.50, 0.90, "mid"], [0.30, 1.30, "high"], [0.05, 3.00, "jp"]],
-allin:  [[0.03, 0, "bf"], [0.30, 0.15, "low"], [0.30, 0.70, "mid"], [0.32, 1.60, "high"], [0.05, 5.50, "jp"]]
-},
-engineer: {
-safe:   [[0.30, 0.60, "low"], [0.45, 1.00, "mid"], [0.25, 1.55, "high"]],
-normal: [[0.25, 0.30, "low"], [0.40, 0.85, "mid"], [0.28, 1.60, "high"], [0.07, 3.50, "jp"]],
-allin:  [[0.04, 0, "bf"], [0.33, 0.10, "low"], [0.25, 0.60, "mid"], [0.31, 1.80, "high"], [0.07, 8.00, "jp"]]
-},
-cyber: {
-safe:   [[0.25, 0.60, "low"], [0.50, 1.00, "mid"], [0.25, 1.50, "high"]],
-normal: [[0.25, 0.30, "low"], [0.42, 0.90, "mid"], [0.27, 1.50, "high"], [0.06, 3.00, "jp"]],
-allin:  [[0.03, 0, "bf"], [0.30, 0.10, "low"], [0.30, 0.60, "mid"], [0.31, 1.70, "high"], [0.06, 7.00, "jp"]]
-}
-};
-const BACKFIRE_SELF = { sysadmin: 1.2, engineer: 1.5, cyber: 1.2 };   // backfire = tolik × vlastní ATK do sebe
-const TABLES = {};
-Object.keys(RAW).forEach(c => {
-TABLES[c] = {};
-Object.keys(RAW[c]).forEach(s => {
-const rows = RAW[c][s];
-const ev = rows.reduce((a, r) => a + r[0] * r[1], 0);
-TABLES[c][s] = rows.map(r => ({ p: r[0], m: Math.round(r[1] / ev * 1000) / 1000, k: r[2] }));   // normalizace na EV = 1.00
-});
-});
-function tableEV(rows) { return rows.reduce((a, r) => a + r.p * r.m, 0); }
-const CLASSES = {
-sysadmin: { name: "SysAdmin", icon: "🛡", desc: "Tank. Low variance, +4% HP and a small shield (4% HP) at the start of every fight.",
-tiers: ["Junior Helpdesk Agent", "System Administrator", "Senior Infrastructure Engineer"],
-branches: { a: "Site Reliability Engineer", b: "Cloud Infrastructure Architect" },
-perks: ["Power Cycle: once per fight you survive a lethal hit with 10% HP.",
-"Reboot Script: in SAFE stance, hits of 1.0× or more heal 4% max HP.",
-"HA Cluster: backfire self-damage is halved and turns into a shield.",
-"SRE - SLO Breach Counter: after a heavy boss hit (>12% HP) the next one is halved.",
-"Cloud Architect - Elastic Auto-Scaling: jackpots add 2× your current shield as damage, +8% starting shield."] },
-engineer: { name: "Software Engineer", icon: "💻", desc: "Burst. High variance, +18% ATK, +5% HP, big jackpots. +1% click crit chance per career tier.",
-tiers: ["Intern Developer", "Full-Stack Developer", "Lead Software Architect"],
-branches: { a: "Algorithmic Quant Dev", b: "Principal Systems Engineer" },
-perks: ["StackOverflow Copy-Paste: 8% chance to repeat your previous good hit.",
-"Unit Test Coverage: backfire self-damage -30%.",
-"CI Burst: every hit of 1.0× or more in a row adds +1.5% jackpot chance (max +6%).",
-"Quant Dev - HFT: jackpots hit ×1.35 harder, but backfire chance +1%.",
-"Principal - Zero-Cost Abstraction: your weakest hits are never below 0.6×."] },
-cyber: { name: "Cybersecurity Specialist", icon: "🕶", desc: "Gambler. 17% dodge, +10% boss loot.",
-tiers: ["Script Kiddie", "SOC Security Analyst", "Senior Red Teamer"],
-branches: { a: "CISO", b: "Black-Hat Mercenary" },
-perks: ["Lucky Port Scan: 4% of your weakest hits become strong hits.",
-"Threat Intel: a dodge reflects 40% of the boss attack back.",
-"Zero-Day Payload: jackpots infect the boss - 0.4× ATK damage for 3 turns.",
-"CISO - Corporate Insurance: boss loot ×1.5 and 35% chance a won fight costs no key.",
-"Black-Hat - Ghost in the Shell: after a dodge your next hit can't backfire and deals +40%."] }
-};
-const ARTIFACTS = [
-{ id: "key",    name: "Master Admin Key",     icon: "🗝", fx: { atk: 0.12, hp: -0.08 } },
-{ id: "token",  name: "Quantum Token",        icon: "🪙", fx: { hp: 0.08, jp: 0.015 } },
-{ id: "pen",    name: "Cyber Pen",            icon: "🖊", fx: { dodge: 0.08, atk: -0.05 } },
-{ id: "drive",  name: "Encrypted Hard Drive", icon: "💽", fx: { hp: 0.15, atk: -0.05 } },
-{ id: "usb",    name: "Zero-Day USB",         icon: "🔌", fx: { atk: 0.08, bf: 0.01 } },
-{ id: "mug",    name: "SME Coffee Mug",       icon: "☕", fx: { hp: 0.10, safeDef: 0.10 } },
-{ id: "gpu",    name: "Overclocked GPU",      icon: "🎛", fx: { atk: 0.15, bfDmg: 0.25 } },
-{ id: "node",   name: "Decentralized Node",   icon: "🛰", fx: { loot: 0.15, atk: 0.03 } },
-{ id: "fw",     name: "Shadow Firewall",      icon: "🧱", fx: { dodge: 0.05, hp: 0.05 } },
-{ id: "coin",   name: "Coin Toss Token",      icon: "🎲", fx: { coin: 1 } },
-{ id: "bounty", name: "Bug Bounty Badge",     icon: "🏅", fx: { loot: 0.20, jp: 0.01 } },
-{ id: "relic",  name: "Mainframe Relic",      icon: "🗄", fx: { hp: 0.20, dodge: -0.06 } }
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.floor(n).toLocaleString();
+const esc = (s) => (typeof escapeHtml === "function" ? escapeHtml(String(s)) : String(s));
+const trim = (x) => x.toFixed(2).replace(/\.?0+$/, "");
+const short = (n) => n >= 1e9 ? trim(n / 1e9) + "B" : n >= 1e6 ? trim(n / 1e6) + "M" : n >= 1e4 ? trim(n / 1e3) + "K" : Math.floor(n).toLocaleString();
+const SUITS = ["Hearts", "Bells", "Leaves", "Acorns"], RANKS = ["7", "8", "9", "10", "J", "Q", "K", "A"], RANK_N = ["7", "8", "9", "10", "Jack (spodek)", "Queen (svršek)", "King", "Ace"];
+const ICON = [
+'<svg viewBox="0 0 32 32"><path d="M16 29 C10 23 3 18 3 11 C3 6.5 6.5 3.5 10.5 3.5 C13 3.5 15 5 16 7 C17 5 19 3.5 21.5 3.5 C25.5 3.5 29 6.5 29 11 C29 18 22 23 16 29Z" fill="#d61f3c" stroke="#7a0c1e" stroke-width="1.2"/><path d="M9 8 C7 9 6 11 6.5 13" stroke="#ff9aa9" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
+'<svg viewBox="0 0 32 32"><circle cx="16" cy="17" r="11" fill="#f2b705" stroke="#8a6200" stroke-width="1.3"/><path d="M6 14 H26 M5.5 19 H26.5" stroke="#b5161d" stroke-width="2.4"/><circle cx="16" cy="17" r="3" fill="#8a6200"/><circle cx="12" cy="11" r="2" fill="#fff6c7" opacity=".8"/></svg>',
+'<svg viewBox="0 0 32 32"><path d="M16 3 C24 8 27 15 24 22 C22 26 19 27.5 16 28 C13 27.5 10 26 8 22 C5 15 8 8 16 3Z" fill="#22a447" stroke="#0e5a25" stroke-width="1.3"/><path d="M16 6 V30 M16 13 L11 10 M16 13 L21 10 M16 19 L10 16 M16 19 L22 16" stroke="#0e5a25" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>',
+'<svg viewBox="0 0 32 32"><ellipse cx="16" cy="20" rx="8" ry="9.5" fill="#c98a3c" stroke="#6b3d12" stroke-width="1.3"/><path d="M6.5 13 C7 7 12 5 16 5 C20 5 25 7 25.5 13 Z" fill="#7a4b20" stroke="#4a2a0c" stroke-width="1.3"/><path d="M9 10 H23 M8 12 H24" stroke="#5b3510" stroke-width="1"/><path d="M16 5 V2" stroke="#4a2a0c" stroke-width="2" stroke-linecap="round"/><ellipse cx="13" cy="19" rx="2" ry="4" fill="#e7b46d" opacity=".6"/></svg>'
 ];
-const ARTIFACT_BY_ID = {}; ARTIFACTS.forEach(a => { ARTIFACT_BY_ID[a.id] = a; });
-function artifactText(a, lvl) {
-const f = 1 + 0.25 * ((lvl || 1) - 1), o = [];
-const pct = (v) => (v > 0 ? "+" : "") + Math.round(v * f * 1000) / 10 + "%";
-const fx = a.fx;
-if (fx.atk) o.push(pct(fx.atk) + " ATK");
-if (fx.hp) o.push(pct(fx.hp) + " HP");
-if (fx.dodge) o.push(pct(fx.dodge) + " dodge");
-if (fx.jp) o.push(pct(fx.jp) + " jackpot chance");
-if (fx.bf) o.push(pct(fx.bf) + " backfire chance (All-in)");
-if (fx.bfDmg) o.push(pct(fx.bfDmg) + " backfire self-damage");
-if (fx.safeDef) o.push(pct(-fx.safeDef) + " damage taken in SAFE");
-if (fx.loot) o.push(pct(fx.loot) + " boss loot");
-if (fx.coin) o.push("fight start: 50% +25% ATK or 50% -15% ATK");
-return o.join(", ");
+const suit = (c) => Math.floor(c / 8), rank = (c) => c % 8;
+const P = { list: null, view: null, id: "", rev: -1, busy: false, msg: "", msgC: "", pick: -1, pollT: 0, listT: 0, recvAt: 0, myTurnSeen: "", built: false, lastList: 0 };
+function cardHtml(c, cls, extra) {
+const s = suit(c), r = rank(c), face = r >= 4 && r <= 6;
+return `<div class="pr-card s${s} ${cls || ""}" ${extra || ""} title="${RANK_N[r]} of ${SUITS[s]}"><span class="rk">${RANKS[r]}</span><span class="si">${ICON[s]}</span>${face ? `<span class="fc">${RANKS[r]}</span>` : ""}<span class="big">${ICON[s]}</span><span class="rk2">${RANKS[r]}</span></div>`;
 }
-const BOSSES = [
-{ name: "Unplugged Router",          icon: "📡", mech: "router",   txt: "Cable Glitch: every 4th turn the signal drops and it skips its attack." },
-{ name: "The Great \"I\"",          icon: "🅸", mech: "dust",     txt: "The Great I: hits weaker as it loses HP, but dodges more (up to 25%) - it's just one letter, how hard can it be?" },
-{ name: "Printer Spooler Ghost",     icon: "🖨", mech: "printer",  txt: "Paper Jam: its hits have a 25% chance to jam your next attack (0 damage)." },
-{ name: "Rogue Cron Job",            icon: "⏰", mech: "cron",     txt: "Scheduled Run: weak hits, but every 4th turn a massive batch job (×2.6)." },
-{ name: "Memory Leak Java App",      icon: "☕", mech: "leak",     txt: "OutOfMemory: its attack grows +8% every turn. End it fast." },
-{ name: "Legacy COBOL Mainframe",    icon: "🖥", mech: "cobol",    txt: "Tape Backup: every 4th turn it restores 12% of its max HP." },
-{ name: "DDoS Botnet Cluster",       icon: "🕸", mech: "ddos",     txt: "Packet Storm: attacks 3× per turn with weak hits (dodge each one)." },
-{ name: "Shadow IT Spreadsheet",     icon: "📊", mech: "excel",    txt: "VLOOKUP Crash: 15% chance to reflect 30% of your damage back at you." },
-{ name: "Crypto-Miner Trojan",       icon: "⛏", mech: "miner",    txt: "Resource Theft: its hits halve your jackpot chance for 2 turns." },
-{ name: "Rogue LLM Agent",           icon: "🤖", mech: "llm",      txt: "Hallucination Counter: after your strong hit or jackpot it counterattacks instantly." },
-{ name: "Spaghetti Cabling Rack",    icon: "🍝", mech: "spaghetti",txt: "Cable Trap: every 5th turn your stance is locked for 2 turns." },
-{ name: "Zero-Day Broker",           icon: "🕵", mech: "broker",   txt: "Exposed Vulnerability: each of your weak hits makes you take +10% damage (max +50%)." },
-{ name: "Public S3 Leak",            icon: "🪣", mech: "s3",       txt: "Data Siphon: your strong hits give it a shield of 20% of that damage." },
-{ name: "Deprecated API Dependency", icon: "🧩", mech: "api",      txt: "Breaking Change: below 50% HP its attack is ×1.4." },
-{ name: "Ransomware Executive",      icon: "🔒", mech: "ransom",   txt: "Equipment Encryption: every 5th turn your ATK -20% until you land a 1.3×+ hit." },
-{ name: "Corporate Audit Bot",       icon: "📋", mech: "audit",    txt: "Bureaucratic Brake: all your hits are pulled halfway towards average (All-in is weaker)." },
-{ name: "Rogue Microservice Mesh",   icon: "🧬", mech: "mesh",     txt: "Cascade Failure: after hitting you 3 turns in a row its next hit is ×2." },
-{ name: "Unstable Staging Env",      icon: "🧪", mech: "staging",  txt: "Environment Reset: every 4th turn it wipes all shields, buffs and debuffs." },
-{ name: "Legacy Monolith Architect", icon: "🏛", mech: "monolith", txt: "Monolithic Armor: your hits under 1.0× only deal 40% damage." },
-{ name: "The Big Massi",            icon: "👑", mech: "darkweb",  txt: "FINAL BOSS - Executive Override: below 30% HP his attack is ×2, but he burns 5% max HP per turn. The best boss you could ever ask for." }
-];
-const PROMOS = [
-{ id: "lead",  name: "Micromanager Team Lead",   icon: "📣", lvl: 10, mech: "lead",  reward: "tier2",   txt: "Quick Sync: every 4th turn ALL-IN is disabled for 2 turns.", unlock: "Unlocks career tier 2" },
-{ id: "hr",    name: "HR Compliance Specialist", icon: "🧑‍💼", lvl: 15, mech: "hr",   reward: "slot",    txt: "Mandatory Team Building: after your strong hit or jackpot you are forced into SAFE for 1 turn.", unlock: "+1 artifact slot" },
-{ id: "board", name: "Technical Board Review",   icon: "🧾", lvl: 20, mech: "board", reward: "tier3",   txt: "Budget Cuts: below 50% HP it cuts your ATK by 25%.", unlock: "Unlocks career tier 3" },
-{ id: "cto",   name: "The CTO",                  icon: "🎩", lvl: 25, mech: "cto",   reward: "branch",  txt: "AI Paradigm Shift: every 3 turns it demands a stance - if you are not in it, it hits +60% harder.", unlock: "Choose your career branch" },
-{ id: "bod",   name: "Board of Directors",       icon: "🏦", lvl: 30, mech: "bod",   reward: "exec",    txt: "Quarterly Goals: defeat it within 18 turns or the contract is terminated.", unlock: "EXECUTIVE title: +10% ATK/HP, +5% ticket multiplier" }
-];
-function roman(n) { return n <= 1 ? "" : (["", "", " Mk II", " Mk III", " Mk IV", " Mk V", " Mk VI", " Mk VII", " Mk VIII", " Mk IX", " Mk X"][n] || (" Mk " + n)); }
-let BOSS_TABLE = [[215,11.9],[295,14.6],[382,12.2],[477,19.3],[579,18],[688,19.6],[805,28.4],[929,36.3],[1060,43.8],[1199,53],[1345,58.9],[1498,55.7],[1658,71.9],[1826,66.1],[2001,83.7],[2183,99.1],[2372,82.3],[2569,113.2],[2773,85.7],[2985,124.7],[3204,175.9],[3430,173.2],[3663,121.3],[3903,161.4],[4151,127.7],[4406,121.5],[4669,165.3],[4939,194.8],[5216,212.5],[5500,240],[5792,256.4],[6090,220.6],[6397,271.1],[6710,242.1],[7031,286],[7359,328.2],[7694,270.8],[8037,348.2],[8387,261.5],[8744,366.1],[9108,495.2],[9480,473.4],[9859,326.5],[10246,422.9],[10639,325.3],[11040,306.9],[11449,413.5],[11864,461.3],[12287,505.2],[12717,557.3],[13154,573.2],[13599,483.2],[14051,589.4],[14510,523.8],[14977,604.7],[15451,690.8],[15932,558.2],[16420,714.4],[16916,515.2],[17419,720.5],[17929,1004.7],[18447,932],[18972,618.8],[19504,812.5],[20043,621.7],[20590,572.8],[21144,760.9],[21706,855],[22274,900.9],[22850,1003.3],[23433,1031],[24024,891.2],[24622,1033.6],[25227,915.3],[25839,1072.2],[26459,1184],[27086,951.6],[27720,1212],[28361,889.6],[29010,1222],[29666,1637.7],[30330,1552.7],[31000,1031.1],[31678,1326.7],[32364,998.3],[33056,921.1],[33756,1211.2],[34463,1360.1],[35177,1446.6],[35899,1560.7],[36628,1589],[37364,1349.6],[38108,1645.2],[38859,1400],[39617,1606.4],[40383,1816.3],[41155,1421.9],[41935,1865.9],[42723,1318.9],[43517,1807.7]];
-function bossFor(floor) {
-const b = BOSSES[(floor - 1) % 20];
-const t = bossStats(floor);
-return { floor: floor, name: b.name + roman(Math.ceil(floor / 20)), icon: b.icon, mech: b.mech, txt: b.txt, hp: t.hp, atk: t.atk, sprite: (floor - 1) % 20 };
+function playable(v, c) {
+const r = rank(c), top = v.top;
+if (v.pen > 0) return r === 0;
+if (v.skip) return r === 7;
+if (r === 5) return true;
+return suit(c) === v.suit || r === rank(top);
 }
-const EASE = [0.72, 0.8, 0.87, 0.93, 0.97];          // první patra mírnější (nováček ještě nemá gear)
-function bossStats(floor) {
-if (BOSS_TABLE && floor <= BOSS_TABLE.length) { const r = BOSS_TABLE[floor - 1], e = EASE[floor - 1] || 1; return { hp: Math.round(r[0] * e), atk: Math.round(r[1] * e * 10) / 10 }; }
-const N = BOSS_TABLE.length;
-const F0 = N - 20 + ((floor - 1) % 20) + 1;
-const refA = (F) => (15 + 4.5 * (F - 1)) * (1 + 0.06 * F), refH = (F) => (100 + 30 * (F - 1)) * (1 + 0.06 * F);
-const r = BOSS_TABLE[F0 - 1];
-return { hp: Math.round(r[0] * refA(floor) / refA(F0)), atk: Math.round(r[1] * refH(floor) / refH(F0) * 10) / 10 };
+function me() { return gameState.ldap; }
+function visible() { const el = $("adv-view-prsi"); return !!(el && el.style.display !== "none" && el.offsetParent); }
+function say(t, c) { P.msg = t; P.msgC = c || ""; render(); }
+function run(fn, args) {
+return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); });
 }
-let PROMO_TABLE = {"lead":[1288,51.7],"hr":[2149,86.5],"board":[3206,110.5],"cto":[4459,125.1],"bod":[4481,300.9]};
-function promoBoss(id) {
-const p = PROMOS.find(x => x.id === id);
-const t = (PROMO_TABLE && PROMO_TABLE[id]) ? { hp: PROMO_TABLE[id][0], atk: PROMO_TABLE[id][1] } : bossStats(p.lvl);
-return { floor: 0, promo: p.id, name: p.name, icon: p.icon, mech: p.mech, txt: p.txt, hp: t.hp, atk: t.atk, sprite: 20 + PROMOS.indexOf(p) };
-}
-/** gear: { atk: násobek ze zbraní (TOOL/AUGMENT/RELIC), hp: násobek ze zbroje (HEAD/RIG/OS) } */
-function gearSlotValue(tier, lvl) { return 0.1 * Math.pow(tier, 1.3) * (1 + 0.2 * (lvl || 0)); }
-function buildPlayer(d, gear) {
-const L = Math.max(1, d.level || 1);
-const cls = d.cls || "sysadmin";
-const tier = d.tier || 1, branch = d.branch || "";
-const fx = { atk: 0, hp: 0, dodge: 0, jp: 0, bf: 0, bfDmg: 0, safeDef: 0, loot: 0, coin: 0 };
-(d.equipped || []).forEach(id => {
-const a = ARTIFACT_BY_ID[id]; if (!a) return;
-const f = 1 + 0.25 * (((d.artifacts || {})[id] || 1) - 1);
-Object.keys(a.fx).forEach(k => { fx[k] += a.fx[k] * (k === "coin" ? 1 : f); });
+function takePay(pay) {
+(pay || []).forEach(p => {
+if (p.why === "WIN") { TT.win(p.amt); log(`♣ PRŠÍ: you won the table! +${fmt(p.amt)} GC`, "special"); if (window.Meta && Meta.count) { Meta.count("prsiWins", 1); } TT.announce("WON A PRŠÍ TABLE", "PRŠÍ", 0, p.amt); }
+else { gameState.coins += p.amt; gameState.gambleNet = (gameState.gambleNet || 0) + p.amt; log(`♣ PRŠÍ: stake refunded +${fmt(p.amt)} GC`, "success"); }
 });
-let atkMul = 1 + fx.atk, hpMul = 1 + fx.hp;
-if (cls === "engineer") { atkMul += 0.18; hpMul += 0.05; }
-if (cls === "sysadmin") hpMul += 0.04;
-if (d.exec) { atkMul += 0.10; hpMul += 0.10; }
-const maxHp = Math.round((100 + 30 * (L - 1)) * (gear ? gear.hp : 1) * hpMul);
-const atk = (15 + 4.5 * (L - 1)) * (gear ? gear.atk : 1) * atkMul;
-let dodge = (cls === "cyber" ? 0.17 : 0) + fx.dodge;
-dodge = Math.max(0, Math.min(0.35, dodge));
-return { cls: cls, tier: tier, branch: branch, level: L, maxHp: maxHp, atk: atk, dodge: dodge, fx: fx,
-shieldPct: cls === "sysadmin" ? 0.04 + (branch === "b" && tier >= 4 ? 0.08 : 0) : 0,
-loot: fx.loot + (cls === "cyber" ? 0.10 : 0) + (cls === "cyber" && tier >= 4 && branch === "a" ? 0.5 : 0) };
+if (pay && pay.length) { updateUI(); TT.saveSoon(); }
 }
-function newFight(player, boss, seed) {
-const R = rng(seed || 1);
-const f = {
-R: R, p: player, b: boss, turn: 0, over: false, win: false, events: [],
-php: player.maxHp, shield: Math.round(player.maxHp * player.shieldPct),
-bhp: boss.hp, bmax: boss.hp, bshield: 0,
-atkBuff: 1, jam: false, jpDebuff: 0, weakStacks: 0, ransom: false, hitStreak: 0, lockLeft: 0, lockedStance: null,
-forceSafe: 0, ctoWant: null, sreHalf: false, revived: false, ciStacks: 0, prevMult: 0, dot: 0, ghost: false, allinBlock: 0,
-coin: 0
-};
-if (player.fx.coin) { f.coin = R() < 0.5 ? 0.25 : -0.15; f.atkBuff *= 1 + f.coin; }
-return f;
+async function loadList() {
+if (P.listBusy) return; P.listBusy = true;
+try {
+const r = await run("prsList", []);
+P.lastList = Date.now();
+if (r && r.ok) {
+P.list = r; takePay(r.pay);
+if (r.mine && !P.id) { P.id = r.mine; P.rev = -1; poll(); }
+const waiting = r.tables.filter(t => t.status === "wait" && t.players.indexOf(me()) < 0).length;
+glow(waiting > 0 && !visible());
 }
-/** Které postoje teď smí hráč použít (zámky bossů). */
-function allowedStances(f) {
-if (f.lockLeft > 0) return [f.lockedStance];
-if (f.forceSafe > 0) return ["safe"];
-if (f.allinBlock > 0) return ["safe", "normal"];
-return ["safe", "normal", "allin"];
+} catch (e) { P.list = P.list || { tables: [], stakes: [], max: 2 }; }
+finally { P.listBusy = false; }
+render();
 }
-function rollRow(f, stance) {
-const p = f.p, R = f.R;
-let rows = TABLES[p.cls][stance].map(r => ({ p: r.p, m: r.m, k: r.k }));
-const take = (fromK, toK, amt) => {
-const a = rows.find(r => r.k === fromK), b = rows.find(r => r.k === toK);
-if (!a || !b) return;
-const x = Math.min(a.p, amt); a.p -= x; b.p += x;
-};
-let jp = p.fx.jp + (p.cls === "engineer" && p.tier >= 3 ? f.ciStacks * 0.015 : 0);
-if (f.jpDebuff > 0) { const j = rows.find(r => r.k === "jp"); if (j) { const half = j.p / 2; j.p -= half; rows.find(r => r.k === "low").p += half; } }
-if (jp > 0) take("low", "jp", jp);
-if (p.cls === "cyber") take("low", "high", 0.04);
-if (stance === "allin") {
-let bf = p.fx.bf + (p.cls === "engineer" && p.tier >= 4 && p.branch === "a" ? 0.01 : 0);
-if (bf > 0) take("low", "bf", bf);
+async function poll() {
+clearTimeout(P.pollT);
+if (!P.id) return;
+try {
+const r = await run("prsPoll", [P.id, P.rev]);
+if (r && r.ok) {
+takePay(r.pay);
+if (r.gone) { P.id = ""; P.view = null; P.rev = -1; loadList(); return; }
+if (r.view) apply(r.view);
+else if (r.same && P.view) { P.view.left = r.left; P.recvAt = Date.now(); }
 }
-let r = R(), row = rows[rows.length - 1];
-for (const x of rows) { if (r < x.p) { row = x; break; } r -= x.p; }
-let m = row.m, k = row.k;
-if (p.cls === "engineer" && f.prevMult >= 1 && R() < 0.08) { m = f.prevMult; k = "copy"; }
-if (k === "jp" && p.cls === "engineer" && p.tier >= 4 && p.branch === "a") m *= 1.35;
-if (k === "low" && p.cls === "engineer" && p.tier >= 4 && p.branch === "b") m = Math.max(m, 0.6);
-if (k === "bf" && f.ghost) { k = "mid"; m = 1; }
-return { m: m, k: k };
+} catch (e) {}
+if (P.id) P.pollT = setTimeout(poll, visible() ? 1200 : (P.view && P.view.status === "play" ? 2500 : 5000));
 }
-function ev(f, type, val, extra) { const e = { t: f.turn, type: type, val: val }; if (extra) Object.assign(e, extra); f.events.push(e); return e; }
-function damagePlayer(f, dmg, src) {
-const p = f.p;
-if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && f.sreHalf) { dmg *= 0.5; f.sreHalf = false; }
-dmg = Math.round(dmg);
-const s = Math.min(f.shield, dmg); f.shield -= s; dmg -= s;
-f.php -= dmg;
-if (f.php <= 0 && p.cls === "sysadmin" && !f.revived) { f.revived = true; f.php = Math.round(p.maxHp * 0.10); ev(f, "revive", f.php); }
-if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg + s > p.maxHp * 0.12) f.sreHalf = true;
-ev(f, "phit", dmg + s, { src: src, absorbed: s });
-return dmg + s;
+function apply(v) {
+const prev = P.view;
+P.view = v; P.rev = v.rev; P.recvAt = Date.now();
+if (v.status === "play" && v.turn === me() && P.myTurnSeen !== v.rev + "") {
+P.myTurnSeen = v.rev + "";
+if (!visible()) { glow(true); if (!prev || prev.turn !== me()) log("♣ PRŠÍ: it's your turn!", "special"); }
 }
-function damageBoss(f, dmg, label) {
-dmg = Math.max(0, Math.round(dmg));
-const s = Math.min(f.bshield, dmg); f.bshield -= s;
-f.bhp -= (dmg - s);
-return dmg;
+if (prev && prev.status === "wait" && v.status === "play") log("♣ PRŠÍ: the game started - good luck!", "special");
+render();
 }
-/** Jeden tah. stance = "safe" | "normal" | "allin". Vrací nové eventy. */
-function step(f, stance) {
-if (f.over) return [];
-const start = f.events.length;
-const p = f.p, b = f.b, R = f.R;
-f.turn++;
-const allowed = allowedStances(f);
-if (allowed.indexOf(stance) < 0) stance = allowed.indexOf("normal") >= 0 ? "normal" : allowed[0];
-const mech = b.mech;
-if (mech === "staging" && f.turn % 4 === 0) {
-f.shield = 0; f.bshield = 0; f.atkBuff = 1 + f.coin; f.jam = false; f.jpDebuff = 0; f.weakStacks = 0; f.ransom = false; f.dot = 0; f.ghost = false;
-ev(f, "mech", 0, { msg: "ENVIRONMENT RESET - all buffs and shields wiped!" });
+function glow(on) { const t = $("adv-tab-prsi"); if (t) t.classList.toggle("glow", !!on); }
+async function create() {
+if (P.busy) return;
+const L = P.list || {}, stake = TT.cleanBet($("pr-stake").value, L.minStake || 10, Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9)), seats = Number($("pr-seats").value);
+$("pr-stake").value = stake; P.lastStake = stake;
+if (!(stake > 0)) { say("Enter a stake.", "var(--crimson)"); return; }
+if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
+P.busy = true; TT.spend(stake);
+try {
+const r = await run("prsCreate", [stake, seats]);
+if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You are already at a table.", full: "Both tables are busy - wait a moment.", stake: "Invalid stake." }[r && r.reason] || "Could not open the table.", "var(--crimson)"); }
+} catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { P.busy = false; loadList(); }
 }
-if (mech === "spaghetti" && f.turn % 5 === 0 && f.lockLeft <= 0) { f.lockLeft = 2; f.lockedStance = stance; ev(f, "mech", 0, { msg: "CABLE TRAP - stance locked for 2 turns!" }); }
-if (mech === "ransom" && f.turn % 5 === 0 && !f.ransom) { f.ransom = true; ev(f, "mech", 0, { msg: "EQUIPMENT ENCRYPTED - your ATK -20% until you land a 1.3× hit!" }); }
-if (mech === "lead" && f.turn % 4 === 0) { f.allinBlock = 2; ev(f, "mech", 0, { msg: "QUICK SYNC - ALL-IN disabled for 2 turns!" }); }
-if (mech === "cto" && f.turn % 3 === 1) { f.ctoWant = ["safe", "normal", "allin"][Math.floor(R() * 3)]; ev(f, "mech", 0, { msg: "CTO demands: " + f.ctoWant.toUpperCase() + "!", want: f.ctoWant }); }
-if (f.dot > 0) { const d = damageBoss(f, p.atk * 0.4); f.dot--; ev(f, "dot", d); }
-let mult = 0, kind = "mid", self = 0;
-if (f.jam) { f.jam = false; kind = "jam"; ev(f, "pattack", 0, { kind: "jam", stance: stance }); }
-else {
-const r = rollRow(f, stance);
-mult = r.m; kind = r.k;
-if (mech === "audit") mult = 1 + (mult - 1) * 0.5;
-let atk = p.atk * f.atkBuff * (f.ransom ? 0.8 : 1);
-if (mech === "board" && f.bhp < f.bmax * 0.5) atk *= 0.75;
-if (f.ghost) { atk *= 1.4; f.ghost = false; }
-let dmg = atk * mult;
-if (mech === "monolith" && mult < 1) dmg *= 0.4;
-if (mech === "dust") { const bd = 0.25 * (1 - f.bhp / f.bmax); if (R() < bd) { dmg = 0; kind = "bdodge"; } }
-if (kind === "bf") {
-self = p.atk * BACKFIRE_SELF[p.cls] * (1 + p.fx.bfDmg);
-if (p.cls === "engineer" && p.tier >= 2) self *= 0.7;
-if (p.cls === "sysadmin" && p.tier >= 3) { self *= 0.5; f.shield += Math.round(self); }
+async function join(id, stake) {
+if (P.busy) return;
+if (gameState.coins < stake) { say("Not enough GC for that stake.", "var(--crimson)"); return; }
+P.busy = true; TT.spend(stake);
+try {
+const r = await run("prsJoin", [id]);
+if (r && r.ok) { P.id = r.id; P.rev = -1; say(""); poll(); }
+else { refund(stake); say({ already: "You are already at a table.", seats: "The table is full.", gone: "That table is gone." }[r && r.reason] || "Could not join.", "var(--crimson)"); loadList(); }
+} catch (e) { refund(stake); say("Server error - stake returned.", "var(--crimson)"); }
+finally { P.busy = false; }
 }
-if (kind === "jp" && p.cls === "sysadmin" && p.tier >= 4 && p.branch === "b") dmg += f.shield * 2;
-const dealt = damageBoss(f, dmg);
-ev(f, "pattack", dealt, { kind: kind, mult: Math.round(mult * 100) / 100, stance: stance });
-if (self > 0) damagePlayer(f, self, "backfire");
-if (kind === "jp" && p.cls === "cyber" && p.tier >= 3) { f.dot = 3; ev(f, "mech", 0, { msg: "ZERO-DAY PAYLOAD injected!" }); }
-if (p.cls === "sysadmin" && p.tier >= 2 && stance === "safe" && mult >= 1) { const h = Math.round(p.maxHp * 0.04); f.php = Math.min(p.maxHp, f.php + h); ev(f, "heal", h); }
-if (p.cls === "engineer" && p.tier >= 3) f.ciStacks = mult >= 1 ? Math.min(4, f.ciStacks + 1) : 0;
-f.prevMult = mult >= 1 ? mult : 0;
-if (mech === "excel" && dealt > 0 && R() < 0.15) damagePlayer(f, dealt * 0.3, "reflect");
-if (mech === "broker" && mult < 0.8) f.weakStacks = Math.min(5, f.weakStacks + 1);
-if (mech === "s3" && mult >= 1.5) { f.bshield += Math.round(dealt * 0.2); ev(f, "mech", 0, { msg: "DATA SIPHON - boss gains a shield!" }); }
-if (mech === "ransom" && mult >= 1.3 && f.ransom) { f.ransom = false; ev(f, "mech", 0, { msg: "Decrypted! ATK restored." }); }
-if (mech === "hr" && (kind === "jp" || mult >= 1.6)) { f.forceSafe = 2; ev(f, "mech", 0, { msg: "MANDATORY TEAM BUILDING - forced into SAFE!" }); }
-if (mech === "llm" && (kind === "jp" || mult >= 1.6) && f.bhp > 0) { ev(f, "mech", 0, { msg: "HALLUCINATION COUNTER!" }); bossHit(f, b.atk * (0.5 + R()), "counter", stance); }
+function refund(stake) { gameState.coins += stake; gameState.gambleNet = (gameState.gambleNet || 0) + stake; updateUI(); TT.saveSoon(); }
+async function start() { if (P.busy || !P.id) return; P.busy = true; try { await run("prsStart", [P.id]); } catch (e) {} P.busy = false; poll(); }
+async function leave() {
+if (P.busy || !P.id) return;
+const v = P.view;
+if (v && v.status === "play" && v.out.indexOf(me()) < 0 && (v.fin || []).indexOf(me()) < 0 && !window.confirm("Leave the game? Your stake stays in the pot.")) return;
+P.busy = true;
+try { await run("prsLeave", [P.id]); } catch (e) {}
+P.busy = false; P.id = ""; P.view = null; P.rev = -1; clearTimeout(P.pollT); loadList();
 }
-if (f.php <= 0) return finish(f, false, start);
-if (f.bhp <= 0) return finish(f, true, start);
-let skip = false;
-if (mech === "router" && f.turn % 4 === 0) { skip = true; ev(f, "mech", 0, { msg: "Signal dropped - the router skips its attack." }); }
-if (!skip) {
-if (mech === "ddos") { for (let i = 0; i < 3; i++) bossHit(f, b.atk * 0.4, "packet", stance); }
-else {
-let a = b.atk;
-if (mech === "dust") a *= 0.5 + 0.5 * (f.bhp / f.bmax);
-if (mech === "cron") a *= (f.turn % 4 === 0 ? 2.6 : 0.6);
-if (mech === "leak") a *= 1 + 0.08 * (f.turn - 1);
-if (mech === "api" && f.bhp < f.bmax * 0.5) a *= 1.4;
-if (mech === "darkweb" && f.bhp < f.bmax * 0.3) a *= 2;
-if (mech === "mesh" && f.hitStreak >= 3) { a *= 2; f.hitStreak = 0; ev(f, "mech", 0, { msg: "CASCADE FAILURE!" }); }
-if (mech === "cto" && f.ctoWant && stance !== f.ctoWant) a *= 1.6;
-bossHit(f, a, "hit", stance);
+async function move(mv) {
+const v = P.view; if (!v || P.busy || v.status !== "play" || v.turn !== me()) return;
+P.busy = true;
+if (mv.t === "play") {                                         // hned to ukázat (optimisticky)
+v.mine = v.mine.filter(c => c !== mv.c); v.under = v.top; v.top = mv.c; v.suit = rank(mv.c) === 5 ? mv.suit : suit(mv.c); v.turn = "";
+if (rank(mv.c) === 0) { v.pen += 2; if (v.pen >= 6 && window.Meta && Meta.count) Meta.count("prsiStack", 1); }
+render();
 }
+try {
+const r = await run("prsMove", [P.id, mv]);
+if (r && r.view) apply(r.view);
+if (r && !r.ok && r.reason === "card") say("That card can't be played.", "var(--crimson)");
+} catch (e) { say("Connection problem - retrying...", "var(--crimson)"); P.rev = -1; }
+P.busy = false; poll();
 }
-if (mech === "cobol" && f.turn % 4 === 0) { const h = Math.round(f.bmax * 0.12); f.bhp = Math.min(f.bmax, f.bhp + h); ev(f, "bheal", h); }
-if (mech === "darkweb" && f.bhp < f.bmax * 0.3) { const d = Math.round(f.bmax * 0.05); f.bhp -= d; ev(f, "mech", d, { msg: "Self-destruct: the boss burns " + d + " HP." }); }
-if (f.lockLeft > 0) f.lockLeft--;
-if (f.forceSafe > 0) f.forceSafe--;
-if (f.allinBlock > 0) f.allinBlock--;
-if (f.jpDebuff > 0) f.jpDebuff--;
-if (f.php <= 0) return finish(f, false, start);
-if (f.bhp <= 0) return finish(f, true, start);
-if (mech === "bod" && f.turn >= 18) { ev(f, "mech", 0, { msg: "QUARTERLY GOALS MISSED - contract terminated!" }); return finish(f, false, start); }
-if (f.turn >= 60) { ev(f, "mech", 0, { msg: "Overtime - the boss escaped." }); return finish(f, false, start); }
-return f.events.slice(start);
+function play(c) {
+const v = P.view; if (!v || v.turn !== me() || !playable(v, c)) return;
+if (rank(c) === 5) { P.pick = c; render(); return; }
+move({ t: "play", c: c });
 }
-function bossHit(f, a, src, stance) {
-const p = f.p, R = f.R;
-if (R() < p.dodge) {
-ev(f, "dodge", 0, { src: src });
-if (p.cls === "cyber" && p.tier >= 2) { const d = damageBoss(f, a * 0.4); ev(f, "reflect", d); }
-if (p.cls === "cyber" && p.tier >= 4 && p.branch === "b") f.ghost = true;
-f.hitStreak = 0;
-return;
+function pickSuit(s) { const c = P.pick; P.pick = -1; if (c < 0) return; move({ t: "play", c: c, suit: s }); }
+function draw() { move({ t: "draw" }); }
+function render() {
+const box = $("prs-mount"); if (!box) return;
+const ae = document.activeElement;
+if (!P.id && ae && box.contains(ae) && /INPUT|SELECT/.test(ae.tagName)) return;   // nepřepisovat, když hráč zrovna píše vklad
+box.innerHTML = P.id && P.view ? tableHtml(P.view) : P.id ? `<div class="pr-info">Loading the table...</div>` : lobbyHtml();
+const h = box.querySelector(".pr-hand"); if (h && P.handScroll) h.scrollLeft = P.handScroll;
 }
-let d = a * (0.85 + 0.3 * R());
-if (f.b.mech === "broker") d *= 1 + 0.1 * f.weakStacks;
-if (stance === "safe" && p.fx.safeDef) d *= 1 - p.fx.safeDef;
-damagePlayer(f, d, src);
-f.hitStreak++;
-if (f.b.mech === "printer" && R() < 0.25) { f.jam = true; ev(f, "mech", 0, { msg: "PAPER JAM - your next attack is blocked!" }); }
-if (f.b.mech === "miner") f.jpDebuff = 2;
+function rulesHtml() {
+return `<div class="pr-info">2-6 players, everyone puts in the same stake, <b>the winner takes the pot</b> (-5%) - the rest play on for 2nd place (for glory, it goes to the chat). 4 cards each, play the same <b>suit</b> or <b>rank</b>, or draw 1.
+<b>7</b> = next player takes 2 (stack 7s: 4, 6, 8...). <b>Ace</b> = next player stands (only an ace beats it). <b>Queen</b> (Q = svršek) goes on anything and changes the suit. J = spodek.
+First one out of cards wins. 30 s per turn - 3 timeouts in a row and you are out.</div>`;
 }
-function finish(f, win, start) {
-f.over = true; f.win = win;
-f.php = Math.max(0, f.php); f.bhp = Math.max(0, f.bhp);
-ev(f, win ? "win" : "lose", 0);
-return f.events.slice(start);
+function lobbyHtml() {
+const L = P.list;
+if (!L) return rulesHtml() + `<div class="pr-info">Loading tables...</div>`;
+const active = L.tables.length;
+const rows = L.tables.map(t => `<div class="pr-trow"><div class="t">♣ <b>${short(t.stake)} GC</b> · ${esc(t.host)}'s table · ${t.players.length}/${t.seats} players<br><span style="color:var(--text-dim);font-size:10px;">${t.players.map(esc).join(", ")}</span></div>
+${t.status === "wait" && t.players.length < t.seats ? `<button class="btn btn-gold" ${gameState.coins >= t.stake && !P.busy ? "" : "disabled"} onclick="Prsi.join('${t.id}',${t.stake})">JOIN (${short(t.stake)})</button>` : `<span style="color:var(--text-dim);font-size:10px;">${t.status === "play" ? "PLAYING" : "FULL"}</span>`}</div>`).join("");
+return rulesHtml() + `<div class="pr-create">
+<span style="font-size:11px;">STAKE:</span><input type="number" class="adv-input" id="pr-stake" min="${L.minStake || 10}" step="10" value="${P.lastStake || 1000}" style="width:120px;" oninput="Prsi._st(this.value)">
+<span style="font-size:10px;color:var(--text-dim);">max ${short(Math.min(L.maxStake || 1e9, TT.maxBet ? TT.maxBet() : 1e9))}</span>
+<select id="pr-seats" onchange="Prsi._se(this.value)">${[2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === (P.lastSeats || 4) ? "selected" : ""}>${n} players</option>`).join("")}</select>
+<button class="btn btn-crimson" ${active >= (L.max || 2) || P.busy ? "disabled" : ""} onclick="Prsi.create()">♣ OPEN A TABLE</button>
+<button class="btn" onclick="Prsi.refresh()">↻</button></div>
+${P.msg ? `<div class="pr-info" style="color:${P.msgC || "var(--amber)"};">${esc(P.msg)}</div>` : ""}
+<div class="pr-tables">${rows || `<div class="pr-info">No open tables. Open one and your friends get a message in the chat.</div>`}</div>
+<div class="pr-info" style="margin-top:6px;">Max ${L.max || 2} tables at once. An unfilled table closes after 2 minutes and everyone gets their stake back.</div>`;
 }
-/** Celý souboj s pevnou strategií (pro simulace). policy(f) -> stance */
-function simulate(player, boss, seed, policy) {
-const f = newFight(player, boss, seed);
-while (!f.over) step(f, typeof policy === "function" ? policy(f) : (policy || "normal"));
-return f;
+function timeLeft(v) { return Math.max(0, (v.left || 0) - (Date.now() - P.recvAt)); }
+function tableHtml(v) {
+const myTurn = v.status === "play" && v.turn === me();
+let html = `<div class="pr-felt">`;
+html += `<div class="pr-top"><span>♣ PRŠÍ · stake ${short(v.stake)}</span><span class="pot">POT ${fmt(v.pot || v.stake * v.players.length)} GC</span><button class="btn" style="padding:3px 10px;font-size:10px;" ${P.busy ? "disabled" : ""} onclick="Prsi.leave()">${v.status === "done" ? "◀ LOBBY" : "LEAVE"}</button></div>`;
+if (v.status === "wait") {
+const seats = []; for (let i = 0; i < v.seats; i++) seats.push(v.players[i] ? `<span class="pr-seat on">${esc(v.players[i])}${v.players[i] === v.host ? " 👑" : ""}</span>` : `<span class="pr-seat">empty seat</span>`);
+html += `<div class="pr-done"><div class="big" style="font-size:16px;">WAITING FOR PLAYERS</div><div style="margin:10px 0;">${seats.join("")}</div>
+<div class="pr-info" style="color:#cfe9d4;">Starts automatically when all ${v.seats} seats are taken${v.host === me() ? " - or start now with at least 2 players" : ""}. Closes in ${Math.ceil(Math.max(0, v.waitLeft - (Date.now() - P.recvAt)) / 1000)} s if nobody comes (stakes refunded).</div>
+${v.host === me() ? `<button class="btn btn-gold" ${v.players.length >= 2 && !P.busy ? "" : "disabled"} onclick="Prsi.start()">▶ START NOW (${v.players.length} players)</button>` : ""}</div>`;
+return html + `</div>`;
 }
-const PVP_HP = 2.0;                       // v aréně mají oba víc HP, ať duel trvá ~10-16 akcí
-function duel(A, B, seed, stA, stB) {
-const R = rng(seed || 1);
-const mk = (p, st) => {
-const hp = Math.round(p.maxHp * PVP_HP);
-return { p: p, R: R, stance: st || "normal", hp: hp, max: hp, shield: Math.round(hp * p.shieldPct), ciStacks: 0, prevMult: 0, ghost: false,
-jpDebuff: 0, revived: false, dot: 0, sreHalf: false, atkBuff: p.fx.coin ? (R() < 0.5 ? 1.25 : 0.85) : 1 };
-};
-const S = [mk(A, stA), mk(B, stB)];
-const events = [];
-const snap = () => [Math.max(0, S[0].hp), Math.max(0, S[1].hp)];
-const shs = () => [S[0].shield, S[1].shield];
-const push = (e) => { e.hp = snap(); e.sh = shs(); events.push(e); };
-const hurt = (side, dmg) => {
-const p = side.p;
-if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && side.sreHalf) { dmg *= 0.5; side.sreHalf = false; }
-dmg = Math.round(dmg);
-const sh = Math.min(side.shield, dmg); side.shield -= sh; side.hp -= dmg - sh;
-let revived = false;
-if (side.hp <= 0 && p.cls === "sysadmin" && !side.revived) { side.revived = true; side.hp = Math.round(side.max * 0.10); revived = true; }
-if (p.cls === "sysadmin" && p.tier >= 4 && p.branch === "a" && dmg > side.max * 0.12) side.sreHalf = true;
-return { dmg: dmg, absorbed: sh, revived: revived };
-};
-let turn = 0, cur = R() < 0.5 ? 0 : 1;
-const first = cur;
-while (turn < 60) {
-turn++;
-const a = S[cur], d = S[1 - cur];
-if (d.dot > 0) { d.dot--; const x = hurt(d, a.p.atk * 0.4); push({ t: turn, i: cur, type: "dot", val: x.dmg }); if (d.hp <= 0) break; }
-const r = rollRow(a, a.stance);
-if (r.k === "bf") {
-let self = a.p.atk * BACKFIRE_SELF[a.p.cls] * (1 + a.p.fx.bfDmg);
-if (a.p.cls === "engineer" && a.p.tier >= 2) self *= 0.7;
-if (a.p.cls === "sysadmin" && a.p.tier >= 3) { self *= 0.5; a.shield += Math.round(self); }
-const x = hurt(a, self);
-push({ t: turn, i: cur, type: "bf", val: x.dmg, rev: x.revived });
-a.prevMult = 0; a.ciStacks = 0;
-} else if (r.m > 0 && R() < d.p.dodge) {
-push({ t: turn, i: cur, type: "dodge" });
-if (d.p.cls === "cyber" && d.p.tier >= 2) { const x = hurt(a, a.p.atk * r.m * 0.4); push({ t: turn, i: 1 - cur, type: "reflect", val: x.dmg }); }
-if (d.p.cls === "cyber" && d.p.tier >= 4 && d.p.branch === "b") d.ghost = true;
-} else {
-let atk = a.p.atk * a.atkBuff;
-if (a.ghost) { atk *= 1.4; a.ghost = false; }
-let dmg = atk * r.m;
-if (r.k === "jp" && a.p.cls === "sysadmin" && a.p.tier >= 4 && a.p.branch === "b") dmg += a.shield * 2;
-const x = hurt(d, dmg);
-push({ t: turn, i: cur, type: "hit", val: x.dmg, kind: r.k, mult: Math.round(r.m * 100) / 100, abs: x.absorbed, rev: x.revived });
-if (r.k === "jp" && a.p.cls === "cyber" && a.p.tier >= 3) d.dot = 3;
-if (a.p.cls === "sysadmin" && a.p.tier >= 2 && a.stance === "safe" && r.m >= 1) { const h = Math.round(a.max * 0.04); a.hp = Math.min(a.max, a.hp + h); push({ t: turn, i: cur, type: "heal", val: h }); }
-if (a.p.cls === "engineer" && a.p.tier >= 3) a.ciStacks = r.m >= 1 ? Math.min(4, a.ciStacks + 1) : 0;
-a.prevMult = r.m >= 1 ? r.m : 0;
+if (v.status === "done") {
+html += `<div class="pr-done"><div class="big">${v.winner === me() ? "🏆 YOU WIN!" : "🏆 " + esc(v.winner) + " WINS"}</div>
+<div style="margin-top:8px;">${v.winner === me() ? `+${fmt(v.win || Math.floor(v.pot * 0.95))} GC` : "Better luck next time."}</div>
+${v.second ? `<div style="margin-top:6px;">🥈 ${v.second === me() ? "You finished" : esc(v.second) + " finished"} second</div>` : ""}
+<div style="margin-top:12px;"><button class="btn btn-gold" onclick="Prsi.leave()">◀ BACK TO LOBBY</button></div></div>`;
+return html + logHtml(v) + `</div>`;
 }
-if (S[0].hp <= 0 || S[1].hp <= 0) break;
-cur = 1 - cur;
+const others = v.order.filter(n => n !== me()), fin = v.fin || [];
+const tl = timeLeft(v), pctT = Math.min(100, tl / 300);
+html += `<div class="pr-opps">${others.map(n => { const out = v.out.indexOf(n) >= 0, k = v.hands[n] || 0, turn = v.turn === n;
+const backs = []; for (let i = 0; i < Math.min(k, 8); i++) backs.push("<i></i>");
+const place = fin.indexOf(n);
+return `<div class="pr-opp ${turn ? "turn" : ""} ${out ? "out" : ""}"><div class="nm">${place === 0 ? "🏆 " : place === 1 ? "🥈 " : ""}${esc(n)}</div><div class="pr-backs">${backs.join("")}</div><div style="font-size:10px;">${out ? "OUT" : place >= 0 ? (place === 0 ? "WINNER" : "2ND") : k + " card" + (k === 1 ? "" : "s")}${(v.miss[n] || 0) ? " · ⏱" + v.miss[n] : ""}</div>
+${turn ? `<div class="pr-tbar"><div style="width:${pctT}%"></div></div>` : ""}</div>`; }).join("")}</div>`;
+const topIsOver = v.top >= 0 && rank(v.top) === 5;
+const badges = [];
+if (v.top >= 0 && (topIsOver || v.suit !== suit(v.top))) badges.push(`<span class="pr-badge">${ICON[v.suit]} ${SUITS[v.suit].toUpperCase()}</span>`);
+if (v.pen > 0) badges.push(`<span class="pr-badge pen">+${v.pen} CARDS</span>`);
+if (v.skip) badges.push(`<span class="pr-badge skip">ACE: STAND</span>`);
+const canDraw = myTurn && !P.busy;
+html += `<div class="pr-center">
+<div class="pr-deck ${canDraw ? "can" : ""}" ${canDraw ? `onclick="Prsi.draw()"` : ""} title="Draw"><div class="pr-card"></div><div class="cnt">${v.deck}</div></div>
+<div class="pr-pile">${v.under >= 0 ? cardHtml(v.under, "under") : ""}${v.top >= 0 ? cardHtml(v.top) : ""}</div>
+<div class="pr-badges">${badges.join("")}</div></div>`;
+const hand = v.mine.slice().sort((a, b) => suit(a) - suit(b) || rank(a) - rank(b));
+const amOut = v.out.indexOf(me()) >= 0, myPlace = fin.indexOf(me());
+if (v.winner && v.status === "play") html += `<div class="pr-info" style="text-align:center;color:#ffd700;">🏆 ${v.winner === me() ? "You won " + fmt(v.win) + " GC!" : esc(v.winner) + " won the pot."} The rest play on for 2nd place.</div>`;
+html += `<div class="pr-me ${myTurn ? "turn" : ""}">${myPlace === 0 ? "You won - watch or leave whenever you want." : amOut ? "You are out of this game." : myTurn ? `YOUR TURN · ${Math.ceil(tl / 1000)} s` : `Waiting for ${esc(v.turn)}...`}</div>`;
+html += `<div class="pr-hand" onscroll="Prsi._sc(this)">${hand.map(c => { const ok = myTurn && !P.busy && playable(v, c); return cardHtml(c, myTurn ? (ok ? "ok" : "no") : "", ok ? `onclick="Prsi.play(${c})"` : ""); }).join("")}</div>`;
+if (myTurn) {
+const has = hand.some(c => playable(v, c));
+const lbl = v.pen > 0 ? `TAKE ${v.pen} CARDS` : v.skip ? "STAND (ACE)" : "DRAW 1";
+html += `<div class="pr-acts"><button class="btn ${has ? "" : "btn-gold"}" ${P.busy ? "disabled" : ""} onclick="Prsi.draw()">${lbl}</button></div>`;
+if (!has) html += `<div class="pr-info" style="text-align:center;color:#ffd700;margin:4px 0 0;">No card fits - ${v.pen > 0 ? "take the cards" : v.skip ? "you stand this turn" : "draw one"}.</div>`;
 }
-let winner;
-if (S[0].hp <= 0 && S[1].hp <= 0) winner = 1;              // oba padli (backfire) - vyhrává obránce
-else if (S[0].hp <= 0) winner = 1;
-else if (S[1].hp <= 0) winner = 0;
-else winner = (S[0].hp / S[0].max >= S[1].hp / S[1].max) ? 0 : 1;   // limit tahů: rozhodne % HP
-return { win: winner === 0, winner: winner, first: first, turns: turn, events: events, max: [S[0].max, S[1].max], hp: snap() };
+if (P.msg) html += `<div class="pr-info" style="text-align:center;color:${P.msgC || "var(--amber)"};margin-top:4px;">${esc(P.msg)}</div>`;
+if (P.pick >= 0) html += `<div class="pr-pick"><div style="font:800 13px Orbitron,monospace;color:#ffd700;">QUEEN: PICK THE NEW SUIT</div><div class="row">${[0, 1, 2, 3].map(s => `<button onclick="Prsi.suit(${s})">${ICON[s]}${SUITS[s].toUpperCase()}</button>`).join("")}</div><button class="btn" onclick="Prsi.suit(-2)">CANCEL</button></div>`;
+return html + logHtml(v) + `</div>`;
 }
-/** síla postavy (pro řazení soupeřů v aréně) */
-function power(p) { return Math.round(Math.sqrt(p.atk * p.maxHp) * (1 + p.dodge)); }
-function xpToNext(L) { return 75 + 30 * L; }
-function winXp(floor, first) { return Math.round((30 + 12 * floor) * (first ? 2.5 : 1)); }
-function refGear(floor) { return 1 + 0.06 * floor; }
-const api = {
-rng: rng, TABLES: TABLES, tableEV: tableEV, CLASSES: CLASSES, ARTIFACTS: ARTIFACTS, ARTIFACT_BY_ID: ARTIFACT_BY_ID, artifactText: artifactText,
-BOSSES: BOSSES, PROMOS: PROMOS, bossFor: bossFor, bossStats: bossStats, promoBoss: promoBoss, setBossTable: function (t, pt) { BOSS_TABLE = t; if (pt) PROMO_TABLE = pt; },
-gearSlotValue: gearSlotValue, buildPlayer: buildPlayer, newFight: newFight, step: step, allowedStances: allowedStances, simulate: simulate,
-xpToNext: xpToNext, winXp: winXp, refGear: refGear, duel: duel, power: power, PVP_HP: PVP_HP
-};
-if (typeof module !== "undefined" && module.exports) module.exports = api;
-else root.DungeonEngine = api;
-})(typeof window !== "undefined" ? window : this);
+function logHtml(v) { return `<div class="pr-log">${(v.log || []).slice().reverse().map(l => `<div>${esc(l.t)}</div>`).join("")}</div>`; }
+function show() { glow(false); if (P.id) poll(); else loadList(); render(); }
+function tick() {
+if (!visible()) return;
+if (P.view && P.view.status === "play") { const el = document.querySelector(".pr-me.turn"); if (el && P.view.turn === me()) el.textContent = `YOUR TURN · ${Math.ceil(timeLeft(P.view) / 1000)} s`; const tb = document.querySelector(".pr-opp.turn .pr-tbar div"); if (tb) tb.style.width = Math.min(100, timeLeft(P.view) / 300) + "%"; }
+else if (P.view && P.view.status === "wait") render();
+else if (!P.id && Date.now() - P.lastList > 5000) loadList();
+}
+window.Prsi = { show: show, create: create, join: join, start: start, leave: leave, play: play, draw: draw,
+suit: function (s) { if (s === -2) { P.pick = -1; render(); return; } pickSuit(s); }, refresh: loadList, _st: function (v) { P.lastStake = Math.floor(Number(v)) || 0; }, _se: function (v) { P.lastSeats = Number(v) || 4; }, _sc: function (el) { P.handScroll = el.scrollLeft; },
+state: () => P, playable: playable };
+function boot() {
+if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 200); return; }
+TT.onLoaded(() => setTimeout(loadList, 5000));                       // návrat ke stolu po obnovení stránky + vyplacení
+setInterval(tick, 1000);
+setInterval(() => { if (!P.id && !visible()) loadList(); }, 60000);   // svítící záložka, když někdo čeká u stolu
+const prev = TT.isBusy; TT.isBusy = function () { return prev() || !!(P.view && P.view.status === "play" && P.view.out.indexOf(me()) < 0 && (P.view.fin || []).indexOf(me()) < 0); };
+}
+boot();
+})();
 </script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["prsi"] = 1;</script>
 <!-- END-OF-FILE: prsi -->

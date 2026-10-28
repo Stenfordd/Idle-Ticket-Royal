@@ -1,3 +1,20 @@
+<style>
+/* ===== v11 HIGH STAKES DUEL - živý 1v1 s kamarádem ===== */
+.du-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.du-form label { font-size: 11px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
+.du-form input, .du-form select { background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); color: var(--text-main); border-radius: 6px; padding: 8px; font-size: 13px; }
+.du-list .dg-art { cursor: default; }
+.du-role { text-align: center; margin: 8px 0 4px; font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; }
+.du-role.atk { color: var(--amber); } .du-role.react { color: var(--cyan); }
+.du-role small { display: block; font: 400 11px sans-serif; letter-spacing: 0; color: var(--text-dim); margin-top: 2px; }
+.du-timer { height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin: 4px 0 6px; }
+.du-timer div { height: 100%; background: linear-gradient(90deg, var(--crimson), var(--amber)); transition: width .25s linear; }
+.du-al { display: grid; grid-template-columns: 52px 1fr repeat(2, auto) 44px repeat(2, auto); gap: 4px; align-items: center; margin-top: 6px; font-size: 12px; }
+.du-al .btn { padding: 5px 8px; font-size: 11px; }
+.du-al .v { text-align: center; font: 800 14px 'Orbitron', monospace; color: var(--amber); }
+.du-wait { text-align: center; padding: 12px; font-size: 12px; color: var(--text-dim); }
+@media (max-width: 700px) { .du-form { grid-template-columns: 1fr; } }
+</style>
 <script>
 (function () {
 "use strict";
@@ -151,7 +168,7 @@ if (v.role === "atk") return `<div class="hs-acts">${H.PVP_ATK.map(a => { const 
 const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
 return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
 return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
-const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " FOC · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "30 FOC · ring -17-45%" : "+15 STA +10 FOC";
+const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "15 STA · ring -17-45%" : "+15 STA +10 FOC";
 return `<button class="btn btn-cyan" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${r}')">${R0.icon} ${R0.name}<small>${t}</small></button>`; }).join("")}</div>`;
 }
 /** v11.2: rovné podmínky - rozdělení bodů před startem */
@@ -268,271 +285,5 @@ setInterval(() => { if (!K.id && (onTab() || Date.now() - K.listAt > 60000)) loa
 })();
 })();
 </script>
-<style>
-/* ===== v8.8 THE COLLEAGUE: pomocník, který farmí poražené bosse a kliká za tebe ===== */
-.cl-row { display: flex; gap: 10px; align-items: center; }
-.cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
-.cl-name { font: 900 14px 'Orbitron', monospace; color: var(--emerald); letter-spacing: 1px; }
-.cl-quip { font-size: 11px; color: var(--text-dim); font-style: italic; margin-top: 2px; }
-.cl-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
-.cl-slot { padding: 5px; border-radius: 6px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); font-size: 10px; text-align: center; min-width: 0; }
-.cl-slot b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-boss { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 5px; cursor: pointer; }
-.cl-boss.sel { border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald) inset; }
-.cl-boss .ic { font-size: 20px; width: 26px; text-align: center; }
-.cl-boss .t { flex: 1; min-width: 0; font-size: 11px; }
-.cl-boss .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cl-boss .wr { font: 800 11px 'Orbitron', monospace; }
-.cl-give { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px; }
-.cl-give span { flex: 1; min-width: 0; }
-.cl-give .btn { padding: 4px 10px; font-size: 10px; }
-.cl-log div { font-size: 11px; color: var(--text-dim); padding: 2px 0; }
-.cl-sleep { text-align: center; padding: 18px 10px; }
-.cl-sleep .big { font-size: 44px; }
-</style>
-<script>
-(function () {
-"use strict";
-const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign, E = window.DungeonEngine;
-const $ = (id) => document.getElementById(id);
-const fmt = (n) => Math.floor(n).toLocaleString();
-const short = (n) => { n = Math.floor(n); return n >= 1e12 ? (n / 1e12).toFixed(1) + "T" : n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(0) + "K" : n.toLocaleString(); };
-const esc = (t) => escapeHtml(String(t));
-const FIGHT_MS = 20 * 60000, CLICK_MS = 30000, AWAY_MAX = 8 * 3600000, POWER_CAP = 0.6, WAKE_BOSS = 29;
-const FIRST = ["David", "Dan", "Gabriel", "Kevin", "Steve", "Mike", "Tom", "Paul", "Martin", "Lukas", "Jakub", "Honza", "Pepa", "Franta", "Jarda", "Ondra", "Filip", "Adam", "Petr", "Vojta",
-"Tereza", "Klara", "Brenda", "Sandra", "Olga", "Zoe", "Nancy", "Linda", "Eva", "Karen"];
-const NICK = ["Hotfix", "Legacy", "Overtime", "Root", "Sudo", "Spaghetti", "Ctrl+C", "The Intern", "Senior", "No Docs", "Rollback", "Merge Master", "404", "Coffee", "Monday", "Burnout", "Rubber Duck", "Ticket Killer"];
-const MEME = [
-["Kevin from Accounting", "I counted the GC twice, it's fine."], ["Steve (Unpaid Intern)", "Do I get paid for this? ...no? Okay."], ["Gary the Printer Whisperer", "The printer and I have an understanding."],
-["Mr. Works On My Machine", "Works on my machine. Ship it."], ["Chad Deploy-on-Friday", "Pushed to prod. On Friday. You're welcome."], ["Legacy Larry", "Don't touch it. It works. Nobody knows why."],
-["Bobby Tables", "'); DROP TABLE bosses;--"], ["Reply-All Randy", "Replying all to confirm I replied all."], ["Copy-Paste Pete", "Found the answer on page 7 of a forum from 2009."],
-["Merge Conflict Mike", "Accept both changes. What could go wrong?"], ["Null Pointer Nancy", "undefined is not a function. Neither is this boss."], ["Stack Overflow Steve", "Marked as duplicate. Boss closed."],
-["Jira Jerry", "Moved the boss to DONE."], ["Hotfix Hank", "Hotfix deployed. Hotfix for the hotfix incoming."], ["Quick Sync Quinn", "Just a quick 5-minute fight."],
-["Synergy Sandra", "Let's leverage our core synergies going forward."], ["Excel Ernie", "I made a pivot table of the boss's weaknesses."], ["Out-Of-Office Olga", "I'm out of office. But also I won."],
-["Ctrl+Z Zoe", "Undid my mistakes. All of them."], ["Sudo Sam", "sudo win"], ["Patch Tuesday Tom", "Rebooting the boss. Please wait."],
-["404 Dave", "Nobody could find me. Including the boss."], ["Dev Null", "Sent the boss to /dev/null."], ["Coffee-Driven Kyle", "Third coffee. Fourth boss."],
-["Lunch Break Luke", "Back from lunch. What did I miss?"], ["Jarda z IT", "Did you try turning it off and on again?"], ["Pepa od tiskárny", "PC LOAD LETTER. Sorted."]
-];
-const QUIPS = ["Another one done.", "Tickets closed, boss closed.", "Coffee was cold, the fight was hot.", "I'll put it in the weekly report.", "Easy. Well, mostly.", "Can I go home now?"];
-function rollName() {
-if (Math.random() < 0.3) { const m = MEME[Math.floor(Math.random() * MEME.length)]; return { name: m[0], quip: m[1] }; }
-let n = FIRST[Math.floor(Math.random() * FIRST.length)];
-if (Math.random() < 0.3) n += " '" + NICK[Math.floor(Math.random() * NICK.length)] + "'";
-return { name: n, quip: "" };
-}
-function st() {
-const d = A.HS();
-if (!d.col || typeof d.col !== "object") d.col = {};
-const c = d.col;
-c.level = Math.max(1, Math.floor(Number(c.level) || 1)); c.xp = Math.max(0, Number(c.xp) || 0);
-if (!c.gear || typeof c.gear !== "object") c.gear = {};
-if (c.gmig !== 2) { c.gear = {}; c.gmig = 2; }                     // v10: nový gear (loot) - kolega začíná s prázdnou výbavou
-if (!c.stats || typeof c.stats !== "object") c.stats = { w: 0, l: 0, gc: 0, clicks: 0 };
-if (!Array.isArray(c.log)) c.log = [];
-if (!H.CLASSES[c.cls]) c.cls = "engineer";
-c.tn = Math.max(1, Math.floor(Number(c.tn) || 1));
-if (!c.unlocked && (d.tower.best >= 100 || (d.pool && d.pool.unlocked))) c.unlocked = true;     // Administrator už padl
-if (c.unlocked && !c.name) { const r = rollName(); c.name = r.name; c.quip = r.quip; }
-return c;
-}
-function awake() { const c = st(); return !!c.unlocked && A.clearedAny(WAKE_BOSS); }
-/** v11.1: bossové poražení v aktuálním běhu High Stakes -> klíč (P+1)*100 + id */
-function bossesBeaten() {
-const d = A.HS(), out = [], P = d.hsp || 0, sm = d.sm || {};
-C.LIST.forEach(m => { if ((m.k === "boss" || m.k === "mini" || m.k === "secret" || m.k === "elite") && (sm[m.id] || 0) > 0) out.push((P + 1) * 100 + m.id); });
-return out;
-}
-const keyN = (k) => Math.max(0, Math.floor(k / 100) - 1), keyId = (k) => k % 100;
-/** v8.8: kolega má 80 % tvého levelu; v9.0: TRÉNINK se kupuje za GC (+2 % síly za level, max 15) */
-const TRAIN_MAX = 15;
-function trainCost() { return Math.round(25000 * Math.pow(1.55, trainLv())); }
-function colLevel() { return Math.max(1, Math.round(A.HS().level * 0.8)); }
-function xpToNext(L) { return 150 + 90 * L; }
-function trainLv() { return Math.min(TRAIN_MAX, st().level - 1); }
-/** kolega: vlastní výbava + level, nikdy silnější než 60 % tebe */
-function hero() {
-const c = st();
-const L = colLevel(), pts = H.statPoints(L);
-const g = window.Gear ? Gear.multOf(c.gear, L) : {};
-const mk = (H.CLASSES[c.cls] || {}).main || "str", stats = { vit: Math.round(pts * 0.3), luck: Math.round(pts * 0.2) }; stats[mk] = pts - stats.vit - stats.luck;
-const hh = H.buildHero({ cls: c.cls, level: L, stats: stats }, g);
-const tb = 1 + 0.02 * trainLv();                                   // trénink: +2 % za level
-hh.wpn *= tb; hh.atk *= tb; hh.maxHp = Math.round(hh.maxHp * tb);
-const me = A.hero(), k = Math.min(1, me.atk * POWER_CAP / Math.max(1, hh.atk));
-hh.wpn *= k; hh.atk *= k; hh.maxHp = Math.round(Math.min(hh.maxHp, me.maxHp * POWER_CAP));
-return hh;
-}
-/** souboj kolegy = stejný engine, jen hraje počítač (a hůř trefuje parry a ulti než ty) */
-function simFight(id, seed) {
-const PS = H.PARRY_SKILL, US = H.ULT_SKILL, keep = [PS.perfect, PS.good, US.q, US.all];
-PS.perfect = 0.15; PS.good = 0.35; US.q = 0.9; US.all = 0.3;
-try { return H.simulate(hero(), C.mission(keyId(id), keyN(id)), seed); }
-finally { PS.perfect = keep[0]; PS.good = keep[1]; US.q = keep[2]; US.all = keep[3]; }
-}
-const wrCache = {};
-function winRate(id) {
-const c = st(), key = id + "|" + c.level + "|" + c.cls + "|" + JSON.stringify(c.gear) + "|" + A.HS().level + "|" + (gameState.prestige || 0);
-if (wrCache[id] && wrCache[id].k === key) return wrCache[id].v;
-let w = 0; for (let i = 0; i < 24; i++) if (simFight(id, 777 + i * 131).win) w++;
-const v = w / 24; wrCache[id] = { k: key, v: v }; return v;
-}
-function reward(key) {
-const id = keyId(key), n = keyN(key), x = id + 50 * (n - 1);
-const gc = Math.round(C.gcFor(id, false, n) * 2 + (typeof calculateAutoGcRate === "function" ? calculateAutoGcRate() : 0) * (120 + 6 * Math.min(100, x)));   // + 2-12 min autogenu
-const scrap = Math.round((typeof getChestScrapCost === "function" ? getChestScrapCost() : 100) * (1 + x / 20));
-const xp = Math.round(C.xpFor(id, false, n) * 0.5);
-return { gc: gc, scrap: scrap, xp: xp };
-}
-let lastReport = null;
-function work(silent) {
-if (typeof gameState === "undefined" || !gameLoaded) return null;
-const c = st(), now = Date.now();
-if (!c.unlocked) return null;
-if (!awake()) { c.fightAt = now; c.clickAt = now; return null; }
-if (!c.fightAt) c.fightAt = now; if (!c.clickAt) c.clickAt = now;
-const from = Math.max(c.fightAt, now - AWAY_MAX), fromC = Math.max(c.clickAt, now - AWAY_MAX);
-const nf = Math.floor((now - from) / FIGHT_MS), nc = Math.floor((now - fromC) / CLICK_MS);
-if (!nf && !nc) return null;
-const rep = { w: 0, l: 0, gc: 0, scrap: 0, xp: 0, tok: 0, clicks: nc, tickets: 0, boss: "", gear: 0, gearTxt: [] };
-if (nc) {
-const t = (typeof calculateClickPower === "function" ? calculateClickPower() : 1) * nc;
-gameState.tickets += t; gameState.lifetimeTickets = (gameState.lifetimeTickets || 0) + t; rep.tickets = t; c.stats.clicks += nc;
-}
-c.clickAt = fromC + nc * CLICK_MS;
-const ids = bossesBeaten();
-if (nf && c.target != null && ids.indexOf(c.target) >= 0) {
-const id = c.target, m = C.mission(keyId(id), keyN(id)); rep.boss = m.enemy.name;
-const wr = winRate(id), r = reward(id);
-const boss = m.kind === "boss" || m.kind === "secret" || m.kind === "mini";
-for (let i = 0; i < nf; i++) {
-if (Math.random() < wr) { rep.w++; rep.gc += r.gc; rep.scrap += r.scrap; rep.xp += r.xp; if (Math.random() < 0.02) rep.tok++;
-if (boss && window.Gear && Math.random() < 0.1 && rep.gear < 3) { const lines = []; if (Gear.drop(m, lines, true)) { rep.gear++; rep.gearTxt.push(lines.join(" ")); } } }      // v11.1: 10 % na gear z bosse
-else rep.l++;
-}
-gameState.coins += rep.gc; gameState.scrap += rep.scrap; gameState.slotTokens += rep.tok;
-if (rep.xp) { const lines = []; A.gainXp(rep.xp, lines); }
-c.stats.w += rep.w; c.stats.l += rep.l; c.stats.gc += rep.gc;
-}
-c.fightAt = from + nf * FIGHT_MS;
-if (rep.w || rep.l) {
-const line = `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${esc(rep.boss)}: ${rep.w}W ${rep.l}L · +${short(rep.gc)} GC · +${short(rep.scrap)} scrap${rep.tok ? " · +" + rep.tok + " 🎟" : ""}`;
-c.log.unshift(line); c.log = c.log.slice(0, 12);
-if (!silent) log(`🧑‍💼 ${esc(c.name)}: ${rep.w ? "beat " + esc(rep.boss) + (rep.w > 1 ? " " + rep.w + "×" : "") : "lost to " + esc(rep.boss)} → +${short(rep.gc)} GC, +${short(rep.scrap)} scrap${rep.tok ? ", +" + rep.tok + " 🎟" : ""}`, rep.w ? "success" : "warning");
-rep.gearTxt.forEach(t => log(`🧑‍💼 ${esc(c.name)} brought you loot: ${t}`, "special"));
-}
-TT.saveSoon();
-return rep;
-}
-/** v9.0: trénink za GC */
-function train() {
-const c = st(); if (!c.unlocked || trainLv() >= TRAIN_MAX) { TT.holdStop = true; return; }
-const cost = trainCost();
-if (gameState.coins < cost) { TT.holdStop = true; log(`Training costs ${fmt(cost)} GC.`, "warning"); return; }
-gameState.coins -= cost; c.level++; c.xp = 0; c.named = true;
-log(`🧑‍💼 ${esc(c.name)} reached training level ${trainLv()} (+${2 * trainLv()}% power)!`, "special");
-if (trainLv() >= TRAIN_MAX) TT.holdStop = true;
-after();
-}
-/** v10.2: kolega už nebere gear automaticky (dostával lepší než ty a jeho starý kus mizel) - výbavu mu dáváš ručně (Gear.toCol) */
-function takeGear(k, old) { return false; }
-function takeGearOld(k, old) {
-const c = st(); if (!c.unlocked || !window.Gear) return false;
-const cur = c.gear[k];
-if (!old || old.lv == null || (cur && cur.lv != null && Gear.score(cur) >= Gear.score(old))) return false;
-c.gear[k] = Object.assign({}, old); c.named = true;
-log(`🧑‍💼 ${esc(c.name)} took your old ${Gear.name(k, old)}.`, "success");
-return true;
-}
-function target(id) { const c = st(); if (bossesBeaten().indexOf(id) < 0) return; work(true); c.target = id; c.fightAt = Date.now(); after(); }
-function cls(k) { const c = st(); if (c.named) return; c.cls = k; after(); }
-function reroll() { const c = st(); if (c.named) return; const r = rollName(); c.name = r.name; c.quip = r.quip; after(); }
-function rename() {
-const c = st(); const n = prompt("Name your colleague (max 24 characters):", c.name || "");
-if (n == null) return; const t = String(n).replace(/[<>]/g, "").trim().slice(0, 24); if (!t) return;
-c.name = t; c.quip = ""; after();
-}
-function after() { TT.saveSoon(); if (A.isOpen() && A.view() === "colleague") A.render(); if (typeof updateUI === "function") updateUI(); }
-function html(box) {
-const d = A.HS(), c = st();
-if (!c.unlocked) {
-box.innerHTML = `<div class="dg-card dg-lock"><div class="big">🧑‍💼</div><div style="font:800 14px Orbitron,monospace;color:var(--emerald);margin:8px 0;">THE COLLEAGUE - LOCKED</div>
-<div class="dg-dim">Beat <b>THE ADMINISTRATOR</b> on Tower floor 100 to get a colleague. They farm bosses you have beaten and resolve tickets for you - even while you're away (up to 8 h).<br>Tower: ${d.tower.best}/100</div></div>`;
-return;
-}
-work(false);
-const aw = awake(), h = hero(), me = A.hero();
-const sp = window.HSRig ? HSRig.player(c.cls, window.Gear ? Gear.vis(c.gear) : c.gear) : A.sprite(A.SPRITE_IDX[c.cls] || 0, "p");
-const head = `<div class="dg-card"><div class="cl-row">${sp}<div style="flex:1;min-width:0;">
-<div class="cl-name">${esc(c.name)}</div>${c.quip ? `<div class="cl-quip">“${esc(c.quip)}”</div>` : ""}
-<div class="dg-dim" style="margin-top:4px;">${H.CLASSES[c.cls].icon} ${H.CLASSES[c.cls].name} · LV ${colLevel()} (80% of yours) · 📚 training ${trainLv()}/${TRAIN_MAX}${trainLv() < TRAIN_MAX ? ` (XP ${fmt(c.xp)}/${fmt(xpToNext(c.level))})` : " MAX"}<br>
-❤ ${fmt(h.maxHp)} · ⚔ ${fmt(h.atk)} <span style="opacity:.7;">(max ${Math.round(POWER_CAP * 100)}% of yours: ❤ ${fmt(me.maxHp * POWER_CAP)} ⚔ ${fmt(me.atk * POWER_CAP)})</span><br>
-Record: ${c.stats.w}W / ${c.stats.l}L · earned ${short(c.stats.gc)} GC · ${fmt(c.stats.clicks)} clicks</div></div></div>
-${c.named ? `<div class="dg-row" style="margin-top:8px;"><button class="btn" onclick="Colleague.rename()">✏ RENAME</button></div>` :
-`<div class="dg-row" style="margin-top:8px;flex-wrap:wrap;"><button class="btn btn-cyan" onclick="Colleague.reroll()">🎲 REROLL NAME</button><button class="btn" onclick="Colleague.rename()">✏ CUSTOM NAME</button>
-${H.CLASS_IDS.map(k => `<button class="btn ${c.cls === k ? "btn-gold" : ""}" title="${H.CLASSES[k].name}" onclick="Colleague.cls('${k}')">${H.CLASSES[k].icon}</button>`).join("")}</div>
-<div class="dg-dim" style="margin-top:4px;">Name and class lock in after the first training or gear.</div>`}
-<div class="cl-slots">${["w", "a", "h", "t"].map(k => { const p = c.gear[k] && c.gear[k].lv != null ? c.gear[k] : null, P = window.Gear ? Gear.PIECES[k] : { i: "", n: k }; return `<div class="cl-slot"><span style="opacity:.6;">${P.i} ${P.n}</span><b style="color:${p ? Gear.RAR[p.r].c : "var(--text-muted)"};">${p ? esc(Gear.name(k, p)) : "nothing yet"}</b>${p ? `<div class="dg-dim" style="font-size:10px;">LV ${p.lv}${p.u ? " +" + p.u : ""}</div>${p.u < Gear.UMAX ? `<button class="btn ${gameState.coins >= Gear.upCost(p) ? "btn-gold" : ""}" style="padding:2px 6px;font-size:11px;margin-top:3px;" data-hold="colup-${k}" onclick="Gear.upCol('${k}')">⬆ +${p.u + 1} · ${short(Gear.upCost(p))}</button>` : ""}<button class="btn" style="padding:2px 6px;font-size:11px;margin-top:3px;" onclick="Gear.fromCol('${k}')">↩ Take back</button>` : ""}</div>`; }).join("")}</div>
-${window.Gear ? Gear.colGiveHtml(c) : ""}</div>`;
-if (!aw) {
-box.innerHTML = head + `<div class="dg-card cl-sleep"><div class="big">💤</div><div style="font:800 13px Orbitron,monospace;color:var(--text-dim);margin:6px 0;">${esc(c.name)} is still sleeping...</div>
-<div class="dg-dim">Your colleague needs a wake-up call: beat <b>${esc(C.mission(WAKE_BOSS, 0).enemy.name)}</b> (chapter 3 boss) to get them to work. You can still train them and give them gear.</div></div>` + trainHtml(c);
-return;
-}
-const ids = bossesBeaten();
-const tgt = c.target != null && ids.indexOf(c.target) >= 0 ? c.target : null;
-const nextF = tgt != null ? Math.max(0, FIGHT_MS - (Date.now() - c.fightAt)) : 0;
-const bosses = ids.slice().reverse().slice(0, 30).map(id => {
-const m = C.mission(keyId(id), keyN(id)), wr = winRate(id), r = reward(id), col = wr >= 0.7 ? "var(--emerald)" : wr >= 0.35 ? "var(--amber)" : "var(--crimson)";
-return `<div class="cl-boss ${tgt === id ? "sel" : ""}" onclick="Colleague.target(${id})"><span class="ic">${m.enemy.icon}</span><div class="t"><b>${esc(m.enemy.name)} · LV ${m.level}</b><span class="dg-dim">win: +${short(r.gc)} GC · +${short(r.scrap)} scrap · +${fmt(r.xp)} XP</span></div><span class="wr" style="color:${col};">${Math.round(wr * 100)}%</span></div>`;
-}).join("") || `<div class="dg-dim">Beat some elites or bosses in the campaign first.</div>`;
-box.innerHTML = head + `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>🎯 BOSS TO FARM</span><span class="dg-dim">${tgt != null ? "next fight in " + A.fmtT(nextF) : "pick one"}</span></div>
-<div class="dg-dim" style="margin-bottom:6px;">Bosses you beat in this High Stakes run. One fight every 20 min (no energy), win chance on the right, 10% chance to bring you gear from a boss. Harder bosses pay more but ${esc(c.name)} wins less often. Every 30 s they also resolve a ticket with your click power. Works while you're away for up to 8 h.</div>${bosses}</div>
-<div><div class="dg-card"><div class="dg-h">📋 WORK LOG</div><div class="cl-log">${c.log.length ? c.log.map(l => `<div>${l}</div>`).join("") : `<div>Nothing yet.</div>`}</div></div>${trainHtml(c)}</div></div>`;
-}
-function trainHtml(c) {
-const L = trainLv(), max = L >= TRAIN_MAX, cost = max ? 0 : trainCost(), ok = !max && gameState.coins >= cost;
-return `<div class="dg-card"><div class="dg-h"><span>📚 Training</span><span class="dg-dim">${L}/${TRAIN_MAX} · +${2 * L}% power</span></div>
-<div class="dg-dim" style="margin-bottom:6px;">Send ${esc(c.name)} to a course: +2% ATK and HP per level (max ${TRAIN_MAX}). Gear comes from you - when you evolve a piece, your old one goes to them if it's better.</div>
-<button class="btn ${ok ? "btn-gold" : ""}" style="width:100%;padding:10px;" ${ok ? "" : "disabled"} data-hold="col-train" onclick="Colleague.train()">${max ? "Fully trained" : `Train to level ${L + 1} · ${short(cost)} GC`}</button></div>`;
-}
-function report(rep) {
-const c = st();
-if (!rep || (!rep.w && !rep.l && rep.clicks < 20)) return;
-const el = document.createElement("div");
-el.className = "tt-overlay open"; el.style.zIndex = 9995;
-el.onclick = (e) => { if (e.target === el) el.remove(); };
-const q = c.quip || QUIPS[Math.floor(Math.random() * QUIPS.length)];
-el.innerHTML = `<div class="tt-modal" style="border-color:var(--emerald);"><h2 style="color:var(--emerald);">🧑‍💼 WHILE YOU WERE AWAY</h2>
-<div class="tt-body" style="min-height:0;font-size:13px;line-height:1.6;"><b style="color:var(--emerald);">${esc(c.name)}</b>${rep.boss ? ` fought <b>${esc(rep.boss)}</b> ${rep.w + rep.l}× (${rep.w} won, ${rep.l} lost)` : ""}${rep.boss ? " and" : ""} resolved ${fmt(rep.clicks)} tickets.<br>
-💰 +${short(rep.gc)} GC · ⚙ +${short(rep.scrap)} scrap · 🎫 +${short(rep.tickets)} tickets${rep.xp ? " · +" + fmt(rep.xp) + " XP" : ""}${rep.tok ? " · 🎟 +" + rep.tok : ""}
-<div class="cl-quip" style="margin-top:8px;">“${esc(q)}”</div></div>
-<div style="margin-top:12px;"><button class="btn btn-gold" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">NICE</button></div></div>`;
-document.body.appendChild(el);
-}
-function chip() {
-if (typeof gameState === "undefined" || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return "";
-const c = gameState.hs.col;
-return awake() ? `<span class="buff-chip on" title="Your colleague is farming bosses and clicking for you">🧑‍💼 ${esc(c.name)}</span>` : `<span class="buff-chip" title="Beat the chapter 3 boss to wake them up">💤 ${esc(c.name)}</span>`;
-}
-A.registerMode("colleague", { label: "🧑‍💼 COLLEAGUE", order: 70, render: html });
-window.Colleague = { awake: awake, train: train, takeGear: takeGear, trainCost: trainCost, target: target, cls: cls, reroll: reroll, rename: rename, work: work, chip: chip, hero: hero, winRate: winRate, simFight: simFight, rollName: rollName, MEME: MEME, FIRST: FIRST };
-let wasAwake = null;
-(function boot() {
-if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
-TT.onLoaded(() => setTimeout(() => { try { wasAwake = awake(); const r = work(true); report(r); } catch (e) { console.error(e); } }, 2500));
-setInterval(() => {
-try {
-if (typeof gameState === "undefined" || !gameLoaded || !gameState.hs || !gameState.hs.col || !gameState.hs.col.unlocked) return;
-const a = awake();
-if (wasAwake === false && a) log(`☕ ${esc(gameState.hs.col.name)} woke up. Back to work!`, "special");
-if (wasAwake === true && !a) log(`💤 ${esc(gameState.hs.col.name)} fell asleep after your prestige. Beat ${esc(C.mission(WAKE_BOSS).enemy.name)} to wake them up.`, "warning");
-wasAwake = a;
-work(false);
-if (A.isOpen() && A.view() === "colleague" && !document.querySelector(".hs-ov") && !document.querySelector(".tt-overlay.open")) A.render();
-} catch (e) { console.error(e); }
-}, 10000);
-})();
-})();
-</script>
-<script>(window.__TT_FILES = window.__TT_FILES || {})["part21"] = 1;</script>
-<!-- END-OF-FILE: part21 -->
+<script>(window.__TT_FILES = window.__TT_FILES || {})["duel"] = 1;</script>
+<!-- END-OF-FILE: duel -->

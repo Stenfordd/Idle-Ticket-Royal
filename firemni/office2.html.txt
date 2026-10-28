@@ -1,0 +1,273 @@
+<script type="text/plain" data-tt="tt_office_1" data-i="2">const list = gameState.inventory.filter(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL && !enhOf(s))
+.sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0)));
+const eg = enhMergeGroups();
+const sig = list.map(stackKey).join(",") + "#" + list.map(x => x.n).join(",") + "#" + eg.map(g => g.key + g.best.e + g.eq + g.lost).join(",");
+if (_txt.mergeSig === sig) return; _txt.mergeSig = sig;
+setHtml("merge-skip", eg.length ? `MERGE ALL skips ⚒ items (${eg.length} group${eg.length > 1 ? "s" : ""})` : "");
+if (list.length === 0 && eg.length === 0) {
+box.innerHTML = `<div class="bp-empty" style="padding:12px;">No ${MERGE_COUNT}× identical items ready to merge.</div>`;
+return;
+}
+box.innerHTML = eg.map(g => {
+const E = g.best.e.length;
+return `<div class="merge-card" style="border-color:rgba(255,184,0,.45);">
+<div class="merge-card-info">
+<span class="merge-card-title" style="color:var(--rarity-t${g.tier});">${itemName(g)} +${g.lvl} <span class="enh-tag">⚒${E} → ⚒${Math.max(0, E - 1)}</span></span>
+<span class="merge-card-count">${g.units.length} available${g.eq ? " · incl. equipped" : ""} &bull; ${MERGE_COUNT}× → +${g.lvl + 1}${g.lost ? " · uses up ⚒" + g.lost : ""}</span>
+</div>
+<div style="display:flex;gap:4px;"><button class="btn btn-gold" onclick="mergeEnh('${g.key}')">MERGE</button></div>
+</div>`;
+}).join("") + list.map(s => {
+const key = stackKey(s);
+const times = Math.floor(s.n / MERGE_COUNT);
+return `<div class="merge-card">
+<div class="merge-card-info">
+<span class="merge-card-title" style="color:var(--rarity-t${s.tier});">${itemName(s)} +${s.lvl || 0}</span>
+<span class="merge-card-count">${s.n} owned &bull; ${MERGE_COUNT}× → +${(s.lvl || 0) + 1}</span>
+</div>
+<div style="display:flex;gap:4px;">
+<button class="btn btn-cyan" onclick="performSmartMerge('${key}',1)">×1</button>
+${times > 1 ? `<button class="btn btn-gold" onclick="performSmartMerge('${key}',${times})">ALL (${times})</button>` : ""}
+</div>
+</div>`;
+}).join("");
+}
+function mergeAll() {
+let ok = 0, crit = 0, fail = 0, refund = 0, rounds = 0;
+for (; rounds < 60; rounds++) {
+const s = gameState.inventory.filter(x => x.n >= MERGE_COUNT && (x.lvl || 0) < MERGE_MAX_LVL && !enhOf(x))
+.sort((a, b) => (a.lvl || 0) - (b.lvl || 0))[0];
+if (!s) break;
+const r = mergeStack(s, Math.floor(s.n / MERGE_COUNT));
+ok += r.ok; crit += r.crit; fail += r.fail; refund += r.refund;
+}
+if (!ok && !fail) { log("Nothing to merge.", "warning"); return; }
+gameState.scrap += refund;
+log(`MERGE ALL: ${ok} merges${crit ? " (" + crit + " crit +2)" : ""}${fail ? ", " + fail + " failed (+" + refund + " scrap)" : ""}.`, "special");
+updateUI();
+TT.saveSoon();
+}
+function mergeStack(s0, times) {
+const key = stackKey(s0);
+const slot = s0.slot, tier = s0.tier, lvl = s0.lvl || 0;
+const r = { ok: 0, crit: 0, fail: 0, refund: 0, done: 0 };
+for (let i = 0; i < times; i++) {
+if (!invTake(key, MERGE_COUNT)) break;
+r.done++;
+const roll = Math.random() * 100;
+if (roll < 5) {
+r.fail++;
+r.refund += Math.floor(itemScrapValue({ tier: tier, lvl: lvl }) * MERGE_COUNT * 0.5);
+} else {
+const bonus = roll < 15 ? 2 : 1;
+if (bonus === 2) r.crit++;
+invAdd(slot, tier, Math.min(MERGE_MAX_LVL, lvl + bonus), 1);
+r.ok++;
+}
+}
+return r;
+}
+function performSmartMerge(key, times) {
+const s0 = invByKey(key);
+if (!s0) return;
+const slot = s0.slot, tier = s0.tier, lvl = s0.lvl || 0;
+let ok = 0, crit = 0, fail = 0, refund = 0, done = 0;
+for (let i = 0; i < times; i++) {
+if (!invTake(key, MERGE_COUNT)) break;
+done++;
+const roll = Math.random() * 100;
+if (roll < 5) {
+fail++;
+refund += Math.floor(itemScrapValue({ tier: tier, lvl: lvl }) * MERGE_COUNT * 0.5);
+} else {
+const bonus = roll < 15 ? 2 : 1;
+if (bonus === 2) crit++;
+invAdd(slot, tier, Math.min(MERGE_MAX_LVL, lvl + bonus), 1);
+ok++;
+}
+}
+if (done === 0) { log(`Cannot merge: need ${MERGE_COUNT} identical items.`, "warning"); return; }
+gameState.scrap += refund;
+const name = itemName({ slot: slot, tier: tier });
+log(`MERGE ${name} +${lvl}: ${ok} success${crit ? " (" + crit + " crit +2)" : ""}${fail ? ", " + fail + " failed (+" + refund + " scrap salvaged)" : ""}.`, crit || ok ? "special" : "error");
+updateUI();
+}
+</script>
+<script>(function () { var p = document.querySelectorAll('script[data-tt="tt_office_1"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<script>
+let lastLoopAt = Date.now();
+setInterval(function gameLoop() {
+const now = Date.now();
+let dt = (now - lastLoopAt) / 1000;
+lastLoopAt = now;
+if (!(dt > 0)) dt = 0;
+if (dt > MAX_LOOP_DT) dt = MAX_LOOP_DT;
+if (gameLoaded && dt > 0) {
+if (gameState.focusAutogenActive) {
+const use = Math.min(dt, gameState.focusAutogenRemaining);
+const gain = calculateAutoGcRate() * use;
+if (gain > 0) gameState.coins += gain;
+gameState.focusAutogenRemaining -= use;
+if (gameState.focusAutogenRemaining <= 0.001) {
+gameState.focusAutogenActive = false;
+gameState.focusAutogenRemaining = 0;
+log("45M Focus Autogen session completed. Start it again to renew.");
+}
+}
+autoclickerTick(dt);
+if (gameState.consultBuff.active && now > gameState.consultBuff.expiresAt) {
+gameState.consultBuff.active = false;
+log("Consult buff/debuff has expired.");
+}
+}
+updateUI();
+}, 1000);
+setInterval(updateHud, 250);
+setInterval(function () { saveGame(); }, 12000);
+function fmtTime(sec) {
+sec = Math.max(0, Math.floor(sec));
+return Math.floor(sec / 60) + ":" + (sec % 60 < 10 ? "0" : "") + (sec % 60);
+}
+function buffChips() {
+const g = gameState;
+const chips = [];
+chips.push(`<span class="buff-chip" title="1 + prestige ${g.prestige}×0.25 + gear multipliers">⚡ MULT ${calculateNetMultiplier().toFixed(2)}×</span>`);
+if (g.lpUp.click) chips.push(`<span class="buff-chip lp">★ +${Math.round(g.lpUp.click * 10)}% click</span>`);
+if (g.lpUp.auto) chips.push(`<span class="buff-chip lp">★ +${Math.round(g.lpUp.auto * 10)}% auto</span>`);
+if (g.prestige >= 5) chips.push(`<span class="buff-chip">🔁 AUTO ×${Math.pow(2, Math.floor(g.prestige / 5))}</span>`);
+if (g.focusAutogenActive) chips.push(`<span class="buff-chip on">⏱ AUTOGEN ${fmtTime(g.focusAutogenRemaining)}</span>`);
+if (g.autoclicker.running) chips.push(`<span class="buff-chip on">🤖 AUTOCLICK ${fmtTime(g.autoclicker.charge)}</span>`);
+if (buffActive()) {
+const b = g.consultBuff;
+const left = Math.max(0, Math.ceil((b.expiresAt - Date.now()) / 1000));
+chips.push(b.type === "overdrive"
+? `<span class="buff-chip on">🚀 OVERDRIVE ×${b.clickMult.toFixed(1)} · ${left}s</span>`
+: `<span class="buff-chip bad">💥 CRASH −50% · ${left}s</span>`);
+}
+if (window.Meta && Meta.current()) chips.push(Meta.chip());
+if (window.Colleague) { const cc = Colleague.chip(); if (cc) chips.push(cc); }
+if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">🎟 ${g.slotTokens} token${g.slotTokens > 1 ? "s" : ""}</span>`);
+if (window.Dungeon && Dungeon.netMultBonus() > 1) chips.push(`<span class="buff-chip lp" title="Permanent bonus from HIGH STAKES stars">🎰 STARS ×${Dungeon.netMultBonus().toFixed(2)}</span>`);
+return chips.join("");
+}
+function updateHud() {
+if (!document.getElementById("stat-tickets")) return;
+const g = gameState;
+const coinsTxt = Math.floor(g.coins).toLocaleString();
+setTxt("user-display", g.ldap || "AGENT");
+setTxt("stat-tickets", Math.floor(g.tickets).toLocaleString());
+setTxt("stat-coins", coinsTxt);
+setTxt("stat-scrap", Math.floor(g.scrap).toLocaleString());
+const cp = calculateClickPower();
+const cpTxt = Number.isInteger(cp) ? cp.toLocaleString() : cp.toFixed(2);
+setTxt("stat-click", cpTxt);
+setTxt("click-val", cpTxt);
+setTxt("stat-gc-sec", calculateAutoGcRate().toFixed(1));
+const mult = calculateNetMultiplier();
+setTxt("stat-mult", mult.toFixed(2) + "×");
+setTxt("multiplier-badge", "MULT: " + mult.toFixed(2) + "×");
+setTxt("stat-cps", getLiveCps().toFixed(1));
+const hNow = heatNow(Date.now());
+const hb = document.getElementById("heat-fill");
+if (hb) {
+const over = isOverheated();
+hb.style.width = (over ? 100 : hNow) + "%";
+hb.style.background = over ? "var(--crimson)" : (hNow > 60 ? "var(--amber)" : "var(--cyan)");
+setTxt("heat-txt", over ? "OVERHEATED " + Math.ceil((overheatUntil - Date.now()) / 1000) + "s" : Math.round(hNow) + "%");
+const cb = document.getElementById("btn-click");
+if (cb) cb.classList.toggle("overheated", over);
+}
+setTxt("stat-peak-cps", g.peakCps.toFixed(1));
+["bal-roulette", "bal-slots", "bal-bj", "bal-chicken", "bal-pachinko", "bal-showdown"].forEach(id => setTxt(id, coinsTxt + " GC"));
+setHtml("buff-row", buffChips());
+const btnAg = document.getElementById("btn-autogen");
+if (g.focusAutogenActive) {
+setTxt("autogen-timer", fmtTime(g.focusAutogenRemaining) + " ACTIVE");
+if (btnAg) { btnAg.disabled = true; setTxt("btn-autogen", "AUTOGEN IN PROGRESS"); }
+} else {
+setTxt("autogen-timer", "IDLE / READY");
+if (btnAg) { btnAg.disabled = false; setTxt("btn-autogen", "START 45M AUTOGEN"); }
+}
+const ac = g.autoclicker;
+setTxt("ac-charge", Math.floor(ac.charge) + "s / " + AC_MAX_CHARGE + "s");
+const barA = document.getElementById("ac-bar-fill");
+if (barA) barA.style.width = Math.min(100, ac.charge / AC_MAX_CHARGE * 100) + "%";
+setTxt("ac-next", Math.max(0, AC_CLICKS_PER_SEC - ac.clicks) + " clicks");
+const barN = document.getElementById("ac-next-fill");
+if (barN) barN.style.width = Math.min(100, ac.clicks / AC_CLICKS_PER_SEC * 100) + "%";
+setTxt("ac-avg", ac.avgCps.toFixed(1));
+setTxt("consult-scrap", Math.floor(g.scrap).toLocaleString());
+updateClickRing();
+const btnAc = document.getElementById("btn-autoclick");
+if (btnAc) {
+setTxt("btn-autoclick", ac.running ? `STOP AUTOCLICKER (${Math.floor(ac.charge)}s left)` : (ac.charge >= 1 ? "START AUTOCLICKER" : `AUTOCLICKER (${AC_CLICKS_PER_SEC} CLICKS = +1s)`));
+btnAc.className = ac.running ? "btn btn-crimson" : "btn btn-gold";
+}
+setTxt("prestige-lvl", g.prestige);
+setTxt("prestige-bonus", Math.pow(2, Math.floor(g.prestige / 5)).toFixed(1) + "×");
+setTxt("lp-count", g.lp);
+const nextCost = getPrestigeCost(g.prestige);
+const costTxt = nextCost >= 1e9 ? (nextCost / 1e9).toFixed(2) + "B" : nextCost >= 1e6 ? (nextCost / 1e6).toFixed(2) + "M" : (nextCost / 1e3).toFixed(1) + "K";
+const armed = Date.now() < prestigeArmedUntil;
+setTxt("btn-prestige", armed ? "⚠ CLICK AGAIN TO CONFIRM (resets your run!)" : `ASCEND PRESTIGE (${costTxt} TICKETS · +${lpGainFor(g.prestige + 1)} LP)`);
+const chestCost = getChestScrapCost();
+setTxt("btn-open-chest", `OPEN ×1 (${chestCost.toLocaleString()} SCRAP)`);
+setTxt("btn-open-chest10", `OPEN ×10 (${(chestCost * 10).toLocaleString()})`);
+setTxt("chest-lvl", g.chestLevel);
+setTxt("chest-upgrade-cost", getChestUpgradeCost(g.chestLevel).toLocaleString());
+const o = getChestOdds(g.chestLevel);
+setTxt("odd-trash", o.trash.toFixed(1) + "%");
+setTxt("odd-t1", o.t1.toFixed(1) + "%");
+setTxt("odd-t2", o.t2.toFixed(1) + "%");
+setTxt("odd-t3", o.t3.toFixed(2) + "%");
+setTxt("odd-t4", o.t4.toFixed(2) + "%");
+setTxt("odd-t6", o.t6 > 0 ? o.t6.toFixed(3) + "%" : (g.chestLevel < T6_UNLOCK_LVL && window.Dungeon && Dungeon.t6Slots && Dungeon.t6Slots().length ? "🔒 LVL " + T6_UNLOCK_LVL : "🔒 BOSS"));
+setTxt("odd-t5", g.chestLevel < T5_UNLOCK_LVL ? "🔒 LVL " + T5_UNLOCK_LVL : o.t5.toFixed(3) + "%");
+const nf = chestLevelCostFactor(g.chestLevel + 1), cf = chestLevelCostFactor(g.chestLevel);
+setTxt("chest-next-info", (o.trash > 0
+? "Next level: -0.5% Empty, +0.8% Rare, +0.15% Epic (0% Empty at level 90)."
+: "Level 90+: 0% empty drops.") +
+(nf > cf ? ` ⚠ Next level makes opening ×${(nf / cf).toFixed(2)} more expensive.` : "") +
+(o.t6 > 0 ? ` 🌌 Prismatic T6: ${o.t6.toFixed(2)}% (${Dungeon.t6Slots().join(", ")}).`
+: " 🌌 Prismatic T6: beat HIGH STAKES chapter bosses to unlock body slots (drops from chest LV 50+)."));
+const btnTok = document.getElementById("btn-token");
+if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `🎟 USE SLOT TOKEN (${g.slotTokens})`); }
+setTxt("bp-count", `${g.inventory.length} / ${INV_MAX_STACKS} stacks · ${invItems()} items`);
+const cd = document.getElementById("roulette-cd");
+if (cd) {
+const rem = Math.max(0, Math.ceil((rouletteCooldownUntil - Date.now()) / 1000));
+if (!isRouletteSpinning) setTxt("roulette-cd", rem > 0 ? `COOLDOWN (${rem}s)` : "READY");
+const grid = document.querySelector("#view-roulette .bet-grid");
+if (grid) {
+let lab = isRouletteSpinning ? "🎰 SPINNING..." : rem > 0 ? `⏳ NEXT SPIN IN ${rem}s` : "";
+if (lab && window.Theme && Theme.isNew()) lab = Theme.conv(lab);
+grid.classList.toggle("cool", !!lab);
+if (grid.getAttribute("data-cd") !== lab) grid.setAttribute("data-cd", lab);
+}
+}
+const ss = document.getElementById("btn-slots-spin");
+if (ss) { ss.disabled = !!isSpinningSlots; setTxt("btn-slots-spin", isSpinningSlots ? "🎰 SPINNING..." : "PULL LEVER (SPIN)"); }
+}
+function updatePanels() {
+const g = gameState;
+const sig = g.inventory.map(s => s.slot + s.tier + "_" + (s.lvl || 0) + enhOf(s) + ":" + s.n).join(",") + "|" +
+SLOTS.map(s => g.loadout[s] ? g.loadout[s].tier + "_" + (g.loadout[s].lvl || 0) + enhOf(g.loadout[s]) : "-").join(",") + "|" + backpackFilter + upgradesOnly;
+if (sig === lastPanelSig) return;
+lastPanelSig = sig;
+renderLoadout();
+renderBackpack();
+renderMergeStation();
+refreshScrapButton();
+}
+let panelsQueued = false;
+function updateUI() {
+updateHud();
+renderLpShop(false);
+if (document.hidden) { updatePanels(); return; }
+if (panelsQueued) return;
+panelsQueued = true;
+requestAnimationFrame(function () { panelsQueued = false; updatePanels(); renderAutosellInfo(); });
+}
+</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["office2"] = 1;</script>
+<!-- END-OF-FILE: office2 -->

@@ -1,0 +1,65 @@
+<style>
+/* ===== v9.3 THE ROOM: tvoje kancelář jako místnost (pohled zepředu, trochu shora), postava chodí k předmětům.
+Vzhled se mění s prestiží: Garáž (P0) -> ... -> Vesmírná stanice (P15). ===== */
+.rm { position: relative; width: 100%; aspect-ratio: 400 / 280; border-radius: 16px; overflow: hidden; margin: 0 0 12px; background: #0d1018; user-select: none; -webkit-user-select: none; touch-action: manipulation; isolation: isolate; }
+.rm .rm-bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.rm .rm-o { position: absolute; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rm .rm-o > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; display: block; }
+.rm .rm-o.deco { pointer-events: none; }
+.rm .rm-o:not(.deco):hover > svg { filter: brightness(1.15) drop-shadow(0 0 4px rgba(255,255,255,.35)); }
+.rm .rm-o.lock > svg { filter: saturate(.35) brightness(.7); }
+.rm .rm-o .rm-lk { position: absolute; right: 0; top: 0; font-size: 11px; line-height: 1; filter: none; }
+.rm .rm-lb { position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); white-space: nowrap; font: 600 9.5px 'Space Grotesk', system-ui, sans-serif; color: #e8ecf3; background: rgba(10,12,18,.72); padding: 1px 6px; border-radius: 99px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 2; }
+.rm.labels .rm-lb, .rm .rm-o:hover .rm-lb { opacity: 1; }
+.rm .rm-o.lbl-l .rm-lb { left: 2px; transform: none; }
+.rm .rm-o.lbl-r .rm-lb { left: auto; right: 2px; transform: none; }
+.rm .rm-o.lbl-t .rm-lb { bottom: auto; top: 100%; }
+.rm .rm-me { position: absolute; pointer-events: none; will-change: left, top; }
+.rm .rm-me .rm-fl { position: absolute; inset: 0; }
+.rm .rm-me.left .rm-fl { transform: scaleX(-1); }
+.rm .rm-me .dg-sprite.rig { position: absolute; inset: 0; width: 100% !important; height: 100% !important; margin: 0 !important; }
+.rm .rm-col .dg-sprite.rig { position: absolute; width: 100% !important; height: 100% !important; margin: 0 !important; }
+.rig.a-walk .rg-legF { animation: rgStepF .32s ease-in-out infinite !important; }
+.rig.a-walk .rg-legB { animation: rgStepB .32s ease-in-out infinite !important; }
+.rig.a-walk .rg-bob { animation: rmWalkBob .32s ease-in-out infinite !important; }
+@keyframes rmWalkBob { 50% { transform: translateY(-2px); } }
+.rig.a-type .rg-armF { animation: rmType .22s ease-in-out infinite !important; }
+.rig.a-type .rg-armB { animation: rmType .22s ease-in-out .11s infinite !important; }
+@keyframes rmType { 50% { transform: rotate(-38deg); } }
+.rig.a-sit .rg-legF { transform: rotate(-70deg); animation: none !important; }
+.rig.a-sit .rg-legB { transform: rotate(-62deg); animation: none !important; }
+.rig.a-sit .rg-all { transform: translateY(12px); }
+.rig.a-wave .rg-armF { animation: rmWave .5s ease-in-out 3 !important; }
+@keyframes rmWave { 50% { transform: rotate(-150deg); } }
+.rm .rm-bub { position: absolute; z-index: 400; transform: translate(-50%, -100%); max-width: 70%; background: #f8fafc; color: #10131c; font: 600 11px/1.3 'Space Grotesk', system-ui, sans-serif; padding: 6px 9px; border-radius: 12px; box-shadow: 0 6px 16px rgba(0,0,0,.4); pointer-events: none; animation: rmPop .25s ease-out; }
+.rm .rm-bub::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: #f8fafc; }
+@keyframes rmPop { from { transform: translate(-50%, -80%) scale(.7); opacity: 0; } }
+.rm .rm-name { position: absolute; left: 8px; top: 7px; z-index: 300; font: 600 10.5px 'Space Grotesk', system-ui, sans-serif; color: #e8ecf3; background: rgba(10,12,18,.6); padding: 2px 8px; border-radius: 99px; pointer-events: none; }
+.rm .rm-hint { position: absolute; right: 8px; top: 7px; z-index: 300; font: 500 10px 'Space Grotesk', system-ui, sans-serif; color: #c9d1dc; background: rgba(10,12,18,.6); padding: 2px 8px; border-radius: 99px; pointer-events: none; transition: opacity .5s; }
+.rm .rm-rev { position: absolute; left: 50%; top: 14%; z-index: 500; transform: translateX(-50%); width: max-content; max-width: 88%; text-align: center; background: rgba(10,12,18,.88); border: 1px solid rgba(245,185,66,.55); border-radius: 14px; padding: 10px 14px; color: #e8ecf3; font-family: 'Space Grotesk', system-ui, sans-serif; box-shadow: 0 14px 30px rgba(0,0,0,.5); animation: rmRev .5s cubic-bezier(.2,.8,.2,1); cursor: pointer; }
+.rm .rm-rev b { display: block; font-size: 15px; color: #f5b942; }
+.rm .rm-rev span { font-size: 12px; color: #c9d1dc; }
+@keyframes rmRev { from { transform: translate(-50%, -20px) scale(.9); opacity: 0; } }
+.rm .rm-flash { position: absolute; inset: 0; z-index: 450; background: #fff; pointer-events: none; animation: rmFlash .7s ease-out forwards; }
+@keyframes rmFlash { from { opacity: .85; } to { opacity: 0; } }
+.rm .rm-o.new > svg { animation: rmNew 1.2s ease-in-out 3; }
+@keyframes rmNew { 50% { filter: brightness(1.6) drop-shadow(0 0 8px #f5b942); } }
+.panel.rm-hl { animation: rmHl 1.2s ease-out; }
+@keyframes rmHl { 0%, 40% { box-shadow: 0 0 0 2px var(--amber, #f5b942); } 100% { box-shadow: none; } }
+.rm .rm-tv-logo { animation: rmTv 4s ease-in-out infinite; }
+@keyframes rmTv { 50% { opacity: .8; } }
+.rm .rm-led { animation: rmLed 1.4s steps(2) infinite; }
+@keyframes rmLed { 50% { opacity: .25; } }
+.rm .rm-float { animation: rmFloat 3s ease-in-out infinite; }
+@keyframes rmFloat { 50% { transform: translateY(-3px); } }
+html.m [data-tab="play"] .rm { margin-bottom: 10px; border-radius: 18px; flex: none; }
+/* v9.3.1: Play na mobilu se normálně posouvá (místnost + tlačítko pevné výšky), nic se nemačká přes sebe */
+html.m body[data-mtab="play"] .main-wrapper { overflow-y: auto; }
+html.m body[data-mtab="play"] .grid-columns { flex: none; min-height: auto; }
+html.m body[data-mtab="play"] [data-tab="play"] { display: block; flex: none; min-height: 0; }
+html.m [data-tab="play"] .click-btn-wrap { display: flex; flex: none; height: clamp(130px, 22vh, 190px); min-height: 0; }
+html.m [data-tab="play"] .rm-o, html.m [data-tab="play"] .rm { touch-action: pan-y; }
+@media (prefers-reduced-motion: reduce) { .rm .rm-tv-logo, .rm .rm-led, .rm .rm-float { animation: none; } }
+</style>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["room"] = 1;</script>
+<!-- END-OF-FILE: room -->

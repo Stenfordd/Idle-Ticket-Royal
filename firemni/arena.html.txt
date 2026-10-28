@@ -1,0 +1,194 @@
+<script>
+/* HIGH STAKES - ARÉNA (PvP proti uloženým postavám, počítá server) + karta hráče z leaderboardu */
+(function () {
+"use strict";
+const A = window.HS_API, H = window.HSEngine;
+const $ = (id) => document.getElementById(id);
+const fmt = A.fmt, fmtT = A.fmtT, anim = A.anim, float = A.float, sprite = A.sprite, playerSprite = A.playerSprite;
+const STANCE_TXT = { safe: ["SAFE", "careful AI"], normal: ["NORMAL", "balanced AI"], allin: ["ALL-IN", "gambler AI"] };
+const arena = { data: null, loading: false, err: "", atkStance: "normal", replay: null, timer: 0, busy: false };
+const CN = (c) => (H.CLASSES[c] || {}).name || "", CI = (c) => (H.CLASSES[c] || {}).icon || "";
+function arenaLoad() {
+if (arena.loading) return;
+arena.loading = true; arena.err = "";
+google.script.run.withSuccessHandler(r => {
+arena.loading = false;
+if (r && r.ok) arena.data = r; else arena.err = "Could not load the arena.";
+if (A.isOpen() && A.view() === "arena" && !arena.replay) $("dg-inner").innerHTML = arenaHtml();
+}).withFailureHandler(e => { arena.loading = false; arena.err = String(e && e.message || e); if (A.isOpen() && A.view() === "arena") $("dg-inner").innerHTML = arenaHtml(); }).arenaList();
+}
+function stanceBtns(cur, fn) {
+return ["safe", "normal", "allin"].map(s => `<button class="btn ${s === "allin" ? "btn-crimson" : (s === "safe" ? "btn-cyan" : "")} ${cur === s ? "sel" : ""}" onclick="Dungeon.${fn}('${s}')">${STANCE_TXT[s][0]}<small>${STANCE_TXT[s][1]}</small></button>`).join("");
+}
+function ago(ts) { const m = Math.max(0, Math.floor((Date.now() - ts) / 60000)); return m < 60 ? m + "m" : (m < 1440 ? Math.floor(m / 60) + "h" : Math.floor(m / 1440) + "d"); }
+function arenaHtml() {
+const d = A.HS(), a = arena.data;
+if (arena.replay) return arenaReplayHtml();
+const me = a ? a.me : null;
+const myPow = H.power(A.hero());
+let opp = "";
+if (!a) opp = `<div class="dg-dim">${arena.err ? "⚠ " + escapeHtml(arena.err) : "Loading opponents..."}</div>`;
+else if (!a.opponents.length) opp = `<div class="dg-dim">No opponents yet. Your friends need a HIGH STAKES class first.</div>`;
+else opp = a.opponents.map(o => {
+const ratio = o.power / Math.max(1, myPow);
+const tag = ratio > 1.25 ? `<span style="color:var(--crimson);">STRONGER</span>` : ratio < 0.8 ? `<span style="color:var(--emerald);">WEAKER</span>` : `<span style="color:var(--amber);">EVEN</span>`;
+const cd = o.cooldown > 0;
+const can = me && me.left > 0 && !cd && !arena.busy;
+return `<div class="dg-art"><div style="width:44px;flex:none;">${A.classSprite(o.cls).replace('class="dg-sprite', 'style="width:40px;height:40px;margin:0;" class="dg-sprite')}</div>
+<div class="t">${typeof presenceDot === "function" ? presenceDot(o) : ""}<b>${escapeHtml(o.nick)}</b> · ${CI(o.cls)} ${escapeHtml(CN(o.cls))} LV ${o.level} · 🏅 <b style="color:var(--amber);">${o.honor}</b>
+<div class="dg-dim">${escapeHtml(o.title || "")} · power ${fmt(o.power)} ${tag} · missions ${o.best}/51 · ${o.wins}W/${o.losses}L</div></div>
+<button class="btn ${can ? "btn-crimson" : ""}" ${can ? "" : "disabled"} onclick="Dungeon.arenaAttack('${escapeHtml(o.nick).replace(/'/g, "")}')">${cd ? "⏳ " + fmtT(o.cooldown) : "⚔ ATTACK"}</button></div>`;
+}).join("");
+const log = a && a.log.length ? a.log.map(l => {
+const iAtt = l.attacker === gameState.ldap, won = l.winner === gameState.ldap;
+return `<div class="dg-dim"><span style="color:${won ? "var(--emerald)" : "var(--crimson)"};">${won ? "WIN" : "LOSS"}</span> · ${iAtt ? "you attacked <b>" + escapeHtml(l.defender) + "</b>" : "<b>" + escapeHtml(l.attacker) + "</b> attacked you"} · ${l.delta >= 0 ? "+" : ""}${l.delta} honor · ${ago(l.time)} ago</div>`;
+}).join("") : `<div class="dg-dim">No arena fights yet.</div>`;
+return `<div class="dg-grid2">
+<div class="dg-card"><div class="dg-h"><span>🏟 YOUR ARENA CARD</span><button class="btn" style="padding:3px 8px;font-size:10px;" onclick="Dungeon.arenaRefresh()">↻</button></div>
+<div class="dg-dim">Honor <b style="font-size:14px;">${me ? me.honor : "-"}</b> · ${me ? me.wins + "W / " + me.losses + "L" : ""} · attacks left today <b>${me ? me.left + " / " + me.perDay : "-"}</b> · your power <b>${fmt(myPow)}</b></div>
+<div class="dg-h" style="margin-top:10px;">ATTACK STANCE</div>
+<div class="dg-stances" style="margin:0;">${stanceBtns(arena.atkStance, "arenaAtkStance")}</div>
+<div class="dg-h" style="margin-top:10px;">DEFENSE STANCE <span class="dg-dim" style="font-family:inherit;">(used when others attack you)</span></div>
+<div class="dg-stances" style="margin:0;">${stanceBtns(d.arenaStance, "arenaDefStance")}</div>
+<div class="dg-dim" style="margin-top:8px;">An AI plays both of you with the same 1v1 rules as your fights (attack, then the other side reacts blind), using your <b>saved</b> stats and gear - your friends fight your build even when you are offline.
+Stance = how your AI plays: SAFE heavies less and never gambles, ALL-IN gambles a lot. Win = honor + GC. Same opponent once per 20 min. Honor works like chess Elo. Want to play it yourself? Challenge a friend in ⚔ DUEL.</div></div>
+<div class="dg-card"><div class="dg-h">RECENT FIGHTS</div>${log}</div>
+</div>
+<div class="dg-card"><div class="dg-h"><span>OPPONENTS</span><span class="dg-dim">sorted by honor</span></div>${opp}</div>`;
+}
+function arenaAtkStance(s) { arena.atkStance = s; $("dg-inner").innerHTML = arenaHtml(); }
+function arenaDefStance(s) { A.HS().arenaStance = s; TT.saveSoon(); $("dg-inner").innerHTML = arenaHtml(); }
+function arenaAttack(nick) {
+if (arena.busy) return;
+arena.busy = true;
+$("dg-inner").innerHTML = arenaHtml();
+const go = () => google.script.run.withSuccessHandler(r => {
+arena.busy = false;
+if (!r || !r.ok) {
+const why = { limit: "No attacks left today.", cooldown: "You fought this player recently.", target: "Opponent not available.", missing: "Save not found - try again in a few seconds.", noclass: "Pick a HIGH STAKES class first.", busy: "Server busy, try again." }[r && r.reason] || "Fight failed.";
+arena.err = why; log("ARENA: " + why, "warning"); arenaLoad(); return;
+}
+gameState.coins += r.reward;              // odměna hned (i kdyby se replay nedokoukal)
+TT.saveSoon(); updateUI();
+log(`🏟 ARENA ${r.win ? "WIN" : "LOSS"} vs ${escapeHtml(r.opp.nick)}: ${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}), +${fmt(r.reward)} GC.`, r.win ? "special" : "error");
+arena.replay = { r: r, idx: 0, hp: [r.max[0], r.max[1]], sh: [0, 0], lines: [] };
+$("dg-inner").innerHTML = arenaReplayHtml();
+arenaStep();
+}).withFailureHandler(e => { arena.busy = false; arena.err = String(e && e.message || e); arenaLoad(); }).arenaFight(nick, arena.atkStance);
+saveGame(() => go());                      // nejdřív uložit aktuální build, server bojuje s uloženým
+}
+function arenaReplayHtml() {
+const rp = arena.replay, r = rp.r, d = A.HS();
+return `<div class="dg-arena" id="dg-arena">
+<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${escapeHtml(CN(d.cls))} · ${STANCE_TXT[arena.atkStance][0]}</div>
+<div id="ar-a">${playerSprite()}</div>
+<div class="dg-bar"><div class="hp-p" id="ar-ahp" style="width:100%"></div><div class="sh" id="ar-ash" style="width:0%"></div></div><div class="dg-hpt" id="ar-ahpt"></div></div>
+<div class="dg-vs">VS</div>
+<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(r.opp.nick)}</div><div class="dg-sub">${escapeHtml(CN(r.opp.cls))} LV ${r.opp.level} · ${STANCE_TXT[r.defStance][0]}</div>
+<div id="ar-b">${A.classSprite(r.opp.cls)}</div>
+<div class="dg-bar"><div class="hp-b" id="ar-bhp" style="width:100%"></div><div class="sh" id="ar-bsh" style="width:0%"></div></div><div class="dg-hpt" id="ar-bhpt"></div></div>
+</div>
+<div class="dg-mech" id="ar-res">${r.first === 0 ? "You strike first!" : escapeHtml(r.opp.nick) + " strikes first!"}</div>
+<div class="dg-row"><button class="btn" style="flex:1;" id="ar-skip" onclick="Dungeon.arenaSkip()">SKIP ⏭</button>
+<button class="btn btn-gold" style="flex:1;" id="ar-back" disabled onclick="Dungeon.arenaBack()">BACK TO ARENA</button></div>
+<div class="dg-card" style="margin-top:10px;"><div class="dg-h">FIGHT LOG</div><div class="dg-log" id="ar-log"></div></div>`;
+}
+function arenaBars() {
+const rp = arena.replay; if (!rp) return;
+const m = rp.r.max;
+const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+set("ar-ahp", rp.hp[0] / m[0] * 100); set("ar-bhp", rp.hp[1] / m[1] * 100);
+set("ar-ash", rp.sh[0] / m[0] * 100); set("ar-bsh", rp.sh[1] / m[1] * 100);
+const a = $("ar-ahpt"); if (a) a.textContent = fmt(rp.hp[0]) + " / " + fmt(m[0]);
+const b = $("ar-bhpt"); if (b) b.textContent = fmt(rp.hp[1]) + " / " + fmt(m[1]);
+}
+const RX = { block: "blocked", dodgefail: "dodge failed", nododge: "can't dodge magic", channel: "channeled" };
+function arenaLine(e) {
+const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">R${e.t}</span> `, i = e.i, j = 1 - e.i, good = (k) => k === 0 ? "g" : "r";
+if (e.type === "hit") {
+const lab = e.a === "gamble" ? "🎰 " + (e.reels ? e.reels.join("") : "") + (e.jp ? " <b>JACKPOT</b>" : "") : e.a === "ult" ? "✨ " + escapeHtml((H.CLASSES[(i === 0 ? A.HS().cls : r.opp.cls)] || {}).skill || "ULTIMATE") : e.a === "heavy" ? "💥 HEAVY" : "⚔ STRIKE";
+const rx = RX[e.outcome] ? ` (${nm(j)} ${RX[e.outcome]}${e.saved ? " " + fmt(e.saved) : ""})` : "";
+return [T + `${nm(i)}: ${lab} for <b>${fmt(e.val)}</b>${e.crit ? " - CRIT" : ""}${rx}${e.counter ? ` · ⚔ counter ${fmt(e.counter)}` : ""}${e.heal ? ` · ❤ +${fmt(e.heal)}` : ""}`, good(i)];
+}
+if (e.type === "dodge") return [T + `💨 ${nm(j)} dodged ${i === 0 ? "your" : nm(i) + "'s"} ${e.a === "heavy" ? "HEAVY" : e.a === "ult" ? "ultimate" : "attack"}`, j === 0 ? "c" : "r"];
+if (e.type === "bf") return [T + `💀 ${nm(i)} BACKFIRED for ${fmt(e.val)}`, i === 0 ? "r" : "g"];
+if (e.type === "ult") return [T + `✨ ${nm(i)}: ${escapeHtml(e.a)} - +${fmt(e.shield)} shield, +${fmt(e.heal)} HP`, good(i)];
+if (e.type === "revive") return [T + `🩸 ${nm(e.who)} rises again with ${fmt(e.val)} HP!`, e.who === 0 ? "g" : "r"];
+if (e.type === "stun") return [T + `😵 ${nm(e.who)} is stunned`, e.who === 0 ? "r" : "g"];
+if (e.type === "end") return [T + (e.why === "time" ? "⏱ Time is up - more HP left wins." : "🏁 K.O."), "y"];
+return [T + e.type, ""];
+}
+function arenaApply(e, animate) {
+const rp = arena.replay;
+if (e.hp) rp.hp = e.hp.slice(); if (e.sh) rp.sh = e.sh.slice();
+const ln = arenaLine(e); rp.lines.unshift(ln);
+const el = $("ar-log"); if (el) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
+if (animate && !document.hidden) {
+const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a", dSide = e.i === 0 ? "b" : "p", aSide = e.i === 0 ? "p" : "b";
+if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit" && e.val) anim(def, "hit"); }
+if (e.type === "bf") anim(atk, "hit");
+if (e.type === "hit") { float((e.crit ? "CRIT " : e.jp ? "JACKPOT " : "") + fmt(e.val), dSide, e.jp ? "#ffb800" : e.crit ? "#ffb800" : "#ffffff", e.crit || e.jp); if (e.counter) float("COUNTER " + fmt(e.counter), aSide, "#ff4d6d"); if (e.outcome === "block") float("BLOCK", dSide, "#00f0ff"); }
+else if (e.type === "dodge") float("DODGE", dSide, "#00f0ff", true);
+else if (e.type === "bf") float("BACKFIRE", aSide, "#ff1744", true);
+else if (e.type === "ult") float("+" + fmt(e.shield) + " 🛡", aSide, "#00ff88", true);
+else if (e.type === "revive") float("RISE!", e.who === 0 ? "p" : "b", "#ffb800", true);
+}
+arenaBars();
+}
+function arenaStep() {
+const rp = arena.replay; if (!rp) return;
+clearTimeout(arena.timer);
+if (rp.idx >= rp.r.events.length) { arenaEnd(); return; }
+arenaApply(rp.r.events[rp.idx++], true);
+arena.timer = setTimeout(arenaStep, document.hidden ? 30 : 520);
+}
+function arenaSkip() { const rp = arena.replay; if (!rp) return; clearTimeout(arena.timer); while (rp.idx < rp.r.events.length) arenaApply(rp.r.events[rp.idx++], false); arenaEnd(); }
+function arenaEnd() {
+const rp = arena.replay, r = rp.r;
+rp.done = true;
+const res = $("ar-res");
+if (res) res.innerHTML = `<span style="font:900 18px Orbitron,monospace;color:${r.win ? "var(--emerald)" : "var(--crimson)"};">${r.win ? "🏆 VICTORY" : "☠ DEFEAT"}</span><br>${r.delta >= 0 ? "+" : ""}${r.delta} honor (now ${r.honor}) · +${fmt(r.reward)} GC · ${r.left} attacks left today`;
+const loser = document.querySelector(r.win ? "#ar-b .dg-sprite" : "#ar-a .dg-sprite"); if (loser) loser.classList.add("dead");
+const b = $("ar-back"); if (b) b.disabled = false;
+const s = $("ar-skip"); if (s) s.disabled = true;
+}
+function arenaRestore() {
+$("dg-inner").innerHTML = arenaReplayHtml();
+const rp = arena.replay;
+const el = $("ar-log"); if (el) el.innerHTML = rp.lines.slice().reverse().map(l => `<div class="${l[1]}">${l[0]}</div>`).join("");
+arenaBars();
+if (rp.done) arenaEnd();
+}
+function arenaBack() { clearTimeout(arena.timer); arena.replay = null; arena.data = null; A.render(); }
+function showProfile(u) {
+if (!u) return;
+const dg = u.dungeon || {};
+const cls = dg.cls && H.CLASSES[dg.cls];
+const old = $("dg-profile"); if (old) old.remove();
+const el = document.createElement("div");
+el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
+el.onclick = (e) => { if (e.target === el) el.remove(); };
+el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
+<h2 style="color:var(--cyan);">${escapeHtml(u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
+<div style="display:flex;gap:12px;align-items:center;">
+${cls ? A.classSprite(dg.cls) : '<div style="font-size:48px;">👤</div>'}
+<div class="tt-body" style="min-height:0;font-size:13px;">
+${cls ? `🎰 <b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "Not in HIGH STAKES yet<br>"}
+Missions cleared: <b>${dg.best || 0}/51</b>${dg.camp > 1 ? " · 🔺 Campaign " + dg.camp : ""}${dg.stars ? " · ⭐ " + dg.stars : ""} · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
+Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
+Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
+${u.gear ? `<br>Gear: ${u.gear}` : ""}
+${window.Meta ? Meta.badgesHtml(u.ach) : ""}
+</div></div>
+<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px;">${u.ldap !== gameState.ldap && cls && A.HS().cls && window.HSDuel ? `<button class="btn btn-crimson" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();HSDuel.challenge(n)">⚔ DUEL</button>` : ""}${u.ldap !== gameState.ldap && window.Extras ? `<button class="btn btn-cyan" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();Extras.visit(n)">🏠 VISIT OFFICE</button>` : ""}<button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
+document.body.appendChild(el);
+}
+A.registerMode("arena", { label: "🏟 ARENA", order: 90,
+render: function (box) { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); },
+busy: function () { return arena.busy || !!(arena.replay && !arena.replay.done); } });
+Object.assign(window.Dungeon, { arenaAttack: arenaAttack, arenaAtkStance: arenaAtkStance, arenaDefStance: arenaDefStance, arenaSkip: arenaSkip, arenaBack: arenaBack,
+arenaRefresh: function () { arena.data = null; A.render(); }, showProfile: showProfile });
+})();
+</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["arena"] = 1;</script>
+<!-- END-OF-FILE: arena -->

@@ -1,4 +1,4 @@
-<script type="text/plain" data-tt="ttbig1" data-i="1">
+<script type="text/plain" data-tt="tt_office_1" data-i="1">
 /**
 * TICKET TYCOON v6.1 - CORE  (soubor "script")
 * Stav hry, TT API, klikání + CPS, autoclicker, prestiž + Legacy Points, bedna, inventář (stacky), merge, HUD.

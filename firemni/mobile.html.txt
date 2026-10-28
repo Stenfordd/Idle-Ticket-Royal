@@ -1,330 +1,291 @@
-<script type="text/plain" data-tt="ttbig2" data-i="2">if (p.length) { const a = p[Math.floor(f.R() * p.length)]; f.disabled[a] = 1; ev(f, "mech", { msg: "AUDIT FINDING: " + ACTIONS[a].name + " is not compliant next round." }); }
+<style>
+/* ======================= MOBILNÍ REŽIM (html.m) =======================
+Stejná hra, jen jiné rozložení: horní lišta + mini HUD + obsah jedné záložky + spodní lišta.
+Záložka HRA má zamčený scroll a obří tlačítko, ostatní záložky se normálně posouvají. */
+#m-hud, #m-tabs { display: none; }
+html.m.kb body { bottom: auto; height: var(--app-h, 100%); }
+/* v9.3.4: iPhone aplikace na ploše - webview končí nad home proužkem, takže lišta nepotřebuje safe-area odsazení; pozadí stránky v barvě lišty */
+html.m.iosgap #m-tabs { padding-bottom: 4px !important; }
+html.m body { min-height: 0 !important; }   /* v9.3.6: style.html má min-height:100vh - na iPhonu je 100vh celá obrazovka (852), i když se kreslí jen 793 -> lišta mizela pod okraj */
+/* v9.3.6: batoh na mobilu bez vnořeného scrollu (karty se v něm na Androidu roztahovaly) */
+html.m .backpack-container { display: flex !important; flex-direction: column; max-height: none; overflow: visible; min-height: 0; }
+html.m .backpack-container > .item-card { flex: none; }
+html.m.iosgap body { bottom: auto !important; height: var(--app-h, 100%) !important; }   /* v9.3.5: iOS dá fixed body 852 i když kreslí jen 793 -> výška natvrdo podle sondy */
+html.m.iosgap { background: var(--bg-panel, #0a0e16) !important; }
+html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
+html.m body {
+display: flex; flex-direction: column; overflow: hidden;
+position: fixed; top: 0; bottom: 0; left: 0; width: 100%; height: auto;   /* v8.7.5: přichyceno k hranám viditelné plochy (Android i iPhone) */
+-webkit-tap-highlight-color: transparent;
 }
-pickDemand(f);
-if (f.hp <= 0) return finish(f, false, 0);
-if (f.ehp <= 0) return finish(f, true, 0);
-if (f.m.survive && f.turn >= f.m.survive) { ev(f, "mech", { msg: f.m.surviveMsg || "You survived!" }); return finish(f, true, 0); }
-if (f.m.turnLimit && f.turn >= f.m.turnLimit) { ev(f, "mech", { msg: "Out of time!" }); return finish(f, false, 0); }
-if (f.turn >= 60) return finish(f, false, 0);
+html.m .btn, html.m .btn-primary-action, html.m .casino-tab-btn, html.m #m-tabs button {
+-webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
 }
-function finish(f, win, start) {
-if (f.over) return f.events.slice(start);
-f.over = true; f.win = win; f.hp = Math.max(0, f.hp); f.ehp = Math.max(0, f.ehp); f.phase = "done";
-ev(f, win ? "win" : "lose", {});
-return f.events.slice(start);
+html.m .top-bar { flex: none; padding: calc(6px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 6px calc(10px + env(safe-area-inset-left)); flex-direction: row; gap: 6px; }
+html.m .brand-title { font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
+html.m .user-badge { gap: 8px; font-size: 10px; flex-wrap: nowrap; }
+html.m .status-pill { display: none; }
+html.m .user-badge > span:nth-child(2) { display: none; }
+html.m .btn-help { padding: 3px 7px; font-size: 10px; }
+html.m #m-hud {
+flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 5px 8px;
+background: #0a0e16; border-bottom: 1px solid var(--border-subtle);
 }
-/** kompatibilita: jeden "tah" = útok (+ automatická reakce) */
-function step(f, a, opt) {
-if (ATTACKS[a]) { const evs = attack(f, a, opt); if (!f.over && f.phase === "react") return evs.concat(react(f, autoReact(f, f.R), {})); return evs; }
-return react(f, a, opt);
+html.m #m-hud div { text-align: center; line-height: 1.15; min-width: 0; }
+html.m #m-hud small { display: block; font: 700 8px 'Orbitron', monospace; letter-spacing: .5px; color: var(--text-dim); }
+html.m #m-hud b { display: block; font: 800 13px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.m .main-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px; gap: 8px; max-width: none; width: 100%; box-sizing: border-box; }
+html.m .grid-columns { display: flex; flex-direction: column; gap: 8px; flex: none; }
+html.m .grid-columns { align-items: stretch; }
+html.m .grid-columns > *, html.m .main-wrapper > * { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
+html.m #adv-minigames-mount, html.m .adv-wrap { min-width: 0; max-width: 100%; overflow: hidden; }
+html.m .cr-road { max-width: 100%; }
+html.m .column { display: contents; }
+html.m [data-tab] { display: none; }
+html.m body[data-mtab="play"]   [data-tab="play"],
+html.m body[data-mtab="chest"]  [data-tab="chest"],
+html.m body[data-mtab="bag"]    [data-tab="bag"],
+html.m body[data-mtab="casino"] [data-tab="casino"],
+html.m body[data-mtab="more"]   [data-tab="more"] { display: block; }
+/* --- záložka HRA: nic se neposouvá, tlačítko vyplní zbytek výšky --- */
+html.m body[data-mtab="play"] .main-wrapper { overflow: hidden; }
+html.m body[data-mtab="play"] .grid-columns { flex: 1 1 auto; min-height: 0; }
+html.m body[data-mtab="play"] [data-tab="play"] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+html.m [data-tab="play"] .click-btn-wrap { flex: 1 1 auto; display: flex; min-height: 130px; }
+html.m [data-tab="play"] #btn-click { flex: 1; height: auto; font-size: 20px; line-height: 1.3; border-radius: 10px; }
+html.m [data-tab="play"] #btn-click:active, html.m [data-tab="play"] #btn-click.pressed { transform: scale(.985); }
+/* na mobilu se nic neoznačuje (dvojklik / podržení), kromě polí pro psaní */
+html.m body, html.m body * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.m input, html.m textarea, html.m select, html.m [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+html.m #btn-click { touch-action: none; }
+html.m #m-tabs {
+flex: none; display: flex; background: #0a0e16; border-top: 1px solid var(--border-subtle);
+padding-bottom: env(safe-area-inset-bottom);
 }
-const QUICK_WIN = 4;
-function starMask(f) { if (!f.win) return 0; let m = 1; if (f.hp >= f.h.maxHp * 0.5) m |= 2; if (bonusDone(f) || f.turn <= QUICK_WIN) m |= 4; return m; }
-function starCount(m) { return (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1); }
-function stars(f) { return starCount(starMask(f)); }
-function bonusDone(f) {
-const b = f.m.bonus || {}, st = f.st;
-switch (b.type) {
-case "turns": return f.turn <= b.n;
-case "noGamble": return st.usedGamble === 0;
-case "noItem": return true;
-case "noBlock": return st.usedReact === 0;
-case "perfectBlock": return st.reacts >= (b.n || 1) + 1;
-case "jackpot": return st.jackpots >= 1;
-case "hp": return f.hp >= f.h.maxHp * b.pct / 100;
-case "skill": return st.usedSkill >= 1;
-case "perfectPower": return st.perfectPower >= (b.n || 1);
-case "crits": return st.crits >= (b.n || 1);
-default: return true;
+html.m #m-tabs button {
+flex: 1; padding: 9px 2px 8px; background: none; border: 0; border-top: 2px solid transparent; color: var(--text-dim);
+font: 700 9px 'Orbitron', monospace; letter-spacing: .5px; cursor: pointer;
 }
+html.m #m-tabs button span { display: block; font-size: 17px; margin-bottom: 2px; }
+html.m #m-tabs button.active { color: var(--cyan); border-top-color: var(--cyan); background: rgba(0,240,255,.06); }
+html.m #m-tabs button { position: relative; }
+html.m #m-tabs button[data-go="fight"] { color: #ff4d6d; }
+html.has-unread #m-tabs button[data-go="more"]::after,
+html.pl-glow #m-tabs button[data-go="more"]::after,
+html.hs-glow #m-tabs button[data-go="fight"]::after,
+html.sd-glow #m-tabs button[data-go="casino"]::after { content: ""; position: absolute; top: 5px; right: 22%; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 6px var(--crimson); }
+html.m #fx-toggle, html.m #ir-logout { display: none !important; }
+html.m .panel { padding: 10px; }
+html.m .stats-grid { grid-template-columns: repeat(2, 1fr); }
+html.m input, html.m select, html.m textarea { font-size: 16px; }   /* iOS nezoomuje při fokusu */
+html.m canvas { max-width: 100%; height: auto; }
+html.m table.lb-table { font-size: 11px; }
+html.m #backpack-grid { grid-template-columns: minmax(0, 1fr) !important; }
+html.m #m-tabs button { min-width: 0; overflow: hidden; }
+html.m .item-actions { flex-wrap: wrap; }
+html.m .item-actions .btn { padding: 8px 10px; }
+html.m #fx-banner { font-size: 22px; }
+html.m .tt-modal, html.m .modal { max-width: 94vw; }
+html.m #update-banner { top: calc(8px + env(safe-area-inset-top)); bottom: auto; width: max-content; max-width: calc(100% - 24px); text-align: center; line-height: 1.4; }   /* v8.7.2: dřív top:0 + bottom:14px = roztažené přes celou obrazovku */
+/* panel Nastavení (jen mobil) */
+#m-settings { display: none; }
+html.m body[data-mtab="more"] #m-settings { display: block; }
+#m-settings .row { display: flex; gap: 8px; }
+#m-settings .btn { flex: 1; padding: 10px; }
+/* PC: přepínač na kompaktní (mobilní) rozložení */
+#m-compact { white-space: nowrap; }
+@media (max-width: 820px) { #m-compact { display: none !important; } }
+html.m.mc .main-wrapper { max-width: 860px; width: 100%; margin: 0 auto; align-self: center; }
+html.m.mc #m-tabs { justify-content: center; }
+html.m.mc #m-tabs button { flex: 0 1 140px; }
+html.m.mc #m-hud { max-width: 860px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
+#m-logout { display: none !important; }
+</style>
+<div id="m-hud">
+<div><small>TICKETS</small><b id="mh-t" style="color:var(--cyan);">0</b></div>
+<div><small>GC</small><b id="mh-c" style="color:var(--amber);">0</b></div>
+<div><small>SCRAP</small><b id="mh-s" style="color:var(--text-main);">0</b></div>
+<div><small>CPS</small><b id="mh-p" style="color:var(--emerald);">0.0</b></div>
+</div>
+<nav id="m-tabs">
+<button data-go="play"><span>🎯</span>PLAY</button>
+<button data-go="chest"><span>📦</span>CHEST</button>
+<button data-go="bag"><span>🎒</span>BAG</button>
+<button data-go="casino"><span>🎰</span>CASINO</button>
+<button data-go="fight"><span>⚔</span>FIGHT</button>
+<button data-go="more"><span>☰</span>MORE</button>
+</nav>
+<div class="panel" id="m-settings" data-tab="more">
+<div class="panel-header">SETTINGS</div>
+<div id="m-viewinfo" data-nocase="1" style="font-size:10px;color:var(--text-muted);margin:-4px 0 8px;line-height:1.4;"></div>
+<div class="row">
+<button class="btn btn-cyan" id="m-fx" type="button">✨ EFFECTS</button>
+<button class="btn btn-crimson" id="m-logout" type="button">LOG OUT</button>
+</div>
+</div>
+<script>
+(function () {
+"use strict";
+var $ = function (id) { return document.getElementById(id); };
+var mq = window.matchMedia ? window.matchMedia("(max-width: 820px)") : { matches: false };
+var tab = "play", compact = false;
+try { tab = localStorage.getItem("ir_tab") || "play"; compact = localStorage.getItem("ir_compact") === "1"; } catch (e) {}
+function isM() { return !!mq.matches || compact; }
+var tb = document.querySelector(".top-bar"); if (tb && $("m-hud")) tb.parentNode.insertBefore($("m-hud"), tb.nextSibling);
+var mwEl = document.querySelector(".main-wrapper"); if (mwEl && $("m-settings")) mwEl.appendChild($("m-settings"));
+var tabsEl = $("m-tabs"); if (mwEl && tabsEl) mwEl.parentNode.insertBefore(tabsEl, mwEl.nextSibling);
+function panelOf(id) { var el = $(id); return el ? (el.closest(".panel") || el) : null; }
+function panelByHeader(re) {
+var all = document.querySelectorAll(".panel");
+for (var i = 0; i < all.length; i++) { var h = all[i].querySelector(".panel-header"); if (h && re.test(h.textContent)) return all[i]; }
+return null;
 }
-function bonusText(b) {
-switch ((b || {}).type) {
-case "turns": return "Win within " + b.n + " rounds";
-case "noGamble": return "Win without GAMBLE";
-case "noItem": return "Win";
-case "noBlock": return "Win without blocking, dodging or channeling";
-case "perfectBlock": return "Land " + ((b.n || 1) + 1) + " great reactions (parry, dodge, counter, channel)";
-case "jackpot": return "Hit a 7️⃣7️⃣7️⃣ jackpot";
-case "hp": return "Win with " + b.pct + "%+ HP";
-case "skill": return "Use your ultimate";
-case "perfectPower": return "Land " + (b.n || 1) + " PERFECT HEAVY hit" + ((b.n || 1) > 1 ? "s" : "");
-case "crits": return "Land " + b.n + " crits";
-default: return "-";
-}
-}
-function autoAttack(f, R, style) {
-const h = f.h; style = style || "normal";
-const can = (a) => allowedAtk(f, a);
-if (f.demand && ATTACKS[f.demand] && can(f.demand)) return f.demand;
-if (can("ult")) return "ult";
-if ((f.unleashNext || f.eguard || f.siesta) && can("heavy")) return "heavy";
-if (f.poison > 0 && f.hp < h.maxHp * 0.5 && R() < 0.6) return "rest";
-const reserve = h.block > 0 ? h.blockCost : 0;
-if (f.sta < 30 + reserve * 0.5 && R() < (h.block > 0 ? 0.55 : 0.35)) return "rest";
-if (style === "allin" && can("gamble") && R() < 0.35) return "gamble";
-if (can("heavy") && f.sta - 30 >= reserve && (f.sta >= 65 || R() < 0.5)) return "heavy";
-if (style !== "safe" && can("gamble") && f.sta - 20 >= reserve + 20 && R() < 0.12) return "gamble";
-return "strike";
-}
-function autoReact(f, R) {
-const h = f.h, it = f.intent || {}, k = it.shown === "?" ? "atk" : (it.shown || it.k);
-const can = (r) => allowedReact(f, r);
-if (f.demand && REACTS[f.demand] && can(f.demand)) return f.demand;
-if (k === "spell") { if (h.spellImmune) return "brace"; return can("block") && f.sta >= h.blockCost + 20 ? "block" : "brace"; }
-const big = k === "heavy" || k === "unleash" || k === "withdraw";
-if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel") && f.focus < 90) return "channel"; return "brace"; }
-if (h.cls === "sysadmin") return can("block") && f.sta >= h.blockCost + 10 ? "block" : "brace";
-if (h.cls === "blood") return can("block") && f.sta >= 60 ? "block" : "brace";
-if (h.cls === "engineer") return can("channel") && f.focus >= 30 && f.focus < 60 ? "channel" : "brace";
-if (can("dodge") && f.focus >= 80 && f.focus < 95) return "dodge";
-return "brace";
-}
-function timingRoll(R, zone) { const r = R(); return r < zone * 0.35 ? "perfect" : r < zone * 1.9 ? "good" : "none"; }
-const PARRY_SKILL = { perfect: 0.3, good: 0.45, dodge: { perfect: 0.3, good: 0.45 } };
-const ULT_SKILL = { q: 1.0, sd: 0.1, all: 0.6 };
-function parryRoll(R) { const r = R(); return r < PARRY_SKILL.perfect ? "perfect" : r < PARRY_SKILL.perfect + PARRY_SKILL.good ? "good" : "none"; }
-function dodgeRoll(R) { const r = R(), D = PARRY_SKILL.dodge; return r < D.perfect ? "perfect" : r < D.perfect + D.good ? "good" : "none"; }
-function autoOpt(f, a, R, skill) {
-if (a === "heavy") return { t: timingRoll(R, skill == null ? f.h.zone : skill) };
-if (a === "ult") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all, guess: GUESS_PVE[Math.floor(R() * 4)] };
-if (a === "channel") return { cq: parryRoll(R) };
-if (a === "gamble") { const r = gambleRoll(f), hold = autoHold(r); if (!hold.every(Boolean) && canRespin(f) && R() < 0.85) gambleRespin(f, hold); return {}; }
-if (a === "dodge") return { dq: dodgeRoll(R) };
-if (a === "block" && f.intent && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) {
-if (f.intent.k === "unleash") return { rings: [parryRoll(R), parryRoll(R), parryRoll(R)] };
-return { parry: parryRoll(R) };
-}
-return {};
-}
-function simulate(hero, mission, seed, skill, style) {
-const f = newFight(hero, mission, seed), R = rng((seed || 1) * 7 + 3);
-let g = 0;
-while (!f.over && g++ < 400) {
-if (f.phase === "atk") { const a = autoAttack(f, R, style); attack(f, a, autoOpt(f, a, R, skill)); }
-else { const r = autoReact(f, R); react(f, r, autoOpt(f, r, R, skill)); }
-}
-return f;
-}
-/** karta = co se ukládá na server (z ní se postava přepočítá znovu, nic se nepřebírá slepě) */
-function card(h) { return { v: 11, cls: h.cls, level: h.level, main: Math.round(h.main), vit: Math.round(h.vit), luck: Math.round(h.luck), wpn: Math.round(h.wpn * 10) / 10, armor: Math.round(h.armor / ((CLASSES[h.cls] || {}).armorM || 1)) }; }
-function fromCard(c) {
-if (!c || !CLASSES[c.cls]) return null;
-const L = clamp(Math.floor(Number(c.level) || 1), 1, 999), cap = 60 + 25 * L;
-const C = CLASSES[c.cls], st = {};
-st[C.main] = clamp(Number(c.main) || BASE, BASE, cap) - BASE; st.vit = clamp(Number(c.vit) || BASE, BASE, cap) - BASE; st.luck = clamp(Number(c.luck) || BASE, BASE, cap) - BASE;
-return buildHero({ cls: c.cls, level: L, stats: st }, { wpn: clamp(Number(c.wpn) || 1, 1, 30 + 30 * L), armor: clamp(Number(c.armor) || 0, 0, 120 * L) });
-}
-/** "rovné podmínky": typická postava levelu L s gearem Rare+3 */
-function stdHero(cls, L, al) {
-const t = typical(L, 1.5), C = CLASSES[cls] || CLASSES.sysadmin, st = {};
-st[C.main] = t.main - BASE; st.vit = t.vit - BASE; st.luck = t.luck - BASE;
-const a = okAlloc(al, L);
-if (a) { const k = 1.5, pts = statPoints(L); st[C.main] += a.main - 0.5 * pts; st.vit += a.vit - 0.3 * pts; st.luck += a.luck - 0.2 * pts; }      // v11.2: vlastní rozdělení bodů (rovné podmínky)
-return buildHero({ cls: cls, level: L, stats: st }, { wpn: t.wpn, armor: t.armor });
-}
-/** rozdělení bodů pro duel "rovné podmínky": { main, vit, luck } - celá čísla, součet = body levelu L */
-function okAlloc(al, L) {
-if (!al || typeof al !== "object") return null;
-const pts = statPoints(L), v = ["main", "vit", "luck"].map(k => Math.max(0, Math.floor(Number(al[k]) || 0)));
-const sum = v[0] + v[1] + v[2]; if (sum <= 0 || sum > pts) return null;
-return { main: v[0], vit: v[1], luck: v[2] + (pts - sum) };
-}
-function power(h) { if (!h) return 0; return Math.round(Math.sqrt(estDmg(h, h.level, h.level * 4.75 + 10) * h.maxHp * (h.cls === "sysadmin" ? 1.5 : h.cls === "engineer" ? 1.1 : 1.25))); }
-const PVP_ATK = ["strike", "heavy", "gamble", "rest", "ult"];
-const SYMS = ["🍒", "🔔", "⭐", "7️⃣", "💀"];
-/** d = stav duelu: dva bojovníci, střídají se v útoku. V jednom půlkole volí útočník útok a obránce naslepo reakci. */
-function duelNew(A, B, seed) {
-const R = rng(seed || 1);
-const c = [A, B];
-const pv = (h) => PVP.dmg[h.cls] || 1;
-let first = A.firstStrike && !B.firstStrike ? 0 : B.firstStrike && !A.firstStrike ? 1 : (R() < 0.5 ? 0 : 1);
-const mA = Math.round(A.maxHp * PVP.hp), mB = Math.round(B.maxHp * PVP.hp);
-const d = { R: R, c: c, hp: [mA, mB], max: [mA, mB], pv: [pv(A), pv(B)], sta: [100, 100], foc: [30, 30], sh: [0, 0], sure: [false, false], chan: [0, 0], mark: [false, false],
-rev: [false, false], streak: [0, 0], vuln: [false, false], cd: [0, 0], bm: [0, 0], ep: [0, 0], sa: [0, 0], nocd: [0, 0], gd: [false, false], gu: [false, false], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
-d.armor = [clamp(A.armor / (B.level * 100), 0, A.armorCap), clamp(B.armor / (A.level * 100), 0, B.armorCap)];
-d.dodge = [A.dodge > 0 ? Math.min(0.75, A.dodge + (A.cls === "cyber" ? 0.3 * clamp(A.main / Math.max(1, B.main) - 0.5, 0, 1) : 0)) : 0,
-B.dodge > 0 ? Math.min(0.75, B.dodge + (B.cls === "cyber" ? 0.3 * clamp(B.main / Math.max(1, A.main) - 0.5, 0, 1) : 0)) : 0];
-return d;
-}
-function dEv(d, type, x) { const e = Object.assign({ t: d.turn, i: d.atk, type: type, hp: d.hp.slice(), sh: d.sh.slice() }, x || {}); d.events.push(e); return e; }
-function duelAtkOk(d, i, a) {
-if (a === "strike" || a === "rest") return true;
-if (a === "heavy") return d.sta[i] >= 30 && !((d.cd || [])[i] > 0);
-if (a === "gamble") return d.sta[i] >= 20;
-if (a === "ult") return d.foc[i] >= 100;
-return false;
-}
-function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.foc[i] >= h.dodgeCost; if (r === "channel") return d.foc[i] >= 30; return true; }
-function dHurt(d, i, v) {
-v = Math.max(0, Math.round(v)); const s = Math.min(d.sh[i], v); d.sh[i] -= s; d.hp[i] -= v - s;
-if (v > 0) d.foc[i] = Math.min(100, d.foc[i] + 8);
-const h = d.c[i];
-if (d.hp[i] <= 0 && h.revive && !d.rev[i]) { d.rev[i] = true; if (d.R() < h.revive) { d.hp[i] = Math.round(d.max[i] * 0.3); dEv(d, "revive", { who: i, val: d.hp[i] }); } }
-return v;
-}
-function dHit(d, a, b, mult, o) {
-o = o || {};
-const A = d.c[a], B = d.c[b];
-let m = mult * (d.chan[a] || 1) * (d.mark[a] ? 1 + (A.mark || 0) : 1) * (d.vuln[b] ? 1.5 : 1) * ((d.pv && d.pv[a]) || 1);
-d.vuln[b] = false;
-const sure = d.sure[a]; if (sure) d.sure[a] = false;
-const r = rawHit(d.R, A, Object.assign({}, B, { armorRed: o.ignoreArmor ? 0 : d.armor[b] }), { mult: m, crit: sure || o.crit ? true : undefined, critMul: o.critMul, critAdd: o.critAdd });
-return r;
-}
-/** v11.1: válce v duelu z předem daných čísel (server je losuje za každé půlkolo) - klient i server dostanou stejný výsledek */
-function duelReels(h, rolls, hold, re) {
-let k = 0; const f = { h: h, R: () => Number(rolls[k++ % rolls.length]) || 0 };
-const a = spinReels(f); if (!re) return a;
-const b = spinReels(f); return a.map((s, i) => hold && hold[i] ? s : b[i]);
-}
-function okReels(x) { return Array.isArray(x) && x.length === 3 && x.every(s => SYMS.indexOf(s) >= 0) ? x.slice() : null; }
-/** jedno půlkolo: útočník d.atk dá útok a, obránce naslepo reaguje r.
-*  opt (v11.1 - quick time eventy v duelu): { t: HEAVY timing, q: síla ulti 0.7-1.25, reels: válce z gamble mini-hry,
-*        parry: tier obránce při BLOCKu (proti HEAVY / GAMBLE / ULTI), dq: dodge mini-hra obránce } */
-/** jedno půlkolo: útočník d.atk dá útok a, obránce naslepo reaguje r.
-*  opt: { t: HEAVY timing, q: síla ulti, reels/respin: gamble, parry: tier BLOCKu, dq: dodge mini-hra, cq: CHANNEL mini-hra,
-*        rings: [3 tiery] BLOCK proti ulti (3× jako UNLEASH), dqs: [3 tiery] DODGE proti ulti, guess: tip útočníka na reakci (ulti) } */
-function duelHalf(d, a, r, opt) {
-if (d.over) return [];
-opt = opt || {};
-["cd", "bm", "ep", "sa", "nocd"].forEach(k => { if (!d[k]) d[k] = [0, 0]; });
-["gd", "gu"].forEach(k => { if (!d[k]) d[k] = [false, false]; });
-const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
-if (!duelAtkOk(d, i, a)) a = "strike";
-if (!duelReactOk(d, j, r)) r = "brace";
-const q = clamp(opt.q == null ? 1 : Number(opt.q) || 0.7, 0.7, 1.25);
-const T3 = (x) => Array.isArray(x) ? [0, 1, 2].map(k => x[k] === "perfect" || x[k] === "good" ? x[k] : "none") : null;
-const rings = T3(opt.rings), dqs = T3(opt.dqs);
-const parry = rings ? rings[0] : opt.parry, dq1 = dqs ? dqs[0] : opt.dq;
-if (a === "gamble" && opt.respin && d.sta[i] >= ATTACKS.gamble.sta + RESPIN_STA) d.sta[i] -= RESPIN_STA;
-if (a === "heavy") d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
-d.cd[i] = a === "heavy" && !(d.nocd[i] > 0) ? 1 : 0;
-if (d.nocd[i] > 0) d.nocd[i]--;
-const sure = d.sa[i] > 0 && a !== "rest"; if (sure) d.sa[i]--;
-if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.foc[j] -= B.dodgeCost; if (r === "channel") d.foc[j] -= 30;
-if (r === "brace") { d.sta[j] = Math.min(100, d.sta[j] + 15); d.foc[j] = Math.min(100, d.foc[j] + 10); }
-d.streak[j] = r === "dodge" ? d.streak[j] + 1 : 0;
-let hits = [], label = ATTACKS[a].name, ignoreArmor = false, critMul = 1, critAdd = 0, forceCrit = sure, gres = null, healSelf = 0, timing = "";
-if (a === "strike") { hits = A.double ? [0.6, 0.6] : [1]; d.sta[i] = Math.min(100, d.sta[i] + 10); }
-else if (a === "rest") { d.sta[i] = Math.min(100, d.sta[i] + 30); d.foc[i] = Math.min(100, d.foc[i] + 15); }
-else if (a === "heavy") { const m = opt.t === "perfect" ? 2.2 : opt.t === "none" ? 1.3 : 1.7; timing = opt.t === "perfect" ? "PERFECT" : opt.t === "none" ? "MISS" : "GOOD"; hits = A.double ? [0.6 * m, 0.6 * m] : [m]; }
-else if (a === "gamble") {
-const reels = okReels(opt.reels) || spinReels({ h: A, R: R });
-gres = reelResult(reels); gres.reels = reels;
-if (gres.bf) { const s = dHurt(d, i, estDmg(A, A.level) * gres.self); dEv(d, "bf", { val: s, reels: reels }); hits = []; }
-else { hits = gres.mult > 0 ? [gres.mult] : []; if (gres.heal) healSelf = Math.round(d.max[i] * gres.heal); d.foc[i] = Math.min(100, d.foc[i] + gres.foc); if (gres.jp) forceCrit = true; critAdd = gres.critAdd || 0; }
-} else if (a === "ult") {
-d.foc[i] = 0;
-if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3 * q), hh = Math.round(d.max[i] * 0.05 * q); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); hits = [1.4 * q]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh, q: q }); }
-else if (A.cls === "engineer") { hits = [3.2 * q]; critMul = 2; }
-else if (A.cls === "cyber") { hits = [2.8 * q]; ignoreArmor = true; d.chan[j] = 0; }
-else if (A.cls === "blood") { hits = [2.6 * q]; }
-else hits = [0.9 * q, 0.9 * q, 0.9 * q, 0.9 * q];
-}
-const magic = A.cls === "engineer", big = a !== "strike", ult3 = a === "ult";
-let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0;
-if (hits.length) {
-if (r === "dodge") {
-const base = magic ? 0 : d.dodge[j] * Math.pow(0.8, d.streak[j] - 1);
-const chOf = (x) => Math.min(0.95, Math.max(0, base * (x === "perfect" ? 1.6 : x === "good" ? 1.15 : x === "none" ? 0.4 : 1)));
-if (ult3 && dqs) {                                                // v11.2: proti ULTI 3 uskoky - každý úspěšný vezme třetinu
-dodged = dqs.filter(x => R() < chOf(x)).length; scale = 1 - dodged / 3;
-if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : magic ? "nododge" : "dodgefail";
-} else if (R() < chOf(dq1)) outcome = "dodge", hits = [];
-else outcome = magic ? "nododge" : "dodgefail";
-if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 10); if (B.cls === "cyber") d.sure[j] = true; }
-}
-let red = 0;
-if (r === "channel") { const cq = opt.cq === "perfect" || opt.cq === "none" ? opt.cq : "good"; red = cq === "perfect" ? 0.45 : cq === "good" ? 0.3 : 0.175; d.chan[j] = cq === "perfect" ? 1.6 : 1.3; outcome = "channel"; }
-if (r === "block") {
-const bk = B.block * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
-if (ult3 && rings) red = rings.reduce((s2, x) => s2 + tierRed(x), 0) / 3;
-else red = big ? tierRed(parry) : bk;
-const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
-if (magic) red *= 0.5;                                            // v11.2: proti Mágovi blok funguje jen z poloviny
-outcome = full && !magic ? "parry" : "block";
-}
-hits.forEach(m => {
-const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul, critAdd: critAdd, crit: forceCrit || undefined });
-let v = h0.v * scale * (1 - red);
-if (d.gd[j] && v > 0) { d.gd[j] = false; v *= 0.5; }
-saved += h0.v - v; const got = dHurt(d, j, v); total += got; hv.push(got); if (h0.crit) anyCrit = true;
+function tag(el, name) { if (el) el.setAttribute("data-tab", name); }
+tag(panelOf("btn-click"), "play");
+tag(panelByHeader(/SCRAP FABRICATION/i), "chest");
+tag(panelOf("btn-open-chest"), "chest");
+tag(panelOf("slot-HEAD"), "bag");
+tag(panelOf("backpack-grid"), "bag");
+tag(panelOf("merge-list"), "bag");
+tag(panelOf("view-roulette"), "casino");
+tag($("adv-minigames-mount"), "casino");
+tag(panelOf("btn-consult-launch"), "casino");
+tag(panelOf("stat-tickets"), "more");
+tag(panelOf("lp-shop"), "more");
+tag(panelOf("log"), "more");
+tag(panelOf("lb-body"), "more");
+/* v8.5.1: iOS po zavření fullscreen překryvu (HIGH STAKES) občas nepřekreslí horní část a zůstane "duch" - vynutíme repaint */
+window.ttRepaint = function () {
+var b = document.body; if (!b) return;
+b.style.transform = "translateZ(0)"; void b.offsetHeight;
+requestAnimationFrame(function () {
+b.style.transform = "";
+var mw = document.querySelector(".main-wrapper");
+if (mw) { var st = mw.scrollTop; mw.scrollTop = st + 1; mw.scrollTop = st; }
+setTimeout(function () { b.style.opacity = "0.999"; requestAnimationFrame(function () { b.style.opacity = ""; }); }, 60);
 });
-if (hits.length) d.chan[i] = 0;
-if (a === "ult" && A.cls === "cyber") d.vuln[j] = true;
-if (r === "block" && hits.length && ((a === "strike" && B.counter) || outcome === "parry")) { const c0 = dHit(d, j, i, outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter, {}); counter = dHurt(d, i, c0.v); }
-if (A.lifesteal && total) healSelf += Math.round(total * A.lifesteal);
-if (a === "ult" && A.cls === "blood") healSelf += Math.round(total * 0.6);
-if (d.bm[i] > 0 && total > 0) { d.bm[i]--; const bh = Math.min(Math.round(d.max[i] * 0.08), Math.round(total * 0.25)); healSelf += bh; dEv(d, "bm", { val: bh, left: d.bm[i] }); }
-if (A.mark) d.mark[i] = true;
+};
+function setTab(t) {
+tab = t;
+document.body.setAttribute("data-mtab", t);
+var bs = document.querySelectorAll("#m-tabs button");
+for (var i = 0; i < bs.length; i++) bs[i].classList.toggle("active", bs[i].getAttribute("data-go") === t);
+var mw = document.querySelector(".main-wrapper"); if (mw) mw.scrollTop = 0;
+try { localStorage.setItem("ir_tab", t); } catch (e) {}
+if (t === "more" && typeof chatVisible === "function" && chatVisible() && typeof chatUnread !== "undefined" && chatUnread) { chatUnread = 0; renderChatUnread(); }
+if (window.ttRepaint) window.ttRepaint();
+window.dispatchEvent(new Event("resize"));      // ruleta si přepočítá šířku
 }
-if (healSelf) d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf);
-if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined });
-if (a === "ult" && opt.guess && !d.gu[i]) {
-const ok = opt.guess === r;
-if (ok) {
-d.gu[i] = true;
-if (A.cls === "engineer") d.bm[i] = 3;
-else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2); d.gd[i] = true; }
-else if (A.cls === "cyber") d.ep[j] = 3;
-else if (A.cls === "hunter") d.sa[i] = 2;
-else { d.sta[i] = Math.min(100, d.sta[i] + 40); d.nocd[i] = 2; d.cd[i] = 0; }
+document.getElementById("m-tabs").addEventListener("click", function (ev) {
+var b = ev.target.closest("button[data-go]"); if (!b) return;
+var go = b.getAttribute("data-go");
+if (go === "fight") { if (window.Dungeon) Dungeon.open(); return; }
+setTab(go);
+});
+/* v8.7.5: výška = skutečná viditelná plocha (pevný prvek top:0 + bottom:0), jen při psaní výška nad klávesnicí.
+(v8.7.3 používal 100dvh - Chrome na Androidu ho počítal i pod adresní řádek a spodní lišta zmizela) */
+var probe = document.createElement("div");
+probe.style.cssText = "position:fixed;top:0;bottom:0;left:0;width:0;visibility:hidden;pointer-events:none;";
+document.documentElement.appendChild(probe);
+function typing() { var a = document.activeElement; return !!(a && a.matches && a.matches("input,textarea,select,[contenteditable]")); }
+/* v9.0.1: iPhone aplikace z plochy (černý průhledný status bar) hlásí výšku bez status baru -> spodní lišta byla useknutá */
+var sprobe = document.createElement("div");
+sprobe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);";
+document.documentElement.appendChild(sprobe);
+function safeTop() { return parseFloat(getComputedStyle(sprobe).paddingTop) || 0; }
+function standalone() { return !!(navigator.standalone || (window.matchMedia && (matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches))); }
+/** v9.3.1: iPhone web app (černý průhledný status bar): viditelná výška = hlášená výška + výška status baru */
+function isIOS() { var u = navigator.userAgent || ""; return /iPhone|iPad|iPod/.test(u) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function iosFull() {
+if (!isIOS() || !standalone() || !window.screen) return 0;            // v9.3.3: jen iPhone (Android aplikace má v screen.height i systémové lišty -> lišta zmizela pod okraj)
+var port = window.innerWidth < window.innerHeight;
+var sh = port ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+var ph = probe.offsetHeight || window.innerHeight, st = safeTop(), d = sh - ph;
+return d > 20 && d < 120 ? d : 0;     // v9.3.4: iOS spodních d bodů vůbec nevykreslí -> hru už NEnatahujeme, jen to označíme (iosgap)
 }
-dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n : "" });
+window.__viewInfo = function () {
+return "screen " + (window.screen ? screen.width + "×" + screen.height : "?") + " · inner " + window.innerWidth + "×" + window.innerHeight + " · fixed " + (probe.offsetHeight || 0) +
+" · safe " + Math.round(safeTop()) + "/" + Math.round(parseFloat(getComputedStyle(sprobe).paddingBottom) || 0) + " · app " + (standalone() ? "yes" : "no") + (isIOS() ? " ios" : "") + " · gap " + (document.documentElement.classList.contains("iosgap") ? "on" : "off") +
+" · body " + Math.round(document.body.getBoundingClientRect().height) + " · tabs " + Math.round(($("m-tabs") || document.body).getBoundingClientRect().bottom);
+};
+function setAppH() {
+var vv = window.visualViewport, kb = typing() && vv && vv.height < (probe.offsetHeight || window.innerHeight) - 80;
+document.documentElement.classList.toggle("kb", !!kb);
+document.documentElement.classList.toggle("iosgap", !kb && !!iosFull());
+var h = kb ? vv.height : (probe.offsetHeight || window.innerHeight);
+if (h) document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
 }
-if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
-d.half++;
-if (d.half % 2 === 0) {
-for (let k = 0; k < 2; k++) d.foc[k] = Math.min(100, d.foc[k] + 10);      // v11.1: stamina se sama nedoplňuje
-for (let k = 0; k < 2; k++) if (d.ep[k] > 0 && d.hp[k] > 0) { d.ep[k]--; const pv = dHurt(d, k, d.max[k] * 0.04); dEv(d, "poison", { who: k, val: pv }); }
-d.turn++;
-if (d.hp[0] <= 0 || d.hp[1] <= 0) return duelEnd(d, d.hp[0] > 0 ? 0 : d.hp[1] > 0 ? 1 : (d.hp[0] >= d.hp[1] ? 0 : 1), start);
+document.addEventListener("focusin", function () { setTimeout(setAppH, 50); });
+document.addEventListener("focusout", function () { setTimeout(setAppH, 50); });
+setAppH();
+window.addEventListener("resize", setAppH);
+window.addEventListener("orientationchange", function () { setTimeout(setAppH, 250); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", setAppH);
+window.addEventListener("pageshow", setAppH);
+setInterval(function () { setAppH(); var vi = $("m-viewinfo"); if (vi && document.body.getAttribute("data-mtab") === "more") vi.textContent = window.__viewInfo(); }, 2000);     // pojistka: Chrome při schování/zobrazení lišty někdy resize nepošle
+function applyMode() {
+var on = isM();
+document.documentElement.classList.toggle("m", on);
+document.documentElement.classList.toggle("mc", on && !mq.matches);
+var cb = $("m-compact"); if (cb) cb.textContent = compact ? "🖥 FULL UI" : "📱 COMPACT";
+if (on) setTab(/^(play|chest|bag|casino|more)$/.test(tab) ? tab : "play");
+else document.body.removeAttribute("data-mtab");
 }
-d.atk = j;
-if (d.turn > 30) return duelEnd(d, d.hp[0] / d.max[0] >= d.hp[1] / d.max[1] ? 0 : 1, start, "time");
-return d.events.slice(start);
+if (mq.addEventListener) mq.addEventListener("change", applyMode); else if (mq.addListener) mq.addListener(applyMode);
+var badge = document.querySelector(".user-badge");
+if (badge && !$("m-compact")) {
+var cbt = document.createElement("button");
+cbt.id = "m-compact"; cbt.type = "button"; cbt.className = "btn btn-cyan btn-help";
+cbt.title = "Switch between the full PC layout and the compact layout with tabs at the bottom";
+cbt.addEventListener("click", function () {
+compact = !compact;
+try { localStorage.setItem("ir_compact", compact ? "1" : "0"); } catch (e) {}
+applyMode();
+window.dispatchEvent(new Event("resize"));
+});
+badge.insertBefore(cbt, badge.firstChild);
 }
-function duelEnd(d, w, start, why) { d.over = true; d.win = w; d.hp = d.hp.map(x => Math.max(0, x)); dEv(d, "end", { win: w, why: why || "ko" }); return d.events.slice(start); }
-/** AI v duelu: útočí podle stavu, reaguje naslepo (neví, co soupeř zvolí) */
-function duelAiAtk(d, i, R, style) {
-if (duelAtkOk(d, i, "ult")) return "ult";
-const st = d.sta[i], h = d.c[i], reserve = h.block > 0 ? h.blockCost : 0;
-if (st < 30 + reserve * 0.5 && R() < 0.5) return "rest";
-if (style === "allin" && st >= 20 && R() < 0.35) return "gamble";
-if (duelAtkOk(d, i, "heavy") && st - 30 >= reserve && (st >= 65 || R() < 0.45)) return "heavy";
-if (style !== "safe" && st - 20 >= reserve + 10 && R() < 0.12) return "gamble";
-return "strike";
+applyMode();
+var cache = {};
+function mirror(from, to) {
+var a = $(from), b = $(to); if (!a || !b) return;
+var t = a.textContent;
+if (to !== "mh-p") {                                  // v9.0.1: od miliardy zkráceně, ať se to vejde (13.40B)
+var n = Number(t.replace(/[^\d]/g, ""));
+if (n >= 1e9) t = n >= 1e15 ? n.toExponential(2) : n >= 1e12 ? (n / 1e12).toFixed(2) + "T" : (n / 1e9).toFixed(2) + "B";
 }
-function duelAiReact(d, j, R, style) {
-const h = d.c[j], opp = d.c[1 - j], heavyLikely = (d.sta[1 - j] >= 65 && !(d.cd && d.cd[1 - j] > 0)) || d.foc[1 - j] >= 100;
-if (h.cls === "sysadmin") return duelReactOk(d, j, "block") && d.sta[j] >= h.blockCost + 10 ? "block" : "brace";
-if (h.dodge > 0 && opp.cls !== "engineer" && duelReactOk(d, j, "dodge") && (heavyLikely || d.foc[j] >= 80) && d.foc[j] < 100 - (style === "safe" ? 0 : 5)) return "dodge";
-if (h.cls === "blood" && duelReactOk(d, j, "block") && d.sta[j] >= 60) return "block";
-if (h.canChannel && duelReactOk(d, j, "channel") && d.foc[j] < 60) return "channel";
-return "brace";
+if (cache[to] !== t) { cache[to] = t; b.textContent = t; }
 }
-function duelAI(A, B, seed, sa, sb) {
-const d = duelNew(A, B, seed), R = rng((seed || 1) * 13 + 5), st = [sa || "normal", sb || "normal"];
-let g = 0;
-while (!d.over && g++ < 200) {
-const i = d.atk, j = 1 - i;
-const a = duelAiAtk(d, i, R, st[i]), r = duelAiReact(d, j, R, st[j]), rs = reactsOf(d.c[j]);
-duelHalf(d, a, r, { t: R() < 0.25 ? "perfect" : "good", parry: parryRoll(R), dq: dodgeRoll(R), cq: parryRoll(R), rings: [parryRoll(R), parryRoll(R), parryRoll(R)], dqs: [dodgeRoll(R), dodgeRoll(R), dodgeRoll(R)], guess: rs[Math.floor(R() * rs.length)] });
+setInterval(function () {
+if (!isM() || document.hidden) return;
+mirror("stat-tickets", "mh-t"); mirror("stat-coins", "mh-c"); mirror("stat-scrap", "mh-s"); mirror("stat-cps", "mh-p");
+}, 250);
+$("m-fx").addEventListener("click", function () { var t = $("fx-toggle"); if (t) t.click(); $("m-fx").textContent = (t && /OFF/i.test(t.textContent)) ? "✨ EFFECTS: OFF" : "✨ EFFECTS: ON"; });
+$("m-logout").addEventListener("click", function () { var t = $("ir-logout"); if (t) t.click(); });
+var cbtn = $("btn-click");
+if (cbtn && "ontouchstart" in window) {
+cbtn.addEventListener("touchstart", function (e) {
+e.preventDefault();                      // žádný zpožděný click, dvojklik-zoom ani označení textu
+cbtn.classList.add("pressed");
+for (var i = 0; i < e.changedTouches.length; i++) {
+var t = e.changedTouches[i];
+if (typeof handleManualClick === "function") handleManualClick(e);
+if (window.__fxTap) window.__fxTap(t.clientX, t.clientY);
 }
-return { win: d.win === 0, first: d.first, events: d.events, max: d.max, turns: d.turn };
+}, { passive: false });
+var unpress = function () { cbtn.classList.remove("pressed"); };
+cbtn.addEventListener("touchend", unpress); cbtn.addEventListener("touchcancel", unpress);
 }
-const api = { rng: rng, CLASSES: CLASSES, CLASS_IDS: CLASS_IDS, ATTACKS: ATTACKS, REACTS: REACTS, ACTIONS: ACTIONS, ITEMS: ITEMS, MAX_ITEMS_PER_FIGHT: MAX_ITEMS_PER_FIGHT,
-statPoints: statPoints, typical: typical, buildHero: buildHero, buildEnemy: buildEnemy, estDmg: estDmg, critOf: critOf, rawHit: rawHit, ARCH: ARCH, KIND: KIND,
-newFight: newFight, attack: attack, react: react, step: step, allowed: allowed, allowedAtk: allowedAtk, allowedReact: allowedReact, hasReact: hasReact, reactsOf: reactsOf, isDmgIntent: isDmgIntent, useItem: useItem,
-stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, bonusText: bonusText, FORM_NO: FORM_NO,
-simulate: simulate, autoAttack: autoAttack, autoReact: autoReact, autoPolicy: autoAttack, autoOpt: autoOpt, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, timingRoll: timingRoll,
-reelResult: reelResult, gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM,
-GUESS_FX: GUESS_FX, GUESS_PVE: GUESS_PVE, guessCat: guessCat, card: card, fromCard: fromCard, PVP: PVP, ATK_KEYS: ATK_KEYS, ECLS: ECLS, dodgeRoll: dodgeRoll, okReels: okReels, duelReels: duelReels, stdHero: stdHero, okAlloc: okAlloc, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
-if (typeof module !== "undefined" && module.exports) module.exports = api;
-else root.HSEngine = api;
-})(typeof window !== "undefined" ? window : this);
+function isField(t) { return t && t.closest && t.closest("input,textarea,select,[contenteditable]"); }
+document.addEventListener("selectstart", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("dblclick", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("contextmenu", function (e) { if (mq.matches && !isField(e.target)) e.preventDefault(); });
+document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+document.addEventListener("touchmove", function (e) {
+if (mq.matches && e.target.closest && e.target.closest("#btn-click")) e.preventDefault();   // v9.3.6: blokuje se jen tah po tlačítku, záložka HRA se jinak normálně posouvá
+}, { passive: false });
+})();
 </script>
-<script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig2"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["mobile"] = 1;</script>
 <!-- END-OF-FILE: mobile -->

@@ -1,7 +1,35 @@
+<style>
+/* ===== v8.7.5 WHAT'S NEW + UPDATE LOG ===== */
+#cl-ov { position: fixed; inset: 0; z-index: 9990; display: none; align-items: center; justify-content: center; padding: 14px; background: rgba(0,0,0,.78); }
+#cl-ov.open { display: flex; }
+.cl-box { width: 100%; max-width: 560px; max-height: min(86vh, 760px); display: flex; flex-direction: column; background: var(--bg-panel); border: 1px solid var(--amber); border-radius: 10px; box-shadow: 0 0 30px rgba(255,184,0,.25); }
+.cl-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+.cl-head h2 { flex: 1; margin: 0; font: 900 15px 'Orbitron', monospace; color: var(--amber); letter-spacing: 2px; }
+.cl-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 14px; }
+.cl-v { margin-bottom: 14px; }
+.cl-v h3 { margin: 0 0 4px; font: 800 12px 'Orbitron', monospace; color: var(--cyan); letter-spacing: 1px; display: flex; justify-content: space-between; gap: 8px; }
+.cl-v h3 small { color: var(--text-dim); font: 600 10px sans-serif; }
+.cl-v.new h3 { color: var(--emerald); }
+.cl-v ul { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; color: var(--text-main); }
+.cl-v li b { color: var(--amber); }
+.cl-foot { flex: none; display: flex; gap: 8px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border-subtle); }
+.cl-foot .btn { flex: 1; padding: 10px; }
+</style>
+<div id="cl-ov"><div class="cl-box">
+<div class="cl-head"><h2 id="cl-title">📜 What's new</h2><button class="btn" style="padding:4px 10px;" onclick="Changelog.close()">✕</button></div>
+<div class="cl-body" id="cl-body"></div>
+<div class="cl-foot"><button class="btn" id="cl-all" onclick="Changelog.open(true)">📜 FULL UPDATE LOG</button><button class="btn btn-gold" onclick="Changelog.close()">OK, LET'S PLAY</button></div>
+</div></div>
 <script>
 (function () {
 "use strict";
 const LOG = [
+{ v: "11.3", d: "2026-10-28", i: [
+"😮‍💨 Every action now costs <b>stamina</b> - DODGE 20, CHANNEL 15 (BLOCK stays). <b>Focus only charges your ULTIMATE</b>, so the Mage, Trojan and Hunter get it much more often. A successful dodge gives +5 focus",
+"⚖ Duel classes re-balanced for the stamina change",
+"⚒ Gear: a new item that is weaker now shows when it would beat your gear - \"better at +3 (cost)\". ♻ Salvage only scraps pieces that stay weaker even at +10",
+"📊 ESC works everywhere now - in a fight, in High Stakes and in mini-games it hides the game behind a blank \"New Sheet\" spreadsheet (no more SLA report). ESC again brings you back exactly where you were"
+] },
 { v: "11.2", d: "2026-10-28", i: [
 "🎯 <b>Guess after your ultimate</b>: after the mini-game you guess the enemy's next move (in a duel: your opponent's reaction). Right guess = a class effect once per fight: 🧙 Blood Magic (next 3 hits heal you), 🛡 Firewall Up (shield + next hit halved), 🦠 Infection (poison), 🏹 Marked for Death (next 2 attacks crit), ☕ Sugar Rush (+40 stamina, HEAVY without cooldown)",
 "🎬 Short animations for every ultimate (tap to skip)",
@@ -228,65 +256,5 @@ setTimeout(() => { if (!document.querySelector(".tt-overlay.open")) open(rec !==
 })();
 })();
 </script>
-<style>
-/* ===== META (v8.2): firemní eventy, achievementy, týdenní žebříčky ===== */
-#mt-event { position: fixed; top: 8px; left: 270px; z-index: 150; display: none; align-items: center; gap: 8px; max-width: calc(100% - 24px);
-padding: 5px 12px; border-radius: 16px; cursor: pointer; font: 700 11px 'Orbitron', monospace; color: #fff; white-space: nowrap; overflow: hidden;
-background: linear-gradient(90deg, rgba(255,23,68,.92), rgba(255,184,0,.92)); box-shadow: 0 0 18px rgba(255,184,0,.45); animation: mtPulse 1.6s ease-in-out infinite alternate; }
-#mt-event.on { display: flex; }
-#mt-event small { font: 600 10px sans-serif; opacity: .9; overflow: hidden; text-overflow: ellipsis; }
-#mt-event b { font-variant-numeric: tabular-nums; }
-@keyframes mtPulse { from { box-shadow: 0 0 8px rgba(255,184,0,.35); } to { box-shadow: 0 0 22px rgba(255,184,0,.7); } }
-html.m #mt-event { top: auto; left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom)); }
-#mt-open-btn { padding: 3px 9px; font-size: 11px; }
-html.m #mt-open-btn { display: none; }
-#mt-screen { position: fixed; inset: 0; z-index: 205; display: none; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #1a1405 0%, var(--bg-core, #07090e) 55%); color: var(--text-main); }
-#mt-screen.open { display: flex; }
-html.m #mt-screen { height: var(--app-h, 100%); }
-.mt-top { flex: none; display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--border-subtle); background: rgba(8,10,16,.9); }
-.mt-top h1 { font: 900 15px 'Orbitron', monospace; letter-spacing: 2px; color: var(--amber); margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mt-tabs { flex: none; display: flex; gap: 4px; padding: 6px 12px; }
-.mt-tabs button { flex: 1; }
-.mt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
-.mt-inner { max-width: 980px; margin: 0 auto; }
-.mt-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
-.mt-h { font: 700 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--cyan); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
-.mt-dim { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
-.mt-dim b { color: var(--amber); }
-.mt-cat { font: 700 10px 'Orbitron', monospace; color: var(--text-dim); margin: 10px 0 4px; letter-spacing: 1px; }
-.mt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
-.mt-a { display: flex; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); min-width: 0; }
-.mt-a .ic { flex: none; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 19px; background: #111827; filter: grayscale(1); opacity: .5; }
-.mt-a.done { border-color: rgba(255,215,0,.45); background: linear-gradient(90deg, rgba(255,215,0,.08), transparent); }
-.mt-a.done .ic { filter: none; opacity: 1; background: radial-gradient(circle, rgba(255,215,0,.35), #1a1405); box-shadow: 0 0 10px rgba(255,215,0,.35); }
-.mt-a .t { flex: 1; min-width: 0; font-size: 11px; }
-.mt-a .t b { display: block; font: 800 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mt-a .t span { color: var(--text-dim); font-size: 10px; }
-.mt-pb { height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 4px; }
-.mt-pb div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--emerald)); }
-.mt-a.done .mt-pb div { background: #ffd700; }
-.mt-lb { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
-.mt-row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
-.mt-row.me { color: var(--cyan); }
-.mt-ev { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px; background: var(--bg-panel-elevated); margin-bottom: 4px; font-size: 11px; }
-.mt-ev.now { box-shadow: 0 0 0 1px var(--amber) inset; }
-.mt-ev .ic { font-size: 20px; width: 26px; text-align: center; }
-.mt-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
-.mt-badges span { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; background: radial-gradient(circle, rgba(255,215,0,.3), #1a1405); }
-.mt-toast { position: fixed; right: 12px; bottom: 70px; z-index: 400; display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px;
-background: linear-gradient(90deg, #1a1405, #2a1f05); border: 1px solid #ffd700; box-shadow: 0 0 24px rgba(255,215,0,.4); color: #fff; font-size: 12px; animation: mtIn .35s ease-out; }
-.mt-toast .ic { font-size: 26px; } .mt-toast b { display: block; font: 800 11px 'Orbitron', monospace; color: #ffd700; letter-spacing: 1px; }
-@keyframes mtIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
-</style>
-<div id="mt-event" onclick="Meta.open('events')"></div>
-<div id="mt-screen">
-<div class="mt-top">
-<button class="btn btn-cyan" onclick="Meta.close()">◀ OFFICE</button>
-<h1>🏆 HALL OF FAME</h1>
-<span class="mt-dim" id="mt-count"></span>
-</div>
-<div class="mt-tabs" id="mt-tabs"></div>
-<div class="mt-body"><div class="mt-inner" id="mt-inner"></div></div>
-</div>
-<script>(window.__TT_FILES = window.__TT_FILES || {})["hs_ui"] = 1;</script>
-<!-- END-OF-FILE: hs_ui -->
+<script>(window.__TT_FILES = window.__TT_FILES || {})["changelog"] = 1;</script>
+<!-- END-OF-FILE: changelog -->

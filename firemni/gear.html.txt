@@ -1,0 +1,271 @@
+<style>
+/* ===== v10 COMBAT GEAR (High Stakes Season 2): loot z bojů, 4 sloty, rarity Common -> Mythic, +0..+10 za GC ===== */
+.gr-list { display: grid; gap: 8px; }
+.gr-piece { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); }
+.gr-piece.empty { opacity: .6; }
+.gr-ic { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; background: color-mix(in srgb, var(--gm) 18%, transparent); border: 1px solid color-mix(in srgb, var(--gm) 55%, transparent); }
+.gr-t { min-width: 0; }
+.gr-t b { display: block; font-size: 14px; font-weight: 700; color: var(--gm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gr-t .gr-fx { font-size: 12px; color: var(--text-dim); }
+.gr-t .gr-r { font-size: 11px; color: var(--text-dim); }
+.gr-act { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 112px; }
+.gr-act .btn { padding: 7px 10px; font-size: 12px; line-height: 1.2; }
+.gr-act .btn small { display: block; font-size: 11px; opacity: .8; font-weight: 500; }
+.gr-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin-top: 8px; }
+.gr-sum b { color: var(--text-main); font-weight: 700; }
+.gr-bag { display: grid; gap: 6px; margin-top: 8px; max-height: 420px; overflow-y: auto; }
+.gr-bag .gr-piece { padding: 7px 10px; grid-template-columns: 36px 1fr auto; }
+.gr-bag .gr-ic { width: 36px; height: 36px; font-size: 18px; }
+.gr-bag .gr-act { flex-direction: row; min-width: 0; }
+.gr-up { color: var(--emerald); font-weight: 700; }
+.gr-dn { color: var(--crimson); }
+@media (max-width: 700px) {
+.gr-piece { grid-template-columns: 40px 1fr; }
+.gr-ic { width: 40px; height: 40px; font-size: 20px; }
+.gr-act { grid-column: 1 / -1; flex-direction: row; min-width: 0; }
+.gr-act .btn { flex: 1; }
+.gr-bag { max-height: none; }
+}
+</style>
+<script>
+(function () {
+"use strict";
+const A = window.HS_API, C = window.HSCampaign;
+const fmt = (n) => Math.floor(n).toLocaleString();
+const short = (n) => { n = Math.floor(n); return n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "K" : n.toLocaleString(); };
+const esc = (t) => (typeof escapeHtml === "function" ? escapeHtml(String(t)) : String(t));
+const MATS = [
+{ n: "Paper", i: "📄", c: "#c9d1dc" }, { n: "Cardboard", i: "📦", c: "#d0a46a" }, { n: "Wood", i: "🪵", c: "#c07a43" }, { n: "Plastic", i: "🧴", c: "#5bb8f0" },
+{ n: "Steel", i: "🔩", c: "#9fb4cc" }, { n: "Titanium", i: "💠", c: "#a9c7ff" }, { n: "Carbon", i: "⬛", c: "#8a93a6" }, { n: "Quantum", i: "⚛", c: "#3fe0c5" }
+];
+const RAR = [
+{ n: "Common", c: "#c9d1dc", k: 1 }, { n: "Uncommon", c: "#4ade80", k: 1.12 }, { n: "Rare", c: "#5bb8f0", k: 1.25 }, { n: "Epic", c: "#b37cff", k: 1.55 },
+{ n: "Legendary", c: "#f5b942", k: 1.9 }, { n: "Mythic", c: "#ff5d73", k: 2.4 }
+];
+const RMAX = RAR.length - 1;
+/** nejvyšší rarita z běžných nepřátel na High Stakes prestiži P (P0 = jen šedé), bossové mají 25 % na o jednu vyšší */
+function capOf(P) { return Math.max(0, Math.min(RMAX, P | 0)); }
+function hsP() { try { return (A.HS().hsp | 0) || 0; } catch (e) { return 0; } }
+const PIECES = {
+w: { n: "Weapon", i: "🗡", names: ["Rolled-Up Memo", "Cardboard Tube Sword", "Wooden Ruler", "Plastic Keyboard Blade", "Steel Stapler", "Titanium Letter Opener", "Carbon Monitor Arm", "Quantum Mouse"] },
+a: { n: "Armor", i: "🛡", names: ["Paper Armor", "Cardboard Box Armor", "Wooden Desk Shield", "Plastic Laptop Sleeve", "Steel Filing Cabinet", "Titanium Office Chair", "Carbon Server Rack", "Quantum Firewall"] },
+h: { n: "Helmet", i: "⛑", names: ["Paper Hat", "Cardboard Visor", "Wooden Hard Hat", "Plastic Headset", "Steel Bin Helmet", "Titanium VR Visor", "Carbon Noise-Cancellers", "Quantum Thinking Cap"] },
+t: { n: "Trinket", i: "📎", names: ["Paper Clip", "Cardboard Badge", "Wooden Rubber Stamp", "Plastic Lanyard", "Steel Thermos", "Titanium USB Key", "Carbon Coffee Mug", "Quantum Rubber Duck"] }
+};
+const KEYS = ["w", "a", "h", "t"], UMAX = 10, BAG_MAX = 20, POOL_QUANTUM = 50;
+function tierOf(it) { return Math.max(0, Math.min(7, Math.floor((it.lv || 1) / 14))); }
+function name(k, it) { return it ? RAR[it.r].n + " " + PIECES[it.s || k].names[tierOf(it)] + (it.u ? " +" + it.u : "") : "-"; }
+/** v11 (High Stakes 2.0): pevné staty jako v SFGame. Zbraň = damage, zbroj = armor, všechno dává staty. Kus nad tvůj level + 10 se počítá jako level + 10. */
+function heroLv() { try { return Math.max(1, (A.HS().level | 0) || 1); } catch (e) { return 999; } }
+function effLv(it, L) { return Math.max(1, Math.min(it.lv || 1, (L || heroLv()) + 10)); }
+function kOf(it) { return RAR[it.r].k * (1 + 0.07 * (it.u || 0)); }
+function fx(it, L) {
+const k = kOf(it), lv = effLv(it, L), o = { wpn: 0, armor: 0, crit: 0, main: 0, vit: 0, luck: 0, capped: lv < (it.lv || 1) };
+if (it.s === "w") { o.wpn = Math.round((6 + 2 * lv) * k * 10) / 10; o.main = Math.round(lv * 0.5 * k); }
+else if (it.s === "a") { o.armor = Math.round(20 * lv * k); o.vit = Math.round(lv * 1.0 * k); }
+else if (it.s === "h") { o.main = Math.round(lv * 0.6 * k); o.vit = Math.round(lv * 0.5 * k); }
+else { o.luck = Math.round(lv * 0.8 * k); o.main = Math.round(lv * 0.4 * k); o.crit = it.r * 0.005; }
+return o;
+}
+function score(it, L) { if (!it) return 0; const o = fx(it, L); return o.wpn * 3 + o.armor * 0.06 + o.crit * 300 + o.main * 1.2 + o.vit * 0.9 + o.luck * 0.6; }
+function fxText(it, L) {
+const o = fx(it, L), t = [];
+if (o.wpn) t.push(`⚔ ${o.wpn} damage`); if (o.armor) t.push(`🛡 ${o.armor} armor`);
+if (o.main) t.push(`+${o.main} main stat`); if (o.vit) t.push(`+${o.vit} VIT`); if (o.luck) t.push(`+${o.luck} LUCK`); if (o.crit) t.push(`+${(o.crit * 100).toFixed(1)}% crit`);
+return t.join(" · ") + (o.capped ? ` <span style="color:var(--amber);">(counts as LV ${effLv(it, L)} until you level up)</span>` : "");
+}
+/** součet výbavy pro HSEngine.buildHero: { wpn, armor, crit, stats } ; L = level nositele (kolega má svůj) */
+function multOf(eq, L) {
+const m = { wpn: 0, armor: 0, crit: 0, stats: { main: 0, vit: 0, luck: 0 }, atk: 1, hp: 1 };
+KEYS.forEach(k => { const it = eq && eq[k]; if (!it || it.lv == null) return; const o = fx(it, L); m.wpn += o.wpn; m.armor += o.armor; m.crit += o.crit; m.stats.main += o.main; m.stats.vit += o.vit; m.stats.luck += o.luck; });
+return m;
+}
+function upCost(it) { return Math.round(150 * Math.pow(it.lv || 1, 1.45) * RAR[it.r].k * Math.pow(1.35, it.u || 0)); }
+function salvageGc(it) { return Math.round(80 * Math.pow(it.lv || 1, 1.4) * RAR[it.r].k * (1 + 0.5 * (it.u || 0))); }
+function normIt(it, s) {
+if (!it || typeof it !== "object" || it.lv == null) return null;
+return { id: String(it.id || Math.random().toString(36).slice(2, 9)), s: KEYS.indexOf(it.s) >= 0 ? it.s : s, r: Math.max(0, Math.min(RMAX, it.r | 0)), lv: Math.max(1, Math.min(400, Math.floor(Number(it.lv) || 1))), u: Math.max(0, Math.min(UMAX, it.u | 0)) };
+}
+function st() {
+const d = A.HS();
+if (!d.gear || typeof d.gear !== "object" || (d.gear.v !== 2 && d.gear.v !== 3)) d.gear = { v: 3, eq: {}, bag: [] };
+const g = d.gear;
+if (!g.eq || typeof g.eq !== "object") g.eq = {};
+KEYS.forEach(k => { g.eq[k] = normIt(g.eq[k], k); if (g.eq[k]) g.eq[k].s = k; });
+g.bag = (Array.isArray(g.bag) ? g.bag : []).map(x => normIt(x)).filter(x => x && KEYS.indexOf(x.s) >= 0).slice(0, BAG_MAX);
+["w", "a", "t"].forEach(k => { const it = g.eq[k]; g[k] = { m: it ? Math.max(0, Math.min(7, tierOf(it) + (it.r >= 4 ? 1 : 0))) : 0 }; });
+return g;
+}
+function vis(eq) { const o = {}; ["w", "a", "t"].forEach(k => { const it = eq && eq[k]; o[k] = { m: it && it.lv != null ? Math.max(0, Math.min(7, tierOf(it) + (it.r >= 4 ? 1 : 0))) : (it && it.m) || 0 }; }); return o; }
+function mult() { return multOf(st().eq); }
+/** v11: level předmětu = level nepřítele (bossové +2, Pool +3) */
+function lvFor(m) {
+const d = A.HS(), id = m && m.id != null ? m.id : 0;
+const L = m && m.enemy && m.enemy.level ? m.enemy.level : m && m.level ? m.level : d.level;
+return Math.max(1, Math.round(L + (m && (m.kind === "boss" || m.kind === "secret") ? 2 : 0) + (id >= 4000 && id < 5000 ? 3 : 0)));
+}
+/** v11.1: běžní nepřátelé dávají rarity 0..cap (vyšší vzácněji), bossové (kampaň, tower, pool) mají 25 % na cap + 1 */
+function rollR(kind, P) {
+const cap = capOf(P == null ? hsP() : P);
+const boss = kind === "boss" || kind === "secret" || kind === "mini";
+if (boss && Math.random() < 0.25) return Math.min(RMAX, cap + 1);
+const w = []; for (let i = 0; i <= cap; i++) w.push(Math.pow(0.6, i));
+let x = Math.random() * w.reduce((a, b) => a + b, 0);
+for (let i = 0; i <= cap; i++) { if (x < w[i]) return i; x -= w[i]; }
+return 0;
+}
+/** volá HIGH STAKES po každé výhře; lines = řádky výsledkového okna */
+function drop(m, lines, force) {
+if (!m) return null;
+const kind = m.kind || "normal", id = m.id || 0;
+const ch = kind === "boss" || kind === "secret" ? 1 : kind === "elite" ? 0.6 : id >= 4000 ? 0.4 : 0.3;
+if (!force && Math.random() > ch) return null;
+const g = st(), s = KEYS[Math.floor(Math.random() * KEYS.length)];   // v11: level předmětu podle nepřítele
+const it = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), s: s, r: rollR(kind, m.p != null ? m.p : hsP()), lv: lvFor(m), u: 0 };
+let where = "bag";
+if (!g.eq[s]) { g.eq[s] = it; where = "equipped"; }
+else {
+g.bag.unshift(it);
+if (g.bag.length > BAG_MAX) { const worst = g.bag.slice().sort((a, b) => score(a) - score(b))[0]; g.bag.splice(g.bag.indexOf(worst), 1); gameState.coins += salvageGc(worst); }
+}
+const line = `🎁 <span style="color:${RAR[it.r].c};font-weight:700;">${esc(name(s, it))}</span> (${PIECES[s].n.toLowerCase()} · LV ${it.lv})${where === "equipped" ? " - equipped!" : score(it) > score(g.eq[s]) ? " - better than yours, equip it in HERO" : ""}`;
+if (lines) lines.push(line);
+if (it.r >= 4 && window.TT && TT.announce) try { TT.announce("FOUND " + RAR[it.r].n.toUpperCase() + " " + PIECES[s].names[tierOf(it)].toUpperCase(), "HIGH STAKES", 0, 0); } catch (e) {}
+st(); TT.saveSoon();
+return it;
+}
+function give(old) { const g = st(); g.bag.unshift(old); if (g.bag.length > BAG_MAX) { const w = g.bag.slice().sort((a, b) => score(a) - score(b))[0]; g.bag.splice(g.bag.indexOf(w), 1); gameState.coins += salvageGc(w); log(`♻ Gear bag full - auto-salvaged ${name(w.s, w)} for +${fmt(salvageGc(w))} GC.`, "warning"); } }
+function colGear() { const d = A.HS(); if (!d.col || typeof d.col !== "object") d.col = {}; if (!d.col.gear || typeof d.col.gear !== "object") d.col.gear = {}; return d.col.gear; }
+function toCol(id) {
+const g = st(), f = find(id); if (!f || f.eq) return;
+const cg = colGear(), it = f.it, old = cg[it.s] && cg[it.s].lv != null ? cg[it.s] : null;
+g.bag.splice(f.i, 1); cg[it.s] = it; if (A.HS().col) A.HS().col.named = true;
+if (old) give(old);
+log(`🧑‍💼 Your colleague now uses ${name(it.s, it)}${old ? " (their old piece went to your bag)" : ""}.`, "success"); after();
+}
+function fromCol(k) {
+const cg = colGear(), it = cg[k]; if (!it || it.lv == null) return;
+delete cg[k]; give(it); log(`↩ ${name(k, it)} is back in your gear bag.`, "success"); after();
+}
+/** v11.1: upgrade výbavy kolegy (stejná cena jako u tebe) */
+function upCol(k) {
+const cg = colGear(), it = cg[k]; if (!it || it.lv == null || it.u >= UMAX) { TT.holdStop = true; return; }
+const c = upCost(it); if (gameState.coins < c) { TT.holdStop = true; log(`Upgrading costs ${fmt(c)} GC.`, "warning"); return; }
+gameState.coins -= c; it.u++; if (it.u >= UMAX) TT.holdStop = true; after();
+}
+/** v11.1: sundat kus ze sebe do batohu */
+function unequip(k) {
+const g = st(), it = g.eq[k]; if (!it) return;
+if (g.bag.length >= BAG_MAX) { log("Your gear bag is full - salvage something first.", "warning"); return; }
+g.eq[k] = null; g.bag.unshift(it); log(`↩ Took off ${name(k, it)}.`, "success"); after();
+}
+/** v11.1: High Stakes prestiž - všechny upgrady (tvoje i kolegy) zpět na +0 */
+function resetUpgrades() {
+const g = st(), cg = colGear(); let n = 0;
+KEYS.forEach(k => { if (g.eq[k] && g.eq[k].u) { g.eq[k].u = 0; n++; } if (cg[k] && cg[k].u) { cg[k].u = 0; n++; } });
+g.bag.forEach(it => { if (it.u) { it.u = 0; n++; } });
+st(); TT.saveSoon(); return n;
+}
+/** v11.1: jednorázový reset gearu - vrací GC (salvage + všechno zaplacené za upgrady) */
+function wipe() {
+const d = A.HS(), g = d.gear && typeof d.gear === "object" ? d.gear : {}, cg = (d.col && d.col.gear) || {};
+let gc = 0;
+const val = (it) => { if (!it || it.lv == null) return 0; const r0 = Math.max(0, Math.min(4, it.r | 0)), x = { lv: it.lv, r: [0, 2, 3, 4, 5][r0], u: 0 }; let v = salvageGc(x); for (let u = 0; u < (it.u | 0); u++) { x.u = u; v += upCost(x); } return v; };
+KEYS.forEach(k => { gc += val((g.eq || {})[k]); gc += val(cg[k]); });
+(Array.isArray(g.bag) ? g.bag : []).forEach(it => { gc += val(it); });
+d.gear = { v: 3, eq: {}, bag: [] };
+if (d.col) d.col.gear = {};
+st(); return Math.round(gc);
+}
+function colGiveHtml(c) {
+const g = st(); if (!g.bag.length) return `<div class="dg-dim" style="margin-top:6px;">Give your colleague gear from your 🎒 gear bag (HERO tab) - your spare pieces show up here.</div>`;
+const cg = c.gear || {};
+const items = g.bag.slice().sort((a, b) => KEYS.indexOf(a.s) - KEYS.indexOf(b.s) || score(b) - score(a));
+return `<div class="dg-h" style="margin-top:10px;"><span>🎒 Give gear from your bag</span><span class="dg-dim">their power is capped at 60% of yours</span></div><div class="gr-bag">${items.map(it => `<div class="gr-piece" style="--gm:${RAR[it.r].c};"><div class="gr-ic">${PIECES[it.s].i}</div>
+<div class="gr-t"><b>${esc(name(it.s, it))}</b><span class="gr-fx">LV ${it.lv} · ${fxText(it)} · ${cmp(it, cg[it.s] && cg[it.s].lv != null ? cg[it.s] : null)}</span></div>
+<div class="gr-act"><button class="btn btn-cyan" onclick="Gear.toCol('${it.id}')">🧑‍💼 Give</button></div></div>`).join("")}</div>`;
+}
+function find(id) { const g = st(); for (const k of KEYS) if (g.eq[k] && g.eq[k].id === id) return { it: g.eq[k], eq: k }; const i = g.bag.findIndex(x => x.id === id); return i >= 0 ? { it: g.bag[i], i: i } : null; }
+function equip(id) {
+const g = st(), f = find(id); if (!f || f.eq) return;
+const it = f.it, old = g.eq[it.s];
+g.bag.splice(f.i, 1); g.eq[it.s] = it;
+if (old) give(old);
+log(`⚒ Equipped ${name(it.s, it)}.`, "success"); after();
+}
+function salvage(id) {
+const g = st(), f = find(id); if (!f || f.eq) return;
+const gc = salvageGc(f.it); g.bag.splice(f.i, 1); gameState.coins += gc;
+log(`♻ Salvaged ${name(f.it.s, f.it)} for +${fmt(gc)} GC.`, "success"); after();
+}
+function salvageWorse() {
+const g = st(); let n = 0, gc = 0;
+g.bag = g.bag.filter(it => { if (score(Object.assign({}, it, { u: UMAX })) <= score(g.eq[it.s])) {   /* v11.3: nerozebírá věci, které by po upgradu byly lepší */ n++; gc += salvageGc(it); return false; } return true; });
+gameState.coins += gc;
+log(n ? `♻ Salvaged ${n} weaker item${n === 1 ? "" : "s"} for +${fmt(gc)} GC.` : "Nothing to salvage - every spare piece could beat your gear with upgrades.", n ? "success" : "warning"); after();
+}
+function up(id) {
+const f = find(id); if (!f) { TT.holdStop = true; return; }
+const it = f.it; if (it.u >= UMAX) { TT.holdStop = true; return; }
+const c = upCost(it);
+if (gameState.coins < c) { TT.holdStop = true; log(`Upgrading costs ${fmt(c)} GC.`, "warning"); return; }
+gameState.coins -= c; it.u++;
+if (it.u >= UMAX) TT.holdStop = true;
+after();
+}
+function after() { st(); TT.saveSoon(); if (typeof updateUI === "function") updateUI(); if (A.isOpen()) A.render(); }
+/** v10.1: startovní výbava Season 2 (Rare zbraň + brnění LV 5) do prázdných slotů */
+function starter(quiet) {
+const g = st(); let n = 0, L = Math.max(3, (A.HS().level | 0) - 2);
+["w", "a"].forEach(k => { if (!g.eq[k]) { g.eq[k] = { id: "kit" + k + Date.now().toString(36), s: k, r: 0, lv: L, u: 0 }; n++; } });
+if (n && !quiet) { st(); log(`⚒ Starter kit: a grey weapon and armor (LV ${L}) are waiting in your HIGH STAKES gear.`, "special"); TT.saveSoon(); }
+return n;
+}
+function onPrestige() { /* v10: gear přežívá prestiž, nové dropy jsou ale silnější (+4 LV itemů za prestiž) */ }
+function affordable() { const g = st(); return g.bag.some(it => score(it) > score(g.eq[it.s])) || KEYS.some(k => g.eq[k] && g.eq[k].u < UMAX && gameState.coins >= upCost(g.eq[k]) * 4); }
+function cmp(it, cur) {
+if (!cur) return `<span class="gr-up">empty slot</span>`;
+const d = score(it) - score(cur);
+if (d > 0) return `<span class="gr-up">▲ better</span>`;
+const x = Object.assign({}, it); let gc = 0;
+while (x.u < UMAX) { gc += upCost(x); x.u++; if (score(x) > score(cur)) return `<span class="gr-dn">▼ weaker now</span> <span class="gr-up">· better at +${x.u} (${fmt(gc)} GC)</span>`; }
+return `<span class="gr-dn">▼ weaker${it.u < UMAX ? " even at +" + UMAX : ""}</span>`;
+}
+function pieceHtml(k) {
+const g = st(), it = g.eq[k], P = PIECES[k];
+if (!it) return `<div class="gr-piece empty" style="--gm:#64748b;"><div class="gr-ic">${P.i}</div><div class="gr-t"><b>No ${P.n.toLowerCase()}</b><span class="gr-fx">Win fights to find one - bosses always drop gear.</span></div><div></div></div>`;
+const c = upCost(it), ok = gameState.coins >= c;
+const act = (it.u >= UMAX ? `<div class="dg-dim" style="text-align:right;">+${UMAX} max</div>` :
+`<button class="btn ${ok ? "btn-gold" : ""}" ${ok ? "" : "disabled"} data-hold="gear-${it.id}" onclick="Gear.up('${it.id}')">Upgrade to +${it.u + 1}<small>${short(c)} GC</small></button>`) +
+`<button class="btn" style="padding:4px 8px;font-size:11px;" onclick="Gear.unequip('${k}')">↩ Take off</button>`;
+return `<div class="gr-piece" style="--gm:${RAR[it.r].c};"><div class="gr-ic">${P.i}</div>
+<div class="gr-t"><b>${esc(name(k, it))}</b><span class="gr-r">${RAR[it.r].n} ${P.n.toLowerCase()} · LV ${it.lv}</span><br><span class="gr-fx">${fxText(it)}</span></div><div class="gr-act">${act}</div></div>`;
+}
+function bagHtml() {
+const g = st();
+if (!g.bag.length) return `<div class="dg-dim" style="margin-top:6px;">Your gear bag is empty. Every win can drop a piece (30% normal, 60% elite, bosses 100%).</div>`;
+const items = g.bag.slice().sort((a, b) => KEYS.indexOf(a.s) - KEYS.indexOf(b.s) || score(b) - score(a));
+return `<div class="gr-bag">${items.map(it => `<div class="gr-piece" style="--gm:${RAR[it.r].c};"><div class="gr-ic">${PIECES[it.s].i}</div>
+<div class="gr-t"><b>${esc(name(it.s, it))}</b><span class="gr-fx">LV ${it.lv} · ${fxText(it)} · ${cmp(it, g.eq[it.s])}</span></div>
+<div class="gr-act"><button class="btn btn-cyan" onclick="Gear.equip('${it.id}')">Equip</button><button class="btn" onclick="Gear.salvage('${it.id}')">♻ ${short(salvageGc(it))}</button></div></div>`).join("")}</div>`;
+}
+function card() {
+const g = st(), m = multOf(g.eq);
+return `<div class="dg-card"><div class="dg-h"><span>⚒ Combat gear</span><span class="dg-dim">GC: ${short(gameState.coins)}</span></div>
+<div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
+<div class="gr-sum"><span>Weapon <b>${m.wpn ? m.wpn.toFixed(1) : "fists"}</b></span><span>Armor <b>${fmt(m.armor)}</b></span><span>Main stat <b>+${m.stats.main}</b></span><span>VIT <b>+${m.stats.vit}</b></span><span>LUCK <b>+${m.stats.luck}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}</div>
+<div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()">♻ Salvage hopeless (weaker even at +10)</button>` : ""}</div>
+${bagHtml()}
+<div class="dg-dim" style="margin-top:8px;">Items drop at the level of the enemy that dropped them (bosses +2, Pool +3). What colour can drop depends on your <b>High Stakes prestige</b>: now up to <b style="color:${RAR[capOf(hsP())].c};">${RAR[capOf(hsP())].n}</b>, bosses 25% for ${RAR[Math.min(RMAX, capOf(hsP()) + 1)].n}. Upgrades reset to +0 when you prestige High Stakes. Weapon = your damage, armor = less damage taken, every piece gives flat stats. "Main stat" always goes to your class's main stat (STR / AGI / INT). An item above your level + 10 only counts as level + 10 until you catch up. Rarity Common → Mythic ×1 / 1.12 / 1.25 / 1.55 / 1.9 / 2.4, each upgrade +7% (max +${UMAX}). Give spare pieces to your colleague in the COLLEAGUE tab.</div></div>`;
+}
+window.Gear = { st: st, mult: mult, multOf: multOf, vis: vis, up: up, equip: equip, salvage: salvage, salvageWorse: salvageWorse, drop: drop, starter: starter, toCol: toCol, fromCol: fromCol, colGiveHtml: colGiveHtml, card: card, onPrestige: onPrestige, affordable: affordable,
+upCol: upCol, unequip: unequip, resetUpgrades: resetUpgrades, wipe: wipe, capOf: capOf, upCost: upCost, UMAX: UMAX,
+convert: () => ({}), score: score, fx: fx, name: name, MATS: MATS, RAR: RAR, PIECES: PIECES, POOL_QUANTUM: POOL_QUANTUM, lvFor: lvFor };
+(function boot() {
+if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(boot, 200); return; }
+TT.onLoaded(() => { try { st(); } catch (e) { console.error(e); } });
+})();
+})();
+</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["gear"] = 1;</script>
+<!-- END-OF-FILE: gear -->

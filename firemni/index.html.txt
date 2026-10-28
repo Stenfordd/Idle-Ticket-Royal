@@ -92,7 +92,7 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 <body>
 <!-- TOP HEADER -->
 <div class="top-bar">
-<div class="brand-title">TICKET TYCOON // CASINO ROYALE v11.2</div>
+<div class="brand-title">TICKET TYCOON // CASINO ROYALE v11.3</div>
 <div class="user-badge">
 <span>AGENT: <strong id="user-display" style="color:var(--cyan);">CONNECTING...</strong></span>
 <span>SEASON: <strong id="season-display" style="color:var(--amber);">6</strong></span>
@@ -475,35 +475,40 @@ Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose
 </div>
 <div class="update-banner" id="update-banner"><span id="update-banner-text">New version available</span></div>
   <?!= include('office'); ?>
+  <?!= include('office2'); ?>
   <?!= include('casino'); ?>
-  <?!= include('system'); ?>
+  <?!= include('sync'); ?>
   <?!= include('minigames'); ?>
-  <?!= include('special'); ?>
-  <?!= include('meta'); ?>
-  <?!= include('hs_core'); ?>
-  <?!= include('hs_ui'); ?>
-  <?!= include('hs'); ?>
+  <?!= include('jumpking'); ?>
   <?!= include('prsi'); ?>
+  <?!= include('checkers'); ?>
+  <?!= include('plant'); ?>
+  <?!= include('changelog'); ?>
+  <?!= include('meta'); ?>
+  <?!= include('dengine'); ?>
+  <?!= include('hsengine'); ?>
+  <?!= include('hsengine2'); ?>
+  <?!= include('hscamp'); ?>
+  <?!= include('hsrig'); ?>
+  <?!= include('hsqte'); ?>
+  <?!= include('hs'); ?>
+  <?!= include('hs2'); ?>
+  <?!= include('hs3'); ?>
+  <?!= include('gear'); ?>
+  <?!= include('arena'); ?>
   <?!= include('hs_modes'); ?>
+  <?!= include('duel'); ?>
+  <?!= include('colleague'); ?>
+  <?!= include('extras'); ?>
   <?!= include('mobile'); ?>
-  <?!= include('part13'); ?>
-  <?!= include('part14'); ?>
-  <?!= include('part15'); ?>
-  <?!= include('part16'); ?>
-  <?!= include('part17'); ?>
-  <?!= include('part18'); ?>
-  <?!= include('part19'); ?>
-  <?!= include('part20'); ?>
-  <?!= include('part21'); ?>
-  <?!= include('part22'); ?>
-  <?!= include('part23'); ?>
-  <?!= include('part24'); ?>
-  <?!= include('part25'); ?>
-  <?!= include('part26'); ?>
+  <?!= include('theme'); ?>
+  <?!= include('room'); ?>
+  <?!= include('room2'); ?>
+  <?!= include('room3'); ?>
 <script>
 /* Kontrola po vložení: když se některý soubor nezkopíroval celý, ukáže se červená lišta s jeho jménem. */
 (function () {
-var need = ["office", "casino", "system", "minigames", "special", "meta", "hs_core", "hs_ui", "hs", "prsi", "hs_modes", "mobile", "part13", "part14", "part15", "part16", "part17", "part18", "part19", "part20", "part21", "part22", "part23", "part24", "part25", "part26"], got = window.__TT_FILES || {};
+var need = ["office", "office2", "casino", "sync", "minigames", "jumpking", "prsi", "checkers", "plant", "changelog", "meta", "dengine", "hsengine", "hsengine2", "hscamp", "hsrig", "hsqte", "hs", "hs2", "hs3", "gear", "arena", "hs_modes", "duel", "colleague", "extras", "mobile", "theme", "room", "room2", "room3"], got = window.__TT_FILES || {};
 var bad = need.filter(function (k) { return !got[k]; });
 if (bad.length) {
 var d = document.createElement("div");

@@ -1,3 +1,18 @@
+<style>
+/* ===== CORPORATE CLIMB (Jump King styl) - gold burner, odměna scrap ===== */
+.jk-wrap { display: flex; gap: 10px; flex-wrap: wrap; }
+.jk-side { flex: 1 1 220px; min-width: 0; }
+.jk-canvas-box { flex: 0 0 auto; position: relative; margin: 0 auto; }
+#jk-canvas { display: block; width: 300px; height: 420px; background: #05070b; border: 1px solid var(--border-subtle); border-radius: 6px; touch-action: none; }
+.jk-tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0; }
+.jk-tiers .btn { padding: 8px 2px; font-size: 10px; line-height: 1.3; }
+.jk-tiers .btn small { display: block; font-size: 9px; opacity: .8; font-family: inherit; }
+.jk-ctrl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+.jk-ctrl .btn { padding: 14px 0; font-size: 18px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.jk-hud { position: absolute; left: 6px; right: 6px; top: 6px; display: flex; justify-content: space-between; font: 800 11px 'Orbitron', monospace; color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
+.jk-zone { font-size: 10px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.05); display: flex; justify-content: space-between; }
+@media (max-width: 700px) { #jk-canvas { width: 270px; height: 378px; } }
+</style>
 <script>
 (function () {
 "use strict";
@@ -289,81 +304,5 @@ sim: { jump: simJump, map: () => jk.plat || (jk.plat = buildMap()), W: W, PXM: P
 (function hook() { if (!window.TT || !TT.isBusy) { setTimeout(hook, 100); return; } const prev = TT.isBusy; TT.isBusy = function () { return prev() || !!jk.run; }; })();
 })();
 </script>
-<style>
-/* ===== PRŠÍ (v8.3) - karetní hra pro 2-4 hráče, vítěz bere bank ===== */
-.pr-wrap { font-size: 12px; }
-.pr-info { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
-.pr-info b { color: var(--amber); }
-.pr-create { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
-.pr-create select { background: #05070b; color: var(--text-main); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px; font-size: 12px; }
-.pr-tables { display: grid; gap: 6px; }
-.pr-trow { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; }
-.pr-trow .t { flex: 1; min-width: 0; }
-.pr-trow .t b { color: var(--amber); }
-.pr-felt { position: relative; background: radial-gradient(ellipse at 50% 45%, #1d6b3a 0%, #0f4424 60%, #0a2e18 100%); border: 3px solid #5b3a1e; border-radius: 18px; padding: 10px; min-height: 330px; box-shadow: inset 0 0 40px rgba(0,0,0,.55); }
-.pr-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; font: 700 11px 'Orbitron', monospace; color: #e7ffe9; flex-wrap: wrap; }
-.pr-top .pot { color: #ffd700; }
-.pr-opps { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-.pr-opp { min-width: 92px; padding: 6px 8px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.12); text-align: center; color: #e7ffe9; }
-.pr-opp.turn { border-color: #ffd700; box-shadow: 0 0 12px rgba(255,215,0,.5); }
-.pr-opp.out { opacity: .4; }
-.pr-opp .nm { font: 700 11px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
-.pr-backs { display: flex; justify-content: center; margin: 4px 0 2px; height: 30px; }
-.pr-backs i { display: block; width: 20px; height: 30px; margin-left: -12px; border-radius: 3px; border: 1px solid #fff; background: repeating-linear-gradient(45deg, #8b1d2c 0 4px, #6b1220 4px 8px); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
-.pr-backs i:first-child { margin-left: 0; }
-.pr-tbar { height: 4px; background: rgba(0,0,0,.4); border-radius: 2px; overflow: hidden; margin-top: 3px; }
-.pr-tbar div { height: 100%; background: linear-gradient(90deg, #ffd700, #ff1744); transition: width .9s linear; }
-.pr-center { display: flex; justify-content: center; align-items: center; gap: 22px; margin: 10px 0; min-height: 104px; }
-.pr-deck { position: relative; cursor: pointer; }
-.pr-deck .pr-card { background: repeating-linear-gradient(45deg, #8b1d2c 0 5px, #6b1220 5px 10px); }
-.pr-deck .cnt { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font: 700 10px 'Orbitron', monospace; color: #e7ffe9; }
-.pr-deck.can .pr-card { box-shadow: 0 0 0 2px #ffd700, 0 0 14px rgba(255,215,0,.6); }
-.pr-pile { position: relative; width: 70px; height: 100px; }
-.pr-pile .pr-card { position: absolute; left: 0; top: 0; }
-.pr-pile .pr-card.under { transform: rotate(-9deg) translate(-6px, 2px); filter: brightness(.8); }
-.pr-badges { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 74px; }
-.pr-badge { font: 800 11px 'Orbitron', monospace; padding: 3px 8px; border-radius: 10px; background: rgba(0,0,0,.4); color: #fff; display: flex; align-items: center; gap: 4px; }
-.pr-badge.pen { background: #b91c1c; animation: tabGlow .5s ease-in-out infinite alternate; }
-.pr-badge.skip { background: #a16207; }
-.pr-badge svg { width: 16px; height: 16px; }
-.pr-card { width: 70px; height: 100px; border-radius: 7px; background: #fbf7ec; border: 1px solid #c9bfa6; box-shadow: 0 2px 4px rgba(0,0,0,.45); position: relative; color: #1f2937; user-select: none; -webkit-user-select: none; flex: none; }
-.pr-card .rk { position: absolute; top: 3px; left: 5px; font: 800 15px 'Orbitron', monospace; line-height: 1; }
-.pr-card .rk2 { position: absolute; bottom: 3px; right: 5px; font: 800 15px 'Orbitron', monospace; line-height: 1; transform: rotate(180deg); }
-.pr-card .si { position: absolute; top: 4px; right: 4px; width: 15px; height: 15px; }
-.pr-card .big { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; transform: translate(-50%, -50%); }
-.pr-card .fc { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 900 24px 'Orbitron', monospace; opacity: .9; }
-.pr-card .fc + .big { width: 22px; height: 22px; top: 74%; }
-.pr-card.s0 .rk, .pr-card.s0 .rk2, .pr-card.s0 .fc { color: #c81e3a; }
-.pr-card.s1 .rk, .pr-card.s1 .rk2, .pr-card.s1 .fc { color: #b07a00; }
-.pr-card.s2 .rk, .pr-card.s2 .rk2, .pr-card.s2 .fc { color: #15803d; }
-.pr-card.s3 .rk, .pr-card.s3 .rk2, .pr-card.s3 .fc { color: #7c4a1e; }
-.pr-hand { display: flex; gap: 6px; overflow-x: auto; padding: 14px 4px 8px; justify-content: safe center; -webkit-overflow-scrolling: touch; }
-.pr-hand .pr-card { transition: transform .12s, filter .12s, opacity .12s; }
-.pr-hand .pr-card.ok { cursor: pointer; box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,.75); transform: translateY(-8px); }
-.pr-hand .pr-card.ok:hover { transform: translateY(-14px); }
-.pr-hand .pr-card.no { filter: grayscale(.75) brightness(.55); }
-.pr-me { text-align: center; font: 700 11px 'Orbitron', monospace; color: #e7ffe9; }
-.pr-me.turn { color: #ffd700; }
-.pr-acts { display: flex; gap: 6px; justify-content: center; margin-top: 6px; flex-wrap: wrap; }
-.pr-acts .btn { padding: 9px 16px; }
-.pr-log { margin-top: 8px; max-height: 120px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,.4); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 5px 8px; display: flex; flex-direction: column-reverse; }
-.pr-log div { color: #8b9bb4; line-height: 1.35; }
-.pr-pick { position: absolute; inset: 0; background: rgba(5,7,11,.82); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 4; }
-.pr-pick .row { display: flex; gap: 8px; }
-.pr-pick button { width: 66px; height: 66px; border-radius: 10px; background: #fbf7ec; border: 2px solid #c9bfa6; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font: 700 9px 'Orbitron', monospace; color: #1f2937; }
-.pr-pick button svg { width: 34px; height: 34px; }
-.pr-done { text-align: center; padding: 20px 8px; color: #fff; }
-.pr-done .big { font: 900 22px 'Orbitron', monospace; color: #ffd700; letter-spacing: 2px; }
-.pr-seat { display: inline-block; padding: 6px 10px; margin: 3px; border-radius: 8px; background: rgba(0,0,0,.3); border: 1px dashed rgba(255,255,255,.25); color: #e7ffe9; font: 700 11px 'Orbitron', monospace; }
-.pr-seat.on { border-style: solid; border-color: #ffd700; }
-@media (max-width: 700px) {
-.pr-card { width: 54px; height: 78px; }
-.pr-card .rk, .pr-card .rk2 { font-size: 12px; }
-.pr-card .big { width: 28px; height: 28px; }
-.pr-card .fc { font-size: 18px; }
-.pr-pile { width: 54px; height: 78px; }
-.pr-center { gap: 14px; min-height: 84px; }
-}
-</style>
-<script>(window.__TT_FILES = window.__TT_FILES || {})["special"] = 1;</script>
-<!-- END-OF-FILE: special -->
+<script>(window.__TT_FILES = window.__TT_FILES || {})["jumpking"] = 1;</script>
+<!-- END-OF-FILE: jumpking -->

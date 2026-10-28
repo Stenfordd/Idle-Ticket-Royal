@@ -1,4 +1,4 @@
-<script type="text/plain" data-tt="ttbig3" data-i="2">(f.e.mech === "compliance" ? (f.bribed ? ` <b style="color:var(--emerald);">💼 bribed - play anything</b>` : ` <button class="btn btn-gold" style="padding:2px 8px;font-size:11px;margin-left:6px;" ${gameState.coins >= bribeCost(f) ? "" : "disabled"} onclick="Dungeon.bribe()">💼 BRIBE ${fmtShort(bribeCost(f))} GC</button>`) : "")) : "") +
+<script type="text/plain" data-tt="tt_hs_1" data-i="2">(f.e.mech === "compliance" ? (f.bribed ? ` <b style="color:var(--emerald);">💼 bribed - play anything</b>` : ` <button class="btn btn-gold" style="padding:2px 8px;font-size:11px;margin-left:6px;" ${gameState.coins >= bribeCost(f) ? "" : "disabled"} onclick="Dungeon.bribe()">💼 BRIBE ${fmtShort(bribeCost(f))} GC</button>`) : "")) : "") +
 (f.redTape ? `<span class="rt">RED TAPE ×${f.redTape}: -${8 * f.redTape}% damage, -${4 * f.redTape}% dodge</span>` : "");
 }
 const fl = $("hs-a-flee"); if (fl) { fl.disabled = f.over || busyAnim; fl.style.visibility = fightCtx && fightCtx.tutorial ? "hidden" : ""; }
@@ -266,7 +266,7 @@ function dropItem(lines, L) { const gc = Math.round(C.gcAt(L || HS().level, "nor
 const TUT_REACT = { sysadmin: "block", blood: "block", cyber: "dodge", hunter: "dodge", engineer: "channel" };
 function tutSteps(cls) {
 const r = TUT_REACT[cls] || "brace", R0 = H.REACTS[r];
-const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs focus).", channel: "CHANNEL is a ring mini-game: up to 45% less damage and your next hit up to ×1.6." }[r] || "";
+const why = { block: "BLOCK takes less damage - and as a Warrior, blocking a ⚔ attack COUNTERS.", dodge: "DODGE avoids the hit completely (a chance, costs stamina).", channel: "CHANNEL is a ring mini-game: up to 45% less damage and your next hit up to ×1.6." }[r] || "";
 const heavyR = { block: "Tap 🛡 <b>BLOCK</b>, then tap anywhere when the red ring hits the gold one: <b>PERFECT</b> = no damage + counter + stun.", dodge: "Tap 💨 <b>DODGE</b>, then jump into a SAFE lane fast (quick = better chance) - a successful dodge avoids the big hit" + (cls === "cyber" ? " and makes your next hit a sure crit." : "."), channel: "Tap 🔮 <b>CHANNEL</b> and hit the ring - PERFECT soaks 45% and your next hit ×1.6." }[r];
 return [
 { ph: "atk", a: "strike", t: "Every round starts with <b>① YOUR ATTACK</b>. ⚔ <b>STRIKE</b> is free. Tap <b>STRIKE</b>.", setup: f => { f.sta = 70; f.forceIntent = { k: "atk" }; } },
@@ -363,7 +363,7 @@ ${row("❓", "???", "the LLM is lying about its move. 🎭 After a few High Stak
 <div class="hs-hsec">ENEMY CLASSES</div>
 ${Object.keys(H.ECLS).map(k => row(H.ECLS[k].n.split(" ")[0], H.ECLS[k].n.split(" ").slice(1).join(" ").toUpperCase(), H.ECLS[k].t + ".")).join("")}
 <div class="hs-hsec">TIPS</div>
-<div class="dg-dim" style="line-height:1.55;">Stamina does NOT refill by itself: STRIKE +10, BRACE +15, BREATHE +30. Focus +10 every round. HEAVY has a 1-round cooldown. 📋 Forms / decrees: do the asked move for bonus damage, otherwise RED TAPE lowers your damage.<br>
+<div class="dg-dim" style="line-height:1.55;">Stamina does NOT refill by itself: STRIKE +10, BRACE +15, BREATHE +30. Every action costs stamina - focus only charges your ULTIMATE (+10 every round, more from hits). HEAVY has a 1-round cooldown. 📋 Forms / decrees: do the asked move for bonus damage, otherwise RED TAPE lowers your damage.<br>
 Keys on PC: 1-5 = the buttons in order, space = timing / parry, 1-3 = dodge lanes.</div>
 <div style="margin-top:12px;"><button class="btn btn-cyan" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">GOT IT</button></div></div>`;
 document.body.appendChild(el);
@@ -401,35 +401,6 @@ if (a) { e.preventDefault(); act(a); }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();
 </script>
-<script>(function () { var p = document.querySelectorAll('script[data-tt="ttbig3"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
-<style>
-/* ===== v10 COMBAT GEAR (High Stakes Season 2): loot z bojů, 4 sloty, rarity Common -> Mythic, +0..+10 za GC ===== */
-.gr-list { display: grid; gap: 8px; }
-.gr-piece { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); }
-.gr-piece.empty { opacity: .6; }
-.gr-ic { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; background: color-mix(in srgb, var(--gm) 18%, transparent); border: 1px solid color-mix(in srgb, var(--gm) 55%, transparent); }
-.gr-t { min-width: 0; }
-.gr-t b { display: block; font-size: 14px; font-weight: 700; color: var(--gm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gr-t .gr-fx { font-size: 12px; color: var(--text-dim); }
-.gr-t .gr-r { font-size: 11px; color: var(--text-dim); }
-.gr-act { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 112px; }
-.gr-act .btn { padding: 7px 10px; font-size: 12px; line-height: 1.2; }
-.gr-act .btn small { display: block; font-size: 11px; opacity: .8; font-weight: 500; }
-.gr-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin-top: 8px; }
-.gr-sum b { color: var(--text-main); font-weight: 700; }
-.gr-bag { display: grid; gap: 6px; margin-top: 8px; max-height: 420px; overflow-y: auto; }
-.gr-bag .gr-piece { padding: 7px 10px; grid-template-columns: 36px 1fr auto; }
-.gr-bag .gr-ic { width: 36px; height: 36px; font-size: 18px; }
-.gr-bag .gr-act { flex-direction: row; min-width: 0; }
-.gr-up { color: var(--emerald); font-weight: 700; }
-.gr-dn { color: var(--crimson); }
-@media (max-width: 700px) {
-.gr-piece { grid-template-columns: 40px 1fr; }
-.gr-ic { width: 40px; height: 40px; font-size: 20px; }
-.gr-act { grid-column: 1 / -1; flex-direction: row; min-width: 0; }
-.gr-act .btn { flex: 1; }
-.gr-bag { max-height: none; }
-}
-</style>
-<script>(window.__TT_FILES = window.__TT_FILES || {})["part18"] = 1;</script>
-<!-- END-OF-FILE: part18 -->
+<script>(function () { var p = document.querySelectorAll('script[data-tt="tt_hs_1"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["hs3"] = 1;</script>
+<!-- END-OF-FILE: hs3 -->

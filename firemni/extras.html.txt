@@ -1,3 +1,76 @@
+<style>
+/* ===== v9.6 EXTRAS: Boss key, Hotfix Mines, Loterie, Akcie, návštěvy kanceláře ===== */
+/* --- boss key: nudná tabulka --- */
+#bk-sheet { position: fixed; inset: 0; z-index: 100000; display: none; flex-direction: column; background: #fff; color: #202124; font: 13px Arial, Helvetica, sans-serif; user-select: none; }
+#bk-sheet.open { display: flex; }
+#bk-sheet .bk-top { display: flex; align-items: center; gap: 10px; padding: 8px 12px 4px; }
+#bk-sheet .bk-ic { width: 26px; height: 32px; border-radius: 3px; background: #0f9d58; position: relative; flex: none; }
+#bk-sheet .bk-ic::after { content: ""; position: absolute; left: 6px; right: 6px; top: 10px; bottom: 8px; border: 2px solid #fff; border-width: 2px 0; box-shadow: inset 0 6px 0 -4px #fff; }
+#bk-sheet .bk-title { font-size: 18px; color: #202124; }
+#bk-sheet .bk-menu { display: flex; gap: 14px; font-size: 13px; color: #444; padding: 0 12px 6px 48px; }
+#bk-sheet .bk-tool { height: 34px; margin: 0 8px; border-radius: 20px; background: #edf2fa; display: flex; align-items: center; gap: 12px; padding: 0 14px; color: #444; font-size: 13px; }
+#bk-sheet .bk-fx { display: flex; align-items: center; gap: 8px; border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0; margin-top: 6px; padding: 3px 8px; font-size: 13px; }
+#bk-sheet .bk-fx .nm { width: 70px; border-right: 1px solid #e0e0e0; color: #444; }
+#bk-sheet .bk-grid { flex: 1; overflow: auto; }
+#bk-sheet table { border-collapse: collapse; table-layout: fixed; }
+#bk-sheet td, #bk-sheet th { border: 1px solid #e2e3e3; height: 21px; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+#bk-sheet th { background: #f8f9fa; color: #5f6368; font-size: 11px; text-align: center; position: sticky; top: 0; z-index: 1; }
+#bk-sheet th.rn { position: sticky; left: 0; z-index: 2; }
+#bk-sheet td.rn { background: #f8f9fa; color: #5f6368; text-align: center; font-size: 11px; position: sticky; left: 0; }
+#bk-sheet td.sel { outline: 2px solid #1a73e8; outline-offset: -2px; }
+#bk-sheet tr.hd td:not(.rn) { font-weight: 700; background: #f3f3f3; }
+#bk-sheet .ok { color: #188038; } #bk-sheet .bad { color: #d93025; }
+#bk-sheet .bk-tabs { display: flex; gap: 2px; background: #f8f9fa; border-top: 1px solid #e0e0e0; padding: 4px 8px; font-size: 13px; }
+#bk-sheet .bk-tabs span { padding: 4px 14px; color: #444; } #bk-sheet .bk-tabs span.on { background: #e8f0fe; color: #1a73e8; border-radius: 4px 4px 0 0; }
+.bk-btn { padding: 4px 8px !important; font-size: 11px !important; opacity: .55; }
+/* --- mines --- */
+.mn-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 330px; margin: 8px auto; }
+.mn-c { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .12s, background .15s; }
+.mn-c:hover:not(.on) { transform: translateY(-1px); background: #23304a; }
+.mn-c.on { cursor: default; }
+.mn-c.safe { background: rgba(0,255,136,.12); border-color: rgba(0,255,136,.45); }
+.mn-c.bug { background: rgba(255,23,68,.18); border-color: var(--crimson); }
+.mn-c.ghost { opacity: .45; }
+.mn-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: center; }
+.mn-row .btn.sel { outline: 2px solid var(--amber); }
+.mn-info { text-align: center; font-size: 13px; color: var(--text-dim); margin-top: 6px; }
+.mn-info b { color: var(--text-main); }
+/* --- lottery --- */
+.lt-nums { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-width: 420px; margin: 8px auto; }
+.lt-n { aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--border-subtle); background: var(--bg-panel-elevated); font: 700 13px 'Space Grotesk', sans-serif; color: var(--text-main); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.lt-n.on { background: var(--amber); color: #111; border-color: var(--amber); }
+.lt-ball { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center; background: var(--amber); color: #111; font-weight: 700; margin: 0 2px; font-size: 12px; }
+.lt-ball.dim { background: var(--bg-panel-elevated); color: var(--text-main); border: 1px solid var(--border-subtle); }
+.lt-pool { text-align: center; font-size: 28px; font-weight: 700; color: var(--amber); margin: 4px 0; }
+/* --- stocks --- */
+.sk-list { display: grid; gap: 6px; }
+.sk-row { display: grid; grid-template-columns: 1fr 96px auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); }
+.sk-row b { font-size: 14px; } .sk-row .sym { font-size: 11px; color: var(--text-dim); }
+.sk-row svg { width: 96px; height: 34px; }
+.sk-px { text-align: right; font-weight: 700; } .sk-ch { font-size: 11px; text-align: right; }
+.sk-act { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
+.sk-act .btn { padding: 3px 7px; font-size: 11px; }
+.sk-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim); margin: 6px 0; } .sk-sum b { color: var(--text-main); }
+@media (max-width: 600px) { .sk-row { grid-template-columns: 1fr auto; } .sk-row svg { display: none; } }
+/* v11.2: detail akcie */
+.sk-row { cursor: pointer; } .sk-row.sel { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan) inset; }
+.sk-pos { font-size: 11px; color: var(--text-dim); margin-top: 2px; } .sk-pos b { font-size: 11px; }
+.sk-up { color: var(--emerald); } .sk-dn { color: var(--crimson); }
+.sk-det { padding: 10px; border-radius: 10px; background: var(--bg-panel-elevated); border: 1px solid var(--cyan); margin: 8px 0; }
+.sk-det .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sk-det .hd .px { font: 800 20px 'Orbitron', monospace; }
+.sk-tf { display: flex; gap: 4px; margin: 6px 0; } .sk-tf .btn { padding: 3px 9px; font-size: 11px; } .sk-tf .btn.on { border-color: var(--cyan); color: var(--cyan); }
+.sk-chart { width: 100%; height: 170px; display: block; }
+.sk-chart text { font: 10px sans-serif; fill: var(--text-dim); }
+.sk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; margin: 8px 0; font-size: 12px; }
+.sk-stats div { background: rgba(0,0,0,.2); border-radius: 8px; padding: 6px 8px; } .sk-stats span { display: block; font-size: 10px; color: var(--text-dim); }
+.sk-trade { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; } .sk-trade input { width: 130px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border-subtle); background: var(--bg-dark, #0b0f17); color: var(--text-main); }
+.sk-trade .btn { padding: 7px 10px; font-size: 12px; }
+.sk-hist { margin-top: 8px; font-size: 11px; color: var(--text-dim); max-height: 140px; overflow-y: auto; } .sk-hist div { padding: 2px 0; border-bottom: 1px dashed rgba(255,255,255,.06); }
+/* --- návštěva kanceláře --- */
+#ir-visit .rm { margin: 8px 0; }
+#ir-visit .vs-act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+</style>
 <script>
 (function () {
 "use strict";
@@ -15,47 +88,35 @@ r[fn].apply(r, args || []);
 } catch (e) { if (fail) fail(e); }
 }
 const T = { mn: null, lt: null, sk: null };
-const BK_ROWS = (function () {
-const pri = ["P1", "P2", "P2", "P3", "P3", "P3", "P4"], st = ["Resolved", "Resolved", "In progress", "Waiting for customer", "Resolved", "Escalated", "Closed"], team = ["Service Desk", "Network", "Identity & Access", "Workplace", "Apps L2", "Infra"];
-const out = []; let s = 7;
-const r = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
-for (let i = 0; i < 60; i++) {
-const sla = Math.round(70 + r() * 30), d = 1 + Math.floor(r() * 28);
-out.push(["INC" + (204310 + Math.floor(r() * 9000)), pri[Math.floor(r() * pri.length)], team[Math.floor(r() * team.length)], "2026-10-" + String(d).padStart(2, "0"),
-(r() * 9).toFixed(1) + " h", sla + "%", st[Math.floor(r() * st.length)], sla >= 90 ? "Met" : "Breached"]);
-}
-return out;
-})();
 function bkBuild() {
 if ($("bk-sheet")) return $("bk-sheet");
-const cols = "ABCDEFGHIJKL".split(""), W = [110, 60, 140, 100, 90, 70, 150, 80, 80, 80, 80, 80];
-const hdr = ["Ticket ID", "Priority", "Assignment group", "Opened", "Time to resolve", "SLA %", "Status", "SLA met", "", "", "", ""];
-let h = `<div class="bk-top"><div class="bk-ic"></div><div><div class="bk-title">Q4 SLA Report - Service Desk (weekly)</div></div></div>
+const cols = "ABCDEFGHIJKLMNOP".split("");
+let h = `<div class="bk-top"><div class="bk-ic"></div><div><div class="bk-title">New Sheet</div></div></div>
 <div class="bk-menu"><span>File</span><span>Edit</span><span>View</span><span>Insert</span><span>Format</span><span>Data</span><span>Tools</span><span>Help</span></div>
 <div class="bk-tool">↶ ↷ 🖨 &nbsp; 100% ▾ &nbsp; $ % .0 .00 123 &nbsp; Default ▾ &nbsp; 10 ▾ &nbsp; <b>B</b> <i>I</i> <s>S</s> A</div>
-<div class="bk-fx"><span class="nm" id="bk-nm">A1</span><span>fx</span><span id="bk-fv">Ticket ID</span></div><div class="bk-grid"><table><colgroup><col style="width:46px">${W.map(w => `<col style="width:${w}px">`).join("")}</colgroup>
-<tr><th class="rn"></th>${cols.map(c => `<th>${c}</th>`).join("")}</tr><tr class="hd"><td class="rn">1</td>${hdr.map(x => `<td>${x}</td>`).join("")}</tr>`;
-BK_ROWS.forEach((r, i) => { h += `<tr><td class="rn">${i + 2}</td>${r.map((x, j) => `<td class="${j === 7 ? (x === "Met" ? "ok" : "bad") : ""}">${x}</td>`).join("")}<td></td><td></td><td></td><td></td></tr>`; });
-h += `</table></div><div class="bk-tabs"><span class="on">SLA weekly</span><span>Backlog</span><span>Pivot</span></div>`;
+<div class="bk-fx"><span class="nm" id="bk-nm">A1</span><span>fx</span><span id="bk-fv"></span></div><div class="bk-grid"><table><colgroup><col style="width:46px">${cols.map(() => `<col style="width:100px">`).join("")}</colgroup>
+<tr><th class="rn"></th>${cols.map(c => `<th>${c}</th>`).join("")}</tr>`;
+for (let i = 1; i <= 80; i++) h += `<tr><td class="rn">${i}</td>${cols.map(() => "<td></td>").join("")}</tr>`;
+h += `</table></div><div class="bk-tabs"><span>＋</span><span class="on">Sheet1</span></div>`;
 const el = document.createElement("div"); el.id = "bk-sheet"; el.innerHTML = h; document.body.appendChild(el);
 el.addEventListener("click", function (ev) {
 const td = ev.target.closest("td"); if (!td || td.classList.contains("rn")) return;
 el.querySelectorAll("td.sel").forEach(x => x.classList.remove("sel")); td.classList.add("sel");
 const tr = td.parentNode, ri = [...tr.parentNode.children].indexOf(tr), ci = [...tr.children].indexOf(td);
-$("bk-nm").textContent = "ABCDEFGHIJKL"[ci - 1] + ri; $("bk-fv").textContent = td.textContent;
+$("bk-nm").textContent = cols[ci - 1] + ri; $("bk-fv").textContent = "";
 if (typeof handleManualClick === "function") try { handleManualClick(ev); } catch (e) {}   // tiket se potichu vyřeší
 });
 return el;
 }
-function bkOn() { const el = bkBuild(); el.classList.add("open"); document.title = "Q4 SLA Report - Service Desk"; }
+function bkOn() { const el = bkBuild(); el.classList.add("open"); document.title = "New Sheet"; }
 function bkOff() { const el = $("bk-sheet"); if (el) el.classList.remove("open"); document.title = window.__irTitle || document.title; }
 function bkOpen() { const el = $("bk-sheet"); return !!(el && el.classList.contains("open")); }
-function modalOpen() { return !!document.querySelector('#dg-screen.open, #mt-screen.open, #pl-screen.open, #cl-ov.open, .tt-overlay.open, #ir-visit, #ir-conflict'); }
+function modalOpen() { return !!document.querySelector('#cl-ov.open, .tt-overlay.open, #ir-visit, #ir-conflict'); }
 document.addEventListener("keydown", function (e) {
 if (e.key !== "Escape") return;
 if (bkOpen()) { e.preventDefault(); e.stopImmediatePropagation(); bkOff(); return; }
-if (modalOpen()) return;                                                   // ESC nejdřív zavře otevřené okno (jejich vlastní handlery)
-e.preventDefault(); bkOn();
+if (modalOpen()) return;                                                   // ESC nejdřív zavře dialogy (novinky, potvrzení...)
+e.preventDefault(); e.stopImmediatePropagation(); bkOn();                  // v11.3: i v boji / High Stakes / minihrách - hra pod tím zůstane, jak byla
 }, true);
 function bkButton() {
 const host = document.querySelector(".top-bar .user-badge") || document.querySelector(".top-bar");
@@ -411,131 +472,5 @@ setInterval(() => { if (!document.hidden && window.Room && Room.colSay && Math.r
 })();
 })();
 </script>
-<style>
-/* ======================= MOBILNÍ REŽIM (html.m) =======================
-Stejná hra, jen jiné rozložení: horní lišta + mini HUD + obsah jedné záložky + spodní lišta.
-Záložka HRA má zamčený scroll a obří tlačítko, ostatní záložky se normálně posouvají. */
-#m-hud, #m-tabs { display: none; }
-html.m.kb body { bottom: auto; height: var(--app-h, 100%); }
-/* v9.3.4: iPhone aplikace na ploše - webview končí nad home proužkem, takže lišta nepotřebuje safe-area odsazení; pozadí stránky v barvě lišty */
-html.m.iosgap #m-tabs { padding-bottom: 4px !important; }
-html.m body { min-height: 0 !important; }   /* v9.3.6: style.html má min-height:100vh - na iPhonu je 100vh celá obrazovka (852), i když se kreslí jen 793 -> lišta mizela pod okraj */
-/* v9.3.6: batoh na mobilu bez vnořeného scrollu (karty se v něm na Androidu roztahovaly) */
-html.m .backpack-container { display: flex !important; flex-direction: column; max-height: none; overflow: visible; min-height: 0; }
-html.m .backpack-container > .item-card { flex: none; }
-html.m.iosgap body { bottom: auto !important; height: var(--app-h, 100%) !important; }   /* v9.3.5: iOS dá fixed body 852 i když kreslí jen 793 -> výška natvrdo podle sondy */
-html.m.iosgap { background: var(--bg-panel, #0a0e16) !important; }
-html.m, html.m body { height: 100%; overscroll-behavior: none; touch-action: manipulation; }
-html.m body {
-display: flex; flex-direction: column; overflow: hidden;
-position: fixed; top: 0; bottom: 0; left: 0; width: 100%; height: auto;   /* v8.7.5: přichyceno k hranám viditelné plochy (Android i iPhone) */
--webkit-tap-highlight-color: transparent;
-}
-html.m .btn, html.m .btn-primary-action, html.m .casino-tab-btn, html.m #m-tabs button {
--webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
-}
-html.m .top-bar { flex: none; padding: calc(6px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 6px calc(10px + env(safe-area-inset-left)); flex-direction: row; gap: 6px; }
-html.m .brand-title { font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
-html.m .user-badge { gap: 8px; font-size: 10px; flex-wrap: nowrap; }
-html.m .status-pill { display: none; }
-html.m .user-badge > span:nth-child(2) { display: none; }
-html.m .btn-help { padding: 3px 7px; font-size: 10px; }
-html.m #m-hud {
-flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 5px 8px;
-background: #0a0e16; border-bottom: 1px solid var(--border-subtle);
-}
-html.m #m-hud div { text-align: center; line-height: 1.15; min-width: 0; }
-html.m #m-hud small { display: block; font: 700 8px 'Orbitron', monospace; letter-spacing: .5px; color: var(--text-dim); }
-html.m #m-hud b { display: block; font: 800 13px 'Orbitron', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-html.m .main-wrapper { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px; gap: 8px; max-width: none; width: 100%; box-sizing: border-box; }
-html.m .grid-columns { display: flex; flex-direction: column; gap: 8px; flex: none; }
-html.m .grid-columns { align-items: stretch; }
-html.m .grid-columns > *, html.m .main-wrapper > * { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
-html.m #adv-minigames-mount, html.m .adv-wrap { min-width: 0; max-width: 100%; overflow: hidden; }
-html.m .cr-road { max-width: 100%; }
-html.m .column { display: contents; }
-html.m [data-tab] { display: none; }
-html.m body[data-mtab="play"]   [data-tab="play"],
-html.m body[data-mtab="chest"]  [data-tab="chest"],
-html.m body[data-mtab="bag"]    [data-tab="bag"],
-html.m body[data-mtab="casino"] [data-tab="casino"],
-html.m body[data-mtab="more"]   [data-tab="more"] { display: block; }
-/* --- záložka HRA: nic se neposouvá, tlačítko vyplní zbytek výšky --- */
-html.m body[data-mtab="play"] .main-wrapper { overflow: hidden; }
-html.m body[data-mtab="play"] .grid-columns { flex: 1 1 auto; min-height: 0; }
-html.m body[data-mtab="play"] [data-tab="play"] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-html.m [data-tab="play"] .click-btn-wrap { flex: 1 1 auto; display: flex; min-height: 130px; }
-html.m [data-tab="play"] #btn-click { flex: 1; height: auto; font-size: 20px; line-height: 1.3; border-radius: 10px; }
-html.m [data-tab="play"] #btn-click:active, html.m [data-tab="play"] #btn-click.pressed { transform: scale(.985); }
-/* na mobilu se nic neoznačuje (dvojklik / podržení), kromě polí pro psaní */
-html.m body, html.m body * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-html.m input, html.m textarea, html.m select, html.m [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
-html.m #btn-click { touch-action: none; }
-html.m #m-tabs {
-flex: none; display: flex; background: #0a0e16; border-top: 1px solid var(--border-subtle);
-padding-bottom: env(safe-area-inset-bottom);
-}
-html.m #m-tabs button {
-flex: 1; padding: 9px 2px 8px; background: none; border: 0; border-top: 2px solid transparent; color: var(--text-dim);
-font: 700 9px 'Orbitron', monospace; letter-spacing: .5px; cursor: pointer;
-}
-html.m #m-tabs button span { display: block; font-size: 17px; margin-bottom: 2px; }
-html.m #m-tabs button.active { color: var(--cyan); border-top-color: var(--cyan); background: rgba(0,240,255,.06); }
-html.m #m-tabs button { position: relative; }
-html.m #m-tabs button[data-go="fight"] { color: #ff4d6d; }
-html.has-unread #m-tabs button[data-go="more"]::after,
-html.pl-glow #m-tabs button[data-go="more"]::after,
-html.hs-glow #m-tabs button[data-go="fight"]::after,
-html.sd-glow #m-tabs button[data-go="casino"]::after { content: ""; position: absolute; top: 5px; right: 22%; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 6px var(--crimson); }
-html.m #fx-toggle, html.m #ir-logout { display: none !important; }
-html.m .panel { padding: 10px; }
-html.m .stats-grid { grid-template-columns: repeat(2, 1fr); }
-html.m input, html.m select, html.m textarea { font-size: 16px; }   /* iOS nezoomuje při fokusu */
-html.m canvas { max-width: 100%; height: auto; }
-html.m table.lb-table { font-size: 11px; }
-html.m #backpack-grid { grid-template-columns: minmax(0, 1fr) !important; }
-html.m #m-tabs button { min-width: 0; overflow: hidden; }
-html.m .item-actions { flex-wrap: wrap; }
-html.m .item-actions .btn { padding: 8px 10px; }
-html.m #fx-banner { font-size: 22px; }
-html.m .tt-modal, html.m .modal { max-width: 94vw; }
-html.m #update-banner { top: calc(8px + env(safe-area-inset-top)); bottom: auto; width: max-content; max-width: calc(100% - 24px); text-align: center; line-height: 1.4; }   /* v8.7.2: dřív top:0 + bottom:14px = roztažené přes celou obrazovku */
-/* panel Nastavení (jen mobil) */
-#m-settings { display: none; }
-html.m body[data-mtab="more"] #m-settings { display: block; }
-#m-settings .row { display: flex; gap: 8px; }
-#m-settings .btn { flex: 1; padding: 10px; }
-/* PC: přepínač na kompaktní (mobilní) rozložení */
-#m-compact { white-space: nowrap; }
-@media (max-width: 820px) { #m-compact { display: none !important; } }
-html.m.mc .main-wrapper { max-width: 860px; width: 100%; margin: 0 auto; align-self: center; }
-html.m.mc #m-tabs { justify-content: center; }
-html.m.mc #m-tabs button { flex: 0 1 140px; }
-html.m.mc #m-hud { max-width: 860px; width: 100%; margin: 0 auto; box-sizing: border-box; }
-html.m.mc [data-tab="play"] .click-btn-wrap { max-height: 46vh; }
-#m-logout { display: none !important; }
-</style>
-<div id="m-hud">
-<div><small>TICKETS</small><b id="mh-t" style="color:var(--cyan);">0</b></div>
-<div><small>GC</small><b id="mh-c" style="color:var(--amber);">0</b></div>
-<div><small>SCRAP</small><b id="mh-s" style="color:var(--text-main);">0</b></div>
-<div><small>CPS</small><b id="mh-p" style="color:var(--emerald);">0.0</b></div>
-</div>
-<nav id="m-tabs">
-<button data-go="play"><span>🎯</span>PLAY</button>
-<button data-go="chest"><span>📦</span>CHEST</button>
-<button data-go="bag"><span>🎒</span>BAG</button>
-<button data-go="casino"><span>🎰</span>CASINO</button>
-<button data-go="fight"><span>⚔</span>FIGHT</button>
-<button data-go="more"><span>☰</span>MORE</button>
-</nav>
-<div class="panel" id="m-settings" data-tab="more">
-<div class="panel-header">SETTINGS</div>
-<div id="m-viewinfo" data-nocase="1" style="font-size:10px;color:var(--text-muted);margin:-4px 0 8px;line-height:1.4;"></div>
-<div class="row">
-<button class="btn btn-cyan" id="m-fx" type="button">✨ EFFECTS</button>
-<button class="btn btn-crimson" id="m-logout" type="button">LOG OUT</button>
-</div>
-</div>
-<script>(window.__TT_FILES = window.__TT_FILES || {})["part23"] = 1;</script>
-<!-- END-OF-FILE: part23 -->
+<script>(window.__TT_FILES = window.__TT_FILES || {})["extras"] = 1;</script>
+<!-- END-OF-FILE: extras -->

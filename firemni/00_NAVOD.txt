@@ -1,11 +1,8 @@
-NÁVOD v6.5 - firemní verze v11.2 (= hra Office Royale v11.2)
+NÁVOD v7 - firemní verze v11.3 (= hra Office Royale v11.3)
 
-v11.2: tip u ultimátky (uhodneš tah soupeře = efekt třídy), animace ultimátek, v DUELU se při nabité ultimátce čeká
-na útočníka a block/dodge se hraje 3×, rozdělení statů na "rovné podmínky", Mág půlí block soupeře, CHANNEL mini-hra,
-Hunter si sám míří lukem, dodge 20 focusu, silnější heal z gamble, přehlednější akcie.
-Máš-li už v11.1: přibyly DVA nové soubory part25 a part26 (HTML). Zkopíruj znovu VŠECH 31 (změnil se i server: code, server2, engine).
-
-Kancelář bez wipe, High Stakes bez wipe.
+v11.3: vše za staminu (DODGE 20, CHANNEL 15, focus jen na ultimátku), gear "better at +X", ESC i v boji (prázdná "New Sheet").
+NOVÉ DĚLENÍ SOUBORŮ: každá část hry má vlastní soubory. Tentokrát naposledy vytvoř nové soubory a zkopíruj všech 36.
+Příště se změní jen pár souborů - kopíruj ty, u kterých GitHub ukazuje čerstvé "změněno" (a index + changelog).
 
 ======================================================
 KDE JSOU SOUBORY
@@ -14,20 +11,32 @@ https://stenfordd.github.io/Idle-Ticket-Royal/firemni/   (každý soubor má tla
 POZOR: "index.html" na GitHubu je jen tahle stránka. Do Apps Scriptu patří "index.html.txt" (soubor index).
 
 ======================================================
-SOUBORY V APPS SCRIPT PROJEKTU (31)
+SOUBORY V APPS SCRIPT PROJEKTU (36)
 ======================================================
 .gs:   code, server2, engine
-HTML:  index, style, office, casino, system, minigames, special, meta, hs_core, hs_ui, hs, prsi, hs_modes, mobile,
-       part13, part14, part15, part16, part17, part18, part19, part20, part21, part22, part23, part24, part25 (NOVÝ), part26 (NOVÝ)
+HTML:  index, style, office, office2, casino, sync, minigames, jumpking, prsi, checkers, plant, changelog, meta,
+       dengine, hsengine, hsengine2, hscamp, hsrig, hsqte, hs, hs2, hs3, gear, arena, hs_modes, duel, colleague,
+       extras, mobile, theme, room, room2, room3
 
-1) Vytvoř nové HTML soubory part25 a part26 (+ -> HTML, jméno bez .html). Ostatních 29 už máš z v11.1.
-2) Do KAŽDÉHO z 31 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V). Změnilo se úplně všechno.
-3) Ctrl+S
-4) Deploy > Manage deployments > tužka (edit) > Version: New version > Deploy
-5) Obnov tabulku (F5) - v menu Ticket Tycoon přibude "Spustit firemní globální event". Pak Ticket Tycoon > Bump version.
+1) Vytvoř NOVÉ HTML soubory (+ -> HTML, jméno bez .html):
+   office2, sync, jumpking, checkers, plant, changelog, dengine, hsengine, hsengine2, hscamp, hsrig, hsqte,
+   hs2, hs3, gear, arena, duel, colleague, extras, theme, room, room2, room3
+2) Do KAŽDÉHO z 36 souborů vlož nový obsah (Ctrl+A v souboru, Ctrl+V).
+3) Staré soubory system, special, hs_core, hs_ui a part13 až part26 SMAŽ (už se nenačítají; když zůstanou, nevadí to).
+4) Ctrl+S
+5) Deploy > Manage deployments > tužka (edit) > Version: New version > Deploy
+6) V tabulce Ticket Tycoon > Bump version.
 
 Při prvním spuštění menu "Spustit firemní globální event" se Google zeptá na oprávnění - povol.
 Když se ve hře objeví červená lišta COPY ERROR, vypíše, který soubor se nezkopíroval celý.
+
+======================================================
+CO JE NOVÉHO (v11.3)
+======================================================
+- Všechny akce stojí staminu: DODGE 20, CHANNEL 15, BLOCK jako dřív. Focus je jen na ultimátku
+  (Mág, Trojan a Hunter ji teď mají mnohem častěji). Úspěšný dodge dá +5 focusu. Duel přepočítaný.
+- Gear: slabší item ukáže "better at +3 (cena)" a ♻ rozebírá jen věci, které by nebyly lepší ani na +10.
+- ESC funguje všude (i v boji, High Stakes a minihrách) a ukáže prázdnou tabulku "New Sheet". ESC znovu = zpátky.
 
 ======================================================
 CO JE NOVÉHO (v11.2)
