@@ -1,0 +1,4 @@
+DONE6 - Office Royale v11.6 je dogenerovaná.
+Firemní verze: 14 souborů (nový server3.gs), seznam v 00_NAVOD.txt.
+Čas: 2026-10-30 12:48
+Commit: e14a0b3
