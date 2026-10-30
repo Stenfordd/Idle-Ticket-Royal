@@ -86,7 +86,7 @@ qteRun(done => HSQTE.parry({ k: k, style: k === "withdraw" ? "steps" : PARRY_STY
 function ultGame(cb) { const f = fight; qteRun(done => HSQTE.ult(f.h.cls, H.CLASSES[f.h.cls].skill, done), cb); }
 const GUESS_OPTS = [{ k: "atk", icon: "⚔", label: "ATTACK" }, { k: "heavy", icon: "💥", label: "HEAVY", sub: "or unleash" }, { k: "guard", icon: "🛡", label: "GUARD" }, { k: "other", icon: "🔮", label: "SPELL / OTHER", sub: "spell, charge, trick" }];
 function guessGame(cb) {
-const f = fight; if (f.guessUsed || (fightCtx && fightCtx.tutorial)) return cb(null);
+const f = fight; if (fightCtx && fightCtx.tutorial) return cb(null);
 qteRun(done => HSQTE.guess(GUESS_OPTS, H.GUESS_FX[f.h.cls], done), cb);
 }
 function cineGame(cb) { const f = fight; qteRun(done => HSQTE.cine(f.h.cls, "✨ " + H.CLASSES[f.h.cls].skill, done), cb); }

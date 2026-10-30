@@ -531,7 +531,7 @@ SLOTS.map(s => gameState.loadout[s]).filter(Boolean)
 .forEach(it => { const k = { slot: it.slot, tier: Math.max(1, Math.ceil(it.tier / 2)), lvl: Math.floor((it.lvl || 0) / 2) }; const e = enhOf(it).slice(0, Math.floor(enhOf(it).length / 2)); if (e) k.e = e; keep.push(k); });   // polovina tieru (nahoru), merge levelu i upgradu (dolů)
 }
 gameState.prestige += 1;
-const lpGain = lpGainFor(gameState.prestige);
+const lpGain = lpGainFor(gameState.prestige) + Math.floor((gameState.chestLevel || 0) / 10);     // v11.6: +1 LP za každých 10 levelů Company Chest
 gameState.lp += lpGain;
 gameState.tickets = 0;
 const keptGc = window.Plant ? Math.floor(gameState.coins * Plant.fx("keepGc")) : 0;     // Office Plant: Deep Roots
@@ -975,8 +975,6 @@ if (g.eq) gameState.loadout[g.slot] = res;
 else invAdd(res.slot, res.tier, res.lvl, 1, res.e);
 updateUI(); TT.saveSoon();
 }
-function renderMergeStation() {
-const box = document.getElementById("merge-list");
-if (!box) return;</script>
+function renderMergeStation() {</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["office"] = 1;</script>
 <!-- END-OF-FILE: office -->

@@ -24,6 +24,14 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "11.6", d: "2026-10-30", i: [
+"⚔ DUEL balance: the Warden has full HP again (it had only 60% in duels), but its block and counter are weaker in PvP. All healing in duels is 35% weaker and getting back up gives 15% HP",
+"🩸 <b>WOUND</b> (anti-heal, duels): a Warden's PERFECT parry or PERFECT HEAVY and the Trojan's BACKDOOR make the enemy heal 50% less for 2 rounds",
+"🎯 The guess works with EVERY ultimate now: the first right guess gives the full effect, every next one half",
+"📜 The duel log tells you much more: blocked / parried rings, partial dodges, damage into shields, channel and mana, counters, healing and how much anti-heal cut, WOUND, revives",
+"🌳 Legacy Points: 3 + your prestige per prestige (was 2 + half), +1 LP per 10 Company Chest levels, and you got the difference for your past prestiges. New endless 🌳 CANOPY branch on the Ancient Tree (more click & Auto GC, more High Stakes XP, better fruits, more fruit slots, faster fruits)",
+"🍎 Fixed: a full plant kept growing fruits in the background - now it stops at full"
+] },
 { v: "11.5", d: "2026-10-28", i: [
 "🔮 CHANNEL starts with the marker and the band in the middle and a short pause, so you can catch the rhythm before it counts",
 "😮‍💨 Actions cost a bit more stamina: DODGE 25, CHANNEL 20, BLOCK 35 (Warrior) / 30 (Caffeine Abuser). Duel classes re-balanced",

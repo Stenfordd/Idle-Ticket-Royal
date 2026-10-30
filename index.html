@@ -2311,7 +2311,7 @@ function performPrestige() {
   }
 
   gameState.prestige += 1;
-  const lpGain = lpGainFor(gameState.prestige);
+  const lpGain = lpGainFor(gameState.prestige) + Math.floor((gameState.chestLevel || 0) / 10);     // v11.6: +1 LP za každých 10 levelů Company Chest
   gameState.lp += lpGain;
   gameState.tickets = 0;
   const keptGc = window.Plant ? Math.floor(gameState.coins * Plant.fx("keepGc")) : 0;     // Office Plant: Deep Roots
@@ -3056,7 +3056,7 @@ function updateHud() {
   const nextCost = getPrestigeCost(g.prestige);
   const costTxt = nextCost >= 1e9 ? (nextCost / 1e9).toFixed(2) + "B" : nextCost >= 1e6 ? (nextCost / 1e6).toFixed(2) + "M" : (nextCost / 1e3).toFixed(1) + "K";
   const armed = Date.now() < prestigeArmedUntil;
-  setTxt("btn-prestige", armed ? "⚠ CLICK AGAIN TO CONFIRM (resets your run!)" : `ASCEND PRESTIGE (${costTxt} TICKETS · +${lpGainFor(g.prestige + 1)} LP)`);
+  setTxt("btn-prestige", armed ? "⚠ CLICK AGAIN TO CONFIRM (resets your run!)" : `ASCEND PRESTIGE (${costTxt} TICKETS · +${(lpGainFor(g.prestige + 1) + Math.floor((g.chestLevel || 0) / 10))} LP)`);
 
   // bedna
   const chestCost = getChestScrapCost();
@@ -6471,8 +6471,8 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 .pl-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
 .pl-inner { max-width: 1000px; margin: 0 auto; }
 .pl-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
-.pl-br { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-@media (max-width: 760px) { .pl-br { grid-template-columns: 1fr; } }
+.pl-br { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 1100px) { .pl-br { grid-template-columns: repeat(2, 1fr); } } @media (max-width: 760px) { .pl-br { grid-template-columns: 1fr; } }
 .pl-bh { font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; margin-bottom: 6px; display: flex; justify-content: space-between; }
 .pl-n { display: flex; gap: 8px; align-items: center; padding: 7px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 6px; }
 .pl-n.lock { opacity: .4; }
@@ -6513,7 +6513,8 @@ html.m #pl-screen { height: var(--app-h, 100%); }
   const BR = {
     office: { name: "💼 OFFICE", color: "var(--cyan)" },
     casino: { name: "🎰 CASINO", color: "var(--amber)" },
-    hs: { name: "⚔ HIGH STAKES", color: "var(--crimson)" }
+    hs: { name: "⚔ HIGH STAKES", color: "var(--crimson)" },
+    canopy: { name: "🌳 CANOPY (endless)", color: "var(--emerald)" }
   };
   /** row = potřebná fáze stromu (1 sprout ... 4 ancient), req = uzel, který musí mít aspoň 1 level */
   const NODES = [
@@ -6532,12 +6533,22 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     { id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
     { id: "h_foc", br: "hs", row: 2, icon: "✨", name: "Morning Dew", req: "h_xp", desc: l => `start fights with +${10 * l} focus`, next: "+10 start focus", costs: [1, 2, 2] },
     { id: "h_parry", br: "hs", row: 3, icon: "🛡", name: "Thick Bark", req: "h_foc", desc: l => `parry windows +${15 * l}%`, next: "+15% parry window", costs: [2, 3] },
-    { id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] }
+    { id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] },
+    // v11.6: CANOPY - po ANCIENT TREE nekonečné uzly (každý level o 1 LP dražší), aby LP měly vždycky kam jít
+    { id: "r_gc", br: "canopy", row: 4, icon: "☀", name: "Sun Canopy", rep: true, base: 3, desc: l => `+${3 * l}% click power and Auto GC`, next: "+3% click & auto" },
+    { id: "r_hs", br: "canopy", row: 4, icon: "🌙", name: "Moon Rings", rep: true, base: 3, desc: l => `+${4 * l}% HIGH STAKES XP`, next: "+4% HS XP" },
+    { id: "r_luck", br: "canopy", row: 4, icon: "✨", name: "Golden Leaves", rep: true, base: 2, desc: l => `fruits give +${15 * l}% more`, next: "+15% fruit rewards" },
+    { id: "r_cap", br: "canopy", row: 4, icon: "🧺", name: "Wide Branches", desc: l => `+${l} fruit slot${l > 1 ? "s" : ""} (${FRUIT_MAX + l} max)`, next: "+1 fruit slot", costs: [4, 6, 8] },
+    { id: "r_fast", br: "canopy", row: 4, icon: "💧", name: "Deep Water", desc: l => `fruits grow ${10 * l}% faster`, next: "-10% fruit time", costs: [3, 4, 5, 6, 7] }
   ];
+  const REP_MAX = 50;
+  function maxLv(n) { return n.rep ? REP_MAX : n.costs.length; }
+  function costAt(n, l) { return n.rep ? n.base + l : n.costs[l]; }
   const BY = {}; NODES.forEach(n => { BY[n.id] = n; });
-  const TOTAL = SEED_COST + NODES.reduce((a, n) => a + n.costs.reduce((x, y) => x + y, 0), 0);
+  const TOTAL = SEED_COST + NODES.filter(n => n.br !== "canopy").reduce((a, n) => a + n.costs.reduce((x, y) => x + y, 0), 0);
   /** nový přísun LP za prestiž (dřív 1 + floor(p/3)) */
-  function lpGainFor(p) { return 2 + Math.floor(p / 2); }
+  function lpGainFor(p) { return 3 + p; }                                                // v11.6: víc LP (dřív 2 + floor(p/2))
+  function lpGainV115(p) { return 2 + Math.floor(p / 2); }
   function oldLpGainFor(p) { return 1 + Math.floor(p / 3); }
   const OLD_COST = { click: l => 2 + l, auto: l => 2 + l, scrap: l => 2 + l, start: l => 1 + l, heirloom: l => 5 * (l + 1) };
 
@@ -6547,20 +6558,20 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     if (!g.plant || typeof g.plant !== "object") g.plant = blank();
     const p = g.plant;
     if (!p.n || typeof p.n !== "object") p.n = {};
-    Object.keys(p.n).forEach(k => { if (!BY[k]) delete p.n[k]; else p.n[k] = Math.max(0, Math.min(BY[k].costs.length, Math.floor(Number(p.n[k]) || 0))); });
+    Object.keys(p.n).forEach(k => { if (!BY[k]) delete p.n[k]; else p.n[k] = Math.max(0, Math.min(maxLv(BY[k]), Math.floor(Number(p.n[k]) || 0))); });
     p.seed = !!p.seed;
     p.fruitAt = Number(p.fruitAt) || 0;
     return p;
   }
   function lvl(id) { return st().n[id] || 0; }
-  function invested() { const p = st(); return (p.seed ? SEED_COST : 0) + NODES.reduce((a, n) => a + n.costs.slice(0, lvl(n.id)).reduce((x, y) => x + y, 0), 0); }
+  function invested() { const p = st(); return (p.seed ? SEED_COST : 0) + NODES.reduce((a, n) => { let t = 0; for (let i = 0; i < lvl(n.id); i++) t += costAt(n, i); return a + t; }, 0); }
   function stage() { const p = st(); if (!p.seed) return 0; const inv = invested(); let s = 1; for (let i = 2; i < STAGES.length; i++) if (inv >= STAGES[i].at) s = i; return s; }
 
   /** číselné efekty pro zbytek hry */
   function fx(k) {
     switch (k) {
-      case "click": return 0.10 * lvl("o_click");
-      case "auto": return 0.10 * lvl("o_auto");
+      case "click": return 0.10 * lvl("o_click") + 0.03 * lvl("r_gc");
+      case "auto": return 0.10 * lvl("o_auto") + 0.03 * lvl("r_gc");
       case "startGc": return 2000 * lvl("o_start");
       case "scrap": return 0.04 * lvl("o_scrap");
       case "heirloom": return st().seed ? 1 + lvl("o_heir") : 0;
@@ -6570,7 +6581,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
       case "consult": return 1 - 0.10 * lvl("c_cons");
       case "token": return 1 + 0.5 * lvl("c_tok");
       case "wildCherry": return lvl("k_cherry") > 0;
-      case "xp": return 1 + 0.08 * lvl("h_xp");
+      case "xp": return 1 + 0.08 * lvl("h_xp") + 0.04 * lvl("r_hs");
       case "energy": return lvl("h_en");
       case "focus": return 10 * lvl("h_foc");
       case "parry": return 1 + 0.15 * lvl("h_parry");
@@ -6580,7 +6591,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
   }
   /** starý kód čte gameState.lpUp -> přepočítáme ho ze stromu */
   function apply() {
-    gameState.lpUp = { click: lvl("o_click"), auto: lvl("o_auto"), scrap: lvl("o_scrap") * 4 / 3, start: 0, heirloom: fx("heirloom") };   // celá čísla = žádné 30.000000004 %
+    gameState.lpUp = { click: lvl("o_click") + 0.3 * lvl("r_gc"), auto: lvl("o_auto") + 0.3 * lvl("r_gc"), scrap: lvl("o_scrap") * 4 / 3, start: 0, heirloom: fx("heirloom") };   // celá čísla = žádné 30.000000004 %
   }
 
   /** načtení savu + jednorázová migrace ze starého Legacy shopu (bez wipe) */
@@ -6598,14 +6609,20 @@ html.m #pl-screen { height: var(--app-h, 100%); }
       if ((Number(old.heirloom) || 0) >= 1) { p.seed = true; p.fruitAt = Date.now(); }      // kdo měl Heirloom, dostane semínko zdarma
       if (refund || bonus) g._plantMsg = `🌳 THE OFFICE PLANT replaced the Legacy shop: refunded ${refund} LP${bonus > 0 ? " + " + bonus + " bonus LP (new rate)" : ""}${p.seed ? " and planted your seed for free" : ""}. Spend them on your tree!`;
     }
+    // v11.6: jednorázový doplatek LP podle nového vzorce za už odehrané prestiže
+    if (!p.lp116) {
+      p.lp116 = 1; let add = 0;
+      for (let q = 1; q <= (g.prestige || 0); q++) add += Math.max(0, lpGainFor(q) - lpGainV115(q));
+      if (add > 0) { g.lp = Math.max(0, Math.floor(Number(g.lp) || 0)) + add; g._plantMsg = (g._plantMsg ? g._plantMsg + " " : "") + `🌳 LEGACY POINTS got better (3 + prestige per prestige): +${add} LP for your past prestiges. New endless CANOPY nodes on the Ancient Tree!`; }
+    }
     apply();
   }
   function payload() { return st(); }
 
-  function costOf(n) { const l = lvl(n.id); return l >= n.costs.length ? 0 : n.costs[l]; }
+  function costOf(n) { const l = lvl(n.id); return l >= maxLv(n) ? 0 : costAt(n, l); }
   function canBuy(n) {
     const p = st();
-    if (!p.seed || lvl(n.id) >= n.costs.length) return false;
+    if (!p.seed || lvl(n.id) >= maxLv(n)) return false;
     if (stage() < n.row) return false;
     if (n.req && !lvl(n.req)) return false;
     return gameState.lp >= costOf(n);
@@ -6644,10 +6661,18 @@ html.m #pl-screen { height: var(--app-h, 100%); }
   }
 
   // ---------- plody a zalévání
-  function fruits() { const p = st(); if (!p.seed || !p.fruitAt) return 0; return Math.max(0, Math.min(FRUIT_MAX, Math.floor((Date.now() - p.fruitAt) / FRUIT_MS))); }
-  function nextFruitIn() { const p = st(); if (fruits() >= FRUIT_MAX) return 0; return FRUIT_MS - ((Date.now() - p.fruitAt) % FRUIT_MS); }
+  // v11.6: plný strom už neroste dál (dřív běžel čas dál a po sklizni byly hned zase plody) + Canopy: víc míst, rychlejší růst
+  function fMax() { return FRUIT_MAX + lvl("r_cap"); }
+  function fMs() { return Math.round(FRUIT_MS * (1 - 0.1 * lvl("r_fast"))); }
+  function fruits() {
+    const p = st(); if (!p.seed || !p.fruitAt) return 0;
+    const cap = fMax(), ms = fMs(), now = Date.now();
+    if (now - p.fruitAt > cap * ms) p.fruitAt = now - cap * ms;
+    return Math.max(0, Math.min(cap, Math.floor((now - p.fruitAt) / ms)));
+  }
+  function nextFruitIn() { const p = st(); if (fruits() >= fMax()) return 0; return fMs() - ((Date.now() - p.fruitAt) % fMs()); }
   function today() { return new Date().toISOString().slice(0, 10); }
-  function canWater() { const p = st(); return p.seed && p.waterDay !== today() && fruits() < FRUIT_MAX; }
+  function canWater() { const p = st(); return p.seed && p.waterDay !== today() && fruits() < fMax(); }
   function water() {
     const p = st(); if (!canWater()) return;
     p.waterDay = today(); p.fruitAt -= WATER_MS;
@@ -6660,10 +6685,10 @@ html.m #pl-screen { height: var(--app-h, 100%); }
       const r = Math.random(), tokP = 0.03 + 0.02 * s;
       if (r < tokP) { gameState.slotTokens += 1; got.push("🎟 Slot Token"); }
       else if (r < tokP + 0.17 && window.Dungeon && Dungeon.state && Dungeon.unlocked()) { const d = Dungeon.state(); d.energy = Math.min(d.energy + 2 + (s >= 3 ? 1 : 0), 99); got.push("⚡ +" + (2 + (s >= 3 ? 1 : 0)) + " energy"); }
-      else if (r < 0.55) { const gc = Math.max(5000, Math.round(calculateAutoGcRate() * 600)) * s; gameState.coins += gc; got.push("💰 +" + short(gc) + " GC"); }
-      else { const sc = Math.max(500, Math.round(getChestScrapCost() * 4)) * s; gameState.scrap += sc; got.push("⚙ +" + short(sc) + " scrap"); }
+      else if (r < 0.55) { const gc = Math.round(Math.max(5000, Math.round(calculateAutoGcRate() * 600)) * s * (1 + 0.15 * lvl("r_luck"))); gameState.coins += gc; got.push("💰 +" + short(gc) + " GC"); }
+      else { const sc = Math.round(Math.max(500, Math.round(getChestScrapCost() * 4)) * s * (1 + 0.15 * lvl("r_luck"))); gameState.scrap += sc; got.push("⚙ +" + short(sc) + " scrap"); }
     }
-    p.fruitAt += n * FRUIT_MS; if (fruits() === 0 && Date.now() - p.fruitAt > FRUIT_MS) p.fruitAt = Date.now();
+    p.fruitAt += n * fMs(); if (fruits() === 0 && Date.now() - p.fruitAt > fMs()) p.fruitAt = Date.now();
     p.harvested = (p.harvested || 0) + n;
     log(`🍎 HARVEST (${n} fruit${n > 1 ? "s" : ""}): ${got.join(", ")}`, "special");
     after();
@@ -6681,7 +6706,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     if (s >= 3) { px(5, 4, 14, 6, "#15803d"); px(7, 2, 10, 3, "#22c55e"); px(4, 7, 3, 2, "#16a34a"); px(17, 7, 3, 2, "#16a34a"); px(10, 10, 4, 7, "#6b3f1d"); }
     if (s >= 4) { px(3, 1, 18, 3, "#166534"); px(2, 4, 20, 5, "#15803d"); px(6, 0, 12, 2, "#22c55e"); px(9, 9, 6, 8, "#5b3a1a"); px(7, 15, 2, 2, "#5b3a1a"); px(15, 15, 2, 2, "#5b3a1a"); }
     const spots = s >= 3 ? [[7, 6], [15, 5], [11, 3]] : [[9, 8], [14, 8], [11, 6]];
-    if (s >= 2) for (let i = 0; i < nf; i++) px(spots[i][0], spots[i][1], 2, 2, "#ef4444");
+    if (s >= 2) for (let i = 0; i < Math.min(nf, spots.length); i++) px(spots[i][0], spots[i][1], 2, 2, "#ef4444");
     return `<svg viewBox="0 0 24 24" shape-rendering="crispEdges">${R.join("")}</svg>`;
   }
   function fmtT(ms) { const m = Math.ceil(ms / 60000); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + "m"; }
@@ -6710,7 +6735,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     const fxs = activeFx();
     box.innerHTML = `<div class="pl-top"><div class="pl-art">${art(s, nf)}</div><div class="pl-info"><div class="pl-stage">${STAGES[s].icon} ${STAGES[s].name}</div>
       Invested <b>${invested()}</b> / ${TOTAL} LP${s < 4 ? ` · next stage at ${STAGES[s + 1].at} LP` : ""}<br>
-      🍎 ${nf}/${FRUIT_MAX} fruit${nf < FRUIT_MAX ? " · next in " + fmtT(nextFruitIn()) : " · full!"}</div></div>
+      🍎 ${nf}/${fMax()} fruit${nf < fMax() ? " · next in " + fmtT(nextFruitIn()) : " · full!"}</div></div>
       <div class="pl-fx">${fxs.slice(0, 6).map(x => `<span>${x}</span>`).join("")}${fxs.length > 6 ? `<span>+${fxs.length - 6} more</span>` : ""}</div>
       <div class="pl-row"><button class="btn btn-gold" onclick="Plant.open()">🌳 GROW (${gameState.lp} LP)</button>
       <button class="btn ${nf ? "btn-crimson" : ""}" ${nf ? "" : "disabled"} onclick="Plant.harvest()">🍎 HARVEST${nf ? " ×" + nf : ""}</button>
@@ -6727,14 +6752,14 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     $("pl-lp").textContent = gameState.lp + " LP";
     const rc = respecCost(), inv = invested() - (p.seed ? SEED_COST : 0);
     const head = `<div class="pl-card"><div class="pl-top"><div class="pl-art">${art(s, fruits())}</div><div class="pl-info"><div class="pl-stage">${STAGES[s].icon} ${STAGES[s].name}</div>
-      Invested <b>${invested()}</b> / ${TOTAL} LP. The tree grows with every LP you put in:
+      Invested <b>${invested()}</b> LP (the main tree is ${TOTAL} LP, the 🌳 CANOPY is endless). The tree grows with every LP you put in:
       ${STAGES.slice(2).map((x, i) => `<b style="color:${s >= i + 2 ? "var(--emerald)" : "var(--text-dim)"};">${x.icon} ${x.at}</b>`).join(" · ")}<br>
-      You get <b>${lpGainFor((gameState.prestige || 0) + 1)} LP</b> on your next prestige. The tree is never reset.</div></div>
+      You get <b>${lpGainFor((gameState.prestige || 0) + 1) + Math.floor((gameState.chestLevel || 0) / 10)} LP</b> on your next prestige (3 + prestige, +1 per 10 Company Chest levels). The tree is never reset.</div></div>
       <div class="pl-row"><button class="btn" ${inv ? "" : "disabled"} onclick="Plant.respec()">↺ REPLANT (${rc ? short(rc) + " GC" : "free this prestige"})</button></div></div>`;
     const cols = Object.keys(BR).map(b => `<div class="pl-card"><div class="pl-bh" style="color:${BR[b].color};"><span>${BR[b].name}</span></div>` +
       NODES.filter(n => n.br === b).map(n => {
-        const l = lvl(n.id), mx = n.costs.length, maxed = l >= mx, ok = canBuy(n), w = maxed ? "" : why(n);
-        const pips = mx > 1 ? `<div class="pl-pips">${Array.from({ length: mx }, (_, i) => `<i class="${i < l ? "on" : ""}"></i>`).join("")}</div>` : "";
+        const l = lvl(n.id), mx = maxLv(n), maxed = l >= mx, ok = canBuy(n), w = maxed ? "" : why(n);
+        const pips = n.rep ? `<div class="lv">Level ${l}</div>` : mx > 1 ? `<div class="pl-pips">${Array.from({ length: mx }, (_, i) => `<i class="${i < l ? "on" : ""}"></i>`).join("")}</div>` : "";
         return `<div class="pl-n ${maxed ? "max" : ""} ${w ? "lock" : ""} ${n.key ? "key" : ""}"><div class="ic">${n.icon}</div>
           <div class="t"><b>${n.name}${n.key ? " ★" : ""}</b><span>${l ? n.desc(l) : (n.key ? n.desc(1) : n.next)}${!maxed && l && n.next ? " → " + n.next : ""}</span>${pips}${w ? `<div class="lv">🔒 ${w}</div>` : ""}</div>
           <button class="btn ${ok ? "btn-gold" : ""}" ${ok ? "" : "disabled"} data-hold="pl-${n.id}" onclick="Plant.buy('${n.id}')">${maxed ? "MAX" : costOf(n) + " LP"}</button></div>`;
@@ -6847,6 +6872,14 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "11.6", d: "2026-10-30", i: [
+      "⚔ DUEL balance: the Warden has full HP again (it had only 60% in duels), but its block and counter are weaker in PvP. All healing in duels is 35% weaker and getting back up gives 15% HP",
+      "🩸 <b>WOUND</b> (anti-heal, duels): a Warden's PERFECT parry or PERFECT HEAVY and the Trojan's BACKDOOR make the enemy heal 50% less for 2 rounds",
+      "🎯 The guess works with EVERY ultimate now: the first right guess gives the full effect, every next one half",
+      "📜 The duel log tells you much more: blocked / parried rings, partial dodges, damage into shields, channel and mana, counters, healing and how much anti-heal cut, WOUND, revives",
+      "🌳 Legacy Points: 3 + your prestige per prestige (was 2 + half), +1 LP per 10 Company Chest levels, and you got the difference for your past prestiges. New endless 🌳 CANOPY branch on the Ancient Tree (more click & Auto GC, more High Stakes XP, better fruits, more fruit slots, faster fruits)",
+      "🍎 Fixed: a full plant kept growing fruits in the background - now it stops at full"
+    ] },
     { v: "11.5", d: "2026-10-28", i: [
       "🔮 CHANNEL starts with the marker and the band in the middle and a short pause, so you can catch the rhythm before it counts",
       "😮‍💨 Actions cost a bit more stamina: DODGE 25, CHANNEL 20, BLOCK 35 (Warrior) / 30 (Caffeine Abuser). Duel classes re-balanced",
@@ -8269,11 +8302,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   // ------------------------------------------------------------------ TŘÍDY (id sysadmin/engineer/cyber zůstávají kvůli savům)
   const CLASSES = {
     sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
-      desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
+      desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge. PvP: a PERFECT parry or PERFECT HEAVY inflicts 🩸 WOUND (the enemy heals 50% less for 2 rounds).",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
     cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 25, dmgM: 1.15,
       desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 25 stamina) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
-      skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
+      skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it (PvP: also 🩸 WOUND)." },
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
       desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (20 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
@@ -8286,7 +8319,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, hpc: { sysadmin: 0.6 }, dmg: { sysadmin: 0.78, cyber: 0.46, engineer: 0.45, blood: 0.89, hunter: 0.67 } };
+  const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.8, cyber: 0.7, engineer: 0.68, blood: 1.38, hunter: 0.98 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -8780,10 +8813,10 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     // ---------- nepřítel ukáže, co chystá
     pickIntent(f);
     ev(f, "telegraph", { k: f.intent.k, shown: f.intent.shown, val: f.intent.val });
-    if (a === "ult" && opt.guess && !f.guessUsed) {                       // v11.2: tip na další tah nepřítele
-      const real = f.intent.k === "stun" ? opt.guess : guessCat(f.intent.k), ok = real === opt.guess;
-      if (ok) { f.guessUsed = true; guessFx(f); }
-      ev(f, "guess", { ok: ok, g: opt.guess, real: real, fx: ok ? GUESS_FX[h.cls].n : "" });
+    if (a === "ult" && opt.guess) {                                       // v11.6: tip u KAŽDÉ ulti - první trefa plný efekt, další poloviční
+      const real = f.intent.k === "stun" ? opt.guess : guessCat(f.intent.k), ok = real === opt.guess, half = !!f.guessUsed;
+      if (ok) { guessFx(f, half ? 0.5 : 1); f.guessUsed = true; }
+      ev(f, "guess", { ok: ok, g: opt.guess, real: real, fx: ok ? GUESS_FX[h.cls].n + (half ? " (half)" : "") : "" });
     }
     if (!isDmgIntent(f.intent.k)) { enemyAct(f, "none", {}); endRound(f); return f.events.slice(start); }
     f.phase = "react";
@@ -8791,13 +8824,13 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     return f.events.slice(start);
   }
 
-  function guessFx(f) {
-    const h = f.h;
-    if (h.cls === "engineer") f.bm = 3;
-    else if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.2); f.halfNext = true; }
-    else if (h.cls === "cyber") f.epoison = 3;
-    else if (h.cls === "hunter") f.sureAtk = 2;
-    else { f.sta = Math.min(h.staMax, f.sta + 40); f.nocd = 2; delete f.cd.heavy; }
+  function guessFx(f, k) {
+    const h = f.h; k = k || 1;
+    if (h.cls === "engineer") f.bm = Math.max(f.bm, Math.round(3 * k));
+    else if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.2 * k); f.halfNext = true; }
+    else if (h.cls === "cyber") f.epoison = Math.max(f.epoison, Math.round(3 * k));
+    else if (h.cls === "hunter") f.sureAtk = Math.max(f.sureAtk, Math.round(2 * k));
+    else { f.sta = Math.min(h.staMax, f.sta + Math.round(40 * k)); f.nocd = Math.max(f.nocd, Math.round(2 * k)); delete f.cd.heavy; }
     ev(f, "mech", { msg: GUESS_FX[h.cls].n + "! " + GUESS_FX[h.cls].t.charAt(0).toUpperCase() + GUESS_FX[h.cls].t.slice(1) + "." });
   }
   // ================================================================== 2) TVOJE REAKCE
@@ -9121,9 +9154,10 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.sta[i] >= h.dodgeCost; if (r === "channel") return d.sta[i] >= REACTS.channel.sta; return true; }
   function dHurt(d, i, v) {
     v = Math.max(0, Math.round(v)); const s = Math.min(d.sh[i], v); d.sh[i] -= s; d.hp[i] -= v - s;
+    if (s > 0) d.absorbed = (d.absorbed || 0) + s;                       // v11.6: pro log (kolik vzal štít)
     if (v > 0) d.foc[i] = Math.min(100, d.foc[i] + 8);
     const h = d.c[i];
-    if (d.hp[i] <= 0 && h.revive && !d.rev[i]) { d.rev[i] = true; if (d.R() < h.revive) { d.hp[i] = Math.round(d.max[i] * 0.3); dEv(d, "revive", { who: i, val: d.hp[i] }); } }
+    if (d.hp[i] <= 0 && h.revive && !d.rev[i]) { d.rev[i] = true; if (d.R() < h.revive) { d.hp[i] = Math.round(d.max[i] * PVP.revive); dEv(d, "revive", { who: i, val: d.hp[i] }); } }
     return v;
   }
   function dHit(d, a, b, mult, o) {
@@ -9153,6 +9187,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     opt = opt || {};
     ["cd", "bm", "ep", "sa", "nocd"].forEach(k => { if (!d[k]) d[k] = [0, 0]; });
     ["gd", "gu"].forEach(k => { if (!d[k]) d[k] = [false, false]; });
+    if (!d.wd) d.wd = [0, 0];
     const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
     if (!duelAtkOk(d, i, a)) a = "strike";
     if (!duelReactOk(d, j, r)) r = "brace";
@@ -9180,7 +9215,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       else { hits = gres.mult > 0 ? [gres.mult] : []; if (gres.heal) healSelf = Math.round(d.max[i] * gres.heal); d.foc[i] = Math.min(100, d.foc[i] + gres.foc); if (gres.jp) forceCrit = true; critAdd = gres.critAdd || 0; }
     } else if (a === "ult") {
       d.foc[i] = 0;
-      if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3 * q), hh = Math.round(d.max[i] * 0.05 * q); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); hits = [1.4 * q]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh, q: q }); }
+      if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3 * q), hh = Math.round(d.max[i] * 0.05 * q * PVP.heal); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); hits = [1.4 * q]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh, q: q }); }
       else if (A.cls === "engineer") { hits = [3.2 * q]; critMul = 2; }
       else if (A.cls === "cyber") { hits = [2.8 * q]; ignoreArmor = true; d.chan[j] = 0; }
       else if (A.cls === "blood") { hits = [2.6 * q]; }
@@ -9188,7 +9223,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     }
     // reakce obránce
     const magic = A.cls === "engineer", big = a !== "strike", ult3 = a === "ult";
-    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0;
+    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0, cvD = 0;
     if (!d.mana) d.mana = [0, 0];
     if (hits.length) {
       if (r === "dodge") {
@@ -9202,10 +9237,9 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true; }
       }
       let red = 0;
-      let cvD = 0;
       if (r === "channel") { cvD = chanVal(opt); red = 0.1 + 0.25 * cvD; d.chan[j] = 1.2; outcome = "channel"; }
       if (r === "block") {
-        const bk = B.block * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
+        const bk = B.block * ((PVP.blk || {})[B.cls] || 1) * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
         if (ult3 && rings) red = rings.reduce((s2, x) => s2 + tierRed(x), 0) / 3;
         else red = big ? tierRed(parry) : bk;
         const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
@@ -9222,32 +9256,39 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (hits.length) d.chan[i] = 0;
       if (r === "channel" && saved > 0) { manaIn = Math.round(saved * (0.5 + 0.5 * cvD)); d.mana[j] += manaIn; }
       if (a === "ult" && A.cls === "cyber") d.vuln[j] = true;
-      if (r === "block" && hits.length && ((a === "strike" && B.counter) || outcome === "parry")) { const c0 = dHit(d, j, i, outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter, {}); counter = dHurt(d, i, c0.v); }
+      if (r === "block" && hits.length && ((a === "strike" && B.counter) || outcome === "parry")) { const c0 = dHit(d, j, i, (outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter) * (PVP.ctr || 1), {}); counter = dHurt(d, i, c0.v); }
       if (A.lifesteal && total) healSelf += Math.round(total * A.lifesteal);
       if (a === "ult" && A.cls === "blood") healSelf += Math.round(total * 0.6);
       if (d.bm[i] > 0 && total > 0) { d.bm[i]--; const bh = Math.min(Math.round(d.max[i] * 0.08), Math.round(total * 0.25)); healSelf += bh; dEv(d, "bm", { val: bh, left: d.bm[i] }); }
       if (A.mark) d.mark[i] = true;
     }
-    if (healSelf) d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf);
-    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined });
+    let healRaw = healSelf;
+    if (healSelf) { healSelf = Math.round(healSelf * PVP.heal * (d.wd[i] > 0 ? PVP.wound : 1)); d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf); }   // v11.6: v PvP léčení -35 %, 🩸 Wound dalších -50 %
+    // v11.6: 🩸 WOUND - Warden: PERFECT parry nebo PERFECT HEAVY; Trojan: ultimátka (BACKDOOR). Soupeř se 2 kola léčí o 50 % méně.
+    let wound = "";
+    if (outcome === "parry" && B.cls === "sysadmin") { d.wd[i] = 2; wound = "parry"; }
+    if (a === "heavy" && timing === "PERFECT" && A.cls === "sysadmin" && total > 0) { d.wd[j] = 2; wound = "heavy"; }
+    if (a === "ult" && A.cls === "cyber" && total > 0) { d.wd[j] = 2; wound = "backdoor"; }
+    const absorbed = d.absorbed || 0; d.absorbed = 0;
+    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined, shield: absorbed || undefined, wound: wound || undefined, healCut: healRaw > healSelf ? healRaw - healSelf : undefined, cv: r === "channel" ? Math.round(cvD * 100) / 100 : undefined, parry: r === "block" && !rings ? parry : undefined });
     // v11.2: tip u ulti - uhodl útočník reakci obránce?
-    if (a === "ult" && opt.guess && !d.gu[i]) {
-      const ok = opt.guess === r;
+    if (a === "ult" && opt.guess) {                                       // v11.6: u každé ulti; první trefa plný efekt, další poloviční
+      const ok = opt.guess === r, k = d.gu[i] ? 0.5 : 1;
       if (ok) {
         d.gu[i] = true;
-        if (A.cls === "engineer") d.bm[i] = 3;
-        else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2); d.gd[i] = true; }
-        else if (A.cls === "cyber") d.ep[j] = 3;
-        else if (A.cls === "hunter") d.sa[i] = 2;
-        else { d.sta[i] = Math.min(100, d.sta[i] + 40); d.nocd[i] = 2; d.cd[i] = 0; }
+        if (A.cls === "engineer") d.bm[i] = Math.max(d.bm[i], Math.round(3 * k));
+        else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2 * k); d.gd[i] = true; }
+        else if (A.cls === "cyber") d.ep[j] = Math.max(d.ep[j], Math.round(3 * k));
+        else if (A.cls === "hunter") d.sa[i] = Math.max(d.sa[i], Math.round(2 * k));
+        else { d.sta[i] = Math.min(100, d.sta[i] + Math.round(40 * k)); d.nocd[i] = Math.max(d.nocd[i], Math.round(2 * k)); d.cd[i] = 0; }
       }
-      dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n : "" });
+      dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n + (k < 1 ? " (half)" : "") : "" });
     }
     // konec půlkola
     if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
     d.half++;
     if (d.half % 2 === 0) {
-      for (let k = 0; k < 2; k++) d.foc[k] = Math.min(100, d.foc[k] + 10);      // v11.1: stamina se sama nedoplňuje
+      for (let k = 0; k < 2; k++) { d.foc[k] = Math.min(100, d.foc[k] + 10); if (d.wd[k] > 0) d.wd[k]--; }      // v11.1: stamina se sama nedoplňuje
       for (let k = 0; k < 2; k++) if (d.ep[k] > 0 && d.hp[k] > 0) { d.ep[k]--; const pv = dHurt(d, k, d.max[k] * 0.04); dEv(d, "poison", { who: k, val: pv }); }
       d.turn++;
       if (d.hp[0] <= 0 || d.hp[1] <= 0) return duelEnd(d, d.hp[0] > 0 ? 0 : d.hp[1] > 0 ? 1 : (d.hp[0] >= d.hp[1] ? 0 : 1), start);
@@ -10439,7 +10480,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
   /** opts = [{ k, icon, label, sub }] - tip na další tah soupeře; cb(k nebo null) */
   function guess(opts, fx, cb) {
-    const ov = open(`<div class="qte-t">🎯 GUESS THEIR NEXT MOVE</div><div class="qte-h">Right guess = <b style="color:var(--amber);">${fx.n}</b>: ${fx.t}. Once per fight.</div>
+    const ov = open(`<div class="qte-t">🎯 GUESS THEIR NEXT MOVE</div><div class="qte-h">Right guess = <b style="color:var(--amber);">${fx.n}</b>: ${fx.t}. First right guess in a fight: full effect, every next one: half.</div>
       <div class="qte-guess">${opts.map((o, i) => `<button class="btn btn-cyan" data-k="${o.k}">${o.icon} ${o.label}<small>${o.sub || ""} · key ${i + 1}</small></button>`).join("")}</div>
       <button class="btn" id="qte-ng" style="margin-top:4px;">Skip</button><div class="qte-bar"><div id="qte-gb2"></div></div>`);
     let done = false; const t0 = performance.now(), LIM = 12000;
@@ -11034,7 +11075,7 @@ html.m #dg-open-btn { display: none; }
       brace: `😮‍💨 <b>BREATHE</b> (react): +15 stamina, +10 focus and cures 🦠 poison.` };
     return `<div class="dg-dim" style="line-height:1.55;"><b>Every round:</b> 1) you attack, 2) the enemy shows its move, 3) you react.<br>
       Stamina does <b>not</b> refill by itself and pays for every action - focus only charges your ultimate (+10 per round).<br>
-      ⚔ <b>STRIKE</b> free, +10 stamina · 💥 <b>HEAVY</b> 30 stamina, 1-round cooldown, stop the needle: 1.3× / green 1.7× / gold 2.2×, breaks a 🛡 guard and interrupts a ⏳ charge · 🎰 <b>GAMBLE</b> 20 stamina, HOLD reels + 1 re-spin · 😮‍💨 <b>BREATHE</b> no attack, +30 stamina +15 focus, cures poison · ✨ <b>${C0.skill}</b> at 100 focus: ${C0.skillTxt} - played as a mini-game (70-125% power). Then 🎯 guess the enemy's next move - right = <b>${H.GUESS_FX[cls || "sysadmin"].n}</b> (${H.GUESS_FX[cls || "sysadmin"].t}, once per fight)<br>
+      ⚔ <b>STRIKE</b> free, +10 stamina · 💥 <b>HEAVY</b> 30 stamina, 1-round cooldown, stop the needle: 1.3× / green 1.7× / gold 2.2×, breaks a 🛡 guard and interrupts a ⏳ charge · 🎰 <b>GAMBLE</b> 20 stamina, HOLD reels + 1 re-spin · 😮‍💨 <b>BREATHE</b> no attack, +30 stamina +15 focus, cures poison · ✨ <b>${C0.skill}</b> at 100 focus: ${C0.skillTxt} - played as a mini-game (70-125% power). Then 🎯 guess the enemy's next move - right = <b>${H.GUESS_FX[cls || "sysadmin"].n}</b> (${H.GUESS_FX[cls || "sysadmin"].t}, first right guess full, later half)<br>
       ${H.reactsOf(h).map(r => rx[r]).join("<br>")}<br>
       💢 Fill the enemy's <b>BREAK</b> bar to stun it for a round (your next hit 1.5×). 🎭 After a few High Stakes prestiges enemies sometimes FAKE their move. Normal enemies have a class (🦠 virus, 🐛 swarm, 🧱 firewall, 📈 manager, 🧛 leech, 🦍 brute) - see ❓ in a fight.</div>`;
   }
@@ -11352,7 +11393,7 @@ html.m #dg-open-btn { display: none; }
   function ultGame(cb) { const f = fight; qteRun(done => HSQTE.ult(f.h.cls, H.CLASSES[f.h.cls].skill, done), cb); }
   const GUESS_OPTS = [{ k: "atk", icon: "⚔", label: "ATTACK" }, { k: "heavy", icon: "💥", label: "HEAVY", sub: "or unleash" }, { k: "guard", icon: "🛡", label: "GUARD" }, { k: "other", icon: "🔮", label: "SPELL / OTHER", sub: "spell, charge, trick" }];
   function guessGame(cb) {
-    const f = fight; if (f.guessUsed || (fightCtx && fightCtx.tutorial)) return cb(null);
+    const f = fight; if (fightCtx && fightCtx.tutorial) return cb(null);
     qteRun(done => HSQTE.guess(GUESS_OPTS, H.GUESS_FX[f.h.cls], done), cb);
   }
   function cineGame(cb) { const f = fight; qteRun(done => HSQTE.cine(f.h.cls, "✨ " + H.CLASSES[f.h.cls].skill, done), cb); }
@@ -12739,8 +12780,8 @@ html.m #dg-open-btn { display: none; }
     if (v.role === "atk") {
       if (choice === "heavy") return Q.timing(h.zone || 0.3, q => cb({ t: q }));
       if (choice === "ult") return Q.ult(h.cls, H.CLASSES[h.cls].skill, o => {
-        const oh = heroesOf(v)[1 - v.you], gu = v.gu && v.gu[v.you];
-        if (gu || !oh) return cb({ q: o.q });
+        const oh = heroesOf(v)[1 - v.you];
+        if (!oh) return cb({ q: o.q });
         // v11.2: tip na reakci soupeře (jednou za duel)
         Q.guess(H.reactsOf(oh).map(x => ({ k: x, icon: H.REACTS[x].icon, label: H.REACTS[x].name })), H.GUESS_FX[h.cls], g => cb(g ? { q: o.q, guess: g } : { q: o.q }));
       });
@@ -12875,7 +12916,7 @@ html.m #dg-open-btn { display: none; }
         ${t.status === "wait" && !mine && forMe ? `<button class="btn btn-crimson" ${gameState.coins >= t.stake && !K.busy ? "" : "disabled"} onclick="HSDuel.join('${t.id}',${t.stake})">⚔ ACCEPT</button>` : `<span class="dg-dim">${t.status === "play" ? "FIGHTING" : mine ? "YOURS" : "PRIVATE"}</span>`}</div>`;
     }).join("") : `<div class="dg-dim">${L ? "No open duels. Create one and tell a friend!" : "Loading..."}</div>`;
     return `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>⚔ CHALLENGE A FRIEND</span></div>
-      <div class="dg-dim">A live 1v1 with the same rules as your fights, but both of you choose at once: the attacker picks a move, the defender picks a reaction <b>blind</b>. HEAVY, GAMBLE, ultimates, BLOCK (parry) and DODGE are played as the same mini-games as in the campaign. 35 seconds per choice, 3 missed choices in a row = you lose. Winner takes the pot (5% goes to the lottery).</div>
+      <div class="dg-dim">A live 1v1 with the same rules as your fights, but both of you choose at once: the attacker picks a move, the defender picks a reaction <b>blind</b>. HEAVY, GAMBLE, ultimates, BLOCK (parry) and DODGE are played as the same mini-games as in the campaign. 35 seconds per choice, 3 missed choices in a row = you lose. Winner takes the pot (5% goes to the lottery). In duels all healing is 35% weaker and getting back up gives only 15% HP.</div>
       <div class="du-form">
         <label>Opponent (empty = anyone)<input id="du-target" maxlength="24" value="${esc(K.target)}" placeholder="nick"></label>
         <label>Stake GC (0 = friendly)<input id="du-stake" inputmode="numeric" value="${K.stake || 0}"></label>
@@ -12905,6 +12946,7 @@ html.m #dg-open-btn { display: none; }
       else if (e.type === "rest") A.float("+30 STA", side(e.i), "#00f0ff");
       else if (e.type === "guess") A.float(e.ok ? e.fx : "WRONG GUESS", side(e.i), e.ok ? "#ffd700" : "#94a3b8", e.ok);
       else if (e.type === "bm") A.float("+" + fmt(e.val), side(e.i), "#00ff88");
+      if (e.wound) A.float("🩸 WOUND", side(e.wound === "parry" ? e.i : 1 - e.i), "#ff4d6d", true);
       else if (e.type === "poison") A.float("🦠 -" + fmt(e.val), side(e.who), "#22c55e");
       else if (e.type === "bf") A.float("BACKFIRE", side(e.i), "#ff1744", true);
       else if (e.type === "ult") A.float("+" + fmt(e.shield) + " 🛡", side(e.i), "#00ff88", true);

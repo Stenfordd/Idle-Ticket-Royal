@@ -1974,7 +1974,29 @@ function dlPut_(t) { var j = JSON.stringify(t); CacheService.getScriptCache().pu
 function dlDel_(id) { CacheService.getScriptCache().remove('dl_' + id); prsProps_().deleteProperty('dl_' + id); }
 function dlIndex_() { try { return JSON.parse(prsProps_().getProperty('dl_index') || '[]'); } catch (e) { return []; } }
 function dlSetIndex_(a) { prsProps_().setProperty('dl_index', JSON.stringify(a)); }
-function dlLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 40) t.log.shift(); }
+function dlLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 60) t.log.shift(); }
+/** v11.6: podrobný řádek logu duelu - co se stalo s ránou (štít, block, parry, uhnutí, channel, mana, léčení, Wound...) */
+function dlHitTxt_(e, names) {
+  var A = names[e.i], B = names[1 - e.i], x = [];
+  var what = e.a === 'ult' ? 'ULTIMATE ' + Math.round((e.q || 1) * 100) + '%' : (e.label || e.a);
+  if (e.timing) what += ' (' + e.timing + ')'; if (e.reels) what += ' ' + e.reels.join('');
+  if (e.manaOut) x.push('+' + e.manaOut + ' mana released');
+  if (e.r === 'block') {
+    if (e.rings) x.push(B + ' blocked ' + e.rings.filter(function (r) { return r !== 'none'; }).length + '/3 rings' + (e.rings.every(function (r) { return r === 'perfect'; }) ? ' (all PERFECT)' : ''));
+    if (e.outcome === 'parry') x.push(B + ' PARRIED');
+    else if (e.parry && e.parry !== 'none' && e.a !== 'strike') x.push(B + ' ' + e.parry + ' block');
+    if (e.saved) x.push(e.saved + ' blocked');
+  } else if (e.r === 'dodge') {
+    if (e.dodged != null) x.push(B + ' dodged ' + e.dodged + '/3');
+    else if (e.outcome === 'dodgefail') x.push(B + "'s dodge failed");
+  } else if (e.r === 'channel') x.push(B + ' channeled ' + Math.round((e.cv || 0) * 100) + '% (-' + (e.saved || 0) + ', +' + (e.mana || 0) + ' mana)');
+  else if (e.r === 'brace') x.push(B + ' breathed');
+  if (e.shield) x.push(e.shield + ' into a shield');
+  if (e.counter) x.push(B + ' countered for ' + e.counter);
+  if (e.heal) x.push(A + ' healed ' + e.heal + (e.healCut ? ' (-' + e.healCut + ' anti-heal)' : ''));
+  if (e.wound) x.push('🩸 WOUND' + (e.wound === 'parry' ? ' on ' + A : ' on ' + B) + ': healing -50% for 2 rounds');
+  return 'R' + e.t + ' ' + A + ': ' + what + ' → ' + (e.val || 0) + (e.crit ? ' CRIT' : '') + (x.length ? ' · ' + x.join(' · ') : '');
+}
 function dlPay_(nick, amt, why, id) {
   if (!(amt > 0)) return;
   var p = prsProps_(), m = {}; try { m = JSON.parse(p.getProperty('dl_pay') || '{}'); } catch (e) {}
@@ -2032,14 +2054,15 @@ function dlResolve_(t, auto) {
   delete d.R; delete d.c; d.events = [];
   t.lastEv = evs; t.evSeq = (t.evSeq || 0) + 1; t.pick = { a: '', r: '' }; t.moved = Date.now(); t.deadline = Date.now() + DL_TURN_MS; t.rev++;
   evs.forEach(function (e) {
-    if (e.type === 'hit') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE ' + Math.round((e.q || 1) * 100) + '%' : (e.label || e.a)) + (e.timing ? ' (' + e.timing + ')' : '') + (e.reels ? ' ' + e.reels.join('') : '') + ' ' + e.val + (e.crit ? ' CRIT' : '') + (e.outcome === 'block' ? ' (blocked)' : e.outcome === 'parry' ? ' (PARRIED!)' : e.outcome === 'dodgefail' ? ' (dodge failed)' : '') + (e.counter ? ', counter ' + e.counter : ''));
+    if (e.type === 'hit') dlLog_(t, dlHitTxt_(e, names));
     else if (e.type === 'rest') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' catches a breath (+30 stamina)');
     else if (e.type === 'guess') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + (e.ok ? ' guessed right: ' + e.fx : ' guessed wrong'));
     else if (e.type === 'bm') dlLog_(t, names[e.i] + ' Blood Magic +' + e.val + ' HP');
+    else if (e.type === 'ult' && e.shield) dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': FIREWALL ' + Math.round((e.q || 1) * 100) + '% · +' + e.shield + ' shield, +' + e.heal + ' HP');
     else if (e.type === 'poison') dlLog_(t, names[e.who] + ' infection -' + e.val + ' HP');
-    else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[1 - e.i] + ' dodged');
+    else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE' : (e.label || e.a)) + ' → ' + names[1 - e.i] + ' DODGED' + (e.dodged ? ' all 3' : ''));
     else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
-    else if (e.type === 'revive') dlLog_(t, names[e.who] + ' rises again!');
+    else if (e.type === 'revive') dlLog_(t, names[e.who] + ' gets back up with ' + e.val + ' HP!');
   });
   if (d.over) dlEnd_(t, names[d.win], d.hp[1 - d.win] <= 0 ? 'K.O.' : 'time');
 }
@@ -2163,7 +2186,7 @@ function dlView_(t, me) {
     cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null, ultReady: ultReady, waitAtk: role === 'react' && ultReady && !t.pick.a, setup: su,
     gu: d ? (d.gu || [false, false]) : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
     role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
-    winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-14) };
+    winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-30) };
 }
 function dlPoll(id, rev) {
   var me = getUserLdap(), t = dlGet_(id), pay = [];
@@ -2270,11 +2293,11 @@ function setNick(nick) {
   // ------------------------------------------------------------------ TŘÍDY (id sysadmin/engineer/cyber zůstávají kvůli savům)
   const CLASSES = {
     sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
-      desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
+      desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge. PvP: a PERFECT parry or PERFECT HEAVY inflicts 🩸 WOUND (the enemy heals 50% less for 2 rounds).",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
     cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 25, dmgM: 1.15,
       desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 25 stamina) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
-      skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
+      skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it (PvP: also 🩸 WOUND)." },
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
       desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (20 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
@@ -2287,7 +2310,7 @@ function setNick(nick) {
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, hpc: { sysadmin: 0.6 }, dmg: { sysadmin: 0.78, cyber: 0.46, engineer: 0.45, blood: 0.89, hunter: 0.67 } };
+  const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.8, cyber: 0.7, engineer: 0.68, blood: 1.38, hunter: 0.98 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -2781,10 +2804,10 @@ function setNick(nick) {
     // ---------- nepřítel ukáže, co chystá
     pickIntent(f);
     ev(f, "telegraph", { k: f.intent.k, shown: f.intent.shown, val: f.intent.val });
-    if (a === "ult" && opt.guess && !f.guessUsed) {                       // v11.2: tip na další tah nepřítele
-      const real = f.intent.k === "stun" ? opt.guess : guessCat(f.intent.k), ok = real === opt.guess;
-      if (ok) { f.guessUsed = true; guessFx(f); }
-      ev(f, "guess", { ok: ok, g: opt.guess, real: real, fx: ok ? GUESS_FX[h.cls].n : "" });
+    if (a === "ult" && opt.guess) {                                       // v11.6: tip u KAŽDÉ ulti - první trefa plný efekt, další poloviční
+      const real = f.intent.k === "stun" ? opt.guess : guessCat(f.intent.k), ok = real === opt.guess, half = !!f.guessUsed;
+      if (ok) { guessFx(f, half ? 0.5 : 1); f.guessUsed = true; }
+      ev(f, "guess", { ok: ok, g: opt.guess, real: real, fx: ok ? GUESS_FX[h.cls].n + (half ? " (half)" : "") : "" });
     }
     if (!isDmgIntent(f.intent.k)) { enemyAct(f, "none", {}); endRound(f); return f.events.slice(start); }
     f.phase = "react";
@@ -2792,13 +2815,13 @@ function setNick(nick) {
     return f.events.slice(start);
   }
 
-  function guessFx(f) {
-    const h = f.h;
-    if (h.cls === "engineer") f.bm = 3;
-    else if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.2); f.halfNext = true; }
-    else if (h.cls === "cyber") f.epoison = 3;
-    else if (h.cls === "hunter") f.sureAtk = 2;
-    else { f.sta = Math.min(h.staMax, f.sta + 40); f.nocd = 2; delete f.cd.heavy; }
+  function guessFx(f, k) {
+    const h = f.h; k = k || 1;
+    if (h.cls === "engineer") f.bm = Math.max(f.bm, Math.round(3 * k));
+    else if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.2 * k); f.halfNext = true; }
+    else if (h.cls === "cyber") f.epoison = Math.max(f.epoison, Math.round(3 * k));
+    else if (h.cls === "hunter") f.sureAtk = Math.max(f.sureAtk, Math.round(2 * k));
+    else { f.sta = Math.min(h.staMax, f.sta + Math.round(40 * k)); f.nocd = Math.max(f.nocd, Math.round(2 * k)); delete f.cd.heavy; }
     ev(f, "mech", { msg: GUESS_FX[h.cls].n + "! " + GUESS_FX[h.cls].t.charAt(0).toUpperCase() + GUESS_FX[h.cls].t.slice(1) + "." });
   }
   // ================================================================== 2) TVOJE REAKCE
@@ -3122,9 +3145,10 @@ function setNick(nick) {
   function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.sta[i] >= h.dodgeCost; if (r === "channel") return d.sta[i] >= REACTS.channel.sta; return true; }
   function dHurt(d, i, v) {
     v = Math.max(0, Math.round(v)); const s = Math.min(d.sh[i], v); d.sh[i] -= s; d.hp[i] -= v - s;
+    if (s > 0) d.absorbed = (d.absorbed || 0) + s;                       // v11.6: pro log (kolik vzal štít)
     if (v > 0) d.foc[i] = Math.min(100, d.foc[i] + 8);
     const h = d.c[i];
-    if (d.hp[i] <= 0 && h.revive && !d.rev[i]) { d.rev[i] = true; if (d.R() < h.revive) { d.hp[i] = Math.round(d.max[i] * 0.3); dEv(d, "revive", { who: i, val: d.hp[i] }); } }
+    if (d.hp[i] <= 0 && h.revive && !d.rev[i]) { d.rev[i] = true; if (d.R() < h.revive) { d.hp[i] = Math.round(d.max[i] * PVP.revive); dEv(d, "revive", { who: i, val: d.hp[i] }); } }
     return v;
   }
   function dHit(d, a, b, mult, o) {
@@ -3154,6 +3178,7 @@ function setNick(nick) {
     opt = opt || {};
     ["cd", "bm", "ep", "sa", "nocd"].forEach(k => { if (!d[k]) d[k] = [0, 0]; });
     ["gd", "gu"].forEach(k => { if (!d[k]) d[k] = [false, false]; });
+    if (!d.wd) d.wd = [0, 0];
     const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
     if (!duelAtkOk(d, i, a)) a = "strike";
     if (!duelReactOk(d, j, r)) r = "brace";
@@ -3181,7 +3206,7 @@ function setNick(nick) {
       else { hits = gres.mult > 0 ? [gres.mult] : []; if (gres.heal) healSelf = Math.round(d.max[i] * gres.heal); d.foc[i] = Math.min(100, d.foc[i] + gres.foc); if (gres.jp) forceCrit = true; critAdd = gres.critAdd || 0; }
     } else if (a === "ult") {
       d.foc[i] = 0;
-      if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3 * q), hh = Math.round(d.max[i] * 0.05 * q); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); hits = [1.4 * q]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh, q: q }); }
+      if (A.cls === "sysadmin") { const s = Math.round(d.max[i] * 0.3 * q), hh = Math.round(d.max[i] * 0.05 * q * PVP.heal); d.sh[i] += s; d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); hits = [1.4 * q]; dEv(d, "ult", { a: CLASSES[A.cls].skill, shield: s, heal: hh, q: q }); }
       else if (A.cls === "engineer") { hits = [3.2 * q]; critMul = 2; }
       else if (A.cls === "cyber") { hits = [2.8 * q]; ignoreArmor = true; d.chan[j] = 0; }
       else if (A.cls === "blood") { hits = [2.6 * q]; }
@@ -3189,7 +3214,7 @@ function setNick(nick) {
     }
     // reakce obránce
     const magic = A.cls === "engineer", big = a !== "strike", ult3 = a === "ult";
-    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0;
+    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0, cvD = 0;
     if (!d.mana) d.mana = [0, 0];
     if (hits.length) {
       if (r === "dodge") {
@@ -3203,10 +3228,9 @@ function setNick(nick) {
         if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true; }
       }
       let red = 0;
-      let cvD = 0;
       if (r === "channel") { cvD = chanVal(opt); red = 0.1 + 0.25 * cvD; d.chan[j] = 1.2; outcome = "channel"; }
       if (r === "block") {
-        const bk = B.block * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
+        const bk = B.block * ((PVP.blk || {})[B.cls] || 1) * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
         if (ult3 && rings) red = rings.reduce((s2, x) => s2 + tierRed(x), 0) / 3;
         else red = big ? tierRed(parry) : bk;
         const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
@@ -3223,32 +3247,39 @@ function setNick(nick) {
       if (hits.length) d.chan[i] = 0;
       if (r === "channel" && saved > 0) { manaIn = Math.round(saved * (0.5 + 0.5 * cvD)); d.mana[j] += manaIn; }
       if (a === "ult" && A.cls === "cyber") d.vuln[j] = true;
-      if (r === "block" && hits.length && ((a === "strike" && B.counter) || outcome === "parry")) { const c0 = dHit(d, j, i, outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter, {}); counter = dHurt(d, i, c0.v); }
+      if (r === "block" && hits.length && ((a === "strike" && B.counter) || outcome === "parry")) { const c0 = dHit(d, j, i, (outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter) * (PVP.ctr || 1), {}); counter = dHurt(d, i, c0.v); }
       if (A.lifesteal && total) healSelf += Math.round(total * A.lifesteal);
       if (a === "ult" && A.cls === "blood") healSelf += Math.round(total * 0.6);
       if (d.bm[i] > 0 && total > 0) { d.bm[i]--; const bh = Math.min(Math.round(d.max[i] * 0.08), Math.round(total * 0.25)); healSelf += bh; dEv(d, "bm", { val: bh, left: d.bm[i] }); }
       if (A.mark) d.mark[i] = true;
     }
-    if (healSelf) d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf);
-    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined });
+    let healRaw = healSelf;
+    if (healSelf) { healSelf = Math.round(healSelf * PVP.heal * (d.wd[i] > 0 ? PVP.wound : 1)); d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf); }   // v11.6: v PvP léčení -35 %, 🩸 Wound dalších -50 %
+    // v11.6: 🩸 WOUND - Warden: PERFECT parry nebo PERFECT HEAVY; Trojan: ultimátka (BACKDOOR). Soupeř se 2 kola léčí o 50 % méně.
+    let wound = "";
+    if (outcome === "parry" && B.cls === "sysadmin") { d.wd[i] = 2; wound = "parry"; }
+    if (a === "heavy" && timing === "PERFECT" && A.cls === "sysadmin" && total > 0) { d.wd[j] = 2; wound = "heavy"; }
+    if (a === "ult" && A.cls === "cyber" && total > 0) { d.wd[j] = 2; wound = "backdoor"; }
+    const absorbed = d.absorbed || 0; d.absorbed = 0;
+    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined, shield: absorbed || undefined, wound: wound || undefined, healCut: healRaw > healSelf ? healRaw - healSelf : undefined, cv: r === "channel" ? Math.round(cvD * 100) / 100 : undefined, parry: r === "block" && !rings ? parry : undefined });
     // v11.2: tip u ulti - uhodl útočník reakci obránce?
-    if (a === "ult" && opt.guess && !d.gu[i]) {
-      const ok = opt.guess === r;
+    if (a === "ult" && opt.guess) {                                       // v11.6: u každé ulti; první trefa plný efekt, další poloviční
+      const ok = opt.guess === r, k = d.gu[i] ? 0.5 : 1;
       if (ok) {
         d.gu[i] = true;
-        if (A.cls === "engineer") d.bm[i] = 3;
-        else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2); d.gd[i] = true; }
-        else if (A.cls === "cyber") d.ep[j] = 3;
-        else if (A.cls === "hunter") d.sa[i] = 2;
-        else { d.sta[i] = Math.min(100, d.sta[i] + 40); d.nocd[i] = 2; d.cd[i] = 0; }
+        if (A.cls === "engineer") d.bm[i] = Math.max(d.bm[i], Math.round(3 * k));
+        else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2 * k); d.gd[i] = true; }
+        else if (A.cls === "cyber") d.ep[j] = Math.max(d.ep[j], Math.round(3 * k));
+        else if (A.cls === "hunter") d.sa[i] = Math.max(d.sa[i], Math.round(2 * k));
+        else { d.sta[i] = Math.min(100, d.sta[i] + Math.round(40 * k)); d.nocd[i] = Math.max(d.nocd[i], Math.round(2 * k)); d.cd[i] = 0; }
       }
-      dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n : "" });
+      dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n + (k < 1 ? " (half)" : "") : "" });
     }
     // konec půlkola
     if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
     d.half++;
     if (d.half % 2 === 0) {
-      for (let k = 0; k < 2; k++) d.foc[k] = Math.min(100, d.foc[k] + 10);      // v11.1: stamina se sama nedoplňuje
+      for (let k = 0; k < 2; k++) { d.foc[k] = Math.min(100, d.foc[k] + 10); if (d.wd[k] > 0) d.wd[k]--; }      // v11.1: stamina se sama nedoplňuje
       for (let k = 0; k < 2; k++) if (d.ep[k] > 0 && d.hp[k] > 0) { d.ep[k]--; const pv = dHurt(d, k, d.max[k] * 0.04); dEv(d, "poison", { who: k, val: pv }); }
       d.turn++;
       if (d.hp[0] <= 0 || d.hp[1] <= 0) return duelEnd(d, d.hp[0] > 0 ? 0 : d.hp[1] > 0 ? 1 : (d.hp[0] >= d.hp[1] ? 0 : 1), start);

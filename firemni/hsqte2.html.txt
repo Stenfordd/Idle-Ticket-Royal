@@ -398,7 +398,7 @@ go();
 }
 /** opts = [{ k, icon, label, sub }] - tip na další tah soupeře; cb(k nebo null) */
 function guess(opts, fx, cb) {
-const ov = open(`<div class="qte-t">🎯 GUESS THEIR NEXT MOVE</div><div class="qte-h">Right guess = <b style="color:var(--amber);">${fx.n}</b>: ${fx.t}. Once per fight.</div>
+const ov = open(`<div class="qte-t">🎯 GUESS THEIR NEXT MOVE</div><div class="qte-h">Right guess = <b style="color:var(--amber);">${fx.n}</b>: ${fx.t}. First right guess in a fight: full effect, every next one: half.</div>
 <div class="qte-guess">${opts.map((o, i) => `<button class="btn btn-cyan" data-k="${o.k}">${o.icon} ${o.label}<small>${o.sub || ""} · key ${i + 1}</small></button>`).join("")}</div>
 <button class="btn" id="qte-ng" style="margin-top:4px;">Skip</button><div class="qte-bar"><div id="qte-gb2"></div></div>`);
 let done = false; const t0 = performance.now(), LIM = 12000;

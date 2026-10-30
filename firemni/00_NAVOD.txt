@@ -1,10 +1,11 @@
-NÁVOD v7.2 - firemní verze v11.5 (= hra Office Royale v11.5)
+NÁVOD v7.3 - firemní verze v11.6 (= hra Office Royale v11.6)
 
-v11.5: CHANNEL začíná uprostřed, akce dražší (DODGE 25, CHANNEL 20, BLOCK 35/30), varování na nízkou staminu,
-ukazatel many, série perfectů u parry, odveta v duelu, zlatá ikona ♻ u rozebírání.
+v11.6: vyvážený duel (Warden má zase plné HP, v duelu léčení -35 %, WOUND), tip u každé ultimátky,
+podrobný duel log, víc Legacy Points + nekonečná větev CANOPY, oprava hromadění ovoce.
 
-TENTOKRÁT ZKOPÍRUJ JEN TYHLE (žádný nový soubor, ostatní beze změny):
-  changelog, duel, engine, gear, hs, hs2, hs3, hsengine, hsqte2, index
+TENTOKRÁT ZKOPÍRUJ JEN TYHLE (ostatní jsou beze změny):
+  server3 (NOVÝ .gs SOUBOR - vytvoř ho: + -> Skript, jméno server3), server2, engine,
+  changelog, duel, hs2, hs3, hsengine, hsengine2, hsqte2, index, office, office2, plant
 Pak Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
 
 ======================================================
@@ -14,9 +15,9 @@ https://stenfordd.github.io/Idle-Ticket-Royal/firemni/   (každý soubor má tla
 POZOR: "index.html" na GitHubu je jen tahle stránka. Do Apps Scriptu patří "index.html.txt" (soubor index).
 
 ======================================================
-SOUBORY V APPS SCRIPT PROJEKTU (37)
+SOUBORY V APPS SCRIPT PROJEKTU (38)
 ======================================================
-.gs:   code, server2, engine
+.gs:   code, server2, server3, engine
 HTML:  index, style, office, office2, casino, sync, minigames, jumpking, prsi, checkers, plant, changelog, meta,
        dengine, hsengine, hsengine2, hscamp, hsrig, hsqte, hsqte2, hs, hs2, hs3, gear, arena, hs_modes, duel, colleague,
        extras, mobile, theme, room, room2, room3

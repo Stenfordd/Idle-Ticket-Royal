@@ -1,4 +1,6 @@
-<script type="text/plain" data-tt="tt_office_1" data-i="2">const list = gameState.inventory.filter(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL && !enhOf(s))
+<script type="text/plain" data-tt="tt_office_1" data-i="2">const box = document.getElementById("merge-list");
+if (!box) return;
+const list = gameState.inventory.filter(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL && !enhOf(s))
 .sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0)));
 const eg = enhMergeGroups();
 const sig = list.map(stackKey).join(",") + "#" + list.map(x => x.n).join(",") + "#" + eg.map(g => g.key + g.best.e + g.eq + g.lost).join(",");
@@ -209,7 +211,7 @@ setTxt("lp-count", g.lp);
 const nextCost = getPrestigeCost(g.prestige);
 const costTxt = nextCost >= 1e9 ? (nextCost / 1e9).toFixed(2) + "B" : nextCost >= 1e6 ? (nextCost / 1e6).toFixed(2) + "M" : (nextCost / 1e3).toFixed(1) + "K";
 const armed = Date.now() < prestigeArmedUntil;
-setTxt("btn-prestige", armed ? "⚠ CLICK AGAIN TO CONFIRM (resets your run!)" : `ASCEND PRESTIGE (${costTxt} TICKETS · +${lpGainFor(g.prestige + 1)} LP)`);
+setTxt("btn-prestige", armed ? "⚠ CLICK AGAIN TO CONFIRM (resets your run!)" : `ASCEND PRESTIGE (${costTxt} TICKETS · +${(lpGainFor(g.prestige + 1) + Math.floor((g.chestLevel || 0) / 10))} LP)`);
 const chestCost = getChestScrapCost();
 setTxt("btn-open-chest", `OPEN ×1 (${chestCost.toLocaleString()} SCRAP)`);
 setTxt("btn-open-chest10", `OPEN ×10 (${(chestCost * 10).toLocaleString()})`);

@@ -113,8 +113,8 @@ if (!Q || !h) return cb({});
 if (v.role === "atk") {
 if (choice === "heavy") return Q.timing(h.zone || 0.3, q => cb({ t: q }));
 if (choice === "ult") return Q.ult(h.cls, H.CLASSES[h.cls].skill, o => {
-const oh = heroesOf(v)[1 - v.you], gu = v.gu && v.gu[v.you];
-if (gu || !oh) return cb({ q: o.q });
+const oh = heroesOf(v)[1 - v.you];
+if (!oh) return cb({ q: o.q });
 Q.guess(H.reactsOf(oh).map(x => ({ k: x, icon: H.REACTS[x].icon, label: H.REACTS[x].name })), H.GUESS_FX[h.cls], g => cb(g ? { q: o.q, guess: g } : { q: o.q }));
 });
 if (choice === "gamble" && v.gr) {
@@ -246,7 +246,7 @@ return `<div class="dg-art"><div class="ic">${(H.CLASSES[t.cls] || {}).icon || "
 ${t.status === "wait" && !mine && forMe ? `<button class="btn btn-crimson" ${gameState.coins >= t.stake && !K.busy ? "" : "disabled"} onclick="HSDuel.join('${t.id}',${t.stake})">⚔ ACCEPT</button>` : `<span class="dg-dim">${t.status === "play" ? "FIGHTING" : mine ? "YOURS" : "PRIVATE"}</span>`}</div>`;
 }).join("") : `<div class="dg-dim">${L ? "No open duels. Create one and tell a friend!" : "Loading..."}</div>`;
 return `<div class="dg-grid2"><div class="dg-card"><div class="dg-h"><span>⚔ CHALLENGE A FRIEND</span></div>
-<div class="dg-dim">A live 1v1 with the same rules as your fights, but both of you choose at once: the attacker picks a move, the defender picks a reaction <b>blind</b>. HEAVY, GAMBLE, ultimates, BLOCK (parry) and DODGE are played as the same mini-games as in the campaign. 35 seconds per choice, 3 missed choices in a row = you lose. Winner takes the pot (5% goes to the lottery).</div>
+<div class="dg-dim">A live 1v1 with the same rules as your fights, but both of you choose at once: the attacker picks a move, the defender picks a reaction <b>blind</b>. HEAVY, GAMBLE, ultimates, BLOCK (parry) and DODGE are played as the same mini-games as in the campaign. 35 seconds per choice, 3 missed choices in a row = you lose. Winner takes the pot (5% goes to the lottery). In duels all healing is 35% weaker and getting back up gives only 15% HP.</div>
 <div class="du-form">
 <label>Opponent (empty = anyone)<input id="du-target" maxlength="24" value="${esc(K.target)}" placeholder="nick"></label>
 <label>Stake GC (0 = friendly)<input id="du-stake" inputmode="numeric" value="${K.stake || 0}"></label>
@@ -276,6 +276,7 @@ else if (e.type === "dodge") A.float("DODGE", side(1 - e.i), "#00f0ff", true);
 else if (e.type === "rest") A.float("+30 STA", side(e.i), "#00f0ff");
 else if (e.type === "guess") A.float(e.ok ? e.fx : "WRONG GUESS", side(e.i), e.ok ? "#ffd700" : "#94a3b8", e.ok);
 else if (e.type === "bm") A.float("+" + fmt(e.val), side(e.i), "#00ff88");
+if (e.wound) A.float("🩸 WOUND", side(e.wound === "parry" ? e.i : 1 - e.i), "#ff4d6d", true);
 else if (e.type === "poison") A.float("🦠 -" + fmt(e.val), side(e.who), "#22c55e");
 else if (e.type === "bf") A.float("BACKFIRE", side(e.i), "#ff1744", true);
 else if (e.type === "ult") A.float("+" + fmt(e.shield) + " 🛡", side(e.i), "#00ff88", true);

@@ -1,4 +1,0 @@
-DONE5 - Office Royale v11.5 je dogenerovaná.
-Firemní verze: zkopíruj jen 10 změněných souborů (seznam v 00_NAVOD.txt), žádný nový.
-Čas: 2026-10-28 18:46
-Commit: 6370cf0

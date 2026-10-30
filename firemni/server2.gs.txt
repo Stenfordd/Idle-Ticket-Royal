@@ -506,7 +506,29 @@ function dlPut_(t) { var j = JSON.stringify(t); CacheService.getScriptCache().pu
 function dlDel_(id) { CacheService.getScriptCache().remove('dl_' + id); prsProps_().deleteProperty('dl_' + id); }
 function dlIndex_() { try { return JSON.parse(prsProps_().getProperty('dl_index') || '[]'); } catch (e) { return []; } }
 function dlSetIndex_(a) { prsProps_().setProperty('dl_index', JSON.stringify(a)); }
-function dlLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 40) t.log.shift(); }
+function dlLog_(t, txt) { t.log.push({ at: Date.now(), t: txt }); if (t.log.length > 60) t.log.shift(); }
+/** v11.6: podrobný řádek logu duelu - co se stalo s ránou (štít, block, parry, uhnutí, channel, mana, léčení, Wound...) */
+function dlHitTxt_(e, names) {
+var A = names[e.i], B = names[1 - e.i], x = [];
+var what = e.a === 'ult' ? 'ULTIMATE ' + Math.round((e.q || 1) * 100) + '%' : (e.label || e.a);
+if (e.timing) what += ' (' + e.timing + ')'; if (e.reels) what += ' ' + e.reels.join('');
+if (e.manaOut) x.push('+' + e.manaOut + ' mana released');
+if (e.r === 'block') {
+if (e.rings) x.push(B + ' blocked ' + e.rings.filter(function (r) { return r !== 'none'; }).length + '/3 rings' + (e.rings.every(function (r) { return r === 'perfect'; }) ? ' (all PERFECT)' : ''));
+if (e.outcome === 'parry') x.push(B + ' PARRIED');
+else if (e.parry && e.parry !== 'none' && e.a !== 'strike') x.push(B + ' ' + e.parry + ' block');
+if (e.saved) x.push(e.saved + ' blocked');
+} else if (e.r === 'dodge') {
+if (e.dodged != null) x.push(B + ' dodged ' + e.dodged + '/3');
+else if (e.outcome === 'dodgefail') x.push(B + "'s dodge failed");
+} else if (e.r === 'channel') x.push(B + ' channeled ' + Math.round((e.cv || 0) * 100) + '% (-' + (e.saved || 0) + ', +' + (e.mana || 0) + ' mana)');
+else if (e.r === 'brace') x.push(B + ' breathed');
+if (e.shield) x.push(e.shield + ' into a shield');
+if (e.counter) x.push(B + ' countered for ' + e.counter);
+if (e.heal) x.push(A + ' healed ' + e.heal + (e.healCut ? ' (-' + e.healCut + ' anti-heal)' : ''));
+if (e.wound) x.push('🩸 WOUND' + (e.wound === 'parry' ? ' on ' + A : ' on ' + B) + ': healing -50% for 2 rounds');
+return 'R' + e.t + ' ' + A + ': ' + what + ' → ' + (e.val || 0) + (e.crit ? ' CRIT' : '') + (x.length ? ' · ' + x.join(' · ') : '');
+}
 function dlPay_(nick, amt, why, id) {
 if (!(amt > 0)) return;
 var p = prsProps_(), m = {}; try { m = JSON.parse(p.getProperty('dl_pay') || '{}'); } catch (e) {}
@@ -563,14 +585,15 @@ var evs = HSEngine.duelHalf(d, t.pick.a || 'strike', t.pick.r || 'brace', opt);
 delete d.R; delete d.c; d.events = [];
 t.lastEv = evs; t.evSeq = (t.evSeq || 0) + 1; t.pick = { a: '', r: '' }; t.moved = Date.now(); t.deadline = Date.now() + DL_TURN_MS; t.rev++;
 evs.forEach(function (e) {
-if (e.type === 'hit') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE ' + Math.round((e.q || 1) * 100) + '%' : (e.label || e.a)) + (e.timing ? ' (' + e.timing + ')' : '') + (e.reels ? ' ' + e.reels.join('') : '') + ' ' + e.val + (e.crit ? ' CRIT' : '') + (e.outcome === 'block' ? ' (blocked)' : e.outcome === 'parry' ? ' (PARRIED!)' : e.outcome === 'dodgefail' ? ' (dodge failed)' : '') + (e.counter ? ', counter ' + e.counter : ''));
+if (e.type === 'hit') dlLog_(t, dlHitTxt_(e, names));
 else if (e.type === 'rest') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' catches a breath (+30 stamina)');
 else if (e.type === 'guess') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + (e.ok ? ' guessed right: ' + e.fx : ' guessed wrong'));
 else if (e.type === 'bm') dlLog_(t, names[e.i] + ' Blood Magic +' + e.val + ' HP');
+else if (e.type === 'ult' && e.shield) dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': FIREWALL ' + Math.round((e.q || 1) * 100) + '% · +' + e.shield + ' shield, +' + e.heal + ' HP');
 else if (e.type === 'poison') dlLog_(t, names[e.who] + ' infection -' + e.val + ' HP');
-else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[1 - e.i] + ' dodged');
+else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE' : (e.label || e.a)) + ' → ' + names[1 - e.i] + ' DODGED' + (e.dodged ? ' all 3' : ''));
 else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
-else if (e.type === 'revive') dlLog_(t, names[e.who] + ' rises again!');
+else if (e.type === 'revive') dlLog_(t, names[e.who] + ' gets back up with ' + e.val + ' HP!');
 });
 if (d.over) dlEnd_(t, names[d.win], d.hp[1 - d.win] <= 0 ? 'K.O.' : 'time');
 }
@@ -694,82 +717,7 @@ hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh 
 cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null, ultReady: ultReady, waitAtk: role === 'react' && ultReady && !t.pick.a, setup: su,
 gu: d ? (d.gu || [false, false]) : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
 role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
-winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-14) };
+winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-30) };
 }
-function dlPoll(id, rev) {
-var me = getUserLdap(), t = dlGet_(id), pay = [];
-var due = t && ((t.status === 'play' && t.deadline && Date.now() > t.deadline) || (t.status === 'wait' && Date.now() - t.created > DL_WAIT_MS) || (t.status === 'play' && Date.now() - t.moved > DL_IDLE_MS));
-if (due) {
-var lock = prsLock_();
-try { t = dlGet_(id); if (t) { var hk = dlHousekeep_(t), to = dlTimeouts_(t); if (hk || to) { if (t.status === 'gone') { dlDel_(id); dlSetIndex_(dlIndex_().filter(function (x) { return x !== id; })); t = null; } else { t.rev++; dlPut_(t); } } } }
-finally { lock.releaseLock(); }
-}
-var raw = prsProps_().getProperty('dl_pay');
-if (raw && raw.indexOf('"' + me + '"') >= 0) { var l2 = prsLock_(); try { pay = dlTakePay_(me); } finally { l2.releaseLock(); } }
-if (!t) return { ok: true, gone: true, pay: pay };
-if (Number(rev) === t.rev && !pay.length) return { ok: true, same: true, rev: t.rev, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0 };
-return { ok: true, view: dlView_(t, me), pay: pay };
-}
-/** choice = útok (strike/heavy/gamble/rest/ult), když útočíš, nebo reakce (block/dodge/channel/brace), když se bráníš.
-*  opt (v11.1) = výsledek mini-hry: { h: půlkolo, t, q, g: { hold, re }, parry, dq } */
-function dlMove(id, choice, opt) {
-var me = getUserLdap(), lock = prsLock_();
-try {
-var t = dlGet_(id); if (!t || t.status !== 'play') return { ok: false, reason: 'gone' };
-dlTimeouts_(t);
-if (t.status !== 'play') { dlPut_(t); return { ok: false, reason: 'over', view: dlView_(t, me) }; }
-var you = t.host === me ? 0 : t.guest === me ? 1 : -1; if (you < 0) return { ok: false, reason: 'seat' };
-if (t.setup) return { ok: false, reason: 'setup', view: dlView_(t, me) };
-var d = t.ds, role = d.atk === you ? 'a' : 'r';
-if (role === 'r' && d.foc[d.atk] >= 100 && !t.pick.a) return { ok: false, reason: 'wait', view: dlView_(t, me) };
-choice = String(choice || '');
-var okA = ['strike', 'heavy', 'gamble', 'rest', 'ult'], okR = ['block', 'dodge', 'channel', 'brace'];
-if ((role === 'a' ? okA : okR).indexOf(choice) < 0) return { ok: false, reason: 'choice', view: dlView_(t, me) };
-if (t.pick[role]) return { ok: false, reason: 'picked', view: dlView_(t, me) };
-opt = opt && typeof opt === 'object' ? opt : {};
-if (opt.h != null && Number(opt.h) !== d.half) return { ok: false, reason: 'late', view: dlView_(t, me) };
-var TIER = ['perfect', 'good', 'none'], o = {};
-if (role === 'a') {
-if (choice === 'heavy' && TIER.indexOf(opt.t) >= 0) o.t = opt.t;
-if (choice === 'ult' && isFinite(Number(opt.q))) o.q = Math.max(0.7, Math.min(1.25, Number(opt.q)));
-if (choice === 'gamble' && opt.g && Array.isArray(opt.g.hold)) o.g = { hold: [0, 1, 2].map(function (k) { return !!opt.g.hold[k]; }), re: !!opt.g.re };
-if (choice === 'ult' && ['block', 'dodge', 'channel', 'brace'].indexOf(opt.guess) >= 0) o.guess = opt.guess;
-t.pick.ao = o;
-} else {
-var T3 = function (x) { return Array.isArray(x) ? [0, 1, 2].map(function (k) { return TIER.indexOf(x[k]) >= 0 ? x[k] : 'none'; }) : null; };
-if (choice === 'block' && TIER.indexOf(opt.parry) >= 0) o.parry = opt.parry;
-if (choice === 'block' && T3(opt.rings)) o.rings = T3(opt.rings);
-if (choice === 'dodge' && TIER.indexOf(opt.dq) >= 0) o.dq = opt.dq;
-if (choice === 'dodge' && T3(opt.dqs)) o.dqs = T3(opt.dqs);
-if (choice === 'channel' && TIER.indexOf(opt.cq) >= 0) o.cq = opt.cq;
-if (choice === 'channel' && isFinite(Number(opt.cv))) o.cv = Math.max(0, Math.min(1, Number(opt.cv)));
-t.pick.ro = o;
-}
-t.pick[role] = choice; t.miss[me] = 0; t.rev++;
-if (role === 'a' && d.foc[d.atk] >= 100 && !t.pick.r) t.deadline = Math.max(t.deadline || 0, Date.now() + DL_TURN_MS);   // v11.2: obránce teprve teď vybírá
-if (t.pick.a && t.pick.r) dlResolve_(t, false);
-dlPut_(t);
-return { ok: true, view: dlView_(t, me) };
-} finally { lock.releaseLock(); }
-}
-function nicksAll_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('tt_nicks') || '{}') || {}; } catch (e) { return {}; } }
-function nickList() { return { ok: true, nicks: nicksAll_() }; }
-function setNick(nick) {
-var me = getUserLdap(), lock = LockService.getScriptLock();
-if (!lock.tryLock(5000)) return { ok: false, reason: 'busy' };
-try {
-var all = nicksAll_();
-nick = cleanTxt_(nick || '', 20).replace(/[\u0000-\u001f]/g, '').replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
-if (!nick || nick.toLowerCase() === String(me).toLowerCase()) delete all[me];
-else {
-if (nick.length < 2) return { ok: false, reason: 'short' };
-var low = nick.toLowerCase();
-for (var k in all) if (k !== me && (String(all[k]).toLowerCase() === low || String(k).toLowerCase() === low)) return { ok: false, reason: 'taken' };
-try { var ids = getDb_().saves.getRange(1, 1, getDb_().saves.getLastRow(), 1).getValues(); for (var r = 0; r < ids.length; r++) { var id = String(ids[r][0]); if (id !== me && id.toLowerCase() === low) return { ok: false, reason: 'taken' }; } } catch (e) {}
-all[me] = nick;
-}
-PropertiesService.getScriptProperties().setProperty('tt_nicks', JSON.stringify(all));
-return { ok: true, nick: all[me] || '', nicks: all };
-} finally { lock.releaseLock(); }
-}
-// END-OF-FILE: server2
+
+// END-OF-FILE: server2 (continues in server3)

@@ -18,11 +18,11 @@ return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const CLASSES = {
 sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
-desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge.",
+desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge. PvP: a PERFECT parry or PERFECT HEAVY inflicts 🩸 WOUND (the enemy heals 50% less for 2 rounds).",
 skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
 cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 25, dmgM: 1.15,
 desc: "Assassin - a virus in the network. DODGE (50%, up to 75% with AGI, 25 stamina) - a dodge makes your next hit a sure crit. Crits deal 2.5×. Can't block, can't dodge 🔮 spells.",
-skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it." },
+skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's buffs and BREAKS it (PvP: also 🩸 WOUND)." },
 engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
 desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (20 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
 skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
@@ -35,7 +35,7 @@ skill: "HEADHUNT", skillTxt: "4 arrows × 0.9 - every arrow can crit." }
 };
 const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
 /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-const PVP = { hp: 2, hpc: { sysadmin: 0.6 }, dmg: { sysadmin: 0.78, cyber: 0.46, engineer: 0.45, blood: 0.89, hunter: 0.67 } };
+const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.8, cyber: 0.7, engineer: 0.68, blood: 1.38, hunter: 0.98 } };
 const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 const ATTACKS = {
 strike: { name: "STRIKE", icon: "⚔", sta: 0, gain: 10, mult: 1, brk: 10, txt: "free · 1× hit · +10 stamina" },
@@ -503,23 +503,23 @@ ev(f, "break", {});
 }
 pickIntent(f);
 ev(f, "telegraph", { k: f.intent.k, shown: f.intent.shown, val: f.intent.val });
-if (a === "ult" && opt.guess && !f.guessUsed) {                       // v11.2: tip na další tah nepřítele
-const real = f.intent.k === "stun" ? opt.guess : guessCat(f.intent.k), ok = real === opt.guess;
-if (ok) { f.guessUsed = true; guessFx(f); }
-ev(f, "guess", { ok: ok, g: opt.guess, real: real, fx: ok ? GUESS_FX[h.cls].n : "" });
+if (a === "ult" && opt.guess) {                                       // v11.6: tip u KAŽDÉ ulti - první trefa plný efekt, další poloviční
+const real = f.intent.k === "stun" ? opt.guess : guessCat(f.intent.k), ok = real === opt.guess, half = !!f.guessUsed;
+if (ok) { guessFx(f, half ? 0.5 : 1); f.guessUsed = true; }
+ev(f, "guess", { ok: ok, g: opt.guess, real: real, fx: ok ? GUESS_FX[h.cls].n + (half ? " (half)" : "") : "" });
 }
 if (!isDmgIntent(f.intent.k)) { enemyAct(f, "none", {}); endRound(f); return f.events.slice(start); }
 f.phase = "react";
 demandReact(f);
 return f.events.slice(start);
 }
-function guessFx(f) {
-const h = f.h;
-if (h.cls === "engineer") f.bm = 3;
-else if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.2); f.halfNext = true; }
-else if (h.cls === "cyber") f.epoison = 3;
-else if (h.cls === "hunter") f.sureAtk = 2;
-else { f.sta = Math.min(h.staMax, f.sta + 40); f.nocd = 2; delete f.cd.heavy; }
+function guessFx(f, k) {
+const h = f.h; k = k || 1;
+if (h.cls === "engineer") f.bm = Math.max(f.bm, Math.round(3 * k));
+else if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.2 * k); f.halfNext = true; }
+else if (h.cls === "cyber") f.epoison = Math.max(f.epoison, Math.round(3 * k));
+else if (h.cls === "hunter") f.sureAtk = Math.max(f.sureAtk, Math.round(2 * k));
+else { f.sta = Math.min(h.staMax, f.sta + Math.round(40 * k)); f.nocd = Math.max(f.nocd, Math.round(2 * k)); delete f.cd.heavy; }
 ev(f, "mech", { msg: GUESS_FX[h.cls].n + "! " + GUESS_FX[h.cls].t.charAt(0).toUpperCase() + GUESS_FX[h.cls].t.slice(1) + "." });
 }
 /** opt: { parry: "perfect"|"good"|"none" (BLOCK proti HEAVY / UNLEASH / WITHDRAWAL), rings: [..] UNLEASH 3 kroužky } */
@@ -644,9 +644,6 @@ function endRound(f) {
 const h = f.h, e = f.e;
 f.sta = Math.min(h.staMax, f.sta + (h.staGain || 0));          // v11.1: stamina se sama NEDOPLŇUJE (STRIKE +10, BREATHE +30 / +15)
 f.focus = Math.min(100, f.focus + 10);
-if (e.mech === "recruiter" && f.ehp > 0) {
-if (f.adds > 0) { const hh = Math.round(Math.min(f.emax * 0.02, h.atk * 0.5) * f.adds); f.ehp = Math.min(f.emax, f.ehp + hh); ev(f, "eheal", { val: hh }); }
-if (f.turn % 3 === 0 && f.adds < 3 && !f.estun) { f.adds++; ev(f, "mech", { msg: "📇 The Recruiter hires an intern (" + f.adds + "/3) - each one heals it 2% per round. HEAVY sends one home, ULTIMATE or a BREAK all of them." }); }
-}</script>
+if (e.mech === "recruiter" && f.ehp > 0) {</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hsengine"] = 1;</script>
 <!-- END-OF-FILE: hsengine -->

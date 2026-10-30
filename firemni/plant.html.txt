@@ -18,8 +18,8 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 .pl-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
 .pl-inner { max-width: 1000px; margin: 0 auto; }
 .pl-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
-.pl-br { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-@media (max-width: 760px) { .pl-br { grid-template-columns: 1fr; } }
+.pl-br { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 1100px) { .pl-br { grid-template-columns: repeat(2, 1fr); } } @media (max-width: 760px) { .pl-br { grid-template-columns: 1fr; } }
 .pl-bh { font: 800 12px 'Orbitron', monospace; letter-spacing: 1px; margin-bottom: 6px; display: flex; justify-content: space-between; }
 .pl-n { display: flex; gap: 8px; align-items: center; padding: 7px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid var(--border-subtle); margin-bottom: 6px; }
 .pl-n.lock { opacity: .4; }
@@ -60,7 +60,8 @@ const STAGES = [
 const BR = {
 office: { name: "💼 OFFICE", color: "var(--cyan)" },
 casino: { name: "🎰 CASINO", color: "var(--amber)" },
-hs: { name: "⚔ HIGH STAKES", color: "var(--crimson)" }
+hs: { name: "⚔ HIGH STAKES", color: "var(--crimson)" },
+canopy: { name: "🌳 CANOPY (endless)", color: "var(--emerald)" }
 };
 /** row = potřebná fáze stromu (1 sprout ... 4 ancient), req = uzel, který musí mít aspoň 1 level */
 const NODES = [
@@ -79,12 +80,21 @@ const NODES = [
 { id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
 { id: "h_foc", br: "hs", row: 2, icon: "✨", name: "Morning Dew", req: "h_xp", desc: l => `start fights with +${10 * l} focus`, next: "+10 start focus", costs: [1, 2, 2] },
 { id: "h_parry", br: "hs", row: 3, icon: "🛡", name: "Thick Bark", req: "h_foc", desc: l => `parry windows +${15 * l}%`, next: "+15% parry window", costs: [2, 3] },
-{ id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] }
+{ id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] },
+{ id: "r_gc", br: "canopy", row: 4, icon: "☀", name: "Sun Canopy", rep: true, base: 3, desc: l => `+${3 * l}% click power and Auto GC`, next: "+3% click & auto" },
+{ id: "r_hs", br: "canopy", row: 4, icon: "🌙", name: "Moon Rings", rep: true, base: 3, desc: l => `+${4 * l}% HIGH STAKES XP`, next: "+4% HS XP" },
+{ id: "r_luck", br: "canopy", row: 4, icon: "✨", name: "Golden Leaves", rep: true, base: 2, desc: l => `fruits give +${15 * l}% more`, next: "+15% fruit rewards" },
+{ id: "r_cap", br: "canopy", row: 4, icon: "🧺", name: "Wide Branches", desc: l => `+${l} fruit slot${l > 1 ? "s" : ""} (${FRUIT_MAX + l} max)`, next: "+1 fruit slot", costs: [4, 6, 8] },
+{ id: "r_fast", br: "canopy", row: 4, icon: "💧", name: "Deep Water", desc: l => `fruits grow ${10 * l}% faster`, next: "-10% fruit time", costs: [3, 4, 5, 6, 7] }
 ];
+const REP_MAX = 50;
+function maxLv(n) { return n.rep ? REP_MAX : n.costs.length; }
+function costAt(n, l) { return n.rep ? n.base + l : n.costs[l]; }
 const BY = {}; NODES.forEach(n => { BY[n.id] = n; });
-const TOTAL = SEED_COST + NODES.reduce((a, n) => a + n.costs.reduce((x, y) => x + y, 0), 0);
+const TOTAL = SEED_COST + NODES.filter(n => n.br !== "canopy").reduce((a, n) => a + n.costs.reduce((x, y) => x + y, 0), 0);
 /** nový přísun LP za prestiž (dřív 1 + floor(p/3)) */
-function lpGainFor(p) { return 2 + Math.floor(p / 2); }
+function lpGainFor(p) { return 3 + p; }                                                // v11.6: víc LP (dřív 2 + floor(p/2))
+function lpGainV115(p) { return 2 + Math.floor(p / 2); }
 function oldLpGainFor(p) { return 1 + Math.floor(p / 3); }
 const OLD_COST = { click: l => 2 + l, auto: l => 2 + l, scrap: l => 2 + l, start: l => 1 + l, heirloom: l => 5 * (l + 1) };
 function blank() { return { seed: false, n: {}, fruitAt: 0, waterDay: "", respecP: -1, mig: 1, harvested: 0 }; }
@@ -93,19 +103,19 @@ const g = gameState;
 if (!g.plant || typeof g.plant !== "object") g.plant = blank();
 const p = g.plant;
 if (!p.n || typeof p.n !== "object") p.n = {};
-Object.keys(p.n).forEach(k => { if (!BY[k]) delete p.n[k]; else p.n[k] = Math.max(0, Math.min(BY[k].costs.length, Math.floor(Number(p.n[k]) || 0))); });
+Object.keys(p.n).forEach(k => { if (!BY[k]) delete p.n[k]; else p.n[k] = Math.max(0, Math.min(maxLv(BY[k]), Math.floor(Number(p.n[k]) || 0))); });
 p.seed = !!p.seed;
 p.fruitAt = Number(p.fruitAt) || 0;
 return p;
 }
 function lvl(id) { return st().n[id] || 0; }
-function invested() { const p = st(); return (p.seed ? SEED_COST : 0) + NODES.reduce((a, n) => a + n.costs.slice(0, lvl(n.id)).reduce((x, y) => x + y, 0), 0); }
+function invested() { const p = st(); return (p.seed ? SEED_COST : 0) + NODES.reduce((a, n) => { let t = 0; for (let i = 0; i < lvl(n.id); i++) t += costAt(n, i); return a + t; }, 0); }
 function stage() { const p = st(); if (!p.seed) return 0; const inv = invested(); let s = 1; for (let i = 2; i < STAGES.length; i++) if (inv >= STAGES[i].at) s = i; return s; }
 /** číselné efekty pro zbytek hry */
 function fx(k) {
 switch (k) {
-case "click": return 0.10 * lvl("o_click");
-case "auto": return 0.10 * lvl("o_auto");
+case "click": return 0.10 * lvl("o_click") + 0.03 * lvl("r_gc");
+case "auto": return 0.10 * lvl("o_auto") + 0.03 * lvl("r_gc");
 case "startGc": return 2000 * lvl("o_start");
 case "scrap": return 0.04 * lvl("o_scrap");
 case "heirloom": return st().seed ? 1 + lvl("o_heir") : 0;
@@ -115,7 +125,7 @@ case "bet": return Math.pow(1.5, lvl("c_bet"));
 case "consult": return 1 - 0.10 * lvl("c_cons");
 case "token": return 1 + 0.5 * lvl("c_tok");
 case "wildCherry": return lvl("k_cherry") > 0;
-case "xp": return 1 + 0.08 * lvl("h_xp");
+case "xp": return 1 + 0.08 * lvl("h_xp") + 0.04 * lvl("r_hs");
 case "energy": return lvl("h_en");
 case "focus": return 10 * lvl("h_foc");
 case "parry": return 1 + 0.15 * lvl("h_parry");
@@ -125,7 +135,7 @@ return 0;
 }
 /** starý kód čte gameState.lpUp -> přepočítáme ho ze stromu */
 function apply() {
-gameState.lpUp = { click: lvl("o_click"), auto: lvl("o_auto"), scrap: lvl("o_scrap") * 4 / 3, start: 0, heirloom: fx("heirloom") };   // celá čísla = žádné 30.000000004 %
+gameState.lpUp = { click: lvl("o_click") + 0.3 * lvl("r_gc"), auto: lvl("o_auto") + 0.3 * lvl("r_gc"), scrap: lvl("o_scrap") * 4 / 3, start: 0, heirloom: fx("heirloom") };   // celá čísla = žádné 30.000000004 %
 }
 /** načtení savu + jednorázová migrace ze starého Legacy shopu (bez wipe) */
 function load(g, l) {
@@ -142,13 +152,18 @@ p.n = {}; p.seed = false; p.mig = 1;
 if ((Number(old.heirloom) || 0) >= 1) { p.seed = true; p.fruitAt = Date.now(); }      // kdo měl Heirloom, dostane semínko zdarma
 if (refund || bonus) g._plantMsg = `🌳 THE OFFICE PLANT replaced the Legacy shop: refunded ${refund} LP${bonus > 0 ? " + " + bonus + " bonus LP (new rate)" : ""}${p.seed ? " and planted your seed for free" : ""}. Spend them on your tree!`;
 }
+if (!p.lp116) {
+p.lp116 = 1; let add = 0;
+for (let q = 1; q <= (g.prestige || 0); q++) add += Math.max(0, lpGainFor(q) - lpGainV115(q));
+if (add > 0) { g.lp = Math.max(0, Math.floor(Number(g.lp) || 0)) + add; g._plantMsg = (g._plantMsg ? g._plantMsg + " " : "") + `🌳 LEGACY POINTS got better (3 + prestige per prestige): +${add} LP for your past prestiges. New endless CANOPY nodes on the Ancient Tree!`; }
+}
 apply();
 }
 function payload() { return st(); }
-function costOf(n) { const l = lvl(n.id); return l >= n.costs.length ? 0 : n.costs[l]; }
+function costOf(n) { const l = lvl(n.id); return l >= maxLv(n) ? 0 : costAt(n, l); }
 function canBuy(n) {
 const p = st();
-if (!p.seed || lvl(n.id) >= n.costs.length) return false;
+if (!p.seed || lvl(n.id) >= maxLv(n)) return false;
 if (stage() < n.row) return false;
 if (n.req && !lvl(n.req)) return false;
 return gameState.lp >= costOf(n);
@@ -185,10 +200,17 @@ if (!confirm(`Replant your tree? You get all ${inv} LP back${c ? " for " + short
 gameState.coins -= c; p.n = {}; p.respecP = gameState.prestige; gameState.lp += inv;
 apply(); log(`🌳 Tree replanted: +${inv} LP back.`, "special"); after();
 }
-function fruits() { const p = st(); if (!p.seed || !p.fruitAt) return 0; return Math.max(0, Math.min(FRUIT_MAX, Math.floor((Date.now() - p.fruitAt) / FRUIT_MS))); }
-function nextFruitIn() { const p = st(); if (fruits() >= FRUIT_MAX) return 0; return FRUIT_MS - ((Date.now() - p.fruitAt) % FRUIT_MS); }
+function fMax() { return FRUIT_MAX + lvl("r_cap"); }
+function fMs() { return Math.round(FRUIT_MS * (1 - 0.1 * lvl("r_fast"))); }
+function fruits() {
+const p = st(); if (!p.seed || !p.fruitAt) return 0;
+const cap = fMax(), ms = fMs(), now = Date.now();
+if (now - p.fruitAt > cap * ms) p.fruitAt = now - cap * ms;
+return Math.max(0, Math.min(cap, Math.floor((now - p.fruitAt) / ms)));
+}
+function nextFruitIn() { const p = st(); if (fruits() >= fMax()) return 0; return fMs() - ((Date.now() - p.fruitAt) % fMs()); }
 function today() { return new Date().toISOString().slice(0, 10); }
-function canWater() { const p = st(); return p.seed && p.waterDay !== today() && fruits() < FRUIT_MAX; }
+function canWater() { const p = st(); return p.seed && p.waterDay !== today() && fruits() < fMax(); }
 function water() {
 const p = st(); if (!canWater()) return;
 p.waterDay = today(); p.fruitAt -= WATER_MS;
@@ -201,10 +223,10 @@ for (let i = 0; i < n; i++) {
 const r = Math.random(), tokP = 0.03 + 0.02 * s;
 if (r < tokP) { gameState.slotTokens += 1; got.push("🎟 Slot Token"); }
 else if (r < tokP + 0.17 && window.Dungeon && Dungeon.state && Dungeon.unlocked()) { const d = Dungeon.state(); d.energy = Math.min(d.energy + 2 + (s >= 3 ? 1 : 0), 99); got.push("⚡ +" + (2 + (s >= 3 ? 1 : 0)) + " energy"); }
-else if (r < 0.55) { const gc = Math.max(5000, Math.round(calculateAutoGcRate() * 600)) * s; gameState.coins += gc; got.push("💰 +" + short(gc) + " GC"); }
-else { const sc = Math.max(500, Math.round(getChestScrapCost() * 4)) * s; gameState.scrap += sc; got.push("⚙ +" + short(sc) + " scrap"); }
+else if (r < 0.55) { const gc = Math.round(Math.max(5000, Math.round(calculateAutoGcRate() * 600)) * s * (1 + 0.15 * lvl("r_luck"))); gameState.coins += gc; got.push("💰 +" + short(gc) + " GC"); }
+else { const sc = Math.round(Math.max(500, Math.round(getChestScrapCost() * 4)) * s * (1 + 0.15 * lvl("r_luck"))); gameState.scrap += sc; got.push("⚙ +" + short(sc) + " scrap"); }
 }
-p.fruitAt += n * FRUIT_MS; if (fruits() === 0 && Date.now() - p.fruitAt > FRUIT_MS) p.fruitAt = Date.now();
+p.fruitAt += n * fMs(); if (fruits() === 0 && Date.now() - p.fruitAt > fMs()) p.fruitAt = Date.now();
 p.harvested = (p.harvested || 0) + n;
 log(`🍎 HARVEST (${n} fruit${n > 1 ? "s" : ""}): ${got.join(", ")}`, "special");
 after();
@@ -220,7 +242,7 @@ if (s >= 2) { px(11, 9, 2, 8, "#6b3f1d"); px(8, 7, 8, 4, "#16a34a"); px(9, 5, 6,
 if (s >= 3) { px(5, 4, 14, 6, "#15803d"); px(7, 2, 10, 3, "#22c55e"); px(4, 7, 3, 2, "#16a34a"); px(17, 7, 3, 2, "#16a34a"); px(10, 10, 4, 7, "#6b3f1d"); }
 if (s >= 4) { px(3, 1, 18, 3, "#166534"); px(2, 4, 20, 5, "#15803d"); px(6, 0, 12, 2, "#22c55e"); px(9, 9, 6, 8, "#5b3a1a"); px(7, 15, 2, 2, "#5b3a1a"); px(15, 15, 2, 2, "#5b3a1a"); }
 const spots = s >= 3 ? [[7, 6], [15, 5], [11, 3]] : [[9, 8], [14, 8], [11, 6]];
-if (s >= 2) for (let i = 0; i < nf; i++) px(spots[i][0], spots[i][1], 2, 2, "#ef4444");
+if (s >= 2) for (let i = 0; i < Math.min(nf, spots.length); i++) px(spots[i][0], spots[i][1], 2, 2, "#ef4444");
 return `<svg viewBox="0 0 24 24" shape-rendering="crispEdges">${R.join("")}</svg>`;
 }
 function fmtT(ms) { const m = Math.ceil(ms / 60000); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + "m"; }
@@ -247,7 +269,7 @@ return;
 const fxs = activeFx();
 box.innerHTML = `<div class="pl-top"><div class="pl-art">${art(s, nf)}</div><div class="pl-info"><div class="pl-stage">${STAGES[s].icon} ${STAGES[s].name}</div>
 Invested <b>${invested()}</b> / ${TOTAL} LP${s < 4 ? ` · next stage at ${STAGES[s + 1].at} LP` : ""}<br>
-🍎 ${nf}/${FRUIT_MAX} fruit${nf < FRUIT_MAX ? " · next in " + fmtT(nextFruitIn()) : " · full!"}</div></div>
+🍎 ${nf}/${fMax()} fruit${nf < fMax() ? " · next in " + fmtT(nextFruitIn()) : " · full!"}</div></div>
 <div class="pl-fx">${fxs.slice(0, 6).map(x => `<span>${x}</span>`).join("")}${fxs.length > 6 ? `<span>+${fxs.length - 6} more</span>` : ""}</div>
 <div class="pl-row"><button class="btn btn-gold" onclick="Plant.open()">🌳 GROW (${gameState.lp} LP)</button>
 <button class="btn ${nf ? "btn-crimson" : ""}" ${nf ? "" : "disabled"} onclick="Plant.harvest()">🍎 HARVEST${nf ? " ×" + nf : ""}</button>
@@ -262,14 +284,14 @@ const p = st(), s = stage();
 $("pl-lp").textContent = gameState.lp + " LP";
 const rc = respecCost(), inv = invested() - (p.seed ? SEED_COST : 0);
 const head = `<div class="pl-card"><div class="pl-top"><div class="pl-art">${art(s, fruits())}</div><div class="pl-info"><div class="pl-stage">${STAGES[s].icon} ${STAGES[s].name}</div>
-Invested <b>${invested()}</b> / ${TOTAL} LP. The tree grows with every LP you put in:
+Invested <b>${invested()}</b> LP (the main tree is ${TOTAL} LP, the 🌳 CANOPY is endless). The tree grows with every LP you put in:
 ${STAGES.slice(2).map((x, i) => `<b style="color:${s >= i + 2 ? "var(--emerald)" : "var(--text-dim)"};">${x.icon} ${x.at}</b>`).join(" · ")}<br>
-You get <b>${lpGainFor((gameState.prestige || 0) + 1)} LP</b> on your next prestige. The tree is never reset.</div></div>
+You get <b>${lpGainFor((gameState.prestige || 0) + 1) + Math.floor((gameState.chestLevel || 0) / 10)} LP</b> on your next prestige (3 + prestige, +1 per 10 Company Chest levels). The tree is never reset.</div></div>
 <div class="pl-row"><button class="btn" ${inv ? "" : "disabled"} onclick="Plant.respec()">↺ REPLANT (${rc ? short(rc) + " GC" : "free this prestige"})</button></div></div>`;
 const cols = Object.keys(BR).map(b => `<div class="pl-card"><div class="pl-bh" style="color:${BR[b].color};"><span>${BR[b].name}</span></div>` +
 NODES.filter(n => n.br === b).map(n => {
-const l = lvl(n.id), mx = n.costs.length, maxed = l >= mx, ok = canBuy(n), w = maxed ? "" : why(n);
-const pips = mx > 1 ? `<div class="pl-pips">${Array.from({ length: mx }, (_, i) => `<i class="${i < l ? "on" : ""}"></i>`).join("")}</div>` : "";
+const l = lvl(n.id), mx = maxLv(n), maxed = l >= mx, ok = canBuy(n), w = maxed ? "" : why(n);
+const pips = n.rep ? `<div class="lv">Level ${l}</div>` : mx > 1 ? `<div class="pl-pips">${Array.from({ length: mx }, (_, i) => `<i class="${i < l ? "on" : ""}"></i>`).join("")}</div>` : "";
 return `<div class="pl-n ${maxed ? "max" : ""} ${w ? "lock" : ""} ${n.key ? "key" : ""}"><div class="ic">${n.icon}</div>
 <div class="t"><b>${n.name}${n.key ? " ★" : ""}</b><span>${l ? n.desc(l) : (n.key ? n.desc(1) : n.next)}${!maxed && l && n.next ? " → " + n.next : ""}</span>${pips}${w ? `<div class="lv">🔒 ${w}</div>` : ""}</div>
 <button class="btn ${ok ? "btn-gold" : ""}" ${ok ? "" : "disabled"} data-hold="pl-${n.id}" onclick="Plant.buy('${n.id}')">${maxed ? "MAX" : costOf(n) + " LP"}</button></div>`;
