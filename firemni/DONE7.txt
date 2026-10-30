@@ -1,0 +1,4 @@
+DONE7 - Office Royale v11.7 je dogenerovaná.
+Firemní verze: 13 změněných souborů, žádný nový (seznam v 00_NAVOD.txt).
+Čas: 2026-10-30 15:15
+Commit: fb52b27
