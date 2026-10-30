@@ -168,7 +168,7 @@ if (v.chan && v.chan[i] > 1) o.push(I("✨", "CHANNELED: next hit ×" + v.chan[i
 if (g("bm") > 0) o.push(I("🩸", "BLOOD MAGIC: next " + g("bm") + " hits heal 25%", g("bm")));
 if (g("ep") > 0) o.push(I("🦠", "INFECTED: loses 4% HP every round (" + g("ep") + ")", g("ep"), true));
 if (g("sa") > 0 || g("sure")) o.push(I("🎯", g("sa") > 0 ? "MARKED FOR DEATH: next " + g("sa") + " attacks always crit" : "SURE CRIT: next hit crits", g("sa") || ""));
-if (g("nocd") > 0) o.push(I("☕", "SUGAR RUSH: HEAVY has no cooldown (" + g("nocd") + ")", g("nocd")));
+if (g("nocd") > 0) o.push(I("☕", "SUGAR RUSH: HEAVY is free - no stamina, no cooldown (" + g("nocd") + ")", g("nocd")));
 if (g("cd") > 0) o.push(I("💥", "HEAVY on cooldown", "", true));
 if (g("vuln")) o.push(I("💢", "VULNERABLE: next hit taken ×1.5", "", true));
 if (h && h.cls === "engineer") o.push(I("🧙", "MAGE: hits are dodged at half the chance and blocks only work half as well"));
@@ -188,9 +188,9 @@ function buttons(v, hs) {
 if (v.status !== "play" || !v.role) return "";
 if (v.picked) return `<div class="du-wait">✔ Locked in. Waiting for ${esc(v.names[1 - v.you])}${v.oppPicked ? " (they're ready too)" : "..."}</div>`;
 if (v.waitAtk) return `<div class="du-wait">⏳ ${esc(v.names[1 - v.you])} has the <b style="color:#ff4dff;">ULTIMATE</b> ready - wait until they pick their move (you still won't see it). BLOCK or DODGE will be played 3× this round.</div>`;
-const d = { c: hs, sta: v.sta, foc: v.foc, cd: v.cd }, i = v.you, h = hs[i];
+const d = { c: hs, sta: v.sta, foc: v.foc, cd: v.cd, nocd: v.nocd }, i = v.you, h = hs[i];
 if (v.role === "atk") return `<div class="hs-acts">${H.PVP_ATK.map(a => { const ok = H.duelAtkOk(d, i, a) && !K.qte, A0 = H.ATTACKS[a];
-const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
+const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.nocd && v.nocd[i] > 0 ? "FREE ☕" : v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
 return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
 return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
 const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "20 STA · hold, mana" : "+15 STA +10 FOC";

@@ -6872,6 +6872,13 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "11.8", d: "2026-10-30", i: [
+      "🏳 FLEE needs a second tap within 3 seconds - no more fleeing by accident",
+      "☕ Caffeine Abuser: healing is the class's thing, so it <b>ignores 🩸 WOUND</b> and only loses 15% healing in duels (others 35%). SUGAR RUSH now makes HEAVY free (no stamina, no cooldown) for 2 rounds",
+      "🛡 Warden: FORTIFIED after a perfect parry lasts 1 round in duels",
+      "📐 Percentage damage: Hunter's HEADHUNT arrows +1.5% of the target's max HP each, Trojan's BACKDOOR +8% of its current HP, a Mage's mana release +3% max HP, and in duel sudden death every hit adds +2% max HP per round (weekly boss and huge enemies are capped)",
+      "⚖ Duel classes re-balanced"
+    ] },
     { v: "11.7", d: "2026-10-30", i: [
       "🛡 PERFECT parry no longer blocks everything: it takes 75%, counters and makes you <b>FORTIFIED</b> (-20% damage taken for 2 rounds)",
       "💨 PERFECT dodge (a fast jump into the right lane) <b>always works</b> and does a <b>↩ RIPOSTE</b> (a free 0.5× hit and +10 stamina) - dodging is now as skill-based as parrying",
@@ -8328,7 +8335,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.64, cyber: 0.69, engineer: 0.77, blood: 1.26, hunter: 1.02 } };
+  const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.68, cyber: 0.67, engineer: 0.74, blood: 1.21, hunter: 0.97 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -8363,7 +8370,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     sysadmin: { n: "🧱 FIREWALL UP", t: "+20% max HP shield and the next hit you take is halved" },
     cyber: { n: "🦠 INFECTION", t: "poison: 4% of its max HP every round for 3 rounds" },
     hunter: { n: "🎯 MARKED FOR DEATH", t: "your next 2 attacks always crit" },
-    blood: { n: "☕ SUGAR RUSH", t: "+40 stamina and HEAVY has no cooldown for 2 rounds" }
+    blood: { n: "☕ SUGAR RUSH", t: "HEAVY costs no stamina and has no cooldown for 2 rounds" }
   };
   /** kategorie tahu nepřítele pro tip (kampaň) */
   const GUESS_PVE = ["atk", "heavy", "guard", "other"];
@@ -8485,6 +8492,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (f.disabled[a] > 0 && (a !== "strike" || f.disabled[a] > 50)) return false;     // STRIKE jde zamknout jen v tréninku
     if (a === "ult") return f.focus >= 100;
     if (f.cd[a] > 0) return false;
+    if (a === "heavy" && f.nocd > 0) return true;                      // v11.8: Sugar Rush = HEAVY zdarma
     return f.sta >= (A.sta || 0);
   }
   function allowedReact(f, r) {
@@ -8636,7 +8644,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (toS >= f.eshieldP) { v0 = Math.round((toS - f.eshieldP) / eff); f.eshieldP = 0; ev(f, "mech", { msg: "💼 BUDGET SHIELD broken!" }); }
       else { f.eshieldP = Math.round(f.eshieldP - toS); v0 = 0; }
     }
-    if (f.mana > 0 && o.crit !== false) { v0 += f.mana; ev(f, "mech", { msg: "🔮 Mana release: +" + f.mana + " damage" }); f.mana = 0; }
+    if (f.mana > 0 && o.crit !== false) { v0 += f.mana + Math.round(Math.min(f.emax * 0.03, f.h.atk * 0.6)); ev(f, "mech", { msg: "🔮 Mana release: +" + f.mana + " damage" }); f.mana = 0; }
     const val = hurtEnemy(f, v0);
     if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.round(Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)) * healMul(f)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
     if (f.eguard && f.e.ecls === "firewall" && val > 0) { const d = hurtHero(f, val * 0.2, "reflect"); ev(f, "mech", { msg: "🧱 The Firewall reflects " + d + " damage back at you." }); }
@@ -8729,7 +8737,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     f.lastAct = a; f._kind = a;
     formCheck(f, a, "atk");
     if (f.ehp <= 0) return finish(f, true, start);
-    f.sta -= A.sta || 0;
+    f.sta -= a === "heavy" && f.nocd > 0 ? 0 : (A.sta || 0);
     const q = clamp(opt.q == null ? 1 : Number(opt.q) || 0.7, 0.7, 1.25);
     const wasGuard = f.eguard;
     f._sa = f.sureAtk > 0 && a !== "rest"; if (f._sa) f.sureAtk--;
@@ -8798,7 +8806,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         const r = myHit(f, 3.2 * q * myMult(f, "ult"), { critMul: 2 }); consumeBuffs(f);
         addBreak(f, 50 * q); ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Deployed at " + pct + "% - pushed straight to production for " + r.val + (r.crit ? " - CRIT!" : "") });
       } else if (cls === "cyber") {
-        const r = myHit(f, 2.8 * q * myMult(f, "ult"), { ignoreArmor: true }); consumeBuffs(f);
+        const r = myHit(f, 2.8 * q * myMult(f, "ult"), { ignoreArmor: true }); r.val += hurtEnemy(f, Math.min(Math.max(0, f.ehp) * 0.08, h.atk * 2)); consumeBuffs(f);   /* v11.8: +8 % aktuálního HP */
         f.estacks = 0; f.eshield = 0; f.rage = 0; f.flamenco = 0; f.disabled = {}; f.eguard = false;
         const all = opt.all == null ? true : !!opt.all;
         if (all) f.brk = 100; else addBreak(f, 50);
@@ -8809,7 +8817,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, heal: hh, msg: "Double espresso (" + pct + "%) for " + r.val + " - the caffeine gives you " + hh + " HP" });
       } else {
         let sum = 0, crits = 0; const m = myMult(f, "ult");
-        for (let i = 0; i < 4; i++) { const r = myHit(f, 0.9 * q * m); sum += r.val; if (r.crit) crits++; }
+        for (let i = 0; i < 4; i++) { const r = myHit(f, 0.9 * q * m); r.val += hurtEnemy(f, Math.min(f.emax * 0.015, h.atk * 0.5));   /* v11.8: každý šíp +1,5 % max HP */ sum += r.val; if (r.crit) crits++; }
         consumeBuffs(f); f.marked = true; addBreak(f, 45 * q);
         ev(f, "skill", { a: C.skill, q: q, val: sum, crit: crits > 0, msg: "Headhunt (" + pct + "%): 4 arrows for " + sum + (crits ? " - " + crits + " crit" + (crits > 1 ? "s" : "") : "") });
       }
@@ -8842,7 +8850,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     else if (h.cls === "sysadmin") { f.shield += Math.round(h.maxHp * 0.2 * k); f.halfNext = true; }
     else if (h.cls === "cyber") f.epoison = Math.max(f.epoison, Math.round(3 * k));
     else if (h.cls === "hunter") f.sureAtk = Math.max(f.sureAtk, Math.round(2 * k));
-    else { f.sta = Math.min(h.staMax, f.sta + Math.round(40 * k)); f.nocd = Math.max(f.nocd, Math.round(2 * k)); delete f.cd.heavy; }
+    else { f.nocd = Math.max(f.nocd, Math.max(1, Math.round(2 * k))); delete f.cd.heavy; }
     ev(f, "mech", { msg: GUESS_FX[h.cls].n + "! " + GUESS_FX[h.cls].t.charAt(0).toUpperCase() + GUESS_FX[h.cls].t.slice(1) + "." });
   }
   // ================================================================== 2) TVOJE REAKCE
@@ -9162,7 +9170,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   function dEv(d, type, x) { const e = Object.assign({ t: d.turn, i: d.atk, type: type, hp: d.hp.slice(), sh: d.sh.slice() }, x || {}); d.events.push(e); return e; }
   function duelAtkOk(d, i, a) {
     if (a === "strike" || a === "rest") return true;
-    if (a === "heavy") return d.sta[i] >= 30 && !((d.cd || [])[i] > 0);
+    if (a === "heavy") return (d.nocd && d.nocd[i] > 0) || (d.sta[i] >= 30 && !((d.cd || [])[i] > 0));
     if (a === "gamble") return d.sta[i] >= 20;
     if (a === "ult") return d.foc[i] >= 100;
     return false;
@@ -9213,7 +9221,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const rings = T3(opt.rings), dqs = T3(opt.dqs);
     const parry = rings ? rings[0] : opt.parry, dq1 = dqs ? dqs[0] : opt.dq;
     if (a === "gamble" && opt.respin && d.sta[i] >= ATTACKS.gamble.sta + RESPIN_STA) d.sta[i] -= RESPIN_STA;
-    if (a === "heavy") d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
+    if (a === "heavy" && !(d.nocd[i] > 0)) d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
     d.cd[i] = a === "heavy" && !(d.nocd[i] > 0) ? 1 : 0;
     if (d.nocd[i] > 0) d.nocd[i]--;
     const sure = d.sa[i] > 0 && a !== "rest"; if (sure) d.sa[i]--;
@@ -9263,11 +9271,15 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
         if (magic) red *= 0.5;                                            // v11.2: proti Mágovi blok funguje jen z poloviny
         outcome = full ? "parry" : "block";
-        if (full) d.fort[j] = 2;                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
+        if (full) d.fort[j] = 1;                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
       }
       hits.forEach(m => {
         const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul, critAdd: critAdd, crit: forceCrit || undefined });
-        if (d.mana[i] > 0) { h0.v += d.mana[i]; manaOut = d.mana[i]; d.mana[i] = 0; }
+        if (d.mana[i] > 0) { const mx = Math.round(d.max[j] * 0.03); h0.v += d.mana[i] + mx; manaOut = d.mana[i] + mx; d.mana[i] = 0; }
+        // v11.8: procentuální damage - Hunter šípy +1,5 % max HP, Trojan Backdoor +8 % aktuálního HP, náhlá smrt +2 % max HP za kolo
+        if (a === "ult" && A.cls === "hunter") h0.v += Math.round(d.max[j] * 0.015);
+        if (a === "ult" && A.cls === "cyber" && !hv.length) h0.v += Math.round(Math.max(0, d.hp[j]) * 0.08);
+        if (d.turn > 12 && !hv.length) h0.v += Math.round(d.max[j] * 0.02 * (d.turn - 12));
         let v = h0.v * scale * (1 - red) * (d.fort[j] > 0 ? 0.8 : 1);
         if (d.gd[j] && v > 0) { d.gd[j] = false; v *= 0.5; }
         saved += h0.v - v; const got = dHurt(d, j, v); total += got; hv.push(got); if (h0.crit) anyCrit = true;
@@ -9282,7 +9294,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (A.mark) d.mark[i] = true;
     }
     let healRaw = healSelf;
-    if (healSelf) { healSelf = Math.round(healSelf * PVP.heal * (d.wd[i] > 0 ? PVP.wound : 1)); d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf); }   // v11.6: v PvP léčení -35 %, 🩸 Wound dalších -50 %
+    if (healSelf) { healSelf = Math.round(healSelf * (A.cls === "blood" ? 0.85 : PVP.heal * (d.wd[i] > 0 ? PVP.wound : 1)));   /* v11.8: Caffeine Abuser ignoruje Wound a léčí se v PvP jen o 15 % méně */ d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf); }   // v11.6: v PvP léčení -35 %, 🩸 Wound dalších -50 %
     // v11.6: 🩸 WOUND - Warden: PERFECT parry nebo PERFECT HEAVY; Trojan: ultimátka (BACKDOOR). Soupeř se 2 kola léčí o 50 % méně.
     let wound = "";
     if (outcome === "parry" && B.cls === "sysadmin") { d.wd[i] = 2; wound = "parry"; }
@@ -9299,7 +9311,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2 * k); d.gd[i] = true; }
         else if (A.cls === "cyber") d.ep[j] = Math.max(d.ep[j], Math.round(3 * k));
         else if (A.cls === "hunter") d.sa[i] = Math.max(d.sa[i], Math.round(2 * k));
-        else { d.sta[i] = Math.min(100, d.sta[i] + Math.round(40 * k)); d.nocd[i] = Math.max(d.nocd[i], Math.round(2 * k)); d.cd[i] = 0; }
+        else { d.nocd[i] = Math.max(d.nocd[i], Math.max(1, Math.round(2 * k))); d.cd[i] = 0; }
       }
       dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n + (k < 1 ? " (half)" : "") : "" });
     }
@@ -11244,7 +11256,7 @@ html.m #dg-open-btn { display: none; }
   }
   function atkHint(f, a) {
     if (a === "strike") return (f.h.double ? "2 × 60%" : "free") + " · +10 STA";
-    if (a === "heavy") return f.cd.heavy > 0 ? "COOLDOWN " + f.cd.heavy : "30 STA" + (f.unleashNext ? " · INTERRUPT" : f.eguard ? " · break guard" : "");
+    if (a === "heavy") return f.nocd > 0 ? "FREE ☕" : f.cd.heavy > 0 ? "COOLDOWN " + f.cd.heavy : "30 STA" + (f.unleashNext ? " · INTERRUPT" : f.eguard ? " · break guard" : "");
     if (a === "gamble") return "20 STA";
     if (a === "rest") return "+30 STA +15 FOC" + (f.poison > 0 ? " · cure" : "");
     return "100 focus";
@@ -11401,8 +11413,16 @@ html.m #dg-open-btn { display: none; }
       setTimeout(endFight, window.HSRig && !f.fled ? 1300 : 700);
     }
   }
+  let fleeArm = 0;
   function flee() {
     if (!fight || fight.over || busyAnim) return;
+    const b = $("hs-a-flee");
+    if (Date.now() - fleeArm > 3000) {                                  // v11.8: dvojité potvrzení (žádný omylem odchod)
+      fleeArm = Date.now();
+      if (b) { b.classList.add("btn-crimson"); b.innerHTML = "⚠ SURE?<small>tap again</small>"; setTimeout(() => { if (b.isConnected && Date.now() - fleeArm >= 2900) { b.classList.remove("btn-crimson"); b.innerHTML = "FLEE<small>lose</small>"; } }, 3000); }
+      return;
+    }
+    fleeArm = 0;
     fight.over = true; fight.win = false; fight.fled = true; fight.__ended = true;
     dlog("🏳 You fled the fight.", "r");
     endFight();
@@ -11734,7 +11754,7 @@ html.m #dg-open-btn { display: none; }
     if (f.channel > 1) o.push(stIcon("✨", "CHANNELED: your next hit ×" + f.channel.toFixed(2)));
     if (f.bm > 0) o.push(stIcon("🩸", "BLOOD MAGIC: your next " + f.bm + " hits heal 25% of their damage", f.bm));
     if (f.sureCrit || f.sureAtk > 0) o.push(stIcon("🎯", f.sureAtk > 0 ? "MARKED FOR DEATH: your next " + f.sureAtk + " attacks always crit" : "SURE CRIT: your next hit crits", f.sureAtk || ""));
-    if (f.nocd > 0) o.push(stIcon("☕", "SUGAR RUSH: HEAVY has no cooldown (" + f.nocd + " rounds)", f.nocd));
+    if (f.nocd > 0) o.push(stIcon("☕", "SUGAR RUSH: HEAVY is free - no stamina, no cooldown (" + f.nocd + " rounds)", f.nocd));
     if (f.cd && f.cd.heavy > 0) o.push(stIcon("💥", "HEAVY is on cooldown (" + f.cd.heavy + ")", f.cd.heavy, true));
     if (f.poison > 0) o.push(stIcon("🦠", "POISONED: -4% HP per round (" + f.poison + " rounds) - BREATHE cures it", f.poison, true));
     if (f.redTape > 0) o.push(stIcon("📋", "RED TAPE ×" + f.redTape + ": -" + 8 * f.redTape + "% damage", f.redTape, true));
@@ -12916,7 +12936,7 @@ html.m #dg-open-btn { display: none; }
     if (g("bm") > 0) o.push(I("🩸", "BLOOD MAGIC: next " + g("bm") + " hits heal 25%", g("bm")));
     if (g("ep") > 0) o.push(I("🦠", "INFECTED: loses 4% HP every round (" + g("ep") + ")", g("ep"), true));
     if (g("sa") > 0 || g("sure")) o.push(I("🎯", g("sa") > 0 ? "MARKED FOR DEATH: next " + g("sa") + " attacks always crit" : "SURE CRIT: next hit crits", g("sa") || ""));
-    if (g("nocd") > 0) o.push(I("☕", "SUGAR RUSH: HEAVY has no cooldown (" + g("nocd") + ")", g("nocd")));
+    if (g("nocd") > 0) o.push(I("☕", "SUGAR RUSH: HEAVY is free - no stamina, no cooldown (" + g("nocd") + ")", g("nocd")));
     if (g("cd") > 0) o.push(I("💥", "HEAVY on cooldown", "", true));
     if (g("vuln")) o.push(I("💢", "VULNERABLE: next hit taken ×1.5", "", true));
     if (h && h.cls === "engineer") o.push(I("🧙", "MAGE: hits are dodged at half the chance and blocks only work half as well"));
@@ -12936,9 +12956,9 @@ html.m #dg-open-btn { display: none; }
     if (v.status !== "play" || !v.role) return "";
     if (v.picked) return `<div class="du-wait">✔ Locked in. Waiting for ${esc(v.names[1 - v.you])}${v.oppPicked ? " (they're ready too)" : "..."}</div>`;
     if (v.waitAtk) return `<div class="du-wait">⏳ ${esc(v.names[1 - v.you])} has the <b style="color:#ff4dff;">ULTIMATE</b> ready - wait until they pick their move (you still won't see it). BLOCK or DODGE will be played 3× this round.</div>`;
-    const d = { c: hs, sta: v.sta, foc: v.foc, cd: v.cd }, i = v.you, h = hs[i];
+    const d = { c: hs, sta: v.sta, foc: v.foc, cd: v.cd, nocd: v.nocd }, i = v.you, h = hs[i];
     if (v.role === "atk") return `<div class="hs-acts">${H.PVP_ATK.map(a => { const ok = H.duelAtkOk(d, i, a) && !K.qte, A0 = H.ATTACKS[a];
-      const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
+      const t = a === "strike" ? (h.double ? "2 × 60%" : "free") + " · +10 STA" : a === "heavy" ? (v.nocd && v.nocd[i] > 0 ? "FREE ☕" : v.cd && v.cd[i] > 0 ? "COOLDOWN" : "30 STA · timing") : a === "gamble" ? "20 STA · slots" : a === "rest" ? "+30 STA +15 FOC" : "100 focus · mini-game";
       return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" ${ok ? "" : "disabled"} onclick="HSDuel.pick('${a}')">${a === "ult" ? "✨ " + H.CLASSES[h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small>${t}</small></button>`; }).join("")}</div>`;
     return `<div class="hs-acts">${H.reactsOf(h).map(r => { const ok = H.duelReactOk(d, i, r), R0 = H.REACTS[r];
       const t = r === "block" ? h.blockCost + " STA · -" + Math.round(h.block * 100) + "% · parry" + (v.ultReady ? " ×3" : "") : r === "dodge" ? h.dodgeCost + " STA · lanes" + (v.ultReady ? " ×3" : "") + " · not vs magic" : r === "channel" ? "20 STA · hold, mana" : "+15 STA +10 FOC";

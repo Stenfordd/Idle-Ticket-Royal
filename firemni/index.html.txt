@@ -92,7 +92,7 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 <body>
 <div id="tt-load" style="position:fixed;inset:0;z-index:99990;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:radial-gradient(circle at 50% 40%,#1b2340,#0a0d16 70%);color:#e2e8f0;font-family:Orbitron,monospace;text-align:center;padding:20px;transition:opacity .45s;">
 <div style="font-size:clamp(26px,7vw,48px);font-weight:900;letter-spacing:4px;color:#ffb800;text-shadow:0 0 22px rgba(255,184,0,.45);">TICKET TYCOON</div>
-<div style="font-size:12px;letter-spacing:6px;color:#00f0ff;">// CASINO ROYALE v11.7</div>
+<div style="font-size:12px;letter-spacing:6px;color:#00f0ff;">// CASINO ROYALE v11.8</div>
 <div style="width:min(320px,80vw);height:8px;background:#000;border-radius:4px;overflow:hidden;border:1px solid #334155;margin-top:10px;"><div id="tl-fill" style="height:100%;width:4%;background:linear-gradient(90deg,#00f0ff,#ffb800);transition:width .25s;"></div></div>
 <div id="tl-msg" style="font-size:12px;color:#94a3b8;font-family:sans-serif;">Connecting to the office server...</div>
 <div id="tl-tip" style="max-width:360px;font-size:12px;color:#cbd5e1;font-family:sans-serif;line-height:1.5;min-height:36px;"></div></div>
@@ -110,7 +110,7 @@ if (ok || Date.now() - t0 > 90000) { clearInterval(iv); clearInterval(ti); el.st
 })();</script>
 <!-- TOP HEADER -->
 <div class="top-bar">
-<div class="brand-title">TICKET TYCOON // CASINO ROYALE v11.7</div>
+<div class="brand-title">TICKET TYCOON // CASINO ROYALE v11.8</div>
 <div class="user-badge">
 <span>AGENT: <strong id="user-display" style="color:var(--cyan);">CONNECTING...</strong></span>
 <span>SEASON: <strong id="season-display" style="color:var(--amber);">6</strong></span>

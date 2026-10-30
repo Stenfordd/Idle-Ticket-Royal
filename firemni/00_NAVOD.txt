@@ -1,10 +1,10 @@
-NÁVOD v7.4 - firemní verze v11.7 (= hra Office Royale v11.7)
+NÁVOD v7.5 - firemní verze v11.8 (= hra Office Royale v11.8)
 
-v11.7: perfect parry = 75 % + Fortified, perfect dodge = jistý + Riposte, Warden má nejvíc HP, náhlá smrt v duelu,
-ikonky buffů/debuffů s vysvětlivkami, weekly boss bez limitu kol (sílí každé kolo), Tower Boss Rush po prestiži.
+v11.8: FLEE s dvojitým potvrzením, Caffeine Abuser ignoruje Wound (léčení -15 % místo -35 %), Sugar Rush = HEAVY zdarma,
+procentuální damage (Hunter, Trojan, mana, náhlá smrt), nové vyvážení duelu.
 
 TENTOKRÁT ZKOPÍRUJ JEN TYHLE (žádný nový soubor, ostatní beze změny):
-  changelog, duel, engine, hs, hs2, hs3, hs_modes, hscamp, hsengine, hsengine2, hsqte2, index, server2
+  changelog, duel, engine, hs2, hs3, hsengine, hsengine2, index
 Pak Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
 
 ======================================================

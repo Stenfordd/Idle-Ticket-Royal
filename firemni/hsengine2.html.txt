@@ -1,4 +1,6 @@
-<script type="text/plain" data-tt="tt_hsengine_1" data-i="2">case "italian": { const p = pool(["heavy", "gamble", "dodge", "block"]); if (p.length) { const a = p[Math.floor(R() * p.length)]; f.disabled[a] = 2; ev(f, "mech", { msg: "🍝 SPAGHETTI CODE! " + ACTIONS[a].name + " is tangled up for a round." }); } break; }
+<script type="text/plain" data-tt="tt_hsengine_1" data-i="2">case "great_i": { f.form = f.form === "I" ? "l" : "I"; ev(f, "mech", { msg: f.form === "l" ? "Identity crisis! The Great \"I\" turns into a lowercase \"l\" - your hits deal 40% less (HEAVY still lands)." : "It's a capital \"I\" again." }); break; }
+case "massi": { const h = Math.round(f.h.maxHp * 0.12); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "mech", { msg: "The Big Massi approves your PTO. You heal " + h + ". Best boss ever." }); break; }
+case "italian": { const p = pool(["heavy", "gamble", "dodge", "block"]); if (p.length) { const a = p[Math.floor(R() * p.length)]; f.disabled[a] = 2; ev(f, "mech", { msg: "🍝 SPAGHETTI CODE! " + ACTIONS[a].name + " is tangled up for a round." }); } break; }
 case "louis": { f.flamenco = 2; ev(f, "mech", { msg: "💃 FLAMENCO! The Supreme Louis dances around: your hits deal half damage for 2 rounds (a PERFECT HEAVY always lands in full)." }); break; }
 case "polishen": { f.payroll = 2; ev(f, "mech", { msg: "🧾 PAYROLL CUT! -25% damage for 2 rounds." }); break; }
 default: ev(f, "mech", { msg: e.name + " does something weird." });
@@ -190,7 +192,7 @@ return d;
 function dEv(d, type, x) { const e = Object.assign({ t: d.turn, i: d.atk, type: type, hp: d.hp.slice(), sh: d.sh.slice() }, x || {}); d.events.push(e); return e; }
 function duelAtkOk(d, i, a) {
 if (a === "strike" || a === "rest") return true;
-if (a === "heavy") return d.sta[i] >= 30 && !((d.cd || [])[i] > 0);
+if (a === "heavy") return (d.nocd && d.nocd[i] > 0) || (d.sta[i] >= 30 && !((d.cd || [])[i] > 0));
 if (a === "gamble") return d.sta[i] >= 20;
 if (a === "ult") return d.foc[i] >= 100;
 return false;
@@ -241,7 +243,7 @@ const T3 = (x) => Array.isArray(x) ? [0, 1, 2].map(k => x[k] === "perfect" || x[
 const rings = T3(opt.rings), dqs = T3(opt.dqs);
 const parry = rings ? rings[0] : opt.parry, dq1 = dqs ? dqs[0] : opt.dq;
 if (a === "gamble" && opt.respin && d.sta[i] >= ATTACKS.gamble.sta + RESPIN_STA) d.sta[i] -= RESPIN_STA;
-if (a === "heavy") d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
+if (a === "heavy" && !(d.nocd[i] > 0)) d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
 d.cd[i] = a === "heavy" && !(d.nocd[i] > 0) ? 1 : 0;
 if (d.nocd[i] > 0) d.nocd[i]--;
 const sure = d.sa[i] > 0 && a !== "rest"; if (sure) d.sa[i]--;
@@ -289,11 +291,14 @@ else red = big ? tierRed(parry) : bk;
 const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
 if (magic) red *= 0.5;                                            // v11.2: proti Mágovi blok funguje jen z poloviny
 outcome = full ? "parry" : "block";
-if (full) d.fort[j] = 2;                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
+if (full) d.fort[j] = 1;                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
 }
 hits.forEach(m => {
 const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul, critAdd: critAdd, crit: forceCrit || undefined });
-if (d.mana[i] > 0) { h0.v += d.mana[i]; manaOut = d.mana[i]; d.mana[i] = 0; }
+if (d.mana[i] > 0) { const mx = Math.round(d.max[j] * 0.03); h0.v += d.mana[i] + mx; manaOut = d.mana[i] + mx; d.mana[i] = 0; }
+if (a === "ult" && A.cls === "hunter") h0.v += Math.round(d.max[j] * 0.015);
+if (a === "ult" && A.cls === "cyber" && !hv.length) h0.v += Math.round(Math.max(0, d.hp[j]) * 0.08);
+if (d.turn > 12 && !hv.length) h0.v += Math.round(d.max[j] * 0.02 * (d.turn - 12));
 let v = h0.v * scale * (1 - red) * (d.fort[j] > 0 ? 0.8 : 1);
 if (d.gd[j] && v > 0) { d.gd[j] = false; v *= 0.5; }
 saved += h0.v - v; const got = dHurt(d, j, v); total += got; hv.push(got); if (h0.crit) anyCrit = true;
@@ -308,7 +313,7 @@ if (d.bm[i] > 0 && total > 0) { d.bm[i]--; const bh = Math.min(Math.round(d.max[
 if (A.mark) d.mark[i] = true;
 }
 let healRaw = healSelf;
-if (healSelf) { healSelf = Math.round(healSelf * PVP.heal * (d.wd[i] > 0 ? PVP.wound : 1)); d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf); }   // v11.6: v PvP léčení -35 %, 🩸 Wound dalších -50 %
+if (healSelf) { healSelf = Math.round(healSelf * (A.cls === "blood" ? 0.85 : PVP.heal * (d.wd[i] > 0 ? PVP.wound : 1)));   /* v11.8: Caffeine Abuser ignoruje Wound a léčí se v PvP jen o 15 % méně */ d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf); }   // v11.6: v PvP léčení -35 %, 🩸 Wound dalších -50 %
 let wound = "";
 if (outcome === "parry" && B.cls === "sysadmin") { d.wd[i] = 2; wound = "parry"; }
 if (a === "heavy" && timing === "PERFECT" && A.cls === "sysadmin" && total > 0) { d.wd[j] = 2; wound = "heavy"; }
@@ -323,7 +328,7 @@ if (A.cls === "engineer") d.bm[i] = Math.max(d.bm[i], Math.round(3 * k));
 else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2 * k); d.gd[i] = true; }
 else if (A.cls === "cyber") d.ep[j] = Math.max(d.ep[j], Math.round(3 * k));
 else if (A.cls === "hunter") d.sa[i] = Math.max(d.sa[i], Math.round(2 * k));
-else { d.sta[i] = Math.min(100, d.sta[i] + Math.round(40 * k)); d.nocd[i] = Math.max(d.nocd[i], Math.round(2 * k)); d.cd[i] = 0; }
+else { d.nocd[i] = Math.max(d.nocd[i], Math.max(1, Math.round(2 * k))); d.cd[i] = 0; }
 }
 dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n + (k < 1 ? " (half)" : "") : "" });
 }

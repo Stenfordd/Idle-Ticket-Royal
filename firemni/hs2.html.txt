@@ -457,7 +457,7 @@ return "+15 STA +10 FOC" + (f.poison > 0 ? " · cure" : "");
 }
 function atkHint(f, a) {
 if (a === "strike") return (f.h.double ? "2 × 60%" : "free") + " · +10 STA";
-if (a === "heavy") return f.cd.heavy > 0 ? "COOLDOWN " + f.cd.heavy : "30 STA" + (f.unleashNext ? " · INTERRUPT" : f.eguard ? " · break guard" : "");
+if (a === "heavy") return f.nocd > 0 ? "FREE ☕" : f.cd.heavy > 0 ? "COOLDOWN " + f.cd.heavy : "30 STA" + (f.unleashNext ? " · INTERRUPT" : f.eguard ? " · break guard" : "");
 if (a === "gamble") return "20 STA";
 if (a === "rest") return "+30 STA +15 FOC" + (f.poison > 0 ? " · cure" : "");
 return "100 focus";

@@ -77,8 +77,16 @@ if (lose) lose.classList.add("dead"); if (win) win.classList.add("a-win"); if (f
 setTimeout(endFight, window.HSRig && !f.fled ? 1300 : 700);
 }
 }
+let fleeArm = 0;
 function flee() {
 if (!fight || fight.over || busyAnim) return;
+const b = $("hs-a-flee");
+if (Date.now() - fleeArm > 3000) {                                  // v11.8: dvojité potvrzení (žádný omylem odchod)
+fleeArm = Date.now();
+if (b) { b.classList.add("btn-crimson"); b.innerHTML = "⚠ SURE?<small>tap again</small>"; setTimeout(() => { if (b.isConnected && Date.now() - fleeArm >= 2900) { b.classList.remove("btn-crimson"); b.innerHTML = "FLEE<small>lose</small>"; } }, 3000); }
+return;
+}
+fleeArm = 0;
 fight.over = true; fight.win = false; fight.fled = true; fight.__ended = true;
 dlog("🏳 You fled the fight.", "r");
 endFight();
@@ -395,7 +403,7 @@ if (f.mana > 0) o.push(stIcon("🔮", "MANA " + fmt(f.mana) + ": added to your n
 if (f.channel > 1) o.push(stIcon("✨", "CHANNELED: your next hit ×" + f.channel.toFixed(2)));
 if (f.bm > 0) o.push(stIcon("🩸", "BLOOD MAGIC: your next " + f.bm + " hits heal 25% of their damage", f.bm));
 if (f.sureCrit || f.sureAtk > 0) o.push(stIcon("🎯", f.sureAtk > 0 ? "MARKED FOR DEATH: your next " + f.sureAtk + " attacks always crit" : "SURE CRIT: your next hit crits", f.sureAtk || ""));
-if (f.nocd > 0) o.push(stIcon("☕", "SUGAR RUSH: HEAVY has no cooldown (" + f.nocd + " rounds)", f.nocd));
+if (f.nocd > 0) o.push(stIcon("☕", "SUGAR RUSH: HEAVY is free - no stamina, no cooldown (" + f.nocd + " rounds)", f.nocd));
 if (f.cd && f.cd.heavy > 0) o.push(stIcon("💥", "HEAVY is on cooldown (" + f.cd.heavy + ")", f.cd.heavy, true));
 if (f.poison > 0) o.push(stIcon("🦠", "POISONED: -4% HP per round (" + f.poison + " rounds) - BREATHE cures it", f.poison, true));
 if (f.redTape > 0) o.push(stIcon("📋", "RED TAPE ×" + f.redTape + ": -" + 8 * f.redTape + "% damage", f.redTape, true));

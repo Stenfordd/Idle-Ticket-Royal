@@ -24,6 +24,13 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "11.8", d: "2026-10-30", i: [
+"🏳 FLEE needs a second tap within 3 seconds - no more fleeing by accident",
+"☕ Caffeine Abuser: healing is the class's thing, so it <b>ignores 🩸 WOUND</b> and only loses 15% healing in duels (others 35%). SUGAR RUSH now makes HEAVY free (no stamina, no cooldown) for 2 rounds",
+"🛡 Warden: FORTIFIED after a perfect parry lasts 1 round in duels",
+"📐 Percentage damage: Hunter's HEADHUNT arrows +1.5% of the target's max HP each, Trojan's BACKDOOR +8% of its current HP, a Mage's mana release +3% max HP, and in duel sudden death every hit adds +2% max HP per round (weekly boss and huge enemies are capped)",
+"⚖ Duel classes re-balanced"
+] },
 { v: "11.7", d: "2026-10-30", i: [
 "🛡 PERFECT parry no longer blocks everything: it takes 75%, counters and makes you <b>FORTIFIED</b> (-20% damage taken for 2 rounds)",
 "💨 PERFECT dodge (a fast jump into the right lane) <b>always works</b> and does a <b>↩ RIPOSTE</b> (a free 0.5× hit and +10 stamina) - dodging is now as skill-based as parrying",
