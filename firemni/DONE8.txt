@@ -1,0 +1,4 @@
+DONE8 - Office Royale v11.8 je dogenerovaná.
+Firemní verze: jen změněné soubory, žádný nový (seznam v 00_NAVOD.txt).
+Čas: 2026-10-30 16:23
+Commit: c0a61d5
