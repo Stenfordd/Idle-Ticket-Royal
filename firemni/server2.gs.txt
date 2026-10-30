@@ -525,6 +525,7 @@ else if (e.outcome === 'dodgefail') x.push(B + "'s dodge failed");
 else if (e.r === 'brace') x.push(B + ' breathed');
 if (e.shield) x.push(e.shield + ' into a shield');
 if (e.counter) x.push(B + ' countered for ' + e.counter);
+if (e.outcome === 'parry') x.push('🛡 ' + B + ' FORTIFIED (-20% damage 2 rounds)');
 if (e.heal) x.push(A + ' healed ' + e.heal + (e.healCut ? ' (-' + e.healCut + ' anti-heal)' : ''));
 if (e.wound) x.push('🩸 WOUND' + (e.wound === 'parry' ? ' on ' + A : ' on ' + B) + ': healing -50% for 2 rounds');
 return 'R' + e.t + ' ' + A + ': ' + what + ' → ' + (e.val || 0) + (e.crit ? ' CRIT' : '') + (x.length ? ' · ' + x.join(' · ') : '');
@@ -591,7 +592,7 @@ else if (e.type === 'guess') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + (e.ok ? ' 
 else if (e.type === 'bm') dlLog_(t, names[e.i] + ' Blood Magic +' + e.val + ' HP');
 else if (e.type === 'ult' && e.shield) dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': FIREWALL ' + Math.round((e.q || 1) * 100) + '% · +' + e.shield + ' shield, +' + e.heal + ' HP');
 else if (e.type === 'poison') dlLog_(t, names[e.who] + ' infection -' + e.val + ' HP');
-else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE' : (e.label || e.a)) + ' → ' + names[1 - e.i] + ' DODGED' + (e.dodged ? ' all 3' : ''));
+else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE' : (e.label || e.a)) + ' → ' + names[1 - e.i] + ' DODGED' + (e.dodged ? ' all 3' : '') + (e.riposte ? ' · ↩ riposte ' + e.riposte : ''));
 else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
 else if (e.type === 'revive') dlLog_(t, names[e.who] + ' gets back up with ' + e.val + ' HP!');
 });
@@ -715,7 +716,7 @@ return { id: t.id, rev: t.rev, status: t.status, host: t.host, guest: t.guest, t
 cls: t.cls || [t.hostCls, ''], lv: t.lv || [t.hostLv, 0], cards: t.cards, max: t.max || null,
 hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh : null, sure: d ? d.sure : null, chan: d ? d.chan : null, atk: d ? d.atk : -1, turn: d ? d.turn : 0, half: d ? d.half : 0,
 cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null, ultReady: ultReady, waitAtk: role === 'react' && ultReady && !t.pick.a, setup: su,
-gu: d ? (d.gu || [false, false]) : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
+gu: d ? (d.gu || [false, false]) : null, wd: d ? (d.wd || [0, 0]) : null, fort: d ? (d.fort || [0, 0]) : null, mana: d ? (d.mana || [0, 0]) : null, vuln: d ? d.vuln : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
 role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
 winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-30) };
 }

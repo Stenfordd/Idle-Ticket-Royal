@@ -209,7 +209,7 @@ raf = requestAnimationFrame(frame);
 }
 function boom() { F.style.background = "#3a0b12"; end("💥 BOMB! "); }
 function end(t) { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true);
-const q = qOf(caught, 12); finish(ov, t + caught + " viruses · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
+const q = qOf(caught, 9); finish(ov, t + caught + " viruses · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
 raf = requestAnimationFrame(frame);
 });
 }

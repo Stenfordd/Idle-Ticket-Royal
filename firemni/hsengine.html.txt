@@ -17,7 +17,7 @@ return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const CLASSES = {
-sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
+sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 4.4, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
 desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge. PvP: a PERFECT parry or PERFECT HEAVY inflicts 🩸 WOUND (the enemy heals 50% less for 2 rounds).",
 skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
 cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 25, dmgM: 1.15,
@@ -26,7 +26,7 @@ skill: "BACKDOOR", skillTxt: "2.8× hit that ignores armor, wipes the enemy's bu
 engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
 desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (20 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
 skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
-blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 30, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
+blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 3.8, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 30, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
 desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
 skill: "DOUBLE ESPRESSO", skillTxt: "2.6× hit that heals you for 60% of the damage." },
 hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4.2, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 25, firstStrike: true, mark: 0.15,
@@ -35,7 +35,7 @@ skill: "HEADHUNT", skillTxt: "4 arrows × 0.9 - every arrow can crit." }
 };
 const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
 /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.8, cyber: 0.7, engineer: 0.68, blood: 1.38, hunter: 0.98 } };
+const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.64, cyber: 0.69, engineer: 0.77, blood: 1.26, hunter: 1.02 } };
 const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 const ATTACKS = {
 strike: { name: "STRIKE", icon: "⚔", sta: 0, gain: 10, mult: 1, brk: 10, txt: "free · 1× hit · +10 stamina" },
@@ -294,7 +294,7 @@ const P = f.h.perks || {};
 dmg = Math.max(0, Math.round(dmg));
 const s = Math.min(f.eshield, dmg); f.eshield -= s;
 f.ehp -= dmg - s;
-if (dmg > 0 && (f.h.lifesteal || P.vamp)) { const hh = Math.round(dmg * ((f.h.lifesteal || 0) + (P.vamp || 0))); if (hh > 0) { f.hp = Math.min(f.h.maxHp, f.hp + hh); f.lsAcc = (f.lsAcc || 0) + hh; } }
+if (dmg > 0 && (f.h.lifesteal || P.vamp)) { const hh = Math.round(dmg * ((f.h.lifesteal || 0) + (P.vamp || 0)) * healMul(f)); if (hh > 0) { f.hp = Math.min(f.h.maxHp, f.hp + hh); f.lsAcc = (f.lsAcc || 0) + hh; } }
 if (dmg > f.st.maxHit) f.st.maxHit = dmg;
 return dmg;
 }
@@ -325,14 +325,17 @@ else { f.eshieldP = Math.round(f.eshieldP - toS); v0 = 0; }
 }
 if (f.mana > 0 && o.crit !== false) { v0 += f.mana; ev(f, "mech", { msg: "🔮 Mana release: +" + f.mana + " damage" }); f.mana = 0; }
 const val = hurtEnemy(f, v0);
-if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
+if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.round(Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)) * healMul(f)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
 if (f.eguard && f.e.ecls === "firewall" && val > 0) { const d = hurtHero(f, val * 0.2, "reflect"); ev(f, "mech", { msg: "🧱 The Firewall reflects " + d + " damage back at you." }); }
 return { val: val, crit: r.crit };
 }
-function eMult(f) { let m = 1; if (f.e.mech === "pookie") m *= 1 + 0.05 * f.estacks; if (f.rage > 0) m *= 1.3; if (f.mgr) m *= 1 + 0.12 * f.mgr; return m; }
+/** v11.7: týdenní boss - každé kolo +10 % (násobí se), tvoje léčení a štíty -3 % za kolo (max -90 %) */
+function healMul(f) { return f.m && f.m.kind === "world" ? Math.max(0.1, 1 - 0.03 * f.turn) : 1; }
+function eMult(f) { let m = f.m && f.m.kind === "world" ? Math.pow(1.1, f.turn) : 1; if (f.e.mech === "pookie") m *= 1 + 0.05 * f.estacks; if (f.rage > 0) m *= 1.3; if (f.mgr) m *= 1 + 0.12 * f.mgr; return m; }
 function hurtHero(f, dmg, src) {
 const P = f.h.perks || {};
 if (f.h.dr && src !== "backfire" && src !== "withdraw") dmg *= 1 - f.h.dr;
+if (f.fort > 0 && src !== "backfire" && src !== "poison" && src !== "withdraw") dmg *= 0.8;
 if (f.halfNext && src !== "backfire" && src !== "poison" && src !== "reflect" && dmg > 0) { f.halfNext = false; dmg *= 0.5; }
 dmg = Math.max(0, Math.round(dmg));
 const s = Math.min(f.shield, dmg); f.shield -= s;
@@ -459,7 +462,7 @@ if (res.mult > 0) { const r = myHit(f, res.mult * myMult(f, "gamble"), { crit: r
 if (res.jp) f.st.jackpots++;
 addBreak(f, 9 * Math.min(res.mult, 3) + res.brk);
 let hh = 0;
-if (res.heal) { hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
+if (res.heal) { hh = Math.round(h.maxHp * res.heal * healMul(f)); f.hp = Math.min(h.maxHp, f.hp + hh); }
 const self = res.self > 0 ? hurtHero(f, f.h.atk * res.self, "backfire") : 0;
 f.focus = Math.min(100, f.focus + 6 + res.foc);
 ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult, heal: hh, brk: Math.round(res.brk), foc: res.foc, self: self, respun: respun });
@@ -469,7 +472,7 @@ f.focus = 0; f.st.usedSkill++;
 if (f.adds > 0) { f.adds = 0; ev(f, "mech", { msg: "📇 Your ultimate clears out every intern!" }); }
 const pct = Math.round(q * 100), cls = h.cls, C = CLASSES[cls];
 if (cls === "sysadmin") {
-const sh = Math.round(h.maxHp * 0.3 * q), hh = Math.round(h.maxHp * 0.05 * q);
+const sh = Math.round(h.maxHp * 0.3 * q * healMul(f)), hh = Math.round(h.maxHp * 0.05 * q * healMul(f));
 f.shield += sh; f.hp = Math.min(h.maxHp, f.hp + hh);
 const r = myHit(f, 1.4 * q * myMult(f, "ult")); consumeBuffs(f); addBreak(f, 20 * q);
 ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Firewall up (" + pct + "%)! Shield bash for " + r.val + ", +" + sh + " shield, +" + hh + " HP" });
@@ -484,7 +487,7 @@ if (all) f.brk = 100; else addBreak(f, 50);
 ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Backdoor (" + pct + "%) for " + r.val + " - enemy buffs wiped" + (all ? " and its defences BROKEN" : "") });
 } else if (cls === "blood") {
 const r = myHit(f, 2.6 * q * myMult(f, "ult")); consumeBuffs(f);
-const hh = Math.round(r.val * 0.6); f.hp = Math.min(h.maxHp, f.hp + hh); addBreak(f, 35 * q);
+const hh = Math.round(r.val * 0.6 * healMul(f)); f.hp = Math.min(h.maxHp, f.hp + hh); addBreak(f, 35 * q);
 ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, heal: hh, msg: "Double espresso (" + pct + "%) for " + r.val + " - the caffeine gives you " + hh + " HP" });
 } else {
 let sum = 0, crits = 0; const m = myMult(f, "ult");
@@ -560,11 +563,13 @@ const src = k === "unleash" ? "heavy" : k === "spell" ? (it.sub === "llm" ? "hal
 if (k === "spell" && h.spellImmune) { ev(f, "immune", {}); f.st.reacts++; }
 else if (r === "dodge") {
 const dq = opt.dq === "perfect" ? 1.6 : opt.dq === "good" ? 1.15 : opt.dq === "none" ? 0.4 : 1;          // v11.1: dodge mini-hra
-const ch = Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));
+const ch = opt.dq === "perfect" ? 1 : Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));   // v11.7: PERFECT dodge = jistý úhyb
 if (R() < ch) {
 f.st.dodges++; f.st.reacts++; f.focus = Math.min(100, f.focus + 5);
 if (h.cls === "cyber") f.sureCrit = true;
-ev(f, "dodge", { heavy: k !== "atk", sure: h.cls === "cyber" });
+let rip = 0;
+if (opt.dq === "perfect") { rip = myHit(f, 0.5 * myMult(f, "strike"), { crit: false }).val; f.sta = Math.min(h.staMax, f.sta + 10); }   // ↩ RIPOSTE
+ev(f, "dodge", { heavy: k !== "atk", sure: h.cls === "cyber", riposte: rip });
 } else { ev(f, "dodgefail", {}); hitHero(f, dmg, src, k); }
 } else if (r === "block") {
 f.st.usedBlock++;
@@ -577,12 +582,13 @@ const rs = opt.rings.slice(0, 3); while (rs.length < 3) rs.push("none");
 tier = rs.every(x => x === "perfect") ? "perfect" : rs.filter(x => x !== "none").length >= 2 ? "good" : "none";
 }
 }
-if (tier === "perfect") {
+if (tier === "perfect") {                                       // v11.7: PERFECT parry vezme 75 % (ne všechno) + protiútok + 🛡 FORTIFIED (-20 % na 2 kola)
 f.st.perfectBlocks++; f.st.parries++; f.st.reacts++;
+const taken = hitHero(f, dmg * 0.25, src, k);
 const ctr = myHit(f, (h.cls === "sysadmin" ? 1.0 : 0.6) * myMult(f, "strike"), { crit: false });
 f.focus = Math.min(100, f.focus + 20); f.sta = Math.min(h.staMax, f.sta + 10);
-addBreak(f, 35); f.stunNext = true;
-ev(f, "parry", { val: ctr.val, heavy: true });
+addBreak(f, 35); f.stunNext = true; f.fort = 2;
+ev(f, "parry", { val: ctr.val, heavy: true, taken: taken });
 } else {
 if (tier === "good") { red = Math.min(0.95, red + 0.35); f.st.perfectBlocks++; f.st.reacts++; }
 if (k === "withdraw" && tier !== "good") red = 0;
@@ -633,17 +639,6 @@ ev(f, "mech", { msg: (e.mech === "ransom" ? "ENCRYPTED: " : "AUDITED: ") + ACTIO
 break;
 }
 case "great_i": { f.form = f.form === "I" ? "l" : "I"; ev(f, "mech", { msg: f.form === "l" ? "Identity crisis! The Great \"I\" turns into a lowercase \"l\" - your hits deal 40% less (HEAVY still lands)." : "It's a capital \"I\" again." }); break; }
-case "massi": { const h = Math.round(f.h.maxHp * 0.12); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "mech", { msg: "The Big Massi approves your PTO. You heal " + h + ". Best boss ever." }); break; }
-case "italian": { const p = pool(["heavy", "gamble", "dodge", "block"]); if (p.length) { const a = p[Math.floor(R() * p.length)]; f.disabled[a] = 2; ev(f, "mech", { msg: "🍝 SPAGHETTI CODE! " + ACTIONS[a].name + " is tangled up for a round." }); } break; }
-case "louis": { f.flamenco = 2; ev(f, "mech", { msg: "💃 FLAMENCO! The Supreme Louis dances around: your hits deal half damage for 2 rounds (a PERFECT HEAVY always lands in full)." }); break; }
-case "polishen": { f.payroll = 2; ev(f, "mech", { msg: "🧾 PAYROLL CUT! -25% damage for 2 rounds." }); break; }
-default: ev(f, "mech", { msg: e.name + " does something weird." });
-}
-}
-function endRound(f) {
-const h = f.h, e = f.e;
-f.sta = Math.min(h.staMax, f.sta + (h.staGain || 0));          // v11.1: stamina se sama NEDOPLŇUJE (STRIKE +10, BREATHE +30 / +15)
-f.focus = Math.min(100, f.focus + 10);
-if (e.mech === "recruiter" && f.ehp > 0) {</script>
+case "massi": { const h = Math.round(f.h.maxHp * 0.12); f.hp = Math.min(f.h.maxHp, f.hp + h); ev(f, "mech", { msg: "The Big Massi approves your PTO. You heal " + h + ". Best boss ever." }); break; }</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hsengine"] = 1;</script>
 <!-- END-OF-FILE: hsengine -->

@@ -182,8 +182,8 @@ const w = WB[((idx % WB.length) + WB.length) % WB.length], src = srcOf(w.src);
 mk = Math.max(1, mk | 0 || 1);
 const e = H().buildEnemy(spec(src, Math.max(1, L | 0), "world", { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id, arch: "bal", dmgM: 1.05 * (1 + 0.25 * (mk - 1)), pattern: Object.assign({}, P.boss) }));
 e.maxHp = e.hp = Math.max(1, Math.round(hpLeft));
-return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + (w.cls ? w.cls + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 rounds, deal as much damage as you can.",
-kind: "world", bonus: {}, survive: 0, turnLimit: 15, level: e.level, enemy: e };
+return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + (w.cls ? w.cls + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. No round limit - it gets 10% stronger every round and your healing and shields get weaker, so nobody survives forever. Deal as much damage as you can.",
+kind: "world", bonus: {}, survive: 0, turnLimit: 0, level: e.level, enemy: e };      // v11.7: bez limitu kol, boss každé kolo sílí
 }
 /** CLEAR THE POOL - nekonečná patra od levelu 46 (+0.8 levelu za patro), každé 5. elite, každé 25. tematický boss. */
 const POOL_MECHS = ["", "", "heal", "drain", "ransom", "llm", "audit"];

@@ -1,11 +1,10 @@
-NÁVOD v7.3 - firemní verze v11.6 (= hra Office Royale v11.6)
+NÁVOD v7.4 - firemní verze v11.7 (= hra Office Royale v11.7)
 
-v11.6: vyvážený duel (Warden má zase plné HP, v duelu léčení -35 %, WOUND), tip u každé ultimátky,
-podrobný duel log, víc Legacy Points + nekonečná větev CANOPY, oprava hromadění ovoce.
+v11.7: perfect parry = 75 % + Fortified, perfect dodge = jistý + Riposte, Warden má nejvíc HP, náhlá smrt v duelu,
+ikonky buffů/debuffů s vysvětlivkami, weekly boss bez limitu kol (sílí každé kolo), Tower Boss Rush po prestiži.
 
-TENTOKRÁT ZKOPÍRUJ JEN TYHLE (ostatní jsou beze změny):
-  server3 (NOVÝ .gs SOUBOR - vytvoř ho: + -> Skript, jméno server3), server2, engine,
-  changelog, duel, hs2, hs3, hsengine, hsengine2, hsqte2, index, office, office2, plant
+TENTOKRÁT ZKOPÍRUJ JEN TYHLE (žádný nový soubor, ostatní beze změny):
+  changelog, duel, engine, hs, hs2, hs3, hs_modes, hscamp, hsengine, hsengine2, hsqte2, index, server2
 Pak Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
 
 ======================================================

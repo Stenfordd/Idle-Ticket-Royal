@@ -158,15 +158,31 @@ Dungeon.tab("duel");
 setTimeout(() => { const el = $("du-target"); if (el) { el.value = K.target; el.focus(); } }, 50);
 }
 function bar(cls, v, m) { return `<div class="hs-bar"><div class="${cls}" style="width:${Math.max(0, Math.min(100, v / Math.max(1, m) * 100))}%"></div></div>`; }
+/** v11.7: ikonky buffů / debuffů v duelu (s vysvětlivkou) */
+function duelBuffs(v, i, h) {
+const I = window.HSStIcon || (() => ""), o = [], g = (k) => v[k] ? v[k][i] : 0;
+if (g("wd") > 0) o.push(I("🩸", "WOUND: heals 50% less (" + g("wd") + " rounds)", g("wd"), true));
+if (g("fort") > 0) o.push(I("🛡", "FORTIFIED: takes 20% less damage (" + g("fort") + " rounds)", g("fort")));
+if (g("mana") > 0) o.push(I("🔮", "MANA " + fmt(g("mana")) + ": added to the next hit"));
+if (v.chan && v.chan[i] > 1) o.push(I("✨", "CHANNELED: next hit ×" + v.chan[i]));
+if (g("bm") > 0) o.push(I("🩸", "BLOOD MAGIC: next " + g("bm") + " hits heal 25%", g("bm")));
+if (g("ep") > 0) o.push(I("🦠", "INFECTED: loses 4% HP every round (" + g("ep") + ")", g("ep"), true));
+if (g("sa") > 0 || g("sure")) o.push(I("🎯", g("sa") > 0 ? "MARKED FOR DEATH: next " + g("sa") + " attacks always crit" : "SURE CRIT: next hit crits", g("sa") || ""));
+if (g("nocd") > 0) o.push(I("☕", "SUGAR RUSH: HEAVY has no cooldown (" + g("nocd") + ")", g("nocd")));
+if (g("cd") > 0) o.push(I("💥", "HEAVY on cooldown", "", true));
+if (g("vuln")) o.push(I("💢", "VULNERABLE: next hit taken ×1.5", "", true));
+if (h && h.cls === "engineer") o.push(I("🧙", "MAGE: hits are dodged at half the chance and blocks only work half as well"));
+return o.join("");
+}
 function side(v, i, h) {
 const nm = (window.Nick ? Nick.of(v.names[i]) : v.names[i]) || "?", mine = i === v.you;
 const sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
 const max = v.max ? v.max[i] : (h ? h.maxHp : 1), hp = v.hp ? v.hp[i] : max;
 return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
 <div id="du-s${i}">${sprite}</div>
-<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div>${bar("hp", hp, max)}
+<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div><div class="hs-bar"><div class="hp" style="width:${Math.max(0, Math.min(100, hp / Math.max(1, max) * 100))}%"></div>${v.sh && v.sh[i] ? `<div class="sh" style="width:${Math.min(100, v.sh[i] / Math.max(1, max) * 100)}%"></div>` : ""}</div>
 <div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}
-<div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}</div></div>`;
+<div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}<div class="hs-sts">${duelBuffs(v, i, h)}</div></div></div>`;
 }
 function buttons(v, hs) {
 if (v.status !== "play" || !v.role) return "";

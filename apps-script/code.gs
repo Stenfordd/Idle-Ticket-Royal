@@ -1993,6 +1993,7 @@ function dlHitTxt_(e, names) {
   else if (e.r === 'brace') x.push(B + ' breathed');
   if (e.shield) x.push(e.shield + ' into a shield');
   if (e.counter) x.push(B + ' countered for ' + e.counter);
+  if (e.outcome === 'parry') x.push('🛡 ' + B + ' FORTIFIED (-20% damage 2 rounds)');
   if (e.heal) x.push(A + ' healed ' + e.heal + (e.healCut ? ' (-' + e.healCut + ' anti-heal)' : ''));
   if (e.wound) x.push('🩸 WOUND' + (e.wound === 'parry' ? ' on ' + A : ' on ' + B) + ': healing -50% for 2 rounds');
   return 'R' + e.t + ' ' + A + ': ' + what + ' → ' + (e.val || 0) + (e.crit ? ' CRIT' : '') + (x.length ? ' · ' + x.join(' · ') : '');
@@ -2060,7 +2061,7 @@ function dlResolve_(t, auto) {
     else if (e.type === 'bm') dlLog_(t, names[e.i] + ' Blood Magic +' + e.val + ' HP');
     else if (e.type === 'ult' && e.shield) dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': FIREWALL ' + Math.round((e.q || 1) * 100) + '% · +' + e.shield + ' shield, +' + e.heal + ' HP');
     else if (e.type === 'poison') dlLog_(t, names[e.who] + ' infection -' + e.val + ' HP');
-    else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE' : (e.label || e.a)) + ' → ' + names[1 - e.i] + ' DODGED' + (e.dodged ? ' all 3' : ''));
+    else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE' : (e.label || e.a)) + ' → ' + names[1 - e.i] + ' DODGED' + (e.dodged ? ' all 3' : '') + (e.riposte ? ' · ↩ riposte ' + e.riposte : ''));
     else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
     else if (e.type === 'revive') dlLog_(t, names[e.who] + ' gets back up with ' + e.val + ' HP!');
   });
@@ -2184,7 +2185,7 @@ function dlView_(t, me) {
     cls: t.cls || [t.hostCls, ''], lv: t.lv || [t.hostLv, 0], cards: t.cards, max: t.max || null,
     hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh : null, sure: d ? d.sure : null, chan: d ? d.chan : null, atk: d ? d.atk : -1, turn: d ? d.turn : 0, half: d ? d.half : 0,
     cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null, ultReady: ultReady, waitAtk: role === 'react' && ultReady && !t.pick.a, setup: su,
-    gu: d ? (d.gu || [false, false]) : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
+    gu: d ? (d.gu || [false, false]) : null, wd: d ? (d.wd || [0, 0]) : null, fort: d ? (d.fort || [0, 0]) : null, mana: d ? (d.mana || [0, 0]) : null, vuln: d ? d.vuln : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
     role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
     winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-30) };
 }
@@ -2292,7 +2293,7 @@ function setNick(nick) {
 
   // ------------------------------------------------------------------ TŘÍDY (id sysadmin/engineer/cyber zůstávají kvůli savům)
   const CLASSES = {
-    sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
+    sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 4.4, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
       desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge. PvP: a PERFECT parry or PERFECT HEAVY inflicts 🩸 WOUND (the enemy heals 50% less for 2 rounds).",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
     cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 25, dmgM: 1.15,
@@ -2301,7 +2302,7 @@ function setNick(nick) {
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
       desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (20 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
-    blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 30, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
+    blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 3.8, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 30, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
       desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
       skill: "DOUBLE ESPRESSO", skillTxt: "2.6× hit that heals you for 60% of the damage." },
     hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4.2, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 25, firstStrike: true, mark: 0.15,
@@ -2310,7 +2311,7 @@ function setNick(nick) {
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.8, cyber: 0.7, engineer: 0.68, blood: 1.38, hunter: 0.98 } };
+  const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.64, cyber: 0.69, engineer: 0.77, blood: 1.26, hunter: 1.02 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -2589,7 +2590,7 @@ function setNick(nick) {
     dmg = Math.max(0, Math.round(dmg));
     const s = Math.min(f.eshield, dmg); f.eshield -= s;
     f.ehp -= dmg - s;
-    if (dmg > 0 && (f.h.lifesteal || P.vamp)) { const hh = Math.round(dmg * ((f.h.lifesteal || 0) + (P.vamp || 0))); if (hh > 0) { f.hp = Math.min(f.h.maxHp, f.hp + hh); f.lsAcc = (f.lsAcc || 0) + hh; } }
+    if (dmg > 0 && (f.h.lifesteal || P.vamp)) { const hh = Math.round(dmg * ((f.h.lifesteal || 0) + (P.vamp || 0)) * healMul(f)); if (hh > 0) { f.hp = Math.min(f.h.maxHp, f.hp + hh); f.lsAcc = (f.lsAcc || 0) + hh; } }
     if (dmg > f.st.maxHit) f.st.maxHit = dmg;
     return dmg;
   }
@@ -2620,15 +2621,18 @@ function setNick(nick) {
     }
     if (f.mana > 0 && o.crit !== false) { v0 += f.mana; ev(f, "mech", { msg: "🔮 Mana release: +" + f.mana + " damage" }); f.mana = 0; }
     const val = hurtEnemy(f, v0);
-    if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
+    if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.round(Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)) * healMul(f)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
     if (f.eguard && f.e.ecls === "firewall" && val > 0) { const d = hurtHero(f, val * 0.2, "reflect"); ev(f, "mech", { msg: "🧱 The Firewall reflects " + d + " damage back at you." }); }
     return { val: val, crit: r.crit };
   }
 
-  function eMult(f) { let m = 1; if (f.e.mech === "pookie") m *= 1 + 0.05 * f.estacks; if (f.rage > 0) m *= 1.3; if (f.mgr) m *= 1 + 0.12 * f.mgr; return m; }
+  /** v11.7: týdenní boss - každé kolo +10 % (násobí se), tvoje léčení a štíty -3 % za kolo (max -90 %) */
+  function healMul(f) { return f.m && f.m.kind === "world" ? Math.max(0.1, 1 - 0.03 * f.turn) : 1; }
+  function eMult(f) { let m = f.m && f.m.kind === "world" ? Math.pow(1.1, f.turn) : 1; if (f.e.mech === "pookie") m *= 1 + 0.05 * f.estacks; if (f.rage > 0) m *= 1.3; if (f.mgr) m *= 1 + 0.12 * f.mgr; return m; }
   function hurtHero(f, dmg, src) {
     const P = f.h.perks || {};
     if (f.h.dr && src !== "backfire" && src !== "withdraw") dmg *= 1 - f.h.dr;
+    if (f.fort > 0 && src !== "backfire" && src !== "poison" && src !== "withdraw") dmg *= 0.8;
     if (f.halfNext && src !== "backfire" && src !== "poison" && src !== "reflect" && dmg > 0) { f.halfNext = false; dmg *= 0.5; }
     dmg = Math.max(0, Math.round(dmg));
     const s = Math.min(f.shield, dmg); f.shield -= s;
@@ -2759,7 +2763,7 @@ function setNick(nick) {
         if (res.jp) f.st.jackpots++;
         addBreak(f, 9 * Math.min(res.mult, 3) + res.brk);
         let hh = 0;
-        if (res.heal) { hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
+        if (res.heal) { hh = Math.round(h.maxHp * res.heal * healMul(f)); f.hp = Math.min(h.maxHp, f.hp + hh); }
         const self = res.self > 0 ? hurtHero(f, f.h.atk * res.self, "backfire") : 0;
         f.focus = Math.min(100, f.focus + 6 + res.foc);
         ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult, heal: hh, brk: Math.round(res.brk), foc: res.foc, self: self, respun: respun });
@@ -2769,7 +2773,7 @@ function setNick(nick) {
       if (f.adds > 0) { f.adds = 0; ev(f, "mech", { msg: "📇 Your ultimate clears out every intern!" }); }
       const pct = Math.round(q * 100), cls = h.cls, C = CLASSES[cls];
       if (cls === "sysadmin") {
-        const sh = Math.round(h.maxHp * 0.3 * q), hh = Math.round(h.maxHp * 0.05 * q);
+        const sh = Math.round(h.maxHp * 0.3 * q * healMul(f)), hh = Math.round(h.maxHp * 0.05 * q * healMul(f));
         f.shield += sh; f.hp = Math.min(h.maxHp, f.hp + hh);
         const r = myHit(f, 1.4 * q * myMult(f, "ult")); consumeBuffs(f); addBreak(f, 20 * q);
         ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Firewall up (" + pct + "%)! Shield bash for " + r.val + ", +" + sh + " shield, +" + hh + " HP" });
@@ -2784,7 +2788,7 @@ function setNick(nick) {
         ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Backdoor (" + pct + "%) for " + r.val + " - enemy buffs wiped" + (all ? " and its defences BROKEN" : "") });
       } else if (cls === "blood") {
         const r = myHit(f, 2.6 * q * myMult(f, "ult")); consumeBuffs(f);
-        const hh = Math.round(r.val * 0.6); f.hp = Math.min(h.maxHp, f.hp + hh); addBreak(f, 35 * q);
+        const hh = Math.round(r.val * 0.6 * healMul(f)); f.hp = Math.min(h.maxHp, f.hp + hh); addBreak(f, 35 * q);
         ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, heal: hh, msg: "Double espresso (" + pct + "%) for " + r.val + " - the caffeine gives you " + hh + " HP" });
       } else {
         let sum = 0, crits = 0; const m = myMult(f, "ult");
@@ -2864,11 +2868,13 @@ function setNick(nick) {
       if (k === "spell" && h.spellImmune) { ev(f, "immune", {}); f.st.reacts++; }
       else if (r === "dodge") {
         const dq = opt.dq === "perfect" ? 1.6 : opt.dq === "good" ? 1.15 : opt.dq === "none" ? 0.4 : 1;          // v11.1: dodge mini-hra
-        const ch = Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));
+        const ch = opt.dq === "perfect" ? 1 : Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));   // v11.7: PERFECT dodge = jistý úhyb
         if (R() < ch) {
           f.st.dodges++; f.st.reacts++; f.focus = Math.min(100, f.focus + 5);
           if (h.cls === "cyber") f.sureCrit = true;
-          ev(f, "dodge", { heavy: k !== "atk", sure: h.cls === "cyber" });
+          let rip = 0;
+          if (opt.dq === "perfect") { rip = myHit(f, 0.5 * myMult(f, "strike"), { crit: false }).val; f.sta = Math.min(h.staMax, f.sta + 10); }   // ↩ RIPOSTE
+          ev(f, "dodge", { heavy: k !== "atk", sure: h.cls === "cyber", riposte: rip });
         } else { ev(f, "dodgefail", {}); hitHero(f, dmg, src, k); }
       } else if (r === "block") {
         f.st.usedBlock++;
@@ -2881,12 +2887,13 @@ function setNick(nick) {
             tier = rs.every(x => x === "perfect") ? "perfect" : rs.filter(x => x !== "none").length >= 2 ? "good" : "none";
           }
         }
-        if (tier === "perfect") {
+        if (tier === "perfect") {                                       // v11.7: PERFECT parry vezme 75 % (ne všechno) + protiútok + 🛡 FORTIFIED (-20 % na 2 kola)
           f.st.perfectBlocks++; f.st.parries++; f.st.reacts++;
+          const taken = hitHero(f, dmg * 0.25, src, k);
           const ctr = myHit(f, (h.cls === "sysadmin" ? 1.0 : 0.6) * myMult(f, "strike"), { crit: false });
           f.focus = Math.min(100, f.focus + 20); f.sta = Math.min(h.staMax, f.sta + 10);
-          addBreak(f, 35); f.stunNext = true;
-          ev(f, "parry", { val: ctr.val, heavy: true });
+          addBreak(f, 35); f.stunNext = true; f.fort = 2;
+          ev(f, "parry", { val: ctr.val, heavy: true, taken: taken });
         } else {
           if (tier === "good") { red = Math.min(0.95, red + 0.35); f.st.perfectBlocks++; f.st.reacts++; }
           if (k === "withdraw" && tier !== "good") red = 0;
@@ -2956,6 +2963,7 @@ function setNick(nick) {
     if (e.mech === "serverroom" && f.turn % 4 === 0) { const d0 = Math.min(f.sta, 15); f.sta -= d0; ev(f, "mech", { msg: "🌀 FAN FAILURE: the heat drains " + d0 + " stamina." }); }
     if (f.epoison > 0 && f.ehp > 0) { f.epoison--; const d = hurtEnemy(f, Math.min(f.emax * 0.04, h.atk * 1.5)); ev(f, "mech", { msg: "🦠 Infection: -" + d + " HP to " + e.name }); }
     if (f.nocd > 0) f.nocd--;
+    if (f.fort > 0) f.fort--;
     if (f.poison > 0 && f.hp > 0) { f.poison--; const d = hurtHero(f, h.maxHp * 0.04, "poison"); ev(f, "mech", { msg: "🦠 Poison: -" + d + " HP" }); }
     if (e.ecls === "manager" && f.turn % 3 === 0 && !f.estun) { f.mgr = (f.mgr || 0) + 1; ev(f, "mech", { msg: "📈 \"Let's go team!\" The Manager motivates itself: +" + 12 * f.mgr + "% damage (BREAK it to reset)." }); }
     const P = h.perks || {};
@@ -3155,6 +3163,7 @@ function setNick(nick) {
     o = o || {};
     const A = d.c[a], B = d.c[b];
     let m = mult * (d.chan[a] || 1) * (d.mark[a] ? 1 + (A.mark || 0) : 1) * (d.vuln[b] ? 1.5 : 1) * ((d.pv && d.pv[a]) || 1);
+    if (d.turn > 12) m *= 1 + 0.15 * (d.turn - 12);                       // v11.7: NÁHLÁ SMRT - od 13. kola +15 % damage každé kolo (žádné nekonečné tankování)
     d.vuln[b] = false;
     const sure = d.sure[a]; if (sure) d.sure[a] = false;
     const r = rawHit(d.R, A, Object.assign({}, B, { armorRed: o.ignoreArmor ? 0 : d.armor[b] }), { mult: m, crit: sure || o.crit ? true : undefined, critMul: o.critMul, critAdd: o.critAdd });
@@ -3178,7 +3187,7 @@ function setNick(nick) {
     opt = opt || {};
     ["cd", "bm", "ep", "sa", "nocd"].forEach(k => { if (!d[k]) d[k] = [0, 0]; });
     ["gd", "gu"].forEach(k => { if (!d[k]) d[k] = [false, false]; });
-    if (!d.wd) d.wd = [0, 0];
+    if (!d.wd) d.wd = [0, 0]; if (!d.fort) d.fort = [0, 0];
     const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
     if (!duelAtkOk(d, i, a)) a = "strike";
     if (!duelReactOk(d, j, r)) r = "brace";
@@ -3214,7 +3223,7 @@ function setNick(nick) {
     }
     // reakce obránce
     const magic = A.cls === "engineer", big = a !== "strike", ult3 = a === "ult";
-    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0, cvD = 0;
+    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0, cvD = 0, riposte = 0;
     if (!d.mana) d.mana = [0, 0];
     if (hits.length) {
       if (r === "dodge") {
@@ -3223,24 +3232,26 @@ function setNick(nick) {
         if (ult3 && dqs) {                                                // v11.2: proti ULTI 3 uskoky - každý úspěšný vezme třetinu
           dodged = dqs.filter(x => R() < chOf(x)).length; scale = 1 - dodged / 3;
           if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : "dodgefail";
-        } else if (R() < chOf(dq1)) outcome = "dodge", hits = [];
+        } else if (dq1 === "perfect" || R() < chOf(dq1)) outcome = "dodge", hits = [];   // v11.7: PERFECT dodge = jistý (i proti Mágovi)
         else outcome = "dodgefail";
-        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true; }
+        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true;
+          if (dq1 === "perfect" && !(ult3 && dqs && dqs.some(x => x !== "perfect"))) { const rp = dHit(d, j, i, 0.5, {}); riposte = dHurt(d, i, rp.v); d.sta[j] = Math.min(100, d.sta[j] + 10); } }
       }
       let red = 0;
       if (r === "channel") { cvD = chanVal(opt); red = 0.1 + 0.25 * cvD; d.chan[j] = 1.2; outcome = "channel"; }
       if (r === "block") {
-        const bk = B.block * ((PVP.blk || {})[B.cls] || 1) * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
+        const bk = B.block * ((PVP.blk || {})[B.cls] || 1) * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 0.75 : x === "good" ? Math.min(0.7, bk + 0.3) : bk;
         if (ult3 && rings) red = rings.reduce((s2, x) => s2 + tierRed(x), 0) / 3;
         else red = big ? tierRed(parry) : bk;
         const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
         if (magic) red *= 0.5;                                            // v11.2: proti Mágovi blok funguje jen z poloviny
-        outcome = full ? "parry" : "block";                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
+        outcome = full ? "parry" : "block";
+        if (full) d.fort[j] = 2;                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
       }
       hits.forEach(m => {
         const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul, critAdd: critAdd, crit: forceCrit || undefined });
         if (d.mana[i] > 0) { h0.v += d.mana[i]; manaOut = d.mana[i]; d.mana[i] = 0; }
-        let v = h0.v * scale * (1 - red);
+        let v = h0.v * scale * (1 - red) * (d.fort[j] > 0 ? 0.8 : 1);
         if (d.gd[j] && v > 0) { d.gd[j] = false; v *= 0.5; }
         saved += h0.v - v; const got = dHurt(d, j, v); total += got; hv.push(got); if (h0.crit) anyCrit = true;
       });
@@ -3261,7 +3272,7 @@ function setNick(nick) {
     if (a === "heavy" && timing === "PERFECT" && A.cls === "sysadmin" && total > 0) { d.wd[j] = 2; wound = "heavy"; }
     if (a === "ult" && A.cls === "cyber" && total > 0) { d.wd[j] = 2; wound = "backdoor"; }
     const absorbed = d.absorbed || 0; d.absorbed = 0;
-    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined, shield: absorbed || undefined, wound: wound || undefined, healCut: healRaw > healSelf ? healRaw - healSelf : undefined, cv: r === "channel" ? Math.round(cvD * 100) / 100 : undefined, parry: r === "block" && !rings ? parry : undefined });
+    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined, shield: absorbed || undefined, wound: wound || undefined, riposte: riposte || undefined, healCut: healRaw > healSelf ? healRaw - healSelf : undefined, cv: r === "channel" ? Math.round(cvD * 100) / 100 : undefined, parry: r === "block" && !rings ? parry : undefined });
     // v11.2: tip u ulti - uhodl útočník reakci obránce?
     if (a === "ult" && opt.guess) {                                       // v11.6: u každé ulti; první trefa plný efekt, další poloviční
       const ok = opt.guess === r, k = d.gu[i] ? 0.5 : 1;
@@ -3279,7 +3290,7 @@ function setNick(nick) {
     if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
     d.half++;
     if (d.half % 2 === 0) {
-      for (let k = 0; k < 2; k++) { d.foc[k] = Math.min(100, d.foc[k] + 10); if (d.wd[k] > 0) d.wd[k]--; }      // v11.1: stamina se sama nedoplňuje
+      for (let k = 0; k < 2; k++) { d.foc[k] = Math.min(100, d.foc[k] + 10); if (d.wd[k] > 0) d.wd[k]--; if (d.fort[k] > 0) d.fort[k]--; }      // v11.1: stamina se sama nedoplňuje
       for (let k = 0; k < 2; k++) if (d.ep[k] > 0 && d.hp[k] > 0) { d.ep[k]--; const pv = dHurt(d, k, d.max[k] * 0.04); dEv(d, "poison", { who: k, val: pv }); }
       d.turn++;
       if (d.hp[0] <= 0 || d.hp[1] <= 0) return duelEnd(d, d.hp[0] > 0 ? 0 : d.hp[1] > 0 ? 1 : (d.hp[0] >= d.hp[1] ? 0 : 1), start);

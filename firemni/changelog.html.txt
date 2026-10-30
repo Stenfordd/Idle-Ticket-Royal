@@ -24,6 +24,15 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "11.7", d: "2026-10-30", i: [
+"🛡 PERFECT parry no longer blocks everything: it takes 75%, counters and makes you <b>FORTIFIED</b> (-20% damage taken for 2 rounds)",
+"💨 PERFECT dodge (a fast jump into the right lane) <b>always works</b> and does a <b>↩ RIPOSTE</b> (a free 0.5× hit and +10 stamina) - dodging is now as skill-based as parrying",
+"🛡 The Warden finally has the most HP (×4.4, Caffeine Abuser ×3.8). Duels: from round 13 every hit deals +15% more each round (sudden death), so tanks can't stall forever. Classes re-balanced",
+"🦠 Warden's ultimate: catching 9 viruses is now enough for 125%",
+"✨ Buffs and debuffs show as small icons (tap or hover for what they do): Wound, Fortified, mana, Blood Magic, Sugar Rush, poison, HEAVY cooldown... In duels the shield is drawn on the HP bar",
+"📊 Weekly boss: no 15-round limit any more - it gets 10% stronger every round and your healing and shields 3% weaker, so nobody survives forever",
+"🗼 Tower BOSS RUSH: once you've conquered floor 100, every prestige tower is just the 10 guardians - stronger each prestige, but each pays 10×"
+] },
 { v: "11.6", d: "2026-10-30", i: [
 "⚔ DUEL balance: the Warden has full HP again (it had only 60% in duels), but its block and counter are weaker in PvP. All healing in duels is 35% weaker and getting back up gives 15% HP",
 "🩸 <b>WOUND</b> (anti-heal, duels): a Warden's PERFECT parry or PERFECT HEAVY and the Trojan's BACKDOOR make the enemy heal 50% less for 2 rounds",

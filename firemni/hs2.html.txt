@@ -69,7 +69,7 @@ else if (d.cls && !d.kit && window.Gear && Gear.starter) { d.kit = 1; setTimeout
 }
 return d;
 }
-function towerFloorsTotal(d) { d = d || HS(); return d.tower.best + (d.tower.tot || 0); }
+function towerFloorsTotal(d) { d = d || HS(); return d.tower.best * (d.tower.rush ? 10 : 1) + (d.tower.tot || 0); }
 /** v11.1: gear se mění (6 rarit, padá podle prestiže) -> starý gear pryč, za něj GC + šedý startovní kit na tvém levelu */
 function gearReset111() {
 const gc = Gear.wipe();
@@ -271,7 +271,7 @@ if (!window.confirm("Prestige High Stakes?\n\nYou keep your level, stat points, 
 d.sb = (d.sb || 0) + campStars(0, d);
 Object.keys(d.sm).forEach(id => { if (d.sm[id] > 0) d.cl[id] = 1; });
 d.hsp = (d.hsp || 0) + 1; d.sm = {}; d.stars = {}; chSel = 0;
-d.tower.tot = (d.tower.tot || 0) + d.tower.best; d.tower.best = 0;
+d.tower.tot = (d.tower.tot || 0) + d.tower.best * (d.tower.rush ? 10 : 1); d.tower.best = 0; d.tower.rush = 0;
 d.shift = { best: 0, asc: 0, runs: (d.shift && d.shift.runs) || 0, clears: (d.shift && d.shift.clears) || 0 };
 if (d.col) d.col.target = null;
 if (window.Gear && Gear.resetUpgrades) Gear.resetUpgrades();
@@ -484,12 +484,12 @@ return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtm
 <div class="hs-bars">
 <div class="hs-lbl"><span>HP</span><span id="hs-hpt"></span></div><div class="hs-bar"><div class="hp" id="hs-hp"></div><div class="sh" id="hs-sh"></div></div>
 <div class="hs-lbl"><span>STAMINA</span><span id="hs-stat"></span></div><div class="hs-bar"><div class="sta" id="hs-sta"></div></div>
-<div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div></div></div>
+<div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div><div class="hs-sts" id="hs-buffs"></div></div></div>
 <div class="dg-vs">VS</div>
 <div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div class="dg-sub">LV ${f.e.level}${f.e.archName ? " · " + f.e.archName : ""}</div><div id="hs-intent">${intentHtml()}</div>
 <div id="dg-bs">${enemySprite(m)}</div>
 <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div>
-<div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div></div></div>
+<div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div><div class="hs-sts" id="hs-ebuffs"></div></div></div>
 </div>
 <div class="dg-mech" id="dg-mech"></div>
 <div class="hs-coach" id="hs-coach" style="display:none;"></div>
@@ -517,6 +517,8 @@ txt("hs-foct", (f.mana > 0 ? "🔮 " + fmt(f.mana) + " mana · " : "") + Math.fl
 txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
 txt("hs-turn", "ROUND " + Math.max(1, f.turn + (f.phase === "atk" ? 1 : 0)) + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
 if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
+const bf = $("hs-buffs"); if (bf) { const x = myBuffs(f); if (bf.__h !== x) { bf.innerHTML = x; bf.__h = x; } }
+const eb = $("hs-ebuffs"); if (eb) { const x = enemyBuffs(f); if (eb.__h !== x) { eb.innerHTML = x; eb.__h = x; } }
 const it = $("hs-intent"); if (it) { const ih = intentHtml(); if (it.__h !== ih) { it.innerHTML = ih; it.__h = ih; } }
 const ph = $("hs-phase");
 if (ph) { const t = f.over ? "" : f.phase === "react" ? `<span class="p-react">② REACT!</span><small>${escapeHtml(f.e.name)} shows its move - pick your reaction</small>` : `<span class="p-atk">① YOUR ATTACK</span><small>${f.channel ? "🔮 channeled ×1.6 · " : ""}${f.sureCrit ? "🎯 sure crit · " : ""}${f.vuln ? "💢 vulnerable ×1.5 · " : ""}then it reacts with its move</small>`;
@@ -527,13 +529,6 @@ const keys = f.phase === "react" ? H.reactsOf(h) : H.ATK_KEYS;
 keys.forEach(a => {
 const b = $("hs-a-" + a); if (!b) return;
 const ok = H.allowed(f, a) && !f.over && !busyAnim;
-b.disabled = !ok; b.classList.toggle("off", !ok); b.classList.toggle("lock", !!f.disabled[a]);
-b.classList.toggle("want", !!f.demand && f.demand === a && !f.over);
-const sm = $("hs-as-" + a); if (sm) { const t = f.disabled[a] ? "LOCKED" : f.phase === "react" ? reactHint(f, a) : atkHint(f, a); if (sm.textContent !== t) sm.textContent = t; }
-});
-const fb = $("hs-form");
-if (fb) {
-fb.style.display = f.demand && !f.over ? "" : (f.redTape ? "" : "none");
-const nm = f.demand ? H.ACTIONS[f.demand].name : "";</script>
+b.disabled = !ok; b.classList.toggle("off", !ok); b.classList.toggle("lock", !!f.disabled[a]);</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hs2"] = 1;</script>
 <!-- END-OF-FILE: hs2 -->

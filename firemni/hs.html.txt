@@ -79,6 +79,11 @@ html.m #dg-open-btn { display: none; }
 }
 @keyframes hsLow { from { box-shadow: 0 0 0 1px rgba(255,23,68,.4); } to { box-shadow: 0 0 10px 2px rgba(255,23,68,.9); } }
 .hs-bar.low { animation: hsLow .6s ease-in-out infinite alternate; } .hs-bar.low .sta { background: linear-gradient(90deg, #ff1744, #ff6b6b) !important; }
+.hs-sts { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; min-height: 0; }
+.hs-st { display: inline-flex; align-items: center; gap: 1px; padding: 1px 5px; border-radius: 9px; background: rgba(0,240,255,.12); border: 1px solid rgba(0,240,255,.35); font-size: 12px; line-height: 16px; cursor: help; }
+.hs-st.bad { background: rgba(255,23,68,.12); border-color: rgba(255,23,68,.4); }
+.hs-st small { font-size: 9px; font-weight: 800; color: var(--text-main); }
+#hs-tip { position: fixed; z-index: 10070; display: none; max-width: 260px; padding: 7px 9px; border-radius: 8px; background: #0b1220; border: 1px solid var(--cyan); color: #e2e8f0; font-size: 12px; line-height: 1.4; box-shadow: 0 6px 20px rgba(0,0,0,.5); pointer-events: none; }
 </style>
 <div id="dg-screen">
 <div class="dg-top">

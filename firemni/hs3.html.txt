@@ -1,4 +1,11 @@
-<script type="text/plain" data-tt="tt_hs_1" data-i="2">fb.innerHTML = (f.demand && !f.over ? (f.e.mech === "cobol" ? `🥟 "Do you want a bryndza?" - answer with <b>BREATHE</b> ("yes, thanks") or he gets offended`
+<script type="text/plain" data-tt="tt_hs_1" data-i="2">b.classList.toggle("want", !!f.demand && f.demand === a && !f.over);
+const sm = $("hs-as-" + a); if (sm) { const t = f.disabled[a] ? "LOCKED" : f.phase === "react" ? reactHint(f, a) : atkHint(f, a); if (sm.textContent !== t) sm.textContent = t; }
+});
+const fb = $("hs-form");
+if (fb) {
+fb.style.display = f.demand && !f.over ? "" : (f.redTape ? "" : "none");
+const nm = f.demand ? H.ACTIONS[f.demand].name : "";
+fb.innerHTML = (f.demand && !f.over ? (f.e.mech === "cobol" ? `🥟 "Do you want a bryndza?" - answer with <b>BREATHE</b> ("yes, thanks") or he gets offended`
 : f.e.mech === "louis" ? `🫅 SUPREME DECREE: use <b>${nm}</b> this round - anything else adds red tape`
 : `📋 FORM ${H.FORM_NO[f.demand]}: use <b>${nm}</b> this round (bonus damage) - anything else adds red tape` +
 (f.e.mech === "compliance" ? (f.bribed ? ` <b style="color:var(--emerald);">💼 bribed - play anything</b>` : ` <button class="btn btn-gold" style="padding:2px 8px;font-size:11px;margin-left:6px;" ${gameState.coins >= bribeCost(f) ? "" : "disabled"} onclick="Dungeon.bribe()">💼 BRIBE ${fmtShort(bribeCost(f))} GC</button>`) : "")) : "") +
@@ -370,6 +377,40 @@ ${Object.keys(H.ECLS).map(k => row(H.ECLS[k].n.split(" ")[0], H.ECLS[k].n.split(
 Keys on PC: 1-5 = the buttons in order, space = timing / parry, 1-3 = dodge lanes.</div>
 <div style="margin-top:12px;"><button class="btn btn-cyan" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">GOT IT</button></div></div>`;
 document.body.appendChild(el);
+}
+function stIcon(icon, txt, n, bad) { return `<span class="hs-st ${bad ? "bad" : ""}" data-tip="${escapeHtml(txt)}" onclick="HSTip(this)" onmouseenter="HSTip(this)">${icon}${n ? "<small>" + n + "</small>" : ""}</span>`; }
+window.HSTip = function (el) {
+const t = el && el.getAttribute("data-tip"); if (!t) return;
+let b = document.getElementById("hs-tip"); if (!b) { b = document.createElement("div"); b.id = "hs-tip"; document.body.appendChild(b); }
+const r = el.getBoundingClientRect(); b.textContent = t; b.style.display = "block";
+b.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left - 100)) + "px"; b.style.top = (r.bottom + 6) + "px";
+clearTimeout(b.__t); b.__t = setTimeout(() => { b.style.display = "none"; }, 3500);
+};
+window.HSStIcon = stIcon;
+function myBuffs(f) {
+const h = f.h, o = [];
+if (f.fort > 0) o.push(stIcon("🛡", "FORTIFIED: you take 20% less damage (" + f.fort + " rounds)", f.fort));
+if (f.halfNext) o.push(stIcon("🧱", "FIREWALL UP: the next hit you take is halved"));
+if (f.mana > 0) o.push(stIcon("🔮", "MANA " + fmt(f.mana) + ": added to your next hit", ""));
+if (f.channel > 1) o.push(stIcon("✨", "CHANNELED: your next hit ×" + f.channel.toFixed(2)));
+if (f.bm > 0) o.push(stIcon("🩸", "BLOOD MAGIC: your next " + f.bm + " hits heal 25% of their damage", f.bm));
+if (f.sureCrit || f.sureAtk > 0) o.push(stIcon("🎯", f.sureAtk > 0 ? "MARKED FOR DEATH: your next " + f.sureAtk + " attacks always crit" : "SURE CRIT: your next hit crits", f.sureAtk || ""));
+if (f.nocd > 0) o.push(stIcon("☕", "SUGAR RUSH: HEAVY has no cooldown (" + f.nocd + " rounds)", f.nocd));
+if (f.cd && f.cd.heavy > 0) o.push(stIcon("💥", "HEAVY is on cooldown (" + f.cd.heavy + ")", f.cd.heavy, true));
+if (f.poison > 0) o.push(stIcon("🦠", "POISONED: -4% HP per round (" + f.poison + " rounds) - BREATHE cures it", f.poison, true));
+if (f.redTape > 0) o.push(stIcon("📋", "RED TAPE ×" + f.redTape + ": -" + 8 * f.redTape + "% damage", f.redTape, true));
+return o.join("");
+}
+function enemyBuffs(f) {
+const o = [];
+if (f.vuln) o.push(stIcon("💢", "VULNERABLE: your next hit deals ×1.5", "", true));
+if (f.marked && f.h.mark) o.push(stIcon("🏹", "MARKED: takes +" + Math.round(f.h.mark * 100) + "% damage", "", true));
+if (f.epoison > 0) o.push(stIcon("🦠", "INFECTED: loses HP every round (" + f.epoison + ")", f.epoison, true));
+if (f.eguard) o.push(stIcon("🛡", "GUARDING: STRIKE / GAMBLE deal -60%, HEAVY breaks it"));
+if (f.eshieldP > 0) o.push(stIcon("💼", "BUDGET SHIELD " + fmt(f.eshieldP) + ": only HEAVY / ULTIMATE break it at full strength"));
+if (f.adds > 0) o.push(stIcon("📇", f.adds + " intern(s) heal it every round", f.adds));
+if (f.mgr > 0) o.push(stIcon("📈", "MOTIVATED: +" + 12 * f.mgr + "% damage", f.mgr));
+return o.join("");
 }
 window.Dungeon = { bribe: bribe,
 open: openScreen, close: closeScreen, tab: tab, chapter: chapter, mission: mission, start: start, act: act, flee: flee, camp: campSel, ascend: ascend, buyPoint: buyPoint,

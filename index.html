@@ -6872,6 +6872,15 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "11.7", d: "2026-10-30", i: [
+      "🛡 PERFECT parry no longer blocks everything: it takes 75%, counters and makes you <b>FORTIFIED</b> (-20% damage taken for 2 rounds)",
+      "💨 PERFECT dodge (a fast jump into the right lane) <b>always works</b> and does a <b>↩ RIPOSTE</b> (a free 0.5× hit and +10 stamina) - dodging is now as skill-based as parrying",
+      "🛡 The Warden finally has the most HP (×4.4, Caffeine Abuser ×3.8). Duels: from round 13 every hit deals +15% more each round (sudden death), so tanks can't stall forever. Classes re-balanced",
+      "🦠 Warden's ultimate: catching 9 viruses is now enough for 125%",
+      "✨ Buffs and debuffs show as small icons (tap or hover for what they do): Wound, Fortified, mana, Blood Magic, Sugar Rush, poison, HEAVY cooldown... In duels the shield is drawn on the HP bar",
+      "📊 Weekly boss: no 15-round limit any more - it gets 10% stronger every round and your healing and shields 3% weaker, so nobody survives forever",
+      "🗼 Tower BOSS RUSH: once you've conquered floor 100, every prestige tower is just the 10 guardians - stronger each prestige, but each pays 10×"
+    ] },
     { v: "11.6", d: "2026-10-30", i: [
       "⚔ DUEL balance: the Warden has full HP again (it had only 60% in duels), but its block and counter are weaker in PvP. All healing in duels is 35% weaker and getting back up gives 15% HP",
       "🩸 <b>WOUND</b> (anti-heal, duels): a Warden's PERFECT parry or PERFECT HEAVY and the Trojan's BACKDOOR make the enemy heal 50% less for 2 rounds",
@@ -8301,7 +8310,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
   // ------------------------------------------------------------------ TŘÍDY (id sysadmin/engineer/cyber zůstávají kvůli savům)
   const CLASSES = {
-    sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 3.5, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
+    sysadmin: { name: "Firewall Warden", role: "Warrior", icon: "🛡", main: "str", hpM: 4.4, armorM: 1.5, armorCap: 0.3, block: 0.45, blockCost: 35, dodge: 0, counter: 0.5, dmgM: 1.25,
       desc: "Warrior. The most HP and armor, a strong BLOCK (-45%, 35 stamina) - blocking a normal ⚔ attack COUNTERS for half your damage. Can't dodge. PvP: a PERFECT parry or PERFECT HEAVY inflicts 🩸 WOUND (the enemy heals 50% less for 2 rounds).",
       skill: "FIREWALL", skillTxt: "Shield bash 1.4× + a shield of 30% max HP and heal 5%." },
     cyber: { name: "Trojan", role: "Assassin", icon: "🦠", main: "agi", hpM: 4, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.5, critX: 2.5, critAdd: 0.05, dodgeCost: 25, dmgM: 1.15,
@@ -8310,7 +8319,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     engineer: { name: "Code Wizard", role: "Mage", icon: "🧙", main: "int", hpM: 3.9, armorM: 1, armorCap: 0.15, block: 0, dodge: 0, dmgM: 1.75, spellImmune: true, channel: true,
       desc: "Mage. +75% damage and immune to enemy 🔮 spells, but the least HP. No block, no dodge - CHANNEL (20 stamina): hold the marker in a moving band to take 10-35% less damage and store the absorbed damage as MANA, released with your next hit. Enemies dodge your hits only half as often and their blocks work half as well.",
       skill: "PRODUCTION PUSH", skillTxt: "One huge 3.2× hit with double crit chance." },
-    blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 4, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 30, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
+    blood: { name: "Caffeine Abuser", role: "Caffeine Abuser", icon: "☕", main: "str", hpM: 3.8, armorM: 1, armorCap: 0.25, block: 0.4, blockCost: 30, dodge: 0.2, dmgM: 1.1, lifesteal: 0.15, revive: 0.25,
       desc: "Runs on coffee: heals 15% of the damage dealt and has a 25% chance to get back up once per fight with 30% HP. Can block (-40%) and dodge (20%), but neither well.",
       skill: "DOUBLE ESPRESSO", skillTxt: "2.6× hit that heals you for 60% of the damage." },
     hunter: { name: "Bug Hunter", role: "Hunter", icon: "🏹", main: "agi", hpM: 4.2, armorM: 1, armorCap: 0.25, block: 0, dodge: 0.35, dmgM: 1.1, double: true, dodgeCost: 25, firstStrike: true, mark: 0.15,
@@ -8319,7 +8328,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.8, cyber: 0.7, engineer: 0.68, blood: 1.38, hunter: 0.98 } };
+  const PVP = { hp: 2, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 0.64, cyber: 0.69, engineer: 0.77, blood: 1.26, hunter: 1.02 } };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
 
   // ------------------------------------------------------------------ AKCE
@@ -8598,7 +8607,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     dmg = Math.max(0, Math.round(dmg));
     const s = Math.min(f.eshield, dmg); f.eshield -= s;
     f.ehp -= dmg - s;
-    if (dmg > 0 && (f.h.lifesteal || P.vamp)) { const hh = Math.round(dmg * ((f.h.lifesteal || 0) + (P.vamp || 0))); if (hh > 0) { f.hp = Math.min(f.h.maxHp, f.hp + hh); f.lsAcc = (f.lsAcc || 0) + hh; } }
+    if (dmg > 0 && (f.h.lifesteal || P.vamp)) { const hh = Math.round(dmg * ((f.h.lifesteal || 0) + (P.vamp || 0)) * healMul(f)); if (hh > 0) { f.hp = Math.min(f.h.maxHp, f.hp + hh); f.lsAcc = (f.lsAcc || 0) + hh; } }
     if (dmg > f.st.maxHit) f.st.maxHit = dmg;
     return dmg;
   }
@@ -8629,15 +8638,18 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     }
     if (f.mana > 0 && o.crit !== false) { v0 += f.mana; ev(f, "mech", { msg: "🔮 Mana release: +" + f.mana + " damage" }); f.mana = 0; }
     const val = hurtEnemy(f, v0);
-    if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
+    if (f.bm > 0 && val > 0 && o.crit !== false) { f.bm--; const hh = Math.round(Math.min(Math.round(f.h.maxHp * 0.08), Math.round(val * 0.25)) * healMul(f)); f.hp = Math.min(f.h.maxHp, f.hp + hh); ev(f, "mech", { msg: "🩸 Blood Magic: +" + hh + " HP" + (f.bm ? " (" + f.bm + " left)" : "") }); }
     if (f.eguard && f.e.ecls === "firewall" && val > 0) { const d = hurtHero(f, val * 0.2, "reflect"); ev(f, "mech", { msg: "🧱 The Firewall reflects " + d + " damage back at you." }); }
     return { val: val, crit: r.crit };
   }
 
-  function eMult(f) { let m = 1; if (f.e.mech === "pookie") m *= 1 + 0.05 * f.estacks; if (f.rage > 0) m *= 1.3; if (f.mgr) m *= 1 + 0.12 * f.mgr; return m; }
+  /** v11.7: týdenní boss - každé kolo +10 % (násobí se), tvoje léčení a štíty -3 % za kolo (max -90 %) */
+  function healMul(f) { return f.m && f.m.kind === "world" ? Math.max(0.1, 1 - 0.03 * f.turn) : 1; }
+  function eMult(f) { let m = f.m && f.m.kind === "world" ? Math.pow(1.1, f.turn) : 1; if (f.e.mech === "pookie") m *= 1 + 0.05 * f.estacks; if (f.rage > 0) m *= 1.3; if (f.mgr) m *= 1 + 0.12 * f.mgr; return m; }
   function hurtHero(f, dmg, src) {
     const P = f.h.perks || {};
     if (f.h.dr && src !== "backfire" && src !== "withdraw") dmg *= 1 - f.h.dr;
+    if (f.fort > 0 && src !== "backfire" && src !== "poison" && src !== "withdraw") dmg *= 0.8;
     if (f.halfNext && src !== "backfire" && src !== "poison" && src !== "reflect" && dmg > 0) { f.halfNext = false; dmg *= 0.5; }
     dmg = Math.max(0, Math.round(dmg));
     const s = Math.min(f.shield, dmg); f.shield -= s;
@@ -8768,7 +8780,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         if (res.jp) f.st.jackpots++;
         addBreak(f, 9 * Math.min(res.mult, 3) + res.brk);
         let hh = 0;
-        if (res.heal) { hh = Math.round(h.maxHp * res.heal); f.hp = Math.min(h.maxHp, f.hp + hh); }
+        if (res.heal) { hh = Math.round(h.maxHp * res.heal * healMul(f)); f.hp = Math.min(h.maxHp, f.hp + hh); }
         const self = res.self > 0 ? hurtHero(f, f.h.atk * res.self, "backfire") : 0;
         f.focus = Math.min(100, f.focus + 6 + res.foc);
         ev(f, "gamble", { reels: reels, res: res.txt, val: d, crit: c, jp: !!res.jp, mult: res.mult, heal: hh, brk: Math.round(res.brk), foc: res.foc, self: self, respun: respun });
@@ -8778,7 +8790,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (f.adds > 0) { f.adds = 0; ev(f, "mech", { msg: "📇 Your ultimate clears out every intern!" }); }
       const pct = Math.round(q * 100), cls = h.cls, C = CLASSES[cls];
       if (cls === "sysadmin") {
-        const sh = Math.round(h.maxHp * 0.3 * q), hh = Math.round(h.maxHp * 0.05 * q);
+        const sh = Math.round(h.maxHp * 0.3 * q * healMul(f)), hh = Math.round(h.maxHp * 0.05 * q * healMul(f));
         f.shield += sh; f.hp = Math.min(h.maxHp, f.hp + hh);
         const r = myHit(f, 1.4 * q * myMult(f, "ult")); consumeBuffs(f); addBreak(f, 20 * q);
         ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Firewall up (" + pct + "%)! Shield bash for " + r.val + ", +" + sh + " shield, +" + hh + " HP" });
@@ -8793,7 +8805,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, msg: "Backdoor (" + pct + "%) for " + r.val + " - enemy buffs wiped" + (all ? " and its defences BROKEN" : "") });
       } else if (cls === "blood") {
         const r = myHit(f, 2.6 * q * myMult(f, "ult")); consumeBuffs(f);
-        const hh = Math.round(r.val * 0.6); f.hp = Math.min(h.maxHp, f.hp + hh); addBreak(f, 35 * q);
+        const hh = Math.round(r.val * 0.6 * healMul(f)); f.hp = Math.min(h.maxHp, f.hp + hh); addBreak(f, 35 * q);
         ev(f, "skill", { a: C.skill, q: q, val: r.val, crit: r.crit, heal: hh, msg: "Double espresso (" + pct + "%) for " + r.val + " - the caffeine gives you " + hh + " HP" });
       } else {
         let sum = 0, crits = 0; const m = myMult(f, "ult");
@@ -8873,11 +8885,13 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (k === "spell" && h.spellImmune) { ev(f, "immune", {}); f.st.reacts++; }
       else if (r === "dodge") {
         const dq = opt.dq === "perfect" ? 1.6 : opt.dq === "good" ? 1.15 : opt.dq === "none" ? 0.4 : 1;          // v11.1: dodge mini-hra
-        const ch = Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));
+        const ch = opt.dq === "perfect" ? 1 : Math.min(0.95, Math.max(0, f.dodgeCh * dq * Math.pow(0.8, f.dodgeStreak - 1) - 0.04 * f.redTape - (f.slow > 0 ? 0.2 : 0)));   // v11.7: PERFECT dodge = jistý úhyb
         if (R() < ch) {
           f.st.dodges++; f.st.reacts++; f.focus = Math.min(100, f.focus + 5);
           if (h.cls === "cyber") f.sureCrit = true;
-          ev(f, "dodge", { heavy: k !== "atk", sure: h.cls === "cyber" });
+          let rip = 0;
+          if (opt.dq === "perfect") { rip = myHit(f, 0.5 * myMult(f, "strike"), { crit: false }).val; f.sta = Math.min(h.staMax, f.sta + 10); }   // ↩ RIPOSTE
+          ev(f, "dodge", { heavy: k !== "atk", sure: h.cls === "cyber", riposte: rip });
         } else { ev(f, "dodgefail", {}); hitHero(f, dmg, src, k); }
       } else if (r === "block") {
         f.st.usedBlock++;
@@ -8890,12 +8904,13 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
             tier = rs.every(x => x === "perfect") ? "perfect" : rs.filter(x => x !== "none").length >= 2 ? "good" : "none";
           }
         }
-        if (tier === "perfect") {
+        if (tier === "perfect") {                                       // v11.7: PERFECT parry vezme 75 % (ne všechno) + protiútok + 🛡 FORTIFIED (-20 % na 2 kola)
           f.st.perfectBlocks++; f.st.parries++; f.st.reacts++;
+          const taken = hitHero(f, dmg * 0.25, src, k);
           const ctr = myHit(f, (h.cls === "sysadmin" ? 1.0 : 0.6) * myMult(f, "strike"), { crit: false });
           f.focus = Math.min(100, f.focus + 20); f.sta = Math.min(h.staMax, f.sta + 10);
-          addBreak(f, 35); f.stunNext = true;
-          ev(f, "parry", { val: ctr.val, heavy: true });
+          addBreak(f, 35); f.stunNext = true; f.fort = 2;
+          ev(f, "parry", { val: ctr.val, heavy: true, taken: taken });
         } else {
           if (tier === "good") { red = Math.min(0.95, red + 0.35); f.st.perfectBlocks++; f.st.reacts++; }
           if (k === "withdraw" && tier !== "good") red = 0;
@@ -8965,6 +8980,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (e.mech === "serverroom" && f.turn % 4 === 0) { const d0 = Math.min(f.sta, 15); f.sta -= d0; ev(f, "mech", { msg: "🌀 FAN FAILURE: the heat drains " + d0 + " stamina." }); }
     if (f.epoison > 0 && f.ehp > 0) { f.epoison--; const d = hurtEnemy(f, Math.min(f.emax * 0.04, h.atk * 1.5)); ev(f, "mech", { msg: "🦠 Infection: -" + d + " HP to " + e.name }); }
     if (f.nocd > 0) f.nocd--;
+    if (f.fort > 0) f.fort--;
     if (f.poison > 0 && f.hp > 0) { f.poison--; const d = hurtHero(f, h.maxHp * 0.04, "poison"); ev(f, "mech", { msg: "🦠 Poison: -" + d + " HP" }); }
     if (e.ecls === "manager" && f.turn % 3 === 0 && !f.estun) { f.mgr = (f.mgr || 0) + 1; ev(f, "mech", { msg: "📈 \"Let's go team!\" The Manager motivates itself: +" + 12 * f.mgr + "% damage (BREAK it to reset)." }); }
     const P = h.perks || {};
@@ -9164,6 +9180,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     o = o || {};
     const A = d.c[a], B = d.c[b];
     let m = mult * (d.chan[a] || 1) * (d.mark[a] ? 1 + (A.mark || 0) : 1) * (d.vuln[b] ? 1.5 : 1) * ((d.pv && d.pv[a]) || 1);
+    if (d.turn > 12) m *= 1 + 0.15 * (d.turn - 12);                       // v11.7: NÁHLÁ SMRT - od 13. kola +15 % damage každé kolo (žádné nekonečné tankování)
     d.vuln[b] = false;
     const sure = d.sure[a]; if (sure) d.sure[a] = false;
     const r = rawHit(d.R, A, Object.assign({}, B, { armorRed: o.ignoreArmor ? 0 : d.armor[b] }), { mult: m, crit: sure || o.crit ? true : undefined, critMul: o.critMul, critAdd: o.critAdd });
@@ -9187,7 +9204,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     opt = opt || {};
     ["cd", "bm", "ep", "sa", "nocd"].forEach(k => { if (!d[k]) d[k] = [0, 0]; });
     ["gd", "gu"].forEach(k => { if (!d[k]) d[k] = [false, false]; });
-    if (!d.wd) d.wd = [0, 0];
+    if (!d.wd) d.wd = [0, 0]; if (!d.fort) d.fort = [0, 0];
     const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
     if (!duelAtkOk(d, i, a)) a = "strike";
     if (!duelReactOk(d, j, r)) r = "brace";
@@ -9223,7 +9240,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     }
     // reakce obránce
     const magic = A.cls === "engineer", big = a !== "strike", ult3 = a === "ult";
-    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0, cvD = 0;
+    let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0, cvD = 0, riposte = 0;
     if (!d.mana) d.mana = [0, 0];
     if (hits.length) {
       if (r === "dodge") {
@@ -9232,24 +9249,26 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         if (ult3 && dqs) {                                                // v11.2: proti ULTI 3 uskoky - každý úspěšný vezme třetinu
           dodged = dqs.filter(x => R() < chOf(x)).length; scale = 1 - dodged / 3;
           if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : "dodgefail";
-        } else if (R() < chOf(dq1)) outcome = "dodge", hits = [];
+        } else if (dq1 === "perfect" || R() < chOf(dq1)) outcome = "dodge", hits = [];   // v11.7: PERFECT dodge = jistý (i proti Mágovi)
         else outcome = "dodgefail";
-        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true; }
+        if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true;
+          if (dq1 === "perfect" && !(ult3 && dqs && dqs.some(x => x !== "perfect"))) { const rp = dHit(d, j, i, 0.5, {}); riposte = dHurt(d, i, rp.v); d.sta[j] = Math.min(100, d.sta[j] + 10); } }
       }
       let red = 0;
       if (r === "channel") { cvD = chanVal(opt); red = 0.1 + 0.25 * cvD; d.chan[j] = 1.2; outcome = "channel"; }
       if (r === "block") {
-        const bk = B.block * ((PVP.blk || {})[B.cls] || 1) * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 1 : x === "good" ? Math.min(0.95, bk + 0.35) : bk;
+        const bk = B.block * ((PVP.blk || {})[B.cls] || 1) * (a === "strike" ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 0.75 : x === "good" ? Math.min(0.7, bk + 0.3) : bk;
         if (ult3 && rings) red = rings.reduce((s2, x) => s2 + tierRed(x), 0) / 3;
         else red = big ? tierRed(parry) : bk;
         const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
         if (magic) red *= 0.5;                                            // v11.2: proti Mágovi blok funguje jen z poloviny
-        outcome = full ? "parry" : "block";                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
+        outcome = full ? "parry" : "block";
+        if (full) d.fort[j] = 2;                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
       }
       hits.forEach(m => {
         const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul, critAdd: critAdd, crit: forceCrit || undefined });
         if (d.mana[i] > 0) { h0.v += d.mana[i]; manaOut = d.mana[i]; d.mana[i] = 0; }
-        let v = h0.v * scale * (1 - red);
+        let v = h0.v * scale * (1 - red) * (d.fort[j] > 0 ? 0.8 : 1);
         if (d.gd[j] && v > 0) { d.gd[j] = false; v *= 0.5; }
         saved += h0.v - v; const got = dHurt(d, j, v); total += got; hv.push(got); if (h0.crit) anyCrit = true;
       });
@@ -9270,7 +9289,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (a === "heavy" && timing === "PERFECT" && A.cls === "sysadmin" && total > 0) { d.wd[j] = 2; wound = "heavy"; }
     if (a === "ult" && A.cls === "cyber" && total > 0) { d.wd[j] = 2; wound = "backdoor"; }
     const absorbed = d.absorbed || 0; d.absorbed = 0;
-    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined, shield: absorbed || undefined, wound: wound || undefined, healCut: healRaw > healSelf ? healRaw - healSelf : undefined, cv: r === "channel" ? Math.round(cvD * 100) / 100 : undefined, parry: r === "block" && !rings ? parry : undefined });
+    if (a !== "ult" || A.cls !== "sysadmin") dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined, shield: absorbed || undefined, wound: wound || undefined, riposte: riposte || undefined, healCut: healRaw > healSelf ? healRaw - healSelf : undefined, cv: r === "channel" ? Math.round(cvD * 100) / 100 : undefined, parry: r === "block" && !rings ? parry : undefined });
     // v11.2: tip u ulti - uhodl útočník reakci obránce?
     if (a === "ult" && opt.guess) {                                       // v11.6: u každé ulti; první trefa plný efekt, další poloviční
       const ok = opt.guess === r, k = d.gu[i] ? 0.5 : 1;
@@ -9288,7 +9307,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
     d.half++;
     if (d.half % 2 === 0) {
-      for (let k = 0; k < 2; k++) { d.foc[k] = Math.min(100, d.foc[k] + 10); if (d.wd[k] > 0) d.wd[k]--; }      // v11.1: stamina se sama nedoplňuje
+      for (let k = 0; k < 2; k++) { d.foc[k] = Math.min(100, d.foc[k] + 10); if (d.wd[k] > 0) d.wd[k]--; if (d.fort[k] > 0) d.fort[k]--; }      // v11.1: stamina se sama nedoplňuje
       for (let k = 0; k < 2; k++) if (d.ep[k] > 0 && d.hp[k] > 0) { d.ep[k]--; const pv = dHurt(d, k, d.max[k] * 0.04); dEv(d, "poison", { who: k, val: pv }); }
       d.turn++;
       if (d.hp[0] <= 0 || d.hp[1] <= 0) return duelEnd(d, d.hp[0] > 0 ? 0 : d.hp[1] > 0 ? 1 : (d.hp[0] >= d.hp[1] ? 0 : 1), start);
@@ -9532,8 +9551,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     mk = Math.max(1, mk | 0 || 1);
     const e = H().buildEnemy(spec(src, Math.max(1, L | 0), "world", { name: w.e + (mk > 1 ? " " + mkName(mk) : ""), icon: w.i, mech: w.mech, sprite: src.id, arch: "bal", dmgM: 1.05 * (1 + 0.25 * (mk - 1)), pattern: Object.assign({}, P.boss) }));
     e.maxHp = e.hp = Math.max(1, Math.round(hpLeft));
-    return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + (w.cls ? w.cls + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. 15 rounds, deal as much damage as you can.",
-      kind: "world", bonus: {}, survive: 0, turnLimit: 15, level: e.level, enemy: e };
+    return { id: 3000, name: "QUARTERLY REVIEW: " + w.e, intro: (w.t ? w.t + " " : "") + (w.cls ? w.cls + " " : "") + "Weekly world boss. Everyone in the company hits the same HP bar. No round limit - it gets 10% stronger every round and your healing and shields get weaker, so nobody survives forever. Deal as much damage as you can.",
+      kind: "world", bonus: {}, survive: 0, turnLimit: 0, level: e.level, enemy: e };      // v11.7: bez limitu kol, boss každé kolo sílí
   }
 
   /** CLEAR THE POOL - nekonečná patra od levelu 46 (+0.8 levelu za patro), každé 5. elite, každé 25. tematický boss. */
@@ -10286,7 +10305,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       }
       function boom() { F.style.background = "#3a0b12"; end("💥 BOMB! "); }
       function end(t) { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true);
-        const q = qOf(caught, 12); finish(ov, t + caught + " viruses · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
+        const q = qOf(caught, 9); finish(ov, t + caught + " viruses · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
       raf = requestAnimationFrame(frame);
     });
   }
@@ -10613,6 +10632,11 @@ html.m #dg-open-btn { display: none; }
 }
 @keyframes hsLow { from { box-shadow: 0 0 0 1px rgba(255,23,68,.4); } to { box-shadow: 0 0 10px 2px rgba(255,23,68,.9); } }
 .hs-bar.low { animation: hsLow .6s ease-in-out infinite alternate; } .hs-bar.low .sta { background: linear-gradient(90deg, #ff1744, #ff6b6b) !important; }
+.hs-sts { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; min-height: 0; }
+.hs-st { display: inline-flex; align-items: center; gap: 1px; padding: 1px 5px; border-radius: 9px; background: rgba(0,240,255,.12); border: 1px solid rgba(0,240,255,.35); font-size: 12px; line-height: 16px; cursor: help; }
+.hs-st.bad { background: rgba(255,23,68,.12); border-color: rgba(255,23,68,.4); }
+.hs-st small { font-size: 9px; font-weight: 800; color: var(--text-main); }
+#hs-tip { position: fixed; z-index: 10070; display: none; max-width: 260px; padding: 7px 9px; border-radius: 8px; background: #0b1220; border: 1px solid var(--cyan); color: #e2e8f0; font-size: 12px; line-height: 1.4; box-shadow: 0 6px 20px rgba(0,0,0,.5); pointer-events: none; }
 </style>
 
 <div id="dg-screen">
@@ -10811,7 +10835,7 @@ html.m #dg-open-btn { display: none; }
     }
     return d;
   }
-  function towerFloorsTotal(d) { d = d || HS(); return d.tower.best + (d.tower.tot || 0); }
+  function towerFloorsTotal(d) { d = d || HS(); return d.tower.best * (d.tower.rush ? 10 : 1) + (d.tower.tot || 0); }
   /** v11.1: gear se mění (6 rarit, padá podle prestiže) -> starý gear pryč, za něj GC + šedý startovní kit na tvém levelu */
   function gearReset111() {
     const gc = Gear.wipe();
@@ -11025,7 +11049,7 @@ html.m #dg-open-btn { display: none; }
     d.sb = (d.sb || 0) + campStars(0, d);
     Object.keys(d.sm).forEach(id => { if (d.sm[id] > 0) d.cl[id] = 1; });
     d.hsp = (d.hsp || 0) + 1; d.sm = {}; d.stars = {}; chSel = 0;
-    d.tower.tot = (d.tower.tot || 0) + d.tower.best; d.tower.best = 0;
+    d.tower.tot = (d.tower.tot || 0) + d.tower.best * (d.tower.rush ? 10 : 1); d.tower.best = 0; d.tower.rush = 0;
     d.shift = { best: 0, asc: 0, runs: (d.shift && d.shift.runs) || 0, clears: (d.shift && d.shift.clears) || 0 };
     if (d.col) d.col.target = null;
     if (window.Gear && Gear.resetUpgrades) Gear.resetUpgrades();
@@ -11247,12 +11271,12 @@ html.m #dg-open-btn { display: none; }
           <div class="hs-bars">
             <div class="hs-lbl"><span>HP</span><span id="hs-hpt"></span></div><div class="hs-bar"><div class="hp" id="hs-hp"></div><div class="sh" id="hs-sh"></div></div>
             <div class="hs-lbl"><span>STAMINA</span><span id="hs-stat"></span></div><div class="hs-bar"><div class="sta" id="hs-sta"></div></div>
-            <div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div></div></div>
+            <div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div><div class="hs-sts" id="hs-buffs"></div></div></div>
         <div class="dg-vs">VS</div>
         <div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div class="dg-sub">LV ${f.e.level}${f.e.archName ? " · " + f.e.archName : ""}</div><div id="hs-intent">${intentHtml()}</div>
           <div id="dg-bs">${enemySprite(m)}</div>
           <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div>
-            <div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div></div></div>
+            <div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div><div class="hs-sts" id="hs-ebuffs"></div></div></div>
       </div>
       <div class="dg-mech" id="dg-mech"></div>
       <div class="hs-coach" id="hs-coach" style="display:none;"></div>
@@ -11282,6 +11306,8 @@ html.m #dg-open-btn { display: none; }
     txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
     txt("hs-turn", "ROUND " + Math.max(1, f.turn + (f.phase === "atk" ? 1 : 0)) + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
     if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
+    const bf = $("hs-buffs"); if (bf) { const x = myBuffs(f); if (bf.__h !== x) { bf.innerHTML = x; bf.__h = x; } }
+    const eb = $("hs-ebuffs"); if (eb) { const x = enemyBuffs(f); if (eb.__h !== x) { eb.innerHTML = x; eb.__h = x; } }
     const it = $("hs-intent"); if (it) { const ih = intentHtml(); if (it.__h !== ih) { it.innerHTML = ih; it.__h = ih; } }
     const ph = $("hs-phase");
     if (ph) { const t = f.over ? "" : f.phase === "react" ? `<span class="p-react">② REACT!</span><small>${escapeHtml(f.e.name)} shows its move - pick your reaction</small>` : `<span class="p-atk">① YOUR ATTACK</span><small>${f.channel ? "🔮 channeled ×1.6 · " : ""}${f.sureCrit ? "🎯 sure crit · " : ""}${f.vuln ? "💢 vulnerable ×1.5 · " : ""}then it reacts with its move</small>`;
@@ -11690,6 +11716,41 @@ html.m #dg-open-btn { display: none; }
     document.body.appendChild(el);
   }
 
+  // v11.7: IKONKY BUFFŮ / DEBUFFŮ s vysvětlivkou (najetí myší nebo ťuknutí)
+  function stIcon(icon, txt, n, bad) { return `<span class="hs-st ${bad ? "bad" : ""}" data-tip="${escapeHtml(txt)}" onclick="HSTip(this)" onmouseenter="HSTip(this)">${icon}${n ? "<small>" + n + "</small>" : ""}</span>`; }
+  window.HSTip = function (el) {
+    const t = el && el.getAttribute("data-tip"); if (!t) return;
+    let b = document.getElementById("hs-tip"); if (!b) { b = document.createElement("div"); b.id = "hs-tip"; document.body.appendChild(b); }
+    const r = el.getBoundingClientRect(); b.textContent = t; b.style.display = "block";
+    b.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left - 100)) + "px"; b.style.top = (r.bottom + 6) + "px";
+    clearTimeout(b.__t); b.__t = setTimeout(() => { b.style.display = "none"; }, 3500);
+  };
+  window.HSStIcon = stIcon;
+  function myBuffs(f) {
+    const h = f.h, o = [];
+    if (f.fort > 0) o.push(stIcon("🛡", "FORTIFIED: you take 20% less damage (" + f.fort + " rounds)", f.fort));
+    if (f.halfNext) o.push(stIcon("🧱", "FIREWALL UP: the next hit you take is halved"));
+    if (f.mana > 0) o.push(stIcon("🔮", "MANA " + fmt(f.mana) + ": added to your next hit", ""));
+    if (f.channel > 1) o.push(stIcon("✨", "CHANNELED: your next hit ×" + f.channel.toFixed(2)));
+    if (f.bm > 0) o.push(stIcon("🩸", "BLOOD MAGIC: your next " + f.bm + " hits heal 25% of their damage", f.bm));
+    if (f.sureCrit || f.sureAtk > 0) o.push(stIcon("🎯", f.sureAtk > 0 ? "MARKED FOR DEATH: your next " + f.sureAtk + " attacks always crit" : "SURE CRIT: your next hit crits", f.sureAtk || ""));
+    if (f.nocd > 0) o.push(stIcon("☕", "SUGAR RUSH: HEAVY has no cooldown (" + f.nocd + " rounds)", f.nocd));
+    if (f.cd && f.cd.heavy > 0) o.push(stIcon("💥", "HEAVY is on cooldown (" + f.cd.heavy + ")", f.cd.heavy, true));
+    if (f.poison > 0) o.push(stIcon("🦠", "POISONED: -4% HP per round (" + f.poison + " rounds) - BREATHE cures it", f.poison, true));
+    if (f.redTape > 0) o.push(stIcon("📋", "RED TAPE ×" + f.redTape + ": -" + 8 * f.redTape + "% damage", f.redTape, true));
+    return o.join("");
+  }
+  function enemyBuffs(f) {
+    const o = [];
+    if (f.vuln) o.push(stIcon("💢", "VULNERABLE: your next hit deals ×1.5", "", true));
+    if (f.marked && f.h.mark) o.push(stIcon("🏹", "MARKED: takes +" + Math.round(f.h.mark * 100) + "% damage", "", true));
+    if (f.epoison > 0) o.push(stIcon("🦠", "INFECTED: loses HP every round (" + f.epoison + ")", f.epoison, true));
+    if (f.eguard) o.push(stIcon("🛡", "GUARDING: STRIKE / GAMBLE deal -60%, HEAVY breaks it"));
+    if (f.eshieldP > 0) o.push(stIcon("💼", "BUDGET SHIELD " + fmt(f.eshieldP) + ": only HEAVY / ULTIMATE break it at full strength"));
+    if (f.adds > 0) o.push(stIcon("📇", f.adds + " intern(s) heal it every round", f.adds));
+    if (f.mgr > 0) o.push(stIcon("📈", "MOTIVATED: +" + 12 * f.mgr + "% damage", f.mgr));
+    return o.join("");
+  }
   window.Dungeon = { bribe: bribe,
     open: openScreen, close: closeScreen, tab: tab, chapter: chapter, mission: mission, start: start, act: act, flee: flee, camp: campSel, ascend: ascend, buyPoint: buyPoint,
     leave: leave, retry: retry, next: nextM, pickClass: pickClass, respec: respec, tokenEnergy: tokenEnergy, stat: stat, resetStats: resetStats,
@@ -12261,7 +12322,23 @@ html.m #dg-open-btn { display: none; }
   // ================================================================== TOWER (100 pater; v11.1: High Stakes prestiž = +40 levelů a +67 %, tower začíná znovu)
   function towerGc(f, P) { return Math.round(C.gcAt(C.towerLevel(f, P), f % 10 === 0 ? "boss" : f % 5 === 0 ? "elite" : "normal") * 0.6 * (1 + 0.25 * P) * A.presBonus()); }
   function towerXp(f, P) { return Math.round(C.xpAt(C.towerLevel(f, P), f % 10 === 0 ? "boss" : f % 5 === 0 ? "elite" : "normal") * 0.6); }
+  // v11.7: BOSS RUSH - kdo už jednou dobyl patro 100, má po další prestiži jen 10 pater = 10 strážců (silnějších podle prestiže, 10× odměna)
+  const RUSH = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  function isRush(d) { return (d.hsp || 0) > 0 && (d.tower.conq || (d.tower.tot || 0) >= 100); }
+  function rushHtml(box, d) {
+    const P = d.hsp || 0, b = Math.min(10, d.tower.best), next = Math.min(10, b + 1), bf = RUSH[next - 1], m = C.towerFloor(bf, P);
+    const cells = RUSH.map((f, i) => `<div class="${i < b ? "ok" : i === b ? "nx" : ""} bs">${f === 100 ? "🕶" : "☠"}</div>`).join("");
+    box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>🗼 SERVER TOWER · BOSS RUSH · 🔺P${P}</span><span>${b}/10</span></div>
+      <div class="dg-dim">You already conquered the tower, so after a prestige it's only the <b>10 guardians</b> (floors 10, 20 ... 100) - stronger with every prestige, but every one pays <b>10×</b> a normal floor. Don't expect to clear all 10 right away.</div></div>
+      ${b >= 10 ? `<div class="dg-card dg-lock"><div class="big">🏆</div><div style="font:800 14px Orbitron,monospace;color:var(--amber);">BOSS RUSH CLEARED</div><div class="dg-dim">All 10 guardians down. Prestige High Stakes for a harder rush.</div></div>`
+      : `<div class="dg-card"><div class="dg-h"><span>GUARDIAN ${next}/10: ${esc(m.name)}</span><span>⚡1</span></div>
+        <div class="hm-row">${A.enemySprite(m)}<div class="dg-dim"><b>${m.enemy.icon} ${esc(m.enemy.name)}</b> · LV ${m.level} · ❤ ${fmt(m.enemy.maxHp)} · ⚔ ~${fmt(m.enemy.atk)}<br>
+        Reward: ${fmt(towerXp(bf, P) * 10)} XP, ${fmt(towerGc(bf, P) * 10)} GC, a GC bonus and +1% permanent power<br>Your stats (LV ${d.level}): ${A.statLine()}</div></div>
+        <button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px;" onclick="HSModes.towerGo()">⚔ FIGHT GUARDIAN ${next} (⚡1)</button></div>`}
+      <div class="dg-card"><div class="dg-h">GUARDIANS</div><div class="tw-grid">${cells}</div></div>`;
+  }
   function towerHtml(box) {
+    const d0 = A.HS(); if (isRush(d0)) return rushHtml(box, d0);
     const d = A.HS(), P = d.hsp || 0, b = d.tower.best, next = Math.min(100, b + 1), m = C.towerFloor(next, P);
     const cells = [];
     for (let f = 1; f <= 100; f++) { const bs = !!C.TOWER_BOSS[f]; cells.push(`<div class="${f <= b ? "ok" : f === b + 1 ? "nx" : ""} ${bs ? "bs" : ""}">${f === 100 ? "🕶" : bs ? "☠" : f}</div>`); }
@@ -12277,18 +12354,19 @@ html.m #dg-open-btn { display: none; }
   }
   function towerTier() { A.render(); }
   function towerGo() {
-    const d = A.HS(), P = d.hsp || 0, f = d.tower.best + 1;
-    if (f > 100) return;
+    const d = A.HS(), P = d.hsp || 0, rush = isRush(d), ri = d.tower.best + 1, f = rush ? RUSH[ri - 1] : d.tower.best + 1, K = rush ? 10 : 1;
+    if (rush ? ri > 10 : f > 100) return;
     if (!A.spendEnergy(1)) { log("HIGH STAKES: not enough energy.", "warning"); A.render(); return; }
     const m = C.towerFloor(f, P);
-    A.beginFight(m, { mode: "tower", hud: () => `🗼 ${P ? "P" + P + " · " : ""}Floor ${f}/100${f % 10 === 0 ? " · BOSS" : f % 5 === 0 ? " · ELITE" : ""} · enemy LV ${m.level}`,
+    A.beginFight(m, { mode: "tower", hud: () => rush ? `🗼 P${P} · BOSS RUSH ${ri}/10 · enemy LV ${m.level}` : `🗼 ${P ? "P" + P + " · " : ""}Floor ${f}/100${f % 10 === 0 ? " · BOSS" : f % 5 === 0 ? " · ELITE" : ""} · enemy LV ${m.level}`,
       onEnd: function (fi) {
         const lines = [], dd = A.HS();
         if (fi.win) {
           dd.wins++;
-          dd.tower.best = Math.max(dd.tower.best, f);
-          const gc = towerGc(f, P); gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
-          A.gainXp(towerXp(f, P), lines); lines.unshift(`+${fmt(towerXp(f, P))} XP`);
+          dd.tower.best = Math.max(dd.tower.best, rush ? ri : f);
+          if (f === 100) dd.tower.conq = 1; if (rush) dd.tower.rush = 1;
+          const gc = towerGc(f, P) * K; gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
+          A.gainXp(towerXp(f, P) * K, lines); lines.unshift(`+${fmt(towerXp(f, P) * K)} XP`);
           if (f % 10 === 0) { A.dropItem(lines, m.level); lines.push(`💪 +1% permanent power`); }
           if (f === 100) {
             TT.announce(P ? "CONQUERED THE SERVER TOWER ON PRESTIGE " + P : "CONQUERED THE SERVER TOWER", "HIGH STAKES", 0, gc);
@@ -12297,7 +12375,7 @@ html.m #dg-open-btn { display: none; }
           log(`🗼 TOWER floor ${f} cleared - ${lines.join(", ")}`, "special");
         } else { dd.losses++; const xp = fi.fled ? 0 : Math.round(towerXp(f, P) * 0.3); if (xp) A.gainXp(xp, lines); lines.push(xp ? `+${fmt(xp)} XP` : "no reward"); }
         const btns = [{ label: "◀ TOWER", fn: () => Dungeon.tab("tower") }];
-        if (fi.win && f < 100) btns.push({ label: `FLOOR ${f + 1} ▶`, cls: "btn-gold", fn: towerGo });
+        if (fi.win && f < 100) btns.push({ label: rush ? `GUARDIAN ${ri + 1} ▶` : `FLOOR ${f + 1} ▶`, cls: "btn-gold", fn: towerGo });
         else if (!fi.win) btns.push({ label: "↻ RETRY", cls: "btn-cyan", fn: towerGo });
         return { title: fi.win ? `FLOOR ${f} CLEARED` : "FALLEN", lines: lines, buttons: btns };
       } });
@@ -12545,11 +12623,11 @@ html.m #dg-open-btn { display: none; }
     box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
       <div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
         <div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
-        <div class="dg-dim">Everyone in the company hits the same boss (always your level). 1 attack per hour, 15 rounds, no energy needed. HP grows with every new attendee.
+        <div class="dg-dim">Everyone in the company hits the same boss (always your level). 1 attack per hour, no round limit (it gets +10% stronger every round and your healing / shields weaker - nobody survives forever), no energy needed. HP grows with every new attendee.
         When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.8 HP, +25% ATK).<br>${C.WB[c.idx % C.WB.length].cls ? `<b style="color:var(--amber);">⚙ ${esc(C.WB[c.idx % C.WB.length].cls)}</b><br>` : ""}
         ${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
         Next kill → <b>×${(1 + rwN.buff).toFixed(2)}</b>.</div></div></div>
-      ${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING (15 turns)"}</button>`}
+      ${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width:100%;padding:11px;margin-top:8px;" ${wait > 0 || wb.busy ? "disabled" : ""} onclick="HSModes.wbGo()">${wait > 0 ? "⏳ NEXT ATTACK IN " + fmtT(wait) : "⚔ ATTEND THE MEETING"}</button>`}
       <div class="dg-dim" style="margin-top:6px;">Your damage this week: <b>${fmt(c.me.dmg)}</b> in ${c.me.n} attack${c.me.n === 1 ? "" : "s"}${A.HS().wb.buffWeek === week() ? ` · 🎉 Active bonus: <b>×${(1 + A.HS().wb.buff).toFixed(2)}</b> office income` : ""}</div></div>
       <div class="dg-grid2"><div class="dg-card"><div class="dg-h">DAMAGE LEADERBOARD</div><div class="wb-lb">${lb}</div></div>
       <div class="dg-card"><div class="dg-h">LAST WEEK</div><div class="dg-dim">${l ? `${esc(C.WB[l.idx % C.WB.length].e)} - ${l.killed ? "<b style='color:var(--emerald);'>DEFEATED" + (l.kills > 1 ? " " + l.kills + "× (" + C.mkName(l.kills) + ")" : "") + "</b>" : "<b style='color:var(--crimson);'>SURVIVED</b>"} · ${l.participants} attendees<br>
@@ -12562,7 +12640,7 @@ html.m #dg-open-btn { display: none; }
     const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1);
     let atkUsed = 0;
     A.beginFight(m, { mode: "boss", prepHero: (h) => { atkUsed = h.atk; },
-      hud: (f) => `📊 Quarterly Review · round ${Math.min(15, f.turn + 1)}/15 · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,
+      hud: (f) => `📊 Quarterly Review · round ${f.turn + 1} · boss ×${Math.pow(1.1, f.turn).toFixed(1)} · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,
       onEnd: function (f) {
         const dmg = Math.round(f.emax - Math.max(0, f.ehp));
         wb.busy = true;
@@ -12828,15 +12906,31 @@ html.m #dg-open-btn { display: none; }
 
   // ---------- vykreslení
   function bar(cls, v, m) { return `<div class="hs-bar"><div class="${cls}" style="width:${Math.max(0, Math.min(100, v / Math.max(1, m) * 100))}%"></div></div>`; }
+  /** v11.7: ikonky buffů / debuffů v duelu (s vysvětlivkou) */
+  function duelBuffs(v, i, h) {
+    const I = window.HSStIcon || (() => ""), o = [], g = (k) => v[k] ? v[k][i] : 0;
+    if (g("wd") > 0) o.push(I("🩸", "WOUND: heals 50% less (" + g("wd") + " rounds)", g("wd"), true));
+    if (g("fort") > 0) o.push(I("🛡", "FORTIFIED: takes 20% less damage (" + g("fort") + " rounds)", g("fort")));
+    if (g("mana") > 0) o.push(I("🔮", "MANA " + fmt(g("mana")) + ": added to the next hit"));
+    if (v.chan && v.chan[i] > 1) o.push(I("✨", "CHANNELED: next hit ×" + v.chan[i]));
+    if (g("bm") > 0) o.push(I("🩸", "BLOOD MAGIC: next " + g("bm") + " hits heal 25%", g("bm")));
+    if (g("ep") > 0) o.push(I("🦠", "INFECTED: loses 4% HP every round (" + g("ep") + ")", g("ep"), true));
+    if (g("sa") > 0 || g("sure")) o.push(I("🎯", g("sa") > 0 ? "MARKED FOR DEATH: next " + g("sa") + " attacks always crit" : "SURE CRIT: next hit crits", g("sa") || ""));
+    if (g("nocd") > 0) o.push(I("☕", "SUGAR RUSH: HEAVY has no cooldown (" + g("nocd") + ")", g("nocd")));
+    if (g("cd") > 0) o.push(I("💥", "HEAVY on cooldown", "", true));
+    if (g("vuln")) o.push(I("💢", "VULNERABLE: next hit taken ×1.5", "", true));
+    if (h && h.cls === "engineer") o.push(I("🧙", "MAGE: hits are dodged at half the chance and blocks only work half as well"));
+    return o.join("");
+  }
   function side(v, i, h) {
     const nm = (window.Nick ? Nick.of(v.names[i]) : v.names[i]) || "?", mine = i === v.you;
     const sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
     const max = v.max ? v.max[i] : (h ? h.maxHp : 1), hp = v.hp ? v.hp[i] : max;
     return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
       <div id="du-s${i}">${sprite}</div>
-      <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div>${bar("hp", hp, max)}
+      <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div><div class="hs-bar"><div class="hp" style="width:${Math.max(0, Math.min(100, hp / Math.max(1, max) * 100))}%"></div>${v.sh && v.sh[i] ? `<div class="sh" style="width:${Math.min(100, v.sh[i] / Math.max(1, max) * 100)}%"></div>` : ""}</div>
         <div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}
-        <div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}</div></div>`;
+        <div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}<div class="hs-sts">${duelBuffs(v, i, h)}</div></div></div>`;
   }
   function buttons(v, hs) {
     if (v.status !== "play" || !v.role) return "";
