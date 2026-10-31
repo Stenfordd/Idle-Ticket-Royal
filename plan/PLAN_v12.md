@@ -49,7 +49,7 @@ Kamarád: tmavá břidlice + zlatá + patkové písmo + fantasy ilustrace. My ud
 
 ## 7. CLASS REWORK (WoW inspirace) + duel bez oneshotů – návrh, čeká na schválení
 - Duel: HP ×3 místo ×2, ŽÁDNÁ rána nad 35 % max HP soupeře (mimo náhlou smrt), náhlá smrt zůstává -> žádný oneshot ani nekonečný fight.
-- Debuffy: max 2 aktivní debuffy od jednoho soupeře (Trojan nedá 3 najednou).
+- Debuffy: BEZ limitu počtu (zrušeno 1. 11.) – platí pravidla níž: stejný debuff se nestackuje, DoT max 15 % max HP/kolo, BREATHE sundá 1 debuff.
 - Warden -> FURY WARRIOR (Rage z dávaného/přijatého dmg, Enrage po critu +20 % 2 kola, Bloodthirst malý heal, ult RAMPAGE; slabší block, není tank).
 - Trojan -> DESTRO WARLOCK (Immolate DoT, Soul Shards z DoT ticků, ult CHAOS BOLT = jistý crit, Dark Pact štít místo dodge).
 - Mage -> ARCANE MAGE (Arcane Charges 0-4: každý útok +dmg i +cena, Arcane Barrage je vybije, Clearcasting proc, Evocation místo BREATHE).
@@ -74,7 +74,7 @@ Kamarád: tmavá břidlice + zlatá + patkové písmo + fantasy ilustrace. My ud
 
 ## 9. DATA NÁVRH – spellbooky (8 schopností) + talenty (6 řádků × 3)
 Společné: STRIKE + BREATHE vždy, do panelu 4 z 8. Odemykání: L1, L1, L5, L10, L15, L20, L30, L40. Talentové řádky: L10/20/30/40/50/60.
-Ult (fokus) zůstává 1 na třídu + minihra. Cap: žádná rána >35 % max HP (duel), max 2 debuffy od 1 soupeře.
+Ult (fokus) zůstává 1 na třídu + minihra. Cap: žádná rána >35 % max HP (duel); debuffy bez limitu počtu (viz §7).
 
 ### FURY WARRIOR (Rage 0–100: STRIKE +15, přijatý dmg +1 za 1 % max HP, rozpad −5/kolo)
 | Schopnost | Cena | CD | Efekt |
@@ -268,7 +268,7 @@ Návrh:
 9. SETY LITE (schváleno): každá třída 1 set, jen 2-kusový bonus (malý, bez změny ulti): Berserker "Overtime Suit" +10 % Stress z ran; Burnout "Smoke Break" DoT +1 kolo; Excel "Spreadsheet Robes" 4. formule −20 % ceny; Monk "Barista Kit" +1 Shot na začátku boje; Headhunter "Recruiter Lanyard" kočka +10 % dmg. Set kusy padají jako T3+ s tagem setu. 4-kus později.
 
 ## 18. FINÁLNÍ POŘADÍ (napiš jen "Gen")
-Etapa 1 – 3a JÁDRO: schopnosti jako data, 5 nových tříd (office jména, §9–11), převod tříd auto, duel HP×3 + cap 35 %, debuff pravidla (§7), balanc dle sim (§14), sekundární staty + Mastery (§17.7), sety lite.
+Etapa 1 – 3a JÁDRO: schopnosti jako data, 5 nových tříd (office jména, §9–11), převod tříd auto, duel HP×3 + cap 35 %, debuffy BEZ limitu počtu (nestackují se, DoT cap 15 %/kolo, BREATHE čistí), balanc dle sim (§14), sekundární staty + Mastery (§17.7), sety lite.
 Etapa 2 – 3b UI+POSTAVY: talenty (§9), akční panel, office dock (§8), STYL C glow siluety (§15), těžší minihry (§12), legendary efekty + loadouty + porovnání (§17.1/3/4), screenshot ke schválení PŘED commitem.
 Etapa 3 – NIGHT SHIFT (§4–5).
 Etapa 4 – MALÉ: loterie B, log 3 záložky, CHEST scaling (§16: exp. zmírněná, double/triple drop, šance pruh), OVERTIME HOURS (reset + retro za prestiž/achievementy), autoscrap fix (§17.8).
