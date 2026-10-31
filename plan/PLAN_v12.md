@@ -275,3 +275,4 @@ Etapa 4 – MALÉ: loterie B, log 3 záložky, CHEST scaling (§16: exp. zmírn�
 Etapa 5 – OFFICE REDESIGN (neon, artboard Office).
 Konec: firemní verze najednou, changelog v12.0, DONE9 (smazat DONE8), přehled souborů.
 Pokud dojde usage: každá etapa commitnutá a funkční, navázat příště podle tohoto souboru.
+- SCHVÁLENO 1. 11. 01:22: legendary efekty + loadouty + porovnání do Gen 3; equal-mode duel = platí efekty a sety, ne čísla; jména tříd/schopností OK. Vše schváleno, čeká jen na 'Gen'.
