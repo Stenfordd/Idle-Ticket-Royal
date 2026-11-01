@@ -50,8 +50,8 @@ if (done) return;
 const a = Math.floor(rnd() * 3), d = [a]; if (rnd() < 0.45) d.push((a + 1 + Math.floor(rnd() * 2)) % 3);
 setDanger(d); state = "go"; t0 = performance.now();
 imp = (560 - 70 * D.diff) * (0.85 + rnd() * 0.3) * sk * TM();
-feint = rnd() < 0.3;
-if (feint) setTimeout(() => { if (done || (state !== "go" && state !== "moved")) return; const b = Math.floor(rnd() * 3), nd = [b]; if (rnd() < 0.4) nd.push((b + 1) % 3); setDanger(nd); }, imp * (0.4 + rnd() * 0.15));
+feint = rnd() < 0.3; lanes().forEach(l => l.classList.toggle("fake", feint));
+if (feint) setTimeout(() => { if (done || (state !== "go" && state !== "moved")) return; const b = Math.floor(rnd() * 3), nd = [b]; if (rnd() < 0.4) nd.push((b + 1) % 3); lanes().forEach(l => l.classList.remove("fake")); t0 = performance.now(); setDanger(nd); }, imp * (0.4 + rnd() * 0.15));
 const bar = (now) => { if (done || (state !== "go" && state !== "moved")) return; const t = (now - t0) / imp; lanes().forEach((l, i) => { const x = l.querySelector(".qte-imp"); if (x) x.style.height = (danger.indexOf(i) >= 0 ? Math.min(100, t * 100) : 0) + "%"; }); if (t >= 1) return impact(); raf = requestAnimationFrame(bar); };
 raf = requestAnimationFrame(bar);
 }, 380 + rnd() * 700);
@@ -168,16 +168,16 @@ setup(); last = performance.now(); raf = requestAnimationFrame(frame);
 }
 function ultRun(title, cb) {
 intro(title, "Drag anywhere to move the intern 🧑‍🎓 (he moves with your finger, not under it) or use the arrow keys. Stay inside the corridor - touching a wall = DETECTED, back to the last checkpoint. 3 checkpoints + the goal.", (ov, body) => {
-const tch = touch(), cw = tch ? 38 : 28;
+const tch = touch(), cw = tch ? 44 : 34;
 body.innerHTML = `<canvas id="qte-run" style="width:100%;height:260px;background:#0b1220;border:1px solid #1e2a44;border-radius:10px;touch-action:none;"></canvas><div class="qte-bar"><div id="qte-tb"></div></div><div class="qte-res" id="qte-sc">checkpoint 0/3</div>`;
 const cv = $("qte-run"), dpr = window.devicePixelRatio || 1, Wd = cv.clientWidth, Hd = 260;
 cv.width = Wd * dpr; cv.height = Hd * dpr; const g = cv.getContext("2d"); g.scale(dpr, dpr);
-const N = 11, pts = []; for (let i = 0; i < N; i++) pts.push({ x: 24 + (Wd - 48) * i / (N - 1), y: 34 + rnd() * (Hd - 68) });
+const N = 9, pts = []; for (let i = 0; i < N; i++) pts.push({ x: 24 + (Wd - 48) * i / (N - 1), y: 34 + rnd() * (Hd - 68) });
 const segLen = []; let total = 0; for (let i = 1; i < N; i++) { const l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); segLen.push(l); total += l; }
 const at = (f) => { let d = f * total; for (let i = 0; i < segLen.length; i++) { if (d <= segLen[i]) { const t = d / segLen[i]; return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * t, y: pts[i].y + (pts[i + 1].y - pts[i].y) * t }; } d -= segLen[i]; } return pts[N - 1]; };
 const CPS = [0.25, 0.5, 0.75].map(at), GOAL = pts[N - 1];
 let me = { x: pts[0].x, y: pts[0].y }, cp = -1, det = 0, over = false, raf = 0, t0 = performance.now(), last = t0, anchor = null, keys = {}, flash = 0, won = false;
-const DUR = (6200 - 400 * D.diff) * TM();
+const DUR = (7000 - 400 * D.diff) * TM();
 const distSeg = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy))); return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy); };
 const inside = (p) => { for (let i = 1; i < N; i++) if (distSeg(p, pts[i - 1], pts[i]) <= cw / 2 - 5) return true; return false; };
 const back = () => cp >= 0 ? { x: CPS[cp].x, y: CPS[cp].y } : { x: pts[0].x, y: pts[0].y };
@@ -198,7 +198,7 @@ const dt = Math.min(50, now - last) / 1000; last = now;
 const v = 150 * dt; if (keys.ArrowLeft) me.x -= v; if (keys.ArrowRight) me.x += v; if (keys.ArrowUp) me.y -= v; if (keys.ArrowDown) me.y += v;
 me.x = Math.max(0, Math.min(Wd, me.x)); me.y = Math.max(0, Math.min(Hd, me.y));
 if (!inside(me)) { det++; flash = now + 300; me = back(); anchor = null; const s = $("qte-sc"); if (s) s.textContent = "DETECTED! back to checkpoint " + Math.max(0, cp + 1) + " · " + det + "×"; }
-if (cp < 2 && Math.hypot(me.x - CPS[cp + 1].x, me.y - CPS[cp + 1].y) < 14) { cp++; const s = $("qte-sc"); if (s) s.textContent = "checkpoint " + (cp + 1) + "/3"; }
+if (cp < 2 && Math.hypot(me.x - CPS[cp + 1].x, me.y - CPS[cp + 1].y) < 14) { cp++; t0 += 1500; const s = $("qte-sc"); if (s) s.textContent = "checkpoint " + (cp + 1) + "/3"; }
 if (cp >= 2 && Math.hypot(me.x - GOAL.x, me.y - GOAL.y) < 16) { won = true; return end("MADE IT! "); }
 const el = now - t0, b = $("qte-tb"); if (b) b.style.width = Math.max(0, 100 - el / DUR * 100) + "%";
 if (el >= DUR) return end("TIME! ");

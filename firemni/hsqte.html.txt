@@ -35,6 +35,7 @@
 .qte-cup .zone { position: absolute; left: 0; right: 0; background: rgba(0,255,136,.12); }
 .qte-lanes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
 .qte-lane { height: 180px; border-radius: 10px; border: 2px solid #1e2a44; background: #0b1220; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; font-size: 30px; cursor: pointer; position: relative; overflow: hidden; }
+.qte-lane.danger.fake { border-color: #facc15 !important; background: repeating-linear-gradient(45deg, rgba(250,204,21,.35) 0 8px, rgba(250,204,21,.08) 8px 16px) !important; }
 .qte-lane.danger { border-color: #ff1744; background: linear-gradient(180deg, rgba(255,23,68,.45), rgba(255,23,68,.08)); }
 .qte-lane.danger::before { content: "⚔"; position: absolute; top: 18px; font-size: 34px; animation: qteSlash .35s ease-in infinite alternate; }
 .qte-lane.me { border-color: var(--cyan); }
