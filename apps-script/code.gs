@@ -2866,7 +2866,7 @@ function setNick(nick) {
   }
   /** násobky tvých ran (stav boje) */
   function myMult(f, kind, perfect) {
-    let m = (1 + f.coin) * (1 - 0.08 * f.redTape) * (f.payroll > 0 ? 0.75 : 1) * (f.marked ? 1 + (f.h.mark || 0) : 1) * (f.S ? sMul(f.S, f.h) : 1) * (PVE[f.h.cls] || 1);
+    let m = (1 + f.coin) * (1 - 0.08 * f.redTape) * (f.payroll > 0 ? 0.75 : 1) * (f.marked ? 1 + (f.h.mark || 0) : 1) * (f.S ? sMul(f.S, f.h) : 1) * (PVE[f.h.cls] || 1) * (f._xm || 1);
     if (f.vuln) m *= 1.5;
     if (f.firstHit) m *= 2;
     if (f.channel) m *= f.channel;
@@ -3036,6 +3036,15 @@ function setNick(nick) {
     if (f.ehp <= 0) return finish(f, true, start);
     f.sta -= a === "heavy" && f.nocd > 0 ? 0 : (A.sta || 0);
     const q = clamp(opt.q == null ? 1 : Number(opt.q) || 0.7, 0.7, 1.25);
+    const cardO = opt.card && typeof opt.card === "object" ? opt.card : null;                     // v12: Night Shift - modifikátor karty
+    if (cardO) {
+      if (cardO.selfHp) f.hp = Math.max(1, f.hp - Math.round(h.maxHp * cardO.selfHp));
+      if (cardO.heal) f.hp = Math.min(h.maxHp, f.hp + Math.round(h.maxHp * cardO.heal * healMul(f)));
+      if (cardO.sta) f.sta = Math.min(h.staMax, f.sta + cardO.sta);
+      if (cardO.foc) f.focus = Math.min(100, f.focus + cardO.foc);
+      if (cardO.half) f.halfNext = true;
+      f._xm = Number(cardO.xm) > 0 ? Math.min(4, Number(cardO.xm)) : 1;
+    }
     const wasGuard = f.eguard;
     f._sa = f.sureAtk > 0 && a !== "rest"; if (f._sa) f.sureAtk--;
     if (a === "strike") {
@@ -3139,7 +3148,9 @@ function setNick(nick) {
       consumeBuffs(f);
       ev(f, "skill", { a: C.skill, q: q, val: sum, crit: crit, msg: msg });
     }
-    f._sa = false;
+    f._sa = false; f._xm = 1;
+    if (cardO && cardO.brk) addBreak(f, cardO.brk);
+    if (cardO && cardO.stun && !f.estun) { f.estun = true; ev(f, "mech", { msg: "🧊 CODE FREEZE: it can't move this round." }); }
     if (f.S) f.S.last = a;
     f.eguard = false;
     if (f.coinTurns > 0 && --f.coinTurns === 0) f.coin = 0;
