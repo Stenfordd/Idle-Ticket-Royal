@@ -61,6 +61,15 @@
 @keyframes qcSteam { 0% { transform: translateY(0) scale(.6); opacity: 0; } 30% { opacity: .9; } 100% { transform: translateY(-38vh) scale(2.2); opacity: 0; } }
 @keyframes qcDash { 0%,55% { transform: translateX(0) scale(1); } 100% { transform: translateX(70vw) scale(.6); opacity: 0; } }
 @keyframes qcShake { 0%,100% { transform: translate(0,0); } 25% { transform: translate(-5px,2px); } 50% { transform: translate(4px,-3px); } 75% { transform: translate(-2px,-4px); } }
+@keyframes qcSpin { to { transform: rotate(360deg); } }
+@keyframes qcFlip { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--fx, 0), -60vh) rotate(540deg); opacity: 0; } }
+@keyframes qcSlash { 0% { transform: rotate(var(--r)) scaleX(0); opacity: 1; } 60% { transform: rotate(var(--r)) scaleX(1); opacity: 1; } 100% { transform: rotate(var(--r)) scaleX(1); opacity: 0; } }
+@keyframes qcFlame { from { transform: translateY(0) scale(1); opacity: .8; } to { transform: translateY(-18px) scale(1.25); opacity: 1; } }
+@keyframes qcRun { 0% { transform: translateX(-10vw); } 100% { transform: translateX(105vw); } }
+@keyframes qcCell { to { transform: translateX(60vw) rotate(25deg); opacity: 0; } }
+@keyframes qcType { from { max-width: 0; } to { max-width: 100%; } }
+@keyframes qcDash2 { 0% { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateX(72vw); opacity: .2; } }
+@keyframes qcPounce { 0% { transform: translate(0,0) scale(.8); opacity: 0; } 20% { opacity: 1; } 50% { transform: translate(calc(var(--dx) * .5), -14vh) scale(1.1); } 100% { transform: translate(var(--dx), 0) scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .qcine * { animation-duration: .01s !important; } }
 </style>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hsqte"] = 1;</script>

@@ -1,7 +1,4 @@
-<script type="text/plain" data-tt="tt_hsengine_1" data-i="2">const chW = f.lastIntent === "unleash" || f.lastIntent === "charge" || f.turn < 2 ? 0 : (p.charge != null ? p.charge : (f.m.kind === "normal" || f.m.kind === "compliance" ? 0 : 1));
-let w = [["charge", chW], ["atk", p.atk || 0], ["heavy", f.lastIntent === "heavy" ? 0 : (p.heavy || 0)], ["defend", f.lastIntent === "defend" ? 0 : (p.defend || 0)], ["special", f.lastIntent === "special" || f.lastIntent === "spell" ? 0 : (p.special || 0)]];
-if (e.mech === "pookie" && (f.turn + 1) % 3 === 0) w = [["flex", 1]];
-if (e.mech === "pookie" && f.lastIntent === "flex") w = [["heavy", 1]];
+<script type="text/plain" data-tt="tt_hsengine_1" data-i="2">if (e.mech === "pookie" && f.lastIntent === "flex") w = [["heavy", 1]];
 const sum = w.reduce((a, x) => a + x[1], 0);
 let r = R() * sum, k = "atk";
 for (const x of w) { if (r < x[1]) { k = x[0]; break; } r -= x[1]; }
@@ -643,6 +640,12 @@ return "strike";
 function autoReact(f, R) {
 const h = f.h, it = f.intent || {}, k = it.shown === "?" ? "atk" : (it.shown || it.k);
 const can = (r) => allowedReact(f, r);
-if (f.demand && REACTS[f.demand] && can(f.demand)) return f.demand;</script>
+if (f.demand && REACTS[f.demand] && can(f.demand)) return f.demand;
+if (k === "spell") { if (h.spellImmune) return "brace"; return can("block") && f.sta >= h.blockCost + 20 ? "block" : "brace"; }
+const big = k === "heavy" || k === "unleash" || k === "withdraw";
+if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel")) return "channel"; return "brace"; }
+if (h.cls === "sysadmin") return can("block") && f.sta >= h.blockCost + 10 ? "block" : "brace";
+if (h.cls === "blood") return can("block") && f.sta >= 60 ? "block" : "brace";
+if (h.cls === "engineer") return can("channel") && f.sta >= 45 ? "channel" : "brace";</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hsengine2"] = 1;</script>
 <!-- END-OF-FILE: hsengine2 -->

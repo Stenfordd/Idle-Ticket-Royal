@@ -177,6 +177,8 @@ const S = v.S && v.S[i];
 if (S) { if (window.HSClassBuffs) o.push(HSClassBuffs(S)); if (S.deb && S.deb.skip) o.push(I("🗓", "loses the next move", "", true)); if (S.deb && S.deb.mute) o.push(I("✋", "INTERRUPTED: no big moves next turn", "", true)); if (S.vl) o.push(I("📊", "VLOOKUP mark: explodes in " + S.vl.n, S.vl.n, true)); }
 return o.join("");
 }
+/** v12.1: soupeřova stamina jen jako pásmo, aby nešlo přesně spočítat, co si může dovolit */
+function staBand(x) { x = Number(x) || 0; return x < 30 ? ["LOW (0-30)", 15] : x < 70 ? ["MID (30-70)", 50] : ["HIGH (70+)", 85]; }
 function side(v, i, h) {
 const nm = (window.Nick ? Nick.of(v.names[i]) : v.names[i]) || "?", mine = i === v.you;
 let sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
@@ -185,7 +187,7 @@ const max = v.max ? v.max[i] : (h ? h.maxHp : 1), hp = v.hp ? v.hp[i] : max;
 return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
 <div id="du-s${i}">${sprite}</div>
 <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div><div class="hs-bar"><div class="hp" style="width:${Math.max(0, Math.min(100, hp / Math.max(1, max) * 100))}%"></div>${v.sh && v.sh[i] ? `<div class="sh" style="width:${Math.min(100, v.sh[i] / Math.max(1, max) * 100)}%"></div>` : ""}</div>
-<div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}
+${mine ? `<div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}` : (() => { const b = staBand(v.sta ? v.sta[i] : 100); return `<div class="hs-lbl"><span>STAMINA</span><span title="You only see a rough range of your opponent's stamina">${b[0]}</span></div><div style="filter:blur(1.5px);opacity:.8;">${bar("sta", b[1], 100)}</div>`; })()}
 <div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}
 ${h && v.S && v.S[i] ? (() => { const R0 = H.RES[h.cls]; return `<div class="hs-lbl"><span>${R0.i} ${R0.n.toUpperCase()}</span><span>${Math.floor(v.S[i].r + 1e-9)} / ${R0.max}</span></div><div class="hs-bar"><div class="res" style="width:${Math.min(100, v.S[i].r / R0.max * 100)}%;background:${R0.c};height:100%;"></div></div>`; })() : ""}<div class="hs-sts">${duelBuffs(v, i, h)}</div></div></div>`;
 }
@@ -245,7 +247,7 @@ let role = "";
 if (v.status === "play") {
 const oi = 1 - v.you, oh = hs[oi];
 role = v.role === "atk" ? `<div class="du-role atk">① YOUR ATTACK<small>${esc(opp)} picks a reaction at the same time - they don't know what you'll do.</small></div>`
-: `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits are hard to dodge and pierce blocks" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
+: `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. Their stamina is ${v.sta ? staBand(v.sta[oi])[0] : "?"}${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits are hard to dodge and pierce blocks" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
 role += `<div class="du-timer"><div id="du-tbar" style="width:${left / 35000 * 100}%"></div></div>`;
 }
 const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>

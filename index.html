@@ -6590,7 +6590,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     { id: "h_xp", br: "hs", row: 1, icon: "📈", name: "Growth Rings", desc: l => `+${8 * l}% HIGH STAKES XP`, next: "+8% XP", costs: [1, 1, 1, 2] },
     { id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
     { id: "h_foc", br: "hs", row: 2, icon: "✨", name: "Morning Dew", req: "h_xp", desc: l => `start fights with +${10 * l} focus`, next: "+10 start focus", costs: [1, 2, 2] },
-    { id: "h_parry", br: "hs", row: 3, icon: "🛡", name: "Thick Bark", req: "h_foc", desc: l => `parry windows +${15 * l}%`, next: "+15% parry window", costs: [2, 3] },
+    { id: "h_parry", br: "hs", row: 3, icon: "⚡", name: "Fast Sap", req: "h_foc", desc: l => `HIGH STAKES energy refills ${15 * l}% faster`, next: "+15% faster energy", costs: [2, 3] },
     { id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] },
     // v11.6: CANOPY - po ANCIENT TREE nekonečné uzly (každý level o 1 LP dražší), aby LP měly vždycky kam jít
     { id: "r_gc", br: "canopy", row: 4, icon: "☀", name: "Sun Canopy", rep: true, base: 3, desc: l => `+${3 * l}% click power and Auto GC`, next: "+3% click & auto" },
@@ -6642,7 +6642,8 @@ html.m #pl-screen { height: var(--app-h, 100%); }
       case "xp": return 1 + 0.08 * lvl("h_xp") + 0.04 * lvl("r_hs");
       case "energy": return lvl("h_en");
       case "focus": return 10 * lvl("h_foc");
-      case "parry": return 1 + 0.15 * lvl("h_parry");
+      case "parry": return 1;
+      case "regen": return 1 + 0.15 * lvl("h_parry");
       case "t6": return lvl("k_apple") ? 1.5 : 1;
     }
     return 0;
@@ -6930,6 +6931,18 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "12.1", d: "2026-11-01", i: [
+      "🏢 <b>THE TOWER</b>: your office is now a night-time skyscraper - every floor is a part of the game (your desk, the casino, the vault, the server room, the break room, the lobby and the roof garden). Hover to light a room up, click to go there; the elevator follows you and the vault flashes in the colour of your best drop. 'Neon: on' switches back to the old room",
+      "🌃 Night city skyline behind the whole page; a chest drop now only lights up the Company Chest panel (no more full-screen flash)",
+      "🌙 Night Shift: fixed cards staying grey after the first one you played",
+      "🌳 Talents that need an ability are locked until that ability is in your action bar, and every talent row has at least one option that works without one",
+      "🛡 Parry: FAKE rings are yellow and dashed, the unblockable ring is white with ⚠ DON'T TAP, the ring no longer stops halfway, and you get a colour legend the first two times",
+      "⚔ Duels: you only see your opponent's stamina as LOW / MID / HIGH",
+      "💬 Hover any ability in a fight to see what it does; tooltips no longer get stuck",
+      "✨ New ultimate animations for every class (no more brick wall for the Berserker)",
+      "🏢 The office dock in High Stakes shows your loadout, items better than yours (one-tap equip) and stacks ready to merge",
+      "🌳 Office Plant: Thick Bark is now <b>Fast Sap</b> - High Stakes energy refills 15% faster per level"
+    ] },
     { v: "12.0", d: "2026-11-01", i: [
       "⚔ <b>NEW CLASSES</b>: 😤 Overtime Berserker (Stress, Enrage, Rage Quit), 🔥 Burnout Specialist (burns, Reply-All Nuke), 📊 Excel Wizard (Nested Formulas, Ctrl+Enter), ☕ Espresso Monk (Shots, combos, clones) and 🐈 Headhunter with the Office Cat. Your character switched automatically (level and gear stay) and you get one FREE class change",
       "📖 <b>SPELLBOOK</b> (HERO tab): every class has 8 abilities unlocked by level - pick 4 for your action bar. STRIKE, HEAVY, GAMBLE, BREATHE and the ultimate are always there. Keys 1-9 work in a fight",
@@ -7876,8 +7889,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       retrigger(chest, "fx-chest");
       var best = 0, re = /T([1-6])×/g, m;
       while ((m = re.exec(t))) best = Math.max(best, Number(m[1]));
-      if (best >= 3) doFlash(COLORS[best]);
-      if (best >= 5) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
+      if (best >= 3 && !document.documentElement.classList.contains("neon-on")) doFlash(COLORS[best]);      // v12.1: s neonem svítí jen panel bedny
+      if (best >= 5 && !document.documentElement.classList.contains("neon-on")) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
       if (/OVERTIME HOUR/.test(t)) doBanner("⏱ OVERTIME HOUR!", "var(--amber)");
     }).observe(chest, { childList: true, characterData: true, subtree: true });
   }
@@ -8647,40 +8660,40 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     sysadmin: [
       [{ n: "Fresh Coffee", t: "your first ENERGY DRINK CHUG in a fight always ENRAGES you", fl: "chugFirst" }, { n: "Thick Skin", t: "you take 10% less damage while ENRAGED", fl: "enrDR" }, { n: "Second Breath", t: "+10 stamina every time you become ENRAGED", fl: "enrSta" }],
       [{ n: "Severance Pay", t: "RAGE QUIT heals you 5%", fl: "rqHeal", req: "ragequit" }, { n: "Unpaid Overtime", t: "RAGE QUIT hits 5 times (0.4× each)", fl: "rq5", req: "ragequit" }, { n: "Long Weekend", t: "ENRAGE lasts 1 round longer", fl: "enrLong" }],
-      [{ n: "Mass Layoffs", t: "YOU'RE FIRED works under 35% HP", fl: "exec35", req: "fired" }, { n: "Cold Steel", t: "YOU'RE FIRED costs no Stress (cooldown 3)", rc: { fired: 0 }, cd: { fired: 3 }, req: "fired" }, { n: "Exit Interview", t: "YOU'RE FIRED deals 30% more", m: { fired: 1.3 }, req: "fired" }],
-      [{ n: "Desk Tornado", t: "DESK FLIP deals 50% more and costs 10 Stress", m: { deskflip: 1.5 }, rc: { deskflip: 10 }, req: "deskflip" }, { n: "Snap", t: "KEYBOARD SMASH deals 20% more", m: { smash: 1.2 }, req: "smash" }, { n: "Stapler Bolt", t: "LET ME STOP YOU THERE also makes the target lose its next move", fl: "stopStun", req: "stopthere" }],
+      [{ n: "Mass Layoffs", t: "YOU'RE FIRED works under 35% HP", fl: "exec35", req: "fired" }, { n: "Cold Steel", t: "YOU'RE FIRED costs no Stress (cooldown 3)", rc: { fired: 0 }, cd: { fired: 3 }, req: "fired" }, { n: "Exit Interview", t: "+6% damage", dmg: 1.06 }],
+      [{ n: "Desk Tornado", t: "DESK FLIP deals 50% more and costs 10 Stress", m: { deskflip: 1.5 }, rc: { deskflip: 10 }, req: "deskflip" }, { n: "Snap", t: "KEYBOARD SMASH deals 20% more", m: { smash: 1.2 }, req: "smash" }, { n: "Thick Skin", t: "+8% max HP", hp: 1.08 }],
       [{ n: "Crunch Culture", t: "+10% crit chance while ENRAGED", fl: "enrCrit" }, { n: "Reckless", t: "+30% Stress from everything", gain: 1.3 }, { n: "Second Wind", t: "heal 2% HP every round", fl: "regen2" }],
       [{ n: "Titan's Grip", t: "+12% damage, -10% max HP", dmg: 1.12, hp: 0.9 }, { n: "Unbridled", t: "RAGE QUIT gives +20 focus", fl: "rqFocus", req: "ragequit" }, { n: "Berserker Stance", t: "double Stress from damage you take", fl: "stress2" }]
     ],
     cyber: [
-      [{ n: "Backdraft", t: "ESCALATION's bonus is 1.5× instead of 1.3×", fl: "bd15", req: "escalate" }, { n: "Eradication", t: "after a REPLY-ALL NUKE the target takes +12% damage for 2 rounds", fl: "erad", req: "nuke" }, { n: "Soul Fire", t: "HOT TAKE deals 25% more", m: { hottake: 1.25 }, req: "hottake" }],
-      [{ n: "Doctor's Note", t: "SICK DAY shield is 25% max HP", fl: "sick25", req: "sickday" }, { n: "Chicken Soup", t: "SICK DAY also heals 10%", fl: "sickHeal", req: "sickday" }, { n: "Work From Home", t: "SICK DAY costs no HP", fl: "sickFree", req: "sickday" }],
-      [{ n: "Roaring Blaze", t: "ESCALATION deals 50% more", m: { escalate: 1.5 }, req: "escalate" }, { n: "Internal Combustion", t: "REPLY-ALL NUKE deals 30% more on a burning target", fl: "nukeBurn", req: "nuke" }, { n: "Toxic Culture", t: "TOXIC FEEDBACK burns 30% harder", m: { toxic: 1.3 }, req: "toxic" }],
-      [{ n: "Cataclysm", t: "TOXIC FEEDBACK cooldown 2", cd: { toxic: 2 }, req: "toxic" }, { n: "Inferno", t: "SPAM STORM costs 2 Burnout", rc: { spam: 2 }, req: "spam" }, { n: "Fire and Brimstone", t: "SPAM STORM burns 40% harder", m: { spam: 1.4 }, req: "spam" }],
+      [{ n: "Backdraft", t: "ESCALATION's bonus is 1.5× instead of 1.3×", fl: "bd15", req: "escalate" }, { n: "Eradication", t: "after a REPLY-ALL NUKE the target takes +12% damage for 2 rounds", fl: "erad", req: "nuke" }, { n: "Slow Burn", t: "+6% damage", dmg: 1.06 }],
+      [{ n: "Doctor's Note", t: "SICK DAY shield is 25% max HP", fl: "sick25", req: "sickday" }, { n: "Chicken Soup", t: "SICK DAY also heals 10%", fl: "sickHeal", req: "sickday" }, { n: "Work From Home", t: "+8% max HP", hp: 1.08 }],
+      [{ n: "Roaring Blaze", t: "ESCALATION deals 50% more", m: { escalate: 1.5 }, req: "escalate" }, { n: "Internal Combustion", t: "REPLY-ALL NUKE deals 30% more on a burning target", fl: "nukeBurn", req: "nuke" }, { n: "Toxic Culture", t: "+10% Burnout gain", gain: 1.1 }],
+      [{ n: "Cataclysm", t: "TOXIC FEEDBACK cooldown 2", cd: { toxic: 2 }, req: "toxic" }, { n: "Inferno", t: "SPAM STORM costs 2 Burnout", rc: { spam: 2 }, req: "spam" }, { n: "Fire and Brimstone", t: "+6% damage", dmg: 1.06 }],
       [{ n: "Hustle Culture", t: "+10% damage", dmg: 1.1 }, { n: "Soul Conduit", t: "every Burnout you spend has a 20% chance to come back", fl: "conduit" }, { n: "Demonic Embrace", t: "+10% max HP", hp: 1.1 }],
-      [{ n: "Dimensional Rift", t: "FINAL WARNING deals 50% more", m: { warning: 1.5 }, req: "warning" }, { n: "Ritual of Ruin", t: "every 10 Burnout spent make your next REPLY-ALL NUKE free", fl: "ruin", req: "nuke" }, { n: "Avatar of Destruction", t: "REPLY-ALL NUKE deals 20% more", m: { nuke: 1.2 }, req: "nuke" }]
+      [{ n: "Dimensional Rift", t: "FINAL WARNING deals 50% more", m: { warning: 1.5 }, req: "warning" }, { n: "Ritual of Ruin", t: "every 10 Burnout spent make your next REPLY-ALL NUKE free", fl: "ruin", req: "nuke" }, { n: "Avatar of Destruction", t: "+8% damage, -5% max HP", dmg: 1.08, hp: 0.95 }]
     ],
     engineer: [
       [{ n: "Amplification", t: "AUTOFILL fires 4 times", fl: "af4", req: "autofill" }, { n: "Rule of Threes", t: "=SUM() with 3 formulas costs no stamina", fl: "r3", req: "sum" }, { n: "Arcane Familiar", t: "+5 stamina every round", fl: "fam" }],
-      [{ n: "Shimmer", t: "READ-ONLY MODE cooldown 5", cd: { readonly: 5 }, req: "readonly" }, { n: "Mass Barrier", t: "CTRL+S also gives a 10% shield", fl: "ctrlsShield", req: "ctrls" }, { n: "Alter Time", t: "CTRL+S also heals 8%", fl: "ctrlsHeal", req: "ctrls" }],
-      [{ n: "Resonance", t: "CTRL+ENTER deals 25% more", m: { ctrlenter: 1.25 }, req: "ctrlenter" }, { n: "Pivot Power", t: "PIVOT TABLE deals 30% more", m: { pivot: 1.3 }, req: "pivot" }, { n: "Nether Precision", t: "after CTRL+ENTER your next =SUM() deals 30% more", fl: "np", req: "ctrlenter" }],
-      [{ n: "Supernova", t: "MACRO cooldown 4", cd: { macro: 4 }, req: "macro" }, { n: "Orb Barrage", t: "CTRL+ENTER has a 20% chance for CLEARCASTING", fl: "cecc", req: "ctrlenter" }, { n: "Overpowered", t: "MACRO deals 30% more", m: { macro: 1.3 }, req: "macro" }],
+      [{ n: "Shimmer", t: "READ-ONLY MODE cooldown 5", cd: { readonly: 5 }, req: "readonly" }, { n: "Mass Barrier", t: "CTRL+S also gives a 10% shield", fl: "ctrlsShield", req: "ctrls" }, { n: "Alter Time", t: "+8% max HP", hp: 1.08 }],
+      [{ n: "Resonance", t: "CTRL+ENTER deals 25% more", m: { ctrlenter: 1.25 }, req: "ctrlenter" }, { n: "Pivot Power", t: "PIVOT TABLE deals 30% more", m: { pivot: 1.3 }, req: "pivot" }, { n: "Nether Precision", t: "+6% damage", dmg: 1.06 }],
+      [{ n: "Supernova", t: "MACRO cooldown 4", cd: { macro: 4 }, req: "macro" }, { n: "Orb Barrage", t: "CTRL+ENTER has a 20% chance for CLEARCASTING", fl: "cecc", req: "ctrlenter" }, { n: "Overpowered", t: "+10% Formula gain", gain: 1.1 }],
       [{ n: "Slipstream", t: "AUTOFILL deals 30% more", m: { autofill: 1.3 }, req: "autofill" }, { n: "Energized", t: "+10% CLEARCASTING chance", fl: "cc10" }, { n: "Arcane Tempo", t: "+3% damage per Nested Formula", fl: "tempo" }],
       [{ n: "Enlightened", t: "+10% damage while above 70 stamina", fl: "enl" }, { n: "Arcane Harmony", t: "=SUM() deals 15% more", m: { sum: 1.15 }, req: "sum" }, { n: "Time Anomaly", t: "every ability has a 15% chance for +1 formula", fl: "anom" }]
     ],
     blood: [
       [{ n: "Ascension", t: "you can hold 6 Shots", fl: "asc" }, { n: "Fast Feet", t: "RISING DEADLINE deals 20% more", m: { rising: 1.2 }, req: "rising" }, { n: "Eye of the Tiger", t: "QUICK SIP also burns 0.15× for 3 rounds", fl: "eot", req: "sip" }],
-      [{ n: "Diffuse Magic", t: "PER MY LAST EMAIL cooldown 5", cd: { karma: 5 }, req: "karma" }, { n: "Dampen Harm", t: "JITTERY HANDS: -45% damage taken", fl: "dampen", req: "jitter" }, { n: "Healing Elixir", t: "REFILL heals 12%", fl: "elixir", req: "refill" }],
-      [{ n: "Whirling Punch", t: "JITTERY HANDS hits 5 times", fl: "jit5", req: "jitter" }, { n: "Strike of the Windlord", t: "POWER NAP deals 40% more", m: { nap: 1.4 }, req: "nap" }, { n: "Jadefire", t: "RISING DEADLINE gives +1 Shot", fl: "jade", req: "rising" }],
+      [{ n: "Diffuse Magic", t: "PER MY LAST EMAIL cooldown 5", cd: { karma: 5 }, req: "karma" }, { n: "Dampen Harm", t: "JITTERY HANDS: -45% damage taken", fl: "dampen", req: "jitter" }, { n: "Healing Elixir", t: "+8% max HP", hp: 1.08 }],
+      [{ n: "Whirling Punch", t: "JITTERY HANDS hits 5 times", fl: "jit5", req: "jitter" }, { n: "Strike of the Windlord", t: "POWER NAP deals 40% more", m: { nap: 1.4 }, req: "nap" }, { n: "Jadefire", t: "+6% damage", dmg: 1.06 }],
       [{ n: "Hit Combo", t: "COMBO bonus +4%", fl: "hc" }, { n: "Dance of Chi", t: "JITTERY HANDS costs 2 Shots", rc: { jitter: 2 }, req: "jitter" }, { n: "Xuen's Bond", t: "clones last 1 round longer", fl: "xuen" }],
       [{ n: "Tiger's Lust", t: "COFFEE RUN cooldown 2", cd: { coffeerun: 2 }, req: "coffeerun" }, { n: "Ring of Peace", t: "OUT OF OFFICE cooldown 4", cd: { ooo: 4 }, req: "ooo" }, { n: "Transcendence", t: "+10% max HP", hp: 1.1 }],
       [{ n: "Serenity", t: "+10% damage", dmg: 1.1 }, { n: "Invoke Xuen", t: "your ultimate summons 1 extra clone", fl: "xuen1" }, { n: "Teachings", t: "QUICK SIP gives 3 Shots", fl: "teach", req: "sip" }]
     ],
     hunter: [
       [{ n: "Pack Tactics", t: "+5 Leads every round", fl: "pack" }, { n: "Thrill of the Hunt", t: "COLD CALL burns 30% harder", m: { cold: 1.3 }, req: "cold" }, { n: "Killer Instinct", t: "SIC 'EM deals 50% more to a target under 35% HP", fl: "ki", req: "sic" }],
-      [{ n: "Natural Mending", t: "TREATS cooldown 4", cd: { treats: 4 }, req: "treats" }, { n: "Survival Instincts", t: "LET'S CIRCLE BACK costs no Leads", rc: { circle: 0 }, req: "circle" }, { n: "Premium Treats", t: "TREATS heal 15%", fl: "treats15", req: "treats" }],
+      [{ n: "Natural Mending", t: "TREATS cooldown 4", cd: { treats: 4 }, req: "treats" }, { n: "Survival Instincts", t: "LET'S CIRCLE BACK costs no Leads", rc: { circle: 0 }, req: "circle" }, { n: "Premium Treats", t: "+8% max HP", hp: 1.08 }],
       [{ n: "Dire Beast", t: "the cat deals 20% more", fl: "dire" }, { n: "Kill Cleave", t: "MASS MAIL deals 40% more", m: { massmail: 1.4 }, req: "massmail" }, { n: "Animal Companion", t: "the cat's every-round attack is 0.3× instead of 0.25×", fl: "comp" }],
-      [{ n: "Bloodshed", t: "SIC 'EM also burns 0.2× for 3 rounds", fl: "bshed", req: "sic" }, { n: "A Murder of Crows", t: "LINKEDIN PING deals 30% more", m: { ping: 1.3 }, req: "ping" }, { n: "Wild Instincts", t: "HIRING SPREE cooldown 4", cd: { spree: 4 }, req: "spree" }],
+      [{ n: "Bloodshed", t: "SIC 'EM also burns 0.2× for 3 rounds", fl: "bshed", req: "sic" }, { n: "A Murder of Crows", t: "LINKEDIN PING deals 30% more", m: { ping: 1.3 }, req: "ping" }, { n: "Wild Instincts", t: "+6% damage", dmg: 1.06 }],
       [{ n: "Stomp", t: "your ultimate brings 1 more cat", fl: "stomp" }, { n: "Barrage", t: "MASS MAIL costs 30 Leads", rc: { massmail: 30 }, req: "massmail" }, { n: "Scent of Blood", t: "COLD CALL gives +10 more Leads", fl: "scent", req: "cold" }],
       [{ n: "Dire Pack", t: "+10% damage", dmg: 1.1 }, { n: "Brutal Companion", t: "SIC 'EM has no cooldown", cd: { sic: 0 }, req: "sic" }, { n: "Bloody Frenzy", t: "cat FRENZY stacks up to 5", fl: "bf5" }]
     ]
@@ -10645,6 +10658,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 .qte-cup .zone { position: absolute; left: 0; right: 0; background: rgba(0,255,136,.12); }
 .qte-lanes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
 .qte-lane { height: 180px; border-radius: 10px; border: 2px solid #1e2a44; background: #0b1220; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; font-size: 30px; cursor: pointer; position: relative; overflow: hidden; }
+.qte-lane.danger.fake { border-color: #facc15 !important; background: repeating-linear-gradient(45deg, rgba(250,204,21,.35) 0 8px, rgba(250,204,21,.08) 8px 16px) !important; }
 .qte-lane.danger { border-color: #ff1744; background: linear-gradient(180deg, rgba(255,23,68,.45), rgba(255,23,68,.08)); }
 .qte-lane.danger::before { content: "⚔"; position: absolute; top: 18px; font-size: 34px; animation: qteSlash .35s ease-in infinite alternate; }
 .qte-lane.me { border-color: var(--cyan); }
@@ -10670,6 +10684,15 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 @keyframes qcSteam { 0% { transform: translateY(0) scale(.6); opacity: 0; } 30% { opacity: .9; } 100% { transform: translateY(-38vh) scale(2.2); opacity: 0; } }
 @keyframes qcDash { 0%,55% { transform: translateX(0) scale(1); } 100% { transform: translateX(70vw) scale(.6); opacity: 0; } }
 @keyframes qcShake { 0%,100% { transform: translate(0,0); } 25% { transform: translate(-5px,2px); } 50% { transform: translate(4px,-3px); } 75% { transform: translate(-2px,-4px); } }
+@keyframes qcSpin { to { transform: rotate(360deg); } }
+@keyframes qcFlip { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--fx, 0), -60vh) rotate(540deg); opacity: 0; } }
+@keyframes qcSlash { 0% { transform: rotate(var(--r)) scaleX(0); opacity: 1; } 60% { transform: rotate(var(--r)) scaleX(1); opacity: 1; } 100% { transform: rotate(var(--r)) scaleX(1); opacity: 0; } }
+@keyframes qcFlame { from { transform: translateY(0) scale(1); opacity: .8; } to { transform: translateY(-18px) scale(1.25); opacity: 1; } }
+@keyframes qcRun { 0% { transform: translateX(-10vw); } 100% { transform: translateX(105vw); } }
+@keyframes qcCell { to { transform: translateX(60vw) rotate(25deg); opacity: 0; } }
+@keyframes qcType { from { max-width: 0; } to { max-width: 100%; } }
+@keyframes qcDash2 { 0% { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateX(72vw); opacity: .2; } }
+@keyframes qcPounce { 0% { transform: translate(0,0) scale(.8); opacity: 0; } 20% { opacity: 1; } 50% { transform: translate(calc(var(--dx) * .5), -14vh) scale(1.1); } 100% { transform: translate(var(--dx), 0) scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .qcine * { animation-duration: .01s !important; } }
 </style>
 <script>
@@ -10728,8 +10751,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         const a = Math.floor(rnd() * 3), d = [a]; if (rnd() < 0.45) d.push((a + 1 + Math.floor(rnd() * 2)) % 3);
         setDanger(d); state = "go"; t0 = performance.now();
         imp = (560 - 70 * D.diff) * (0.85 + rnd() * 0.3) * sk * TM();
-        feint = rnd() < 0.3;
-        if (feint) setTimeout(() => { if (done || (state !== "go" && state !== "moved")) return; const b = Math.floor(rnd() * 3), nd = [b]; if (rnd() < 0.4) nd.push((b + 1) % 3); setDanger(nd); }, imp * (0.4 + rnd() * 0.15));
+        feint = rnd() < 0.3; lanes().forEach(l => l.classList.toggle("fake", feint));
+        if (feint) setTimeout(() => { if (done || (state !== "go" && state !== "moved")) return; const b = Math.floor(rnd() * 3), nd = [b]; if (rnd() < 0.4) nd.push((b + 1) % 3); lanes().forEach(l => l.classList.remove("fake")); t0 = performance.now(); setDanger(nd); }, imp * (0.4 + rnd() * 0.15));
         const bar = (now) => { if (done || (state !== "go" && state !== "moved")) return; const t = (now - t0) / imp; lanes().forEach((l, i) => { const x = l.querySelector(".qte-imp"); if (x) x.style.height = (danger.indexOf(i) >= 0 ? Math.min(100, t * 100) : 0) + "%"; }); if (t >= 1) return impact(); raf = requestAnimationFrame(bar); };
         raf = requestAnimationFrame(bar);
       }, 380 + rnd() * 700);
@@ -10852,16 +10875,16 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   // ------------------------------------------------------------------ INTERN RUN (Burnout): proveď stážistu chodbou, nedotkni se stěn (šéf by ho viděl)
   function ultRun(title, cb) {
     intro(title, "Drag anywhere to move the intern 🧑‍🎓 (he moves with your finger, not under it) or use the arrow keys. Stay inside the corridor - touching a wall = DETECTED, back to the last checkpoint. 3 checkpoints + the goal.", (ov, body) => {
-      const tch = touch(), cw = tch ? 38 : 28;
+      const tch = touch(), cw = tch ? 44 : 34;
       body.innerHTML = `<canvas id="qte-run" style="width:100%;height:260px;background:#0b1220;border:1px solid #1e2a44;border-radius:10px;touch-action:none;"></canvas><div class="qte-bar"><div id="qte-tb"></div></div><div class="qte-res" id="qte-sc">checkpoint 0/3</div>`;
       const cv = $("qte-run"), dpr = window.devicePixelRatio || 1, Wd = cv.clientWidth, Hd = 260;
       cv.width = Wd * dpr; cv.height = Hd * dpr; const g = cv.getContext("2d"); g.scale(dpr, dpr);
-      const N = 11, pts = []; for (let i = 0; i < N; i++) pts.push({ x: 24 + (Wd - 48) * i / (N - 1), y: 34 + rnd() * (Hd - 68) });
+      const N = 9, pts = []; for (let i = 0; i < N; i++) pts.push({ x: 24 + (Wd - 48) * i / (N - 1), y: 34 + rnd() * (Hd - 68) });
       const segLen = []; let total = 0; for (let i = 1; i < N; i++) { const l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); segLen.push(l); total += l; }
       const at = (f) => { let d = f * total; for (let i = 0; i < segLen.length; i++) { if (d <= segLen[i]) { const t = d / segLen[i]; return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * t, y: pts[i].y + (pts[i + 1].y - pts[i].y) * t }; } d -= segLen[i]; } return pts[N - 1]; };
       const CPS = [0.25, 0.5, 0.75].map(at), GOAL = pts[N - 1];
       let me = { x: pts[0].x, y: pts[0].y }, cp = -1, det = 0, over = false, raf = 0, t0 = performance.now(), last = t0, anchor = null, keys = {}, flash = 0, won = false;
-      const DUR = (6200 - 400 * D.diff) * TM();
+      const DUR = (7000 - 400 * D.diff) * TM();
       const distSeg = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy))); return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy); };
       const inside = (p) => { for (let i = 1; i < N; i++) if (distSeg(p, pts[i - 1], pts[i]) <= cw / 2 - 5) return true; return false; };
       const back = () => cp >= 0 ? { x: CPS[cp].x, y: CPS[cp].y } : { x: pts[0].x, y: pts[0].y };
@@ -10882,7 +10905,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
         const v = 150 * dt; if (keys.ArrowLeft) me.x -= v; if (keys.ArrowRight) me.x += v; if (keys.ArrowUp) me.y -= v; if (keys.ArrowDown) me.y += v;
         me.x = Math.max(0, Math.min(Wd, me.x)); me.y = Math.max(0, Math.min(Hd, me.y));
         if (!inside(me)) { det++; flash = now + 300; me = back(); anchor = null; const s = $("qte-sc"); if (s) s.textContent = "DETECTED! back to checkpoint " + Math.max(0, cp + 1) + " · " + det + "×"; }
-        if (cp < 2 && Math.hypot(me.x - CPS[cp + 1].x, me.y - CPS[cp + 1].y) < 14) { cp++; const s = $("qte-sc"); if (s) s.textContent = "checkpoint " + (cp + 1) + "/3"; }
+        if (cp < 2 && Math.hypot(me.x - CPS[cp + 1].x, me.y - CPS[cp + 1].y) < 14) { cp++; t0 += 1500; const s = $("qte-sc"); if (s) s.textContent = "checkpoint " + (cp + 1) + "/3"; }
         if (cp >= 2 && Math.hypot(me.x - GOAL.x, me.y - GOAL.y) < 16) { won = true; return end("MADE IT! "); }
         const el = now - t0, b = $("qte-tb"); if (b) b.style.width = Math.max(0, 100 - el / DUR * 100) + "%";
         if (el >= DUR) return end("TIME! ");
@@ -10922,6 +10945,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
 
   // ------------------------------------------------------------------ PARRY: kroužek (o = { k: heavy|unleash|withdraw|any, style, easy })
   const PARRY_WIN = { perfect: 6, good: 16 }, PSTREAK = { n: 0 };
+  function legendN() { try { return Number(localStorage.getItem("ir_plg")) || 0; } catch (e) { return 9; } }
   function parry(o, cb) {
     o = o || {};
     const k = o.k || "heavy", style = o.style || "", combo = k === "unleash" ? 3 : k === "withdraw" ? 1 : Math.min(3, 1 + (rnd() < 0.2 + 0.12 * D.diff ? 1 : 0) + (D.diff >= 2 && rnd() < 0.25 ? 1 : 0)), n = combo, dur = (k === "unleash" ? 750 : k === "withdraw" ? 1000 : combo > 1 ? 800 : 1100) * TM();
@@ -10929,10 +10953,11 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     const sk = Math.max(0.66, Math.pow(0.88, PSTREAK.n)), target = Math.round(36 + rnd() * 20);
     let red = false;
     const wP = PARRY_WIN.perfect * (o.easy || 1) * sk, wG = PARRY_WIN.good * (o.easy || 1) * Math.max(0.7, sk), from = 150, to = 14;
-    const title = (o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one")) + (k === "unleash" || k === "withdraw" ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${n > 1 ? "⚡ COMBO: " + n + " rings - " : ""}a <b style="color:#fff;">white-hot</b> ring is unblockable: DON'T tap it</div>`) +
+    const title = (o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one")) + (k === "unleash" || k === "withdraw" ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${n > 1 ? "⚡ COMBO: " + n + " rings - " : ""}a <b style="color:#fff;">white-hot ⚠</b> ring is unblockable: DON'T tap it</div>`) + (legendN() < 2 ? `<div class="qte-legend"><span><i style="border-color:#ff1744"></i>tap on gold</span><span><i style="border-color:#facc15;border-style:dashed"></i>fake - ignore</span><span><i style="border-color:#fff;box-shadow:0 0 6px #ff1744"></i>⚠ don't tap</span></div>` : "") +
       (PSTREAK.n ? `<div style="font-size:11px;color:#ff9f43;margin-top:4px;">🔥 PERFECT ×${PSTREAK.n} in a row - the window is ${Math.round((1 - sk) * 100)}% smaller</div>` : "");
+    try { localStorage.setItem("ir_plg", String(legendN() + 1)); } catch (e) {}
     const ov = open(`<div class="qte-t">${title}</div>
-      <div class="hs-parry ${style}" id="qte-pr"><div class="tgt" style="width:${target}px;height:${target}px;margin:${-target / 2}px 0 0 ${-target / 2}px;"></div><div class="ring" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
+      <div class="hs-parry ${style}" id="qte-pr"><div class="tgt" style="width:${target}px;height:${target}px;margin:${-target / 2}px 0 0 ${-target / 2}px;"></div><div class="ring fake" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
       <div class="hs-pdots" id="qte-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="qte-res" id="qte-pq">&nbsp;</div>`);
     const res = []; let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, finished = false;
     const ringEl = () => $("qte-ring"), fakeEl = () => $("qte-fake");
@@ -10968,8 +10993,8 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       if (finished) return;
       phase = "ring"; t0 = performance.now(); size = from;
       const r = ringEl(); if (r) r.style.display = "";
-      red = k !== "withdraw" && n === 1 && rnd() < 0.08 + 0.05 * D.diff; if (r) { r.style.borderColor = red ? "#ffffff" : ""; r.style.boxShadow = red ? "0 0 18px #ff1744, inset 0 0 12px #ff1744" : ""; }
-      const dk = dur * (0.8 + rnd() * 0.45), ex = 1.25 + rnd() * 0.8, hes = rnd() < 0.25 + 0.08 * D.diff ? { at: 0.3 + rnd() * 0.35, ms: 160 + rnd() * 260 } : null;
+      red = k !== "withdraw" && n === 1 && rnd() < 0.08 + 0.05 * D.diff; if (r) r.classList.toggle("unbl", red);
+      const dk = dur * (0.85 + rnd() * 0.35), ex = 1.15 + rnd() * 0.35, hes = null;      // v12.1: žádné zastavování, plynulý dojezd
       let paused = 0;
       const fr = (now) => {
         if (hes && !hes.done) { const tt = (now - t0 - paused) / dk; if (tt >= hes.at) { if (!hes.s) hes.s = now; if (now - hes.s < hes.ms) { raf = requestAnimationFrame(fr); return; } hes.done = 1; paused += now - hes.s; } }
@@ -11209,30 +11234,40 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   }
   /** krátká animace ultimátky (2,4 s, ťuknutím přeskočíš) */
   const CINE = {
-    engineer: ["#22c55e", (st) => {
-      for (let i = 0; i < 26; i++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:${i * 4}%;top:0;color:#22c55e;font:700 14px monospace;writing-mode:vertical-rl;text-shadow:0 0 6px #22c55e;animation:qcRain ${0.9 + rnd() * 0.9}s linear ${rnd() * 0.5}s infinite;`; d.textContent = Array(14).fill(0).map(() => rnd() < 0.5 ? "0" : "1").join(""); st.appendChild(d); }
-      const b = document.createElement("div"); b.className = "p"; b.style.cssText = "left:0;right:0;top:52%;height:34px;margin-top:-17px;transform-origin:left;background:linear-gradient(90deg,#fff,#22d3ee 30%,#a855f7);box-shadow:0 0 40px #22d3ee;animation:qcBeam 1.3s ease-out .6s both;"; st.appendChild(b);
-      const l = document.createElement("div"); l.className = "p"; l.style.cssText = "left:6%;top:52%;font-size:56px;margin-top:-34px;animation:qcPop .4s ease-out both;"; l.textContent = "💻"; st.appendChild(l);
+    // v12.1: animace podle nových tříd
+    sysadmin: ["#ef4444", (st) => {      // Overtime Berserker - CRUNCH TIME
+      st.style.background = "radial-gradient(circle at 50% 60%, rgba(239,68,68,.35), transparent 60%)";
+      const ck = mk(st, "left:50%;top:40%;font-size:64px;margin:-40px 0 0 -32px;animation:qcSpin 1s linear infinite, qcPop .3s ease-out both;", "⏰");
+      ["🪑", "🗄", "🖥", "📎"].forEach((e, i) => mk(st, `left:${18 + i * 20}%;top:62%;font-size:46px;--fx:${(-20 + rnd() * 40).toFixed(0)}vw;animation:qcFlip .9s cubic-bezier(.2,.7,.3,1) ${0.35 + i * 0.12}s both;`, e));
+      for (let i = 0; i < 5; i++) mk(st, `left:${20 + rnd() * 50}%;top:${30 + rnd() * 35}%;width:${180 + rnd() * 120}px;height:6px;border-radius:3px;background:linear-gradient(90deg,transparent,#fff,#ef4444,transparent);box-shadow:0 0 14px #ef4444;transform-origin:left;--r:${-35 + rnd() * 70}deg;animation:qcSlash .35s ease-out ${0.8 + i * 0.16}s both;`, "");
+      st.style.animation = "qcShake .18s linear .8s 7";
+      ck.style.filter = "drop-shadow(0 0 16px #ef4444)";
     }],
-    sysadmin: ["#f97316", (st) => {
-      for (let row = 0; row < 4; row++) for (let c = 0; c < 6; c++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:calc(50% - 150px + ${c * 50 + (row % 2) * 25}px);bottom:calc(16% + ${row * 29}px);width:46px;height:26px;border-radius:3px;background:linear-gradient(180deg,#ff7849,#9a3412);border:1px solid #fdba74;animation:qcDrop .5s cubic-bezier(.5,0,.8,1) ${(3 - row) * 0.18 + c * 0.04}s both;`; st.appendChild(d); }
-      const s = document.createElement("div"); s.className = "p"; s.style.cssText = "left:50%;bottom:calc(16% + 130px);font-size:70px;margin-left:-35px;animation:qcPop .5s ease-out 1s both;filter:drop-shadow(0 0 20px #63c5ff);"; s.textContent = "🛡"; st.appendChild(s);
-      st.style.animation = "qcShake .25s linear 1s 3";
+    cyber: ["#f97316", (st) => {         // Burnout Specialist - SUMMON THE INTERN
+      for (let i = 0; i < 16; i++) mk(st, `left:${i * 6.5}%;bottom:-10px;font-size:${26 + rnd() * 26}px;animation:qcFlame ${0.6 + rnd() * 0.5}s ease-in-out ${rnd() * 0.6}s infinite alternate;`, "🔥");
+      mk(st, "left:0;top:50%;font-size:64px;margin-top:-40px;animation:qcRun 1.6s cubic-bezier(.4,0,.6,1) .3s both;", "🧑‍🎓");
+      for (let i = 0; i < 7; i++) mk(st, `left:${8 + i * 12}%;top:55%;font-size:30px;animation:qcPop .3s ease-out ${0.45 + i * 0.18}s both;`, "🔥");
+      mk(st, "left:0;right:0;top:70%;text-align:center;font:800 16px 'Special Elite',monospace;color:#fed7aa;animation:qcPop .4s ease-out 1.2s both;", "\"I was told this is my job now.\"");
     }],
-    hunter: ["#facc15", (st) => {
-      [0, 1, 2, 3].forEach(i => { const a = document.createElement("div"); a.className = "p"; a.style.cssText = `left:0;top:${38 + i * 7}%;width:170px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#fde68a 40%,#facc15);box-shadow:0 0 12px #facc15;animation:qcArrow 1.4s cubic-bezier(.2,.7,.3,1) ${0.15 + i * 0.22}s both;`; a.innerHTML = '<span style="position:absolute;right:-10px;top:-9px;color:#facc15;font-size:18px;line-height:1;">▶</span>'; st.appendChild(a); });
-      const t = document.createElement("div"); t.className = "p"; t.style.cssText = "right:8%;top:42%;font-size:64px;animation:qcPop .4s ease-out both;"; t.textContent = "🎯"; st.appendChild(t);
+    engineer: ["#22c55e", (st) => {      // Excel Wizard - VLOOKUP OF DOOM
+      const g = mk(st, "left:50%;top:50%;width:320px;height:180px;margin:-90px 0 0 -160px;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;", "");
+      for (let i = 0; i < 36; i++) { const c = document.createElement("div"); c.style.cssText = `background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.55);font:600 10px monospace;color:#bbf7d0;display:flex;align-items:center;justify-content:center;animation:qcPop .2s ease-out ${i * 0.02}s both, qcCell .7s cubic-bezier(.5,0,.8,1) ${1.1 + rnd() * 0.4}s both;`; c.textContent = ["#N/A", "=SUM", "42", "#REF!", "TRUE", "0.7"][i % 6]; g.appendChild(c); }
+      mk(st, "left:0;right:0;top:calc(50% + 110px);text-align:center;font:700 15px 'IBM Plex Mono',monospace;color:#22c55e;text-shadow:0 0 8px #22c55e;animation:qcType 1s steps(30) .2s both;white-space:nowrap;overflow:hidden;", "=VLOOKUP(enemy, PAIN, 1, FALSE)");
     }],
-    cyber: ["#00ff88", (st) => {
-      st.style.animation = "qcGlitch .12s steps(2) infinite";
-      for (let i = 0; i < 22; i++) { const v = document.createElement("div"); v.className = "p"; v.style.cssText = `left:${rnd() * 90}%;top:${rnd() * 85}%;font-size:${22 + rnd() * 30}px;animation:qcPop .3s ease-out ${i * 0.07}s both;`; v.textContent = "🦠"; st.appendChild(v); }
-      const g = document.createElement("div"); g.className = "p"; g.style.cssText = "left:0;right:0;top:62%;text-align:center;font:900 22px monospace;color:#ff1744;text-shadow:3px 0 #00f0ff,-3px 0 #ff4dff;"; g.textContent = "ACCESS GRANTED"; st.appendChild(g);
+    blood: ["#c8a27a", (st) => {         // Espresso Monk - TRIPLE SHOT ESPRESSO
+      [0, 1, 2].forEach(i => {
+        mk(st, `left:8%;top:${34 + i * 12}%;font-size:58px;animation:qcDash2 .55s cubic-bezier(.6,0,.4,1) ${0.25 + i * 0.4}s both;`, "☕");
+        mk(st, `right:10%;top:${34 + i * 12}%;font-size:44px;animation:qcPop .25s ease-out ${0.7 + i * 0.4}s both;`, "💥");
+        for (let k = 0; k < 5; k++) mk(st, `left:${20 + k * 13}%;top:${38 + i * 12}%;width:18px;height:18px;border-radius:50%;background:#7c4a1e;opacity:.6;filter:blur(2px);animation:qcPop .2s ease-out ${0.35 + i * 0.4 + k * 0.04}s both;`, "");
+      });
+      mk(st, "left:0;right:0;top:78%;text-align:center;font:900 22px 'Orbitron',monospace;color:#fde68a;animation:qcPop .3s ease-out 1.5s both;", "×3");
     }],
-    blood: ["#c8a27a", (st) => {
-      const c = document.createElement("div"); c.className = "p"; c.style.cssText = "left:calc(50% - 50px);top:46%;font-size:100px;animation:qcDash 2.2s ease-in both;"; c.textContent = "☕"; st.appendChild(c);
-      for (let i = 0; i < 9; i++) { const s = document.createElement("div"); s.className = "p"; s.style.cssText = `left:calc(50% - 20px + ${(i - 4) * 9}px);top:44%;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.55);filter:blur(4px);animation:qcSteam 1.4s ease-out ${i * 0.09}s both;`; st.appendChild(s); }
+    hunter: ["#facc15", (st) => {        // Headhunter - CAT DISTRIBUTION SYSTEM
+      for (let i = 0; i < 6; i++) mk(st, `left:${i % 2 ? 92 : 2}%;top:${25 + i * 9}%;font-size:46px;--dx:${i % 2 ? -55 : 55}vw;animation:qcPounce .7s cubic-bezier(.3,.6,.4,1) ${0.2 + i * 0.17}s both;`, i % 3 === 2 ? "🐆" : "🐈");
+      [0, 1, 2].forEach(i => { const a = mk(st, `left:0;top:${40 + i * 8}%;width:170px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#fde68a 40%,#facc15);box-shadow:0 0 12px #facc15;animation:qcArrow 1s cubic-bezier(.2,.7,.3,1) ${1.1 + i * 0.12}s both;`, ""); a.innerHTML = '<span style="position:absolute;right:-10px;top:-9px;color:#facc15;font-size:18px;line-height:1;">▶</span>'; });
     }]
   };
+  function mk(st, css, txt) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = css; if (txt) d.textContent = txt; st.appendChild(d); return d; }
   function cine(cls, name, cb) {
     const C0 = CINE[cls] || CINE.engineer, ov = document.createElement("div");
     ov.className = "qcine"; ov.style.setProperty("--qc", C0[0]);
@@ -11272,6 +11307,13 @@ html.m #dg-screen { height: var(--app-h, 100%); }
 .dk-res { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; color: var(--text-dim); }
 .dk-res b { color: var(--text-main); font-family: 'Orbitron', monospace; font-size: 11px; }
 .dk-row { display: flex; gap: 4px; } .dk-row .btn { flex: 1; padding: 6px 2px; font-size: 10.5px; } .dk-row .btn small { display: block; font-size: 9px; opacity: .75; }
+.dk-lo { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.dk-ls { display: flex; flex-direction: column; align-items: center; padding: 4px 0; border-radius: 6px; background: #0f1218; border: 1px solid var(--rc, #333); box-shadow: 0 0 6px color-mix(in srgb, var(--rc, #333) 40%, transparent); font-size: 13px; line-height: 1.1; }
+.dk-ls b { font-size: 9px; color: var(--rc); } .dk-ls small { font-size: 8px; color: #94a3b8; } .dk-ls.empty { opacity: .45; }
+.dk-up { display: grid; gap: 4px; margin-bottom: 6px; }
+.dk-row1 { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 6px; border-radius: 6px; background: #0f1218; border-left: 3px solid var(--rc); font-size: 11px; }
+.dk-row1 span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .dk-row1 b { color: var(--rc); font-weight: 600; }
+.dk-row1 .btn { padding: 3px 8px; font-size: 11px; flex: none; }
 .dk-inv { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
 .dk-it { aspect-ratio: 1; min-width: 0; padding: 0; border-radius: 6px; background: #0f1218; border: 1px solid var(--rc); box-shadow: 0 0 6px color-mix(in srgb, var(--rc) 40%, transparent); color: var(--rc); font-size: 13px; position: relative; cursor: pointer; }
 .dk-it small { position: absolute; bottom: 0; right: 2px; font-size: 8px; color: #e2e8f0; }
@@ -11405,7 +11447,13 @@ html.m #dg-open-btn { display: none; }
 .hs-parry { position: relative; width: 150px; height: 150px; cursor: pointer; touch-action: none; }
 .hs-parry .tgt { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 4px solid #ffd700; box-shadow: 0 0 12px #ffd700; }
 .hs-parry .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 4px solid #ff1744; box-shadow: 0 0 10px #ff1744; }
-.hs-parry .ring.fake { border-color: #94a3b8; box-shadow: 0 0 8px #94a3b8; opacity: .8; border-style: dashed; }
+.hs-parry .ring.fake { border-color: #facc15 !important; box-shadow: 0 0 10px #facc15 !important; opacity: .9; border-style: dashed; }
+.hs-parry .ring.fake::after { content: "FAKE"; position: absolute; left: 50%; top: -18px; transform: translateX(-50%); font: 700 10px 'Space Grotesk', system-ui, sans-serif; color: #facc15; letter-spacing: 1px; }
+.hs-parry .ring.unbl { border-color: #ffffff !important; box-shadow: 0 0 18px #ff1744, inset 0 0 12px #ff1744 !important; animation: qteUnbl .25s ease-in-out infinite alternate; }
+.hs-parry .ring.unbl::after { content: "⚠ DON'T TAP"; position: absolute; left: 50%; top: -20px; transform: translateX(-50%); white-space: nowrap; font: 700 11px 'Space Grotesk', system-ui, sans-serif; color: #fff; text-shadow: 0 0 6px #ff1744; }
+@keyframes qteUnbl { from { opacity: 1; } to { opacity: .55; } }
+.qte-legend { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+.qte-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 3px solid; vertical-align: -2px; margin-right: 4px; }
 .hs-parry.spiral .ring { border-style: dashed; }
 .hs-pdots { display: flex; gap: 6px; margin-top: 8px; min-height: 12px; }
 .hs-pdots span { width: 12px; height: 12px; border-radius: 50%; background: #1e2636; border: 1px solid #334155; }
@@ -11514,7 +11562,8 @@ html.m #dg-open-btn { display: none; }
   const H = window.HSEngine, C = window.HSCampaign;
   const $ = (id) => document.getElementById(id);
   const fmt = (n) => Math.floor(n).toLocaleString();
-  const ENERGY_BASE = 16, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
+  const ENERGY_BASE = 16, ENERGY_MS0 = 12 * 60 * 1000, TOKEN_ENERGY = 4;
+  let ENERGY_MS = ENERGY_MS0;      // v12.1: Office Plant Fast Sap zrychlí obnovu
   function EMAX() { return ENERGY_BASE + (window.Plant ? Plant.fx("energy") : 0); }   // v8.7: Office Plant Sap Reserve
   // v11: 3 staty jako v SFGame - hlavní stat třídy (STR / AGI / INT), VIT, LUCK
   const STAT_INFO = { str: ["STR", "damage + defence against STR"], agi: ["AGI", "damage + defence against AGI"], int: ["INT", "damage + defence against INT"],
@@ -11628,6 +11677,7 @@ html.m #dg-open-btn { display: none; }
   function regenEnergy() {
     const d = HS(), now = Date.now();
     if (d.energy >= EMAX()) { d.energyAt = now; return; }
+    ENERGY_MS = Math.round(ENERGY_MS0 / (window.Plant ? Plant.fx("regen") : 1));
     const n = Math.floor((now - d.energyAt) / ENERGY_MS);
     if (n > 0) { d.energy = Math.min(EMAX(), d.energy + n); d.energyAt = d.energy >= EMAX() ? now : d.energyAt + n * ENERGY_MS; }
   }
@@ -11717,20 +11767,26 @@ html.m #dg-open-btn { display: none; }
         <div class="dk-res"><span>🎫 <b id="dk-t"></b></span><span>🔩 <b id="dk-s"></b></span><span>💰 <b id="dk-g"></b></span><span>⏱ <b id="dk-ot"></b></span></div>
         <div class="dk-row"><button class="btn" onclick="buyScrap(100);Dungeon.dockNow()">+100 scrap<small>1K tickets</small></button><button class="btn btn-gold" onclick="buyMaxScrap();Dungeon.dockNow()">Scrap max</button></div>
         <div class="dk-row"><button class="btn btn-crimson" onclick="openCompanyChest(1);Dungeon.dockNow()">📦 Open ×1<small id="dk-c1"></small></button><button class="btn btn-crimson" onclick="openCompanyChest(10);Dungeon.dockNow()">Open ×10<small id="dk-c10"></small></button></div>
-        <div class="dk-h"><span>🎒 INVENTORY</span><span id="dk-n" class="dg-dim"></span></div><div class="dk-inv" id="dk-inv"></div>
-        <div class="dk-h"><span>⚗ MERGER</span><span id="dk-m" class="dg-dim"></span></div><button class="btn btn-gold" style="width:100%;" onclick="mergeAll();Dungeon.dockNow()">MERGE ALL</button>`;
+        <div class="dk-h"><span>🦾 LOADOUT</span></div><div class="dk-lo" id="dk-lo"></div>
+        <div class="dk-h"><span>▲ BETTER THAN YOURS</span><span id="dk-n" class="dg-dim"></span></div><div class="dk-up" id="dk-inv"></div>
+        <div class="dk-h"><span>⚗ MERGER</span><span id="dk-m" class="dg-dim"></span></div><div class="dk-up" id="dk-mg"></div><button class="btn btn-gold" style="width:100%;" onclick="mergeAll();Dungeon.dockNow()">MERGE ALL</button>`;
     }
     const g = gameState, tx = (id, t) => { const e = $(id); if (e && e.textContent !== t) e.textContent = t; };
     tx("dk-t", fmtShort(g.tickets || 0)); tx("dk-s", fmtShort(g.scrap || 0)); tx("dk-g", fmtShort(g.coins || 0)); tx("dk-ot", String(g.slotTokens || 0));
     try { tx("dk-tp", "+" + fmtShort(calculateClickPower()) + " per click"); const c = getChestScrapCost(); tx("dk-c1", fmtShort(c) + " scrap"); tx("dk-c10", fmtShort(c * 10) + " scrap"); } catch (e) {}
-    const inv = (g.inventory || []).slice().sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0))).slice(0, 20);
-    const sig = inv.map(x => x.slot + x.tier + "." + (x.lvl || 0) + "x" + x.n).join(",");
-    tx("dk-n", (g.inventory || []).reduce((a, x) => a + x.n, 0) + " items");
-    const ready = (g.inventory || []).filter(x => x.n >= 3 && (x.lvl || 0) < 50).length; tx("dk-m", ready ? ready + " ready" : "nothing to merge");
+    // v12.1: loadout, jen lepší kusy a merge přímo v doku
+    const nmOf = x => { try { return itemName(x); } catch (e) { return x.slot; } }, keyOf = x => { try { return stackKey(x); } catch (e) { return ""; } };
+    const ico = typeof SLOT_ICONS !== "undefined" ? SLOT_ICONS : {}, SL = typeof SLOTS !== "undefined" ? SLOTS : [];
+    const lo = SL.map(k => { const it = g.loadout && g.loadout[k]; return it ? `<div class="dk-ls" style="--rc:var(--rarity-t${it.tier}, #888);" title="${escapeHtml(nmOf(it))} +${it.lvl || 0}">${ico[k] || "▪"}<b>T${it.tier}</b><small>+${it.lvl || 0}</small></div>` : `<div class="dk-ls empty" title="${k} empty">${ico[k] || "▪"}<small>-</small></div>`; }).join("");
+    const ups = (g.inventory || []).filter(x => { try { return isUpgrade(x); } catch (e) { return false; } }).sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0))).slice(0, 8);
+    const mg = (g.inventory || []).filter(x => x.n >= 3 && (x.lvl || 0) < 50 && !(typeof enhOf === "function" && enhOf(x))).sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0))).slice(0, 6);
+    tx("dk-n", ups.length ? ups.length + " found" : "none"); tx("dk-m", mg.length ? mg.length + " ready" : "nothing to merge");
+    const sig = lo + "|" + ups.map(keyOf).join(",") + "|" + mg.map(x => keyOf(x) + "x" + x.n).join(",");
     if (sig !== dockSig || force) {
-      dockSig = sig; const box = $("dk-inv");
-      if (box) box.innerHTML = inv.length ? inv.map(x => { let key = ""; try { key = stackKey(x); } catch (e) {} let nm = x.slot; try { nm = itemName(x); } catch (e) {}
-        return `<button class="dk-it" style="--rc:var(--rarity-t${x.tier}, #888);" title="${escapeHtml(nm)} +${x.lvl || 0} · ${x.n}× - tap to equip" onclick="equipStack('${key}');Dungeon.dockNow()"><i>+${x.lvl || 0}</i>${(typeof SLOT_ICONS !== "undefined" ? SLOT_ICONS : {})[x.slot] || "▪"}<small>${x.n}×</small></button>`; }).join("") : `<div class="dg-dim" style="grid-column:1/-1;">Empty - open a chest.</div>`;
+      dockSig = sig;
+      const a = $("dk-lo"); if (a) a.innerHTML = lo;
+      const b = $("dk-inv"); if (b) b.innerHTML = ups.length ? ups.map(x => `<div class="dk-row1" style="--rc:var(--rarity-t${x.tier}, #888);"><span>${ico[x.slot] || "▪"} <b>${escapeHtml(nmOf(x))}</b> +${x.lvl || 0}</span><button class="btn btn-cyan" onclick="equipStack('${keyOf(x)}');Dungeon.dockNow()">Equip</button></div>`).join("") : `<div class="dg-dim">Nothing better in your backpack - open a chest.</div>`;
+      const c = $("dk-mg"); if (c) c.innerHTML = mg.map(x => `<div class="dk-row1" style="--rc:var(--rarity-t${x.tier}, #888);"><span>${ico[x.slot] || "▪"} <b>${escapeHtml(nmOf(x))}</b> +${x.lvl || 0} · ${x.n}×</span><button class="btn" onclick="performSmartMerge('${keyOf(x)}',${Math.floor(x.n / 3)});Dungeon.dockNow()">×${Math.floor(x.n / 3)}</button></div>`).join("");
     }
   }
   function renderKeys() {
@@ -11887,7 +11943,7 @@ html.m #dg-open-btn { display: none; }
     const T = H.TAL[d.cls] || [], tal = h.tal, inFight = !!(fight && !fight.over);
     const rows = T.map((row, r) => { const lv = H.TAL_LV[r], lock = d.level < lv;
       return `<div class="hs-tr ${lock ? "lock" : ""}"><div class="hs-tlv">LV ${lv}</div>${row.map((x, v) => { const on = tal[r] === v, need = x.req && h.bar.indexOf(x.req) < 0;
-        return `<button class="btn hs-tal ${on ? "on" : ""}" ${lock || inFight ? "disabled" : ""} onclick="Dungeon.talPick(${r},${v})" data-tip="${escapeHtml(x.t)}"><b>${escapeHtml(x.n)}</b><small>${escapeHtml(x.t)}</small>${need ? `<em>needs ${escapeHtml(H.AB[x.req].n)} in your bar</em>` : ""}</button>`; }).join("")}</div>`; }).join("");
+        return `<button class="btn hs-tal ${on ? "on" : ""}" ${lock || inFight || (need && !on) ? "disabled" : ""} onclick="Dungeon.talPick(${r},${v})" data-tip="${escapeHtml(x.t)}"><b>${escapeHtml(x.n)}</b><small>${escapeHtml(x.t)}</small>${need ? `<em>🔒 put ${escapeHtml(H.AB[x.req].n)} in your bar first</em>` : ""}</button>`; }).join("")}</div>`; }).join("");
     const lo = (d.lo || []);
     const los = [0, 1, 2].map(i => `<span class="hs-lo"><button class="btn ${lo[i] ? "btn-cyan" : ""}" ${lo[i] && !inFight ? "" : "disabled"} onclick="Dungeon.loLoad(${i})">${lo[i] ? "▶ " + escapeHtml(lo[i].n) : "empty"}</button><button class="btn" ${inFight ? "disabled" : ""} onclick="Dungeon.loSave(${i})" title="Save your bar, talents and gear here">💾</button></span>`).join("");
     return `<div class="dg-card"><div class="dg-h"><span>🌳 TALENTS · ${tal.filter(x => x >= 0).length}/6</span><span class="dg-dim">free to change outside a fight</span></div>
@@ -11896,7 +11952,7 @@ html.m #dg-open-btn { display: none; }
   }
   function talPick(r, v) {
     if (fight && !fight.over) return;
-    const d = HS(), h = hero(), t = h.tal.slice(); t[r] = t[r] === v ? -1 : v; d.tal = t; TT.saveSoon(); render();
+    const d = HS(), h = hero(), t = h.tal.slice(), x = ((H.TAL[h.cls] || [])[r] || [])[v]; if (t[r] !== v && x && x.req && h.bar.indexOf(x.req) < 0) { log("Put " + H.AB[x.req].n + " in your action bar first.", "warning"); return; } t[r] = t[r] === v ? -1 : v; d.tal = t; TT.saveSoon(); render();
   }
   function loSave(i) {
     if (fight && !fight.over) return;
@@ -12152,7 +12208,7 @@ html.m #dg-open-btn { display: none; }
     if (ph) { const t = f.over ? "" : f.phase === "react" ? `<span class="p-react">② REACT!</span><small>${escapeHtml(f.e.name)} shows its move - pick your reaction</small>` : `<span class="p-atk">① YOUR ATTACK</span><small>${f.channel ? "🔮 channeled ×1.6 · " : ""}${f.sureCrit ? "🎯 sure crit · " : ""}${f.vuln ? "💢 vulnerable ×1.5 · " : ""}then it reacts with its move</small>`;
       if (ph.__h !== t) { ph.innerHTML = t; ph.__h = t; } }
     const box = $("hs-acts");
-    if (box) { const key = f.over ? "over" : f.phase + "|" + f.turn; if (box.__k !== key) { box.innerHTML = actsHtml(); box.__k = key; } }
+    if (box) { const key = f.over ? "over" : f.phase + "|" + f.turn + (fightCtx && fightCtx.cardsHtml ? "|" + busyAnim + "|" + Math.floor(f.sta) + "|" + Math.floor(f.focus) + "|" + (f.S ? Math.floor(f.S.r) : 0) : "");     /* v12.1: karty se překreslí po animaci (jinak zůstaly šedé) */ if (box.__k !== key) { box.innerHTML = actsHtml(); box.__k = key; } }
     const keys = f.phase === "react" ? H.reactsOf(h) : H.atkKeys(h);
     keys.forEach(a => {
       const b = $("hs-a-" + a); if (!b) return;
@@ -12575,14 +12631,22 @@ html.m #dg-open-btn { display: none; }
   }
 
   // v11.7: IKONKY BUFFŮ / DEBUFFŮ s vysvětlivkou (najetí myší nebo ťuknutí)
-  function stIcon(icon, txt, n, bad) { return `<span class="hs-st ${bad ? "bad" : ""}" data-tip="${escapeHtml(txt)}" onclick="HSTip(this)" onmouseenter="HSTip(this)">${icon}${n ? "<small>" + n + "</small>" : ""}</span>`; }
-  window.HSTip = function (el) {
+  function stIcon(icon, txt, n, bad) { return `<span class="hs-st ${bad ? "bad" : ""}" data-tip="${escapeHtml(txt)}" onclick="HSTip(this, 1)">${icon}${n ? "<small>" + n + "</small>" : ""}</span>`; }
+  // v12.1: jeden tooltip pro všechno s data-tip (ikonky, schopnosti, talenty) - zmizí při odjetí myší, kliku jinam, scrollu nebo překreslení
+  let tipEl = null;
+  function tipHide() { const b = document.getElementById("hs-tip"); if (b) b.style.display = "none"; tipEl = null; }
+  window.HSTip = function (el, sticky) {
     const t = el && el.getAttribute("data-tip"); if (!t) return;
     let b = document.getElementById("hs-tip"); if (!b) { b = document.createElement("div"); b.id = "hs-tip"; document.body.appendChild(b); }
-    const r = el.getBoundingClientRect(); b.textContent = t; b.style.display = "block";
-    b.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left - 100)) + "px"; b.style.top = (r.bottom + 6) + "px";
-    clearTimeout(b.__t); b.__t = setTimeout(() => { b.style.display = "none"; }, 3500);
+    const r = el.getBoundingClientRect(); b.textContent = t; b.style.display = "block"; tipEl = el;
+    const top = r.bottom + 6 + 80 > window.innerHeight ? r.top - 6 - Math.min(160, b.offsetHeight || 60) : r.bottom + 6;
+    b.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left + r.width / 2 - 130)) + "px"; b.style.top = Math.max(4, top) + "px";
+    clearTimeout(b.__t); b.__t = setTimeout(tipHide, sticky ? 3000 : 8000);
   };
+  document.addEventListener("mouseover", e => { const el = e.target.closest && e.target.closest("[data-tip]"); if (el && el !== tipEl && el.closest("#dg-screen")) HSTip(el); else if (!el && tipEl) tipHide(); }, true);
+  document.addEventListener("pointerdown", e => { if (tipEl && !(e.target.closest && e.target.closest("[data-tip]"))) tipHide(); }, true);
+  window.addEventListener("scroll", tipHide, true);
+  setInterval(() => { if (tipEl && (!document.body.contains(tipEl) || tipEl.offsetParent === null)) tipHide(); }, 400);
   window.HSStIcon = stIcon;
   /** v12: buffy schopností (sdílí kampaň i duel) */
   const CBUFF = { enrage: ["💢", "ENRAGED: +20% damage"], speech: ["📣", "MOTIVATIONAL SPEECH: +15% damage"], spree: ["📋", "HIRING SPREE: +25% damage (you and the cat)"], cleave: ["📬", "MASS MAIL: the cat deals +30%"],
@@ -14184,6 +14248,8 @@ html.m #dg-open-btn { display: none; }
     if (S) { if (window.HSClassBuffs) o.push(HSClassBuffs(S)); if (S.deb && S.deb.skip) o.push(I("🗓", "loses the next move", "", true)); if (S.deb && S.deb.mute) o.push(I("✋", "INTERRUPTED: no big moves next turn", "", true)); if (S.vl) o.push(I("📊", "VLOOKUP mark: explodes in " + S.vl.n, S.vl.n, true)); }
     return o.join("");
   }
+  /** v12.1: soupeřova stamina jen jako pásmo, aby nešlo přesně spočítat, co si může dovolit */
+  function staBand(x) { x = Number(x) || 0; return x < 30 ? ["LOW (0-30)", 15] : x < 70 ? ["MID (30-70)", 50] : ["HIGH (70+)", 85]; }
   function side(v, i, h) {
     const nm = (window.Nick ? Nick.of(v.names[i]) : v.names[i]) || "?", mine = i === v.you;
     let sprite = window.HSRig ? HSRig.player(h ? h.cls : "sysadmin", mine && window.Gear ? Gear.st() : null) : A.classSprite(h ? h.cls : "sysadmin");
@@ -14192,7 +14258,7 @@ html.m #dg-open-btn { display: none; }
     return `<div class="dg-side"><div class="dg-name" style="${mine ? "" : "color:var(--crimson);"}">${esc(nm)}${mine ? " (you)" : ""}</div><div class="dg-sub">${h ? esc(H.CLASSES[h.cls].name) + " LV " + h.level : ""}${v.atk === i && v.status === "play" ? " · ⚔ attacking" : ""}</div>
       <div id="du-s${i}">${sprite}</div>
       <div class="hs-bars"><div class="hs-lbl"><span>HP</span><span>${fmt(Math.max(0, hp))} / ${fmt(max)}${v.sh && v.sh[i] ? " 🛡" + fmt(v.sh[i]) : ""}</span></div><div class="hs-bar"><div class="hp" style="width:${Math.max(0, Math.min(100, hp / Math.max(1, max) * 100))}%"></div>${v.sh && v.sh[i] ? `<div class="sh" style="width:${Math.min(100, v.sh[i] / Math.max(1, max) * 100)}%"></div>` : ""}</div>
-        <div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}
+        ${mine ? `<div class="hs-lbl"><span>STAMINA</span><span>${v.sta ? Math.floor(v.sta[i]) : 100}</span></div>${bar("sta", v.sta ? v.sta[i] : 100, 100)}` : (() => { const b = staBand(v.sta ? v.sta[i] : 100); return `<div class="hs-lbl"><span>STAMINA</span><span title="You only see a rough range of your opponent's stamina">${b[0]}</span></div><div style="filter:blur(1.5px);opacity:.8;">${bar("sta", b[1], 100)}</div>`; })()}
         <div class="hs-lbl"><span>FOCUS</span><span>${v.foc ? Math.floor(v.foc[i]) : 30}</span></div>${bar("foc", v.foc ? v.foc[i] : 30, 100)}
         ${h && v.S && v.S[i] ? (() => { const R0 = H.RES[h.cls]; return `<div class="hs-lbl"><span>${R0.i} ${R0.n.toUpperCase()}</span><span>${Math.floor(v.S[i].r + 1e-9)} / ${R0.max}</span></div><div class="hs-bar"><div class="res" style="width:${Math.min(100, v.S[i].r / R0.max * 100)}%;background:${R0.c};height:100%;"></div></div>`; })() : ""}<div class="hs-sts">${duelBuffs(v, i, h)}</div></div></div>`;
   }
@@ -14252,7 +14318,7 @@ html.m #dg-open-btn { display: none; }
     if (v.status === "play") {
       const oi = 1 - v.you, oh = hs[oi];
       role = v.role === "atk" ? `<div class="du-role atk">① YOUR ATTACK<small>${esc(opp)} picks a reaction at the same time - they don't know what you'll do.</small></div>`
-        : `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. They have ${v.sta ? Math.floor(v.sta[oi]) : "?"} stamina${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits are hard to dodge and pierce blocks" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
+        : `<div class="du-role react">② REACT BLIND<small>${esc(opp)} is attacking - guess their move. Their stamina is ${v.sta ? staBand(v.sta[oi])[0] : "?"}${v.foc && v.foc[oi] >= 100 ? " and their ULTIMATE is ready!" : ""}${oh && oh.cls === "engineer" ? " · mage hits are hard to dodge and pierce blocks" : ""}${v.cd && v.cd[oi] > 0 ? " · their HEAVY is on cooldown" : ""}.</small></div>`;
       role += `<div class="du-timer"><div id="du-tbar" style="width:${left / 35000 * 100}%"></div></div>`;
     }
     const res = v.status === "done" ? `<div class="dg-card hs-res"><div class="big" style="color:${v.winner === me() ? "var(--emerald)" : v.winner ? "var(--crimson)" : "var(--amber)"};">${v.winner === me() ? "🏆 YOU WIN" : v.winner ? "☠ " + esc(v.winner) + " WINS" : "🤝 DRAW"}</div>
@@ -16508,7 +16574,7 @@ html.m [data-tab="play"] .rm-o, html.m [data-tab="play"] .rm { touch-action: pan
       root.appendChild(p);
     }
   }
-  window.Room = { renderStatic: renderStatic, postits: postits, colSay: colSay, render: render, tap: tap, reveal: reveal, ENVS: ENVS, REVEAL: REVEAL, tierOf: tierOf, walkTo: walkTo, say: say, bg: bg, art: (id, t) => { const k = T; T = t; const a = art(id); T = k; return a; } };
+  window.Room = { act: act, locked: locked, renderStatic: renderStatic, postits: postits, colSay: colSay, render: render, tap: tap, reveal: reveal, ENVS: ENVS, REVEAL: REVEAL, tierOf: tierOf, walkTo: walkTo, say: say, bg: bg, art: (id, t) => { const k = T; T = t; const a = art(id); T = k; return a; } };
   (function boot() {
     if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded || !window.HSRig) { setTimeout(boot, 120); return; }
     TT.onLoaded(() => {
@@ -16538,10 +16604,6 @@ html.m #on-res { display: none; }
 
 /* neon room: objekty jako obrysy, hráč jako silueta */
 .rm.neon { background: #05070d; box-shadow: inset 0 0 0 1px rgba(103,232,249,.18), 0 0 24px rgba(34,211,238,.08); }
-.rm.neon .rm-bg { filter: url(#onEdgeBg); }
-.rm.neon .rm-o > svg { filter: url(#onEdge); }
-.rm.neon .rm-o:not(.deco):hover > svg { filter: url(#onEdgeHot); }
-.rm.neon .rm-o.lock > svg { filter: url(#onEdge) saturate(.2) brightness(.6); }
 .rm.neon::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 999; background: repeating-linear-gradient(0deg, rgba(103,232,249,.025) 0 1px, transparent 1px 3px); }
 .on-neon-tg { position: absolute; right: 8px; bottom: 8px; z-index: 1000; font: 600 10px 'Space Grotesk', system-ui, sans-serif; padding: 2px 8px; border-radius: 99px; cursor: pointer; color: #a5f3fc; background: rgba(5,7,13,.75); border: 1px solid rgba(103,232,249,.35); }
 
@@ -16698,6 +16760,7 @@ html.neon-on .item-card.t6 { box-shadow: 0 0 18px 0 var(--rarity-t6); }
       best = -1; var out = open.apply(this, arguments);
       var el = document.getElementById("odds-bar"), p = el && el.closest(".panel");
       if (p && best >= 2 && on() && !root.classList.contains("fx-off")) { p.style.setProperty("--onc", "var(--rarity-t" + best + ")"); p.classList.remove("on-burst"); void p.offsetWidth; p.classList.add("on-burst"); }
+      if (best >= 2 && on() && window.OfficeTower) OfficeTower.pulse("chest", "var(--rarity-t" + best + ")");
       return out;
     };
     window.openCompanyChest._on = 1;
@@ -16708,6 +16771,175 @@ html.neon-on .item-card.t6 { box-shadow: 0 0 18px 0 var(--rarity-t6); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
   setInterval(tick, 700);
   window.OfficeNeon = { set: setOn, on: on };
+})();
+</script>
+<style>
+/* ===== v12.1 THE TOWER: kancelář jako řez nočním mrakodrapem, každé patro = část hry ===== */
+html.neon-on #rm { display: none !important; }
+html:not(.neon-on) #tw { display: none !important; }
+.tw { position: relative; width: 100%; aspect-ratio: 400 / 300; border-radius: 16px; overflow: hidden; margin: 0 0 12px; user-select: none; -webkit-user-select: none; isolation: isolate;
+  background: linear-gradient(180deg, #04050c 0%, #0a0f24 55%, #1a1030 100%); box-shadow: inset 0 0 0 1px rgba(103,232,249,.16), 0 0 24px rgba(34,211,238,.06); font-family: 'Space Grotesk', system-ui, sans-serif; }
+.tw-sky { position: absolute; inset: 0; pointer-events: none; }
+.tw-sky i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; opacity: .5; animation: twTw 3s ease-in-out infinite alternate; }
+@keyframes twTw { from { opacity: .15; } to { opacity: .8; } }
+.tw-moon { position: absolute; right: 7%; top: 6%; width: 22px; height: 22px; border-radius: 50%; background: #f8f3dc; box-shadow: 0 0 18px rgba(248,243,220,.5), -6px -3px 0 0 #0a0f24 inset; }
+.tw-city { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; pointer-events: none; }
+.tw-b { position: absolute; left: 13%; right: 13%; top: 13%; bottom: 4%; display: flex; flex-direction: column; background: #0b0f1c; border: 2px solid #1e293b; border-bottom: 0; box-shadow: 0 0 0 1px #000, 0 0 30px rgba(0,0,0,.6); z-index: 2; }
+.tw-roof { position: absolute; left: 13%; right: 13%; top: 2%; height: 11%; z-index: 3; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; gap: 6px; border-bottom: 2px solid #1e293b; }
+.tw-roof .tw-ant { position: absolute; left: 14%; bottom: 100%; width: 2px; height: 22px; background: #334155; }
+.tw-roof .tw-ant::after { content: ""; position: absolute; top: -3px; left: -2px; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: twBlink 1.6s steps(2) infinite; }
+@keyframes twBlink { 50% { opacity: .1; } }
+.tw-fl { flex: 1; display: grid; grid-template-columns: 1fr 12px 1fr; border-top: 2px solid #1e293b; min-height: 0; }
+.tw-shaft { background: repeating-linear-gradient(0deg, #0f172a 0 4px, #111827 4px 8px); border-left: 1px solid #1e293b; border-right: 1px solid #1e293b; }
+.tw-r { position: relative; overflow: hidden; cursor: pointer; min-width: 0; background: #070a14; outline: none; }
+.tw-r .tw-in { position: absolute; inset: 0; background: var(--bg); filter: brightness(.28) saturate(.5); transition: filter .3s; }
+.tw-r .tw-p { position: absolute; bottom: 2px; font-size: clamp(11px, 3.4vw, 17px); line-height: 1; filter: drop-shadow(0 1px 0 #000); }
+.tw-r::before { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(90deg, transparent 49.5%, rgba(15,23,42,.9) 49.5% 50.5%, transparent 50.5%), linear-gradient(180deg, rgba(255,255,255,.05), transparent 40%); }
+.tw-r .tw-lb { position: absolute; left: 3px; top: 2px; z-index: 4; font-size: clamp(7px, 2.1vw, 9.5px); font-weight: 700; color: #cbd5e1; opacity: .55; white-space: nowrap; letter-spacing: .2px; transition: opacity .2s, color .2s; text-shadow: 0 1px 2px #000; }
+.tw-r:hover .tw-in, .tw-r:focus-visible .tw-in, .tw-r.here .tw-in, .tw-r.pulse .tw-in { filter: none; }
+.tw-r:hover .tw-lb, .tw-r:focus-visible .tw-lb, .tw-r.here .tw-lb { opacity: 1; color: #fff; }
+.tw-r:hover, .tw-r:focus-visible { box-shadow: inset 0 0 0 1px var(--c), inset 0 0 18px -6px var(--c); }
+.tw-r.here { box-shadow: inset 0 0 0 1px var(--c), inset 0 0 22px -4px var(--c); }
+.tw-r.lock .tw-in { filter: brightness(.15) grayscale(1); }
+.tw-r.lock::after { content: "🔒 under construction"; position: absolute; inset: auto 0 0 0; z-index: 5; text-align: center; font-size: 8px; font-weight: 700; color: #111; padding: 1px 0; background: repeating-linear-gradient(45deg, #facc15 0 6px, #111 6px 12px); opacity: .85; }
+.tw-r.pulse { animation: twPulse 1.1s ease-out; }
+@keyframes twPulse { 0% { box-shadow: inset 0 0 0 2px var(--pc, #fbbf24), inset 0 0 40px var(--pc, #fbbf24); } 100% { box-shadow: inset 0 0 0 0 transparent; } }
+.tw-me { position: absolute; bottom: 0; width: 34%; height: 92%; z-index: 2; pointer-events: none; }
+.tw-me .rig { width: 100%; height: 100%; }
+.tw-lift { position: absolute; left: 0; right: 0; height: 0; z-index: 4; transition: top .55s cubic-bezier(.5,0,.3,1); }
+.tw-cab { position: absolute; left: 1px; right: 1px; top: 0; bottom: 0; background: linear-gradient(180deg, #fbbf24, #b45309); box-shadow: 0 0 10px rgba(251,191,36,.6); border-radius: 1px; }
+.tw-name { position: absolute; left: 8px; top: 6px; z-index: 6; font-size: 10px; font-weight: 700; color: #a5f3fc; opacity: .8; }
+.tw-tg { position: absolute; right: 8px; bottom: 6px; z-index: 6; font: 600 10px 'Space Grotesk', system-ui, sans-serif; padding: 2px 8px; border-radius: 99px; cursor: pointer; color: #a5f3fc; background: rgba(5,7,13,.75); border: 1px solid rgba(103,232,249,.35); }
+.tw-tip { position: absolute; z-index: 7; pointer-events: none; padding: 3px 8px; border-radius: 6px; background: rgba(5,7,13,.92); border: 1px solid var(--c, #67e8f9); color: #e2e8f0; font-size: 11px; white-space: nowrap; transform: translateX(-50%); display: none; }
+.tw .rm-pi { z-index: 8; }
+@media (prefers-reduced-motion: reduce) { .tw *, .tw { animation: none !important; transition: none !important; } }
+/* noční město na pozadí stránky */
+html.neon-on body::before { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 38vh; z-index: -1; pointer-events: none; opacity: .5;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'><g fill='%230b1020'><rect x='0' y='150' width='70' height='150'/><rect x='60' y='90' width='60' height='210'/><rect x='130' y='170' width='90' height='130'/><rect x='210' y='60' width='50' height='240'/><rect x='270' y='130' width='80' height='170'/><rect x='360' y='40' width='70' height='260'/><rect x='440' y='160' width='60' height='140'/><rect x='510' y='100' width='90' height='200'/><rect x='610' y='180' width='50' height='120'/><rect x='670' y='70' width='70' height='230'/><rect x='750' y='140' width='80' height='160'/><rect x='840' y='30' width='60' height='270'/><rect x='910' y='120' width='90' height='180'/><rect x='1010' y='80' width='60' height='220'/><rect x='1080' y='160' width='120' height='140'/></g><g fill='%23f5b942' opacity='.55'><rect x='75' y='110' width='6' height='4'/><rect x='95' y='150' width='6' height='4'/><rect x='220' y='90' width='5' height='4'/><rect x='380' y='70' width='6' height='4'/><rect x='400' y='130' width='6' height='4'/><rect x='530' y='130' width='6' height='4'/><rect x='690' y='100' width='6' height='4'/><rect x='860' y='60' width='5' height='4'/><rect x='870' y='140' width='5' height='4'/><rect x='1030' y='120' width='6' height='4'/></g><g fill='%2367e8f9' opacity='.4'><rect x='290' y='160' width='6' height='4'/><rect x='560' y='170' width='6' height='4'/><rect x='770' y='170' width='6' height='4'/><rect x='940' y='150' width='6' height='4'/></g></svg>") bottom / 100% 100% no-repeat; }
+</style>
+<script>
+(function () {
+  "use strict";
+  // patra odshora: [levá místnost, pravá místnost]; id = předmět v Room (stejné akce)
+  var FLOORS = [
+    [["tv", "Server room · High Stakes", "#a855f7", "linear-gradient(180deg,#1b0f2e,#0c0717)"], ["col", "Break room · Colleague", "#f59e0b", "linear-gradient(180deg,#2a1a0b,#120a04)"]],
+    [["roul", "Casino floor", "#ef4444", "linear-gradient(180deg,#2b0a12,#14050a)"], ["chest", "Vault · Company Chest", "#fbbf24", "linear-gradient(180deg,#2a2208,#120e03)"]],
+    [["desk", "Your desk · Tickets", "#22d3ee", "linear-gradient(180deg,#0a2230,#06121b)"], ["bench", "Workshop · Upgrades", "#94a3b8", "linear-gradient(180deg,#1a2130,#0b0f18)"]],
+    [["closet", "Lockers · Gear", "#60a5fa", "linear-gradient(180deg,#0e1a33,#070c18)"], ["phone", "Comms · Chat", "#34d399", "linear-gradient(180deg,#0a261c,#04120d)"]],
+    [["shelf", "Lobby · Hall of Fame", "#e879f9", "linear-gradient(180deg,#25102b,#110714)"], ["board", "Lobby · Top 10", "#38bdf8", "linear-gradient(180deg,#0b2033,#050f19)"]]
+  ];
+  var PROPS = {
+    tv: '<span class="tw-p" style="left:6%">🗄️</span><span class="tw-p" style="left:26%">🗄️</span><span class="tw-p" style="right:8%">📺</span>',
+    col: '<span class="tw-p" style="left:8%">☕</span><span class="tw-p" style="right:40%">🛋️</span>',
+    roul: '<span class="tw-p" style="left:6%">🎰</span><span class="tw-p" style="left:32%">🎰</span><span class="tw-p" style="right:8%">🎡</span>',
+    chest: '<span class="tw-p" style="left:10%">📦</span><span class="tw-p" style="left:40%">💰</span><span class="tw-p" style="right:10%">🔐</span>',
+    desk: '<span class="tw-p" style="right:10%">🖥️</span><span class="tw-p" style="right:34%">🗂️</span>',
+    bench: '<span class="tw-p" style="left:8%">🛠️</span><span class="tw-p" style="left:40%">⚙️</span><span class="tw-p" style="right:10%">🔩</span>',
+    closet: '<span class="tw-p" style="left:6%">🎒</span><span class="tw-p" style="left:36%">🦺</span><span class="tw-p" style="right:10%">🧰</span>',
+    phone: '<span class="tw-p" style="left:8%">☎️</span><span class="tw-p" style="left:38%">💬</span><span class="tw-p" style="right:10%">📡</span>',
+    shelf: '<span class="tw-p" style="left:8%">🏆</span><span class="tw-p" style="left:36%">🥇</span><span class="tw-p" style="right:10%">🪴</span>',
+    board: '<span class="tw-p" style="left:10%">📋</span><span class="tw-p" style="right:12%">🛎️</span>'
+  };
+  var root = null, here = "desk", sig = "", lift = null;
+  function hsd() { return typeof gameState !== "undefined" && gameState.hs ? gameState.hs : {}; }
+  function P() { return typeof gameState !== "undefined" ? (gameState.prestige || 0) : 0; }
+  function lockOf(id) { try { return window.Room && Room.locked ? Room.locked(id) : ""; } catch (e) { return ""; } }
+  function rig(cls, gear, flip) { if (!window.HSRig) return ""; return '<div style="position:absolute;inset:0;' + (flip ? "transform:scaleX(-1);" : "") + '">' + HSRig.player(cls, gear) + "</div>"; }
+  function meGear() { var d = hsd(); return window.Gear && d.cls ? Gear.st() : null; }
+  function city() {
+    var h = "", x = 0, i = 0;
+    while (x < 100) { var w = 5 + ((i * 37) % 9), ht = 30 + ((i * 53) % 55); h += '<div style="position:absolute;bottom:0;left:' + x + '%;width:' + w + '%;height:' + ht + '%;background:#0a0f1e;box-shadow:inset 0 0 0 1px #0f172a;">' + (i % 2 ? '<i style="position:absolute;left:30%;top:20%;width:2px;height:2px;background:#f5b942;opacity:.6;box-shadow:0 6px 0 #f5b942,4px 12px 0 #67e8f9;"></i>' : "") + "</div>"; x += w + 1; i++; }
+    return h;
+  }
+  function stars() { var h = ""; for (var i = 0; i < 26; i++) h += '<i style="left:' + ((i * 37) % 100) + '%;top:' + ((i * 23) % 40) + '%;animation-delay:' + (i % 7) * 0.4 + 's"></i>'; return h; }
+  function roomHtml(r) {
+    var id = r[0], lk = lockOf(id), d = hsd(), extra = "";
+    if (id === "desk") extra = '<div class="tw-me" id="tw-me" style="left:30%">' + rig(d.cls || "sysadmin", meGear()) + "</div>";
+    if (id === "col" && d.col && d.col.unlocked) extra = '<div class="tw-me" style="right:4%;left:auto">' + rig(d.col.cls || "engineer", window.Gear ? Gear.vis(d.col.gear) : d.col.gear, true) + "</div>";
+    return '<div class="tw-r' + (lk ? " lock" : "") + (here === id ? " here" : "") + '" data-o="' + id + '" role="button" tabindex="0" aria-label="' + r[1] + '" style="--c:' + r[2] + ';--bg:' + r[3] + '"><div class="tw-in">' + (PROPS[id] || "") + extra + '</div><span class="tw-lb">' + r[1] + "</span></div>";
+  }
+  function render() {
+    if (!root) return;
+    var plant = 0; try { plant = window.Plant && Plant.stage ? Plant.stage() : 0; } catch (e) {}
+    var lkP = lockOf("plant");
+    var h = '<div class="tw-sky">' + stars() + '</div><div class="tw-moon"></div><div class="tw-city">' + city() + "</div>" +
+      '<div class="tw-name">🏢 Office Royale HQ · Prestige ' + P() + "</div>" +
+      '<div class="tw-roof tw-r' + (lkP ? " lock" : "") + (here === "plant" ? " here" : "") + '" data-o="plant" role="button" tabindex="0" aria-label="Roof garden · Office Plant" style="--c:#4ade80;--bg:linear-gradient(180deg,transparent,#0a1f12)"><div class="tw-in" style="filter:none;background:none;"><span class="tw-p" style="left:44%;font-size:clamp(13px,4vw,20px)">' + ["🪴", "🌱", "🌿", "🌳", "🌳"][Math.max(0, Math.min(4, plant))] + '</span></div><span class="tw-lb" style="left:auto;right:4px">Roof · Office Plant</span><div class="tw-ant"></div></div>' +
+      '<div class="tw-b">' + FLOORS.map(function (f) { return '<div class="tw-fl">' + roomHtml(f[0]) + '<div class="tw-shaft"></div>' + roomHtml(f[1]) + "</div>"; }).join("") + "</div>" +
+      '<div class="tw-lift" id="tw-lift"><div class="tw-cab"></div></div><div class="tw-tip" id="tw-tip"></div><button type="button" class="tw-tg" id="tw-tg">Neon: on</button>';
+    root.innerHTML = h;
+    var me = root.querySelector("#tw-me .rig"); if (me) me.classList.add("a-type");
+    placeLift(true);
+  }
+  function placeLift(instant) {
+    var lf = root && root.querySelector("#tw-lift"), r = root && root.querySelector('.tw-r[data-o="' + here + '"]'), b = root && root.querySelector(".tw-b"); if (!lf || !r || !b) return;
+    var rb = root.getBoundingClientRect(), rr = r.getBoundingClientRect(), bb = b.getBoundingClientRect();
+    var sh = root.querySelector(".tw-shaft"), sb = sh ? sh.getBoundingClientRect() : bb;
+    lf.style.left = (sb.left - rb.left) + "px"; lf.style.right = "auto"; lf.style.width = sb.width + "px";
+    if (instant) lf.style.transition = "none";
+    lf.style.top = (rr.top - rb.top) + "px"; lf.style.height = rr.height + "px";
+    if (instant) { void lf.offsetWidth; lf.style.transition = ""; }
+  }
+  function go(id) {
+    if (!id) return;
+    var lk = lockOf(id);
+    if (lk) { tip(root.querySelector('.tw-r[data-o="' + id + '"]'), "🔒 " + lk, 2600); return; }
+    here = id;
+    root.querySelectorAll(".tw-r").forEach(function (x) { x.classList.toggle("here", x.getAttribute("data-o") === id); });
+    placeLift(false);
+    setTimeout(function () { try { if (window.Room && Room.act) Room.act(id); } catch (e) { console.error(e); } }, 380);
+  }
+  function tip(el, t, ms) {
+    var tp = root && root.querySelector("#tw-tip"); if (!tp || !el) return;
+    var rb = root.getBoundingClientRect(), r = el.getBoundingClientRect();
+    tp.textContent = t; tp.style.display = "block"; tp.style.setProperty("--c", getComputedStyle(el).getPropertyValue("--c") || "#67e8f9");
+    tp.style.left = "50%"; tp.style.top = (r.top - rb.top > rb.height / 2 ? 4 : rb.height - 26) + "px";
+    clearTimeout(tp.__t); if (ms) tp.__t = setTimeout(function () { tp.style.display = "none"; }, ms);
+  }
+  var HINT = { tv: "Fight in HIGH STAKES", col: "Your colleague", roul: "Roulette, slots, blackjack & more", chest: "Open and upgrade the Company Chest", desk: "Resolve tickets", bench: "Upgrade Station", closet: "Your loadout and backpack", phone: "Chat with everyone", shelf: "Achievements", board: "Season top 10", plant: "The Office Plant" };
+  function mount() {
+    if (root) return true;
+    var wrap = document.querySelector(".click-btn-wrap"); if (!wrap) return false;
+    root = document.createElement("div"); root.className = "tw"; root.id = "tw";
+    wrap.parentNode.insertBefore(root, wrap);
+    root.addEventListener("click", function (e) {
+      if (e.target.closest("#tw-tg")) { e.stopPropagation(); if (window.OfficeNeon) OfficeNeon.set(false); return; }
+      if (e.target.closest(".rm-pi")) return;
+      var r = e.target.closest(".tw-r"); if (r) go(r.getAttribute("data-o"));
+    });
+    root.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { var r = e.target.closest(".tw-r"); if (r) { e.preventDefault(); go(r.getAttribute("data-o")); } } });
+    root.addEventListener("mouseover", function (e) { var r = e.target.closest(".tw-r"); if (r) tip(r, (r.getAttribute("aria-label") || "") + " - " + (HINT[r.getAttribute("data-o")] || ""), 0); });
+    root.addEventListener("mouseleave", function () { var tp = root.querySelector("#tw-tip"); if (tp) tp.style.display = "none"; });
+    var btn = document.getElementById("btn-click");
+    if (btn) btn.addEventListener("pointerdown", function () { if (here !== "desk" && root) { here = "desk"; root.querySelectorAll(".tw-r").forEach(function (x) { x.classList.toggle("here", x.getAttribute("data-o") === "desk"); }); placeLift(false); } });
+    window.addEventListener("resize", function () { placeLift(true); });
+    render(); return true;
+  }
+  function sigNow() { var d = hsd(), c = d.col || {}, g = meGear(); var pl = 0; try { pl = window.Plant && Plant.stage ? Plant.stage() : 0; } catch (e) {}
+    return [P(), d.cls, g ? [g.w && g.w.m, g.a && g.a.m, g.t && g.t.m].join("") : "", !!c.unlocked, c.cls, pl].concat(["roul", "tv", "plant", "col"].map(lockOf)).join("|"); }
+  function tick() { if (!mount()) return; var s = sigNow(); if (s !== sig) { sig = s; render(); } }
+  /** záblesk patra trezoru podle rarity dropu (volá ho chest hook) */
+  function pulse(id, color) { var r = root && root.querySelector('.tw-r[data-o="' + id + '"]'); if (!r) return; r.style.setProperty("--pc", color); r.classList.remove("pulse"); void r.offsetWidth; r.classList.add("pulse"); }
+  // prank post-ity: když je věž zapnutá, lepí se na tvůj stůl ve věži
+  function hookPostits() {
+    if (!window.Room || !Room.postits || Room.postits.__tw) return;
+    var orig = Room.postits;
+    Room.postits = function (n, onTake) {
+      if (!root || !document.documentElement.classList.contains("neon-on")) return orig.apply(this, arguments);
+      root.querySelectorAll(".rm-pi").forEach(function (x) { x.remove(); });
+      var desk = root.querySelector('.tw-r[data-o="desk"]'); if (!desk) return orig.apply(this, arguments);
+      for (var i = 0; i < n; i++) (function (i) {
+        var p = document.createElement("div"); p.className = "rm-pi"; p.setAttribute("role", "button"); p.title = "Peel it off";
+        p.style.cssText = "position:absolute;left:" + (8 + (i * 17) % 70) + "%;top:" + (20 + (i * 23) % 50) + "%;width:14%;height:26%;z-index:8;background:" + ["#fde047", "#f9a8d4", "#86efac", "#7dd3fc"][i % 4] + ";transform:rotate(" + ((i * 37) % 30 - 15) + "deg);box-shadow:0 2px 3px rgba(0,0,0,.5);cursor:pointer;";
+        p.addEventListener("click", function (ev) { ev.stopPropagation(); p.style.transition = "transform .3s,opacity .3s"; p.style.opacity = "0"; setTimeout(function () { p.remove(); }, 300); if (onTake) onTake(); });
+        desk.appendChild(p);
+      })(i);
+    };
+    Room.postits.__tw = 1;
+  }
+  setInterval(function () { try { tick(); hookPostits(); } catch (e) { console.error(e); } }, 900);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
+  window.OfficeTower = { render: render, go: go, pulse: pulse };
 })();
 </script>
 

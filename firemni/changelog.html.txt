@@ -24,6 +24,18 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "12.1", d: "2026-11-01", i: [
+"🏢 <b>THE TOWER</b>: your office is now a night-time skyscraper - every floor is a part of the game (your desk, the casino, the vault, the server room, the break room, the lobby and the roof garden). Hover to light a room up, click to go there; the elevator follows you and the vault flashes in the colour of your best drop. 'Neon: on' switches back to the old room",
+"🌃 Night city skyline behind the whole page; a chest drop now only lights up the Company Chest panel (no more full-screen flash)",
+"🌙 Night Shift: fixed cards staying grey after the first one you played",
+"🌳 Talents that need an ability are locked until that ability is in your action bar, and every talent row has at least one option that works without one",
+"🛡 Parry: FAKE rings are yellow and dashed, the unblockable ring is white with ⚠ DON'T TAP, the ring no longer stops halfway, and you get a colour legend the first two times",
+"⚔ Duels: you only see your opponent's stamina as LOW / MID / HIGH",
+"💬 Hover any ability in a fight to see what it does; tooltips no longer get stuck",
+"✨ New ultimate animations for every class (no more brick wall for the Berserker)",
+"🏢 The office dock in High Stakes shows your loadout, items better than yours (one-tap equip) and stacks ready to merge",
+"🌳 Office Plant: Thick Bark is now <b>Fast Sap</b> - High Stakes energy refills 15% faster per level"
+] },
 { v: "12.0", d: "2026-11-01", i: [
 "⚔ <b>NEW CLASSES</b>: 😤 Overtime Berserker (Stress, Enrage, Rage Quit), 🔥 Burnout Specialist (burns, Reply-All Nuke), 📊 Excel Wizard (Nested Formulas, Ctrl+Enter), ☕ Espresso Monk (Shots, combos, clones) and 🐈 Headhunter with the Office Cat. Your character switched automatically (level and gear stay) and you get one FREE class change",
 "📖 <b>SPELLBOOK</b> (HERO tab): every class has 8 abilities unlocked by level - pick 4 for your action bar. STRIKE, HEAVY, GAMBLE, BREATHE and the ultimate are always there. Keys 1-9 work in a fight",

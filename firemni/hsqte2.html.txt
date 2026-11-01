@@ -234,16 +234,18 @@ const frame = (now) => { const t = ((now - t0) % (period * 2)) / period; pos = t
 raf = requestAnimationFrame(frame);
 }
 const PARRY_WIN = { perfect: 6, good: 16 }, PSTREAK = { n: 0 };
+function legendN() { try { return Number(localStorage.getItem("ir_plg")) || 0; } catch (e) { return 9; } }
 function parry(o, cb) {
 o = o || {};
 const k = o.k || "heavy", style = o.style || "", combo = k === "unleash" ? 3 : k === "withdraw" ? 1 : Math.min(3, 1 + (rnd() < 0.2 + 0.12 * D.diff ? 1 : 0) + (D.diff >= 2 && rnd() < 0.25 ? 1 : 0)), n = combo, dur = (k === "unleash" ? 750 : k === "withdraw" ? 1000 : combo > 1 ? 800 : 1100) * TM();
 const sk = Math.max(0.66, Math.pow(0.88, PSTREAK.n)), target = Math.round(36 + rnd() * 20);
 let red = false;
 const wP = PARRY_WIN.perfect * (o.easy || 1) * sk, wG = PARRY_WIN.good * (o.easy || 1) * Math.max(0.7, sk), from = 150, to = 14;
-const title = (o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one")) + (k === "unleash" || k === "withdraw" ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${n > 1 ? "⚡ COMBO: " + n + " rings - " : ""}a <b style="color:#fff;">white-hot</b> ring is unblockable: DON'T tap it</div>`) +
+const title = (o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one")) + (k === "unleash" || k === "withdraw" ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${n > 1 ? "⚡ COMBO: " + n + " rings - " : ""}a <b style="color:#fff;">white-hot ⚠</b> ring is unblockable: DON'T tap it</div>`) + (legendN() < 2 ? `<div class="qte-legend"><span><i style="border-color:#ff1744"></i>tap on gold</span><span><i style="border-color:#facc15;border-style:dashed"></i>fake - ignore</span><span><i style="border-color:#fff;box-shadow:0 0 6px #ff1744"></i>⚠ don't tap</span></div>` : "") +
 (PSTREAK.n ? `<div style="font-size:11px;color:#ff9f43;margin-top:4px;">🔥 PERFECT ×${PSTREAK.n} in a row - the window is ${Math.round((1 - sk) * 100)}% smaller</div>` : "");
+try { localStorage.setItem("ir_plg", String(legendN() + 1)); } catch (e) {}
 const ov = open(`<div class="qte-t">${title}</div>
-<div class="hs-parry ${style}" id="qte-pr"><div class="tgt" style="width:${target}px;height:${target}px;margin:${-target / 2}px 0 0 ${-target / 2}px;"></div><div class="ring" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
+<div class="hs-parry ${style}" id="qte-pr"><div class="tgt" style="width:${target}px;height:${target}px;margin:${-target / 2}px 0 0 ${-target / 2}px;"></div><div class="ring fake" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
 <div class="hs-pdots" id="qte-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="qte-res" id="qte-pq">&nbsp;</div>`);
 const res = []; let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, finished = false;
 const ringEl = () => $("qte-ring"), fakeEl = () => $("qte-fake");
@@ -279,8 +281,8 @@ function realRing() {
 if (finished) return;
 phase = "ring"; t0 = performance.now(); size = from;
 const r = ringEl(); if (r) r.style.display = "";
-red = k !== "withdraw" && n === 1 && rnd() < 0.08 + 0.05 * D.diff; if (r) { r.style.borderColor = red ? "#ffffff" : ""; r.style.boxShadow = red ? "0 0 18px #ff1744, inset 0 0 12px #ff1744" : ""; }
-const dk = dur * (0.8 + rnd() * 0.45), ex = 1.25 + rnd() * 0.8, hes = rnd() < 0.25 + 0.08 * D.diff ? { at: 0.3 + rnd() * 0.35, ms: 160 + rnd() * 260 } : null;
+red = k !== "withdraw" && n === 1 && rnd() < 0.08 + 0.05 * D.diff; if (r) r.classList.toggle("unbl", red);
+const dk = dur * (0.85 + rnd() * 0.35), ex = 1.15 + rnd() * 0.35, hes = null;      // v12.1: žádné zastavování, plynulý dojezd
 let paused = 0;
 const fr = (now) => {
 if (hes && !hes.done) { const tt = (now - t0 - paused) / dk; if (tt >= hes.at) { if (!hes.s) hes.s = now; if (now - hes.s < hes.ms) { raf = requestAnimationFrame(fr); return; } hes.done = 1; paused += now - hes.s; } }
@@ -512,8 +514,6 @@ document.addEventListener("keydown", key, true);
 const iv = setInterval(() => { const el = performance.now() - t0, b = $("qte-gb2"); if (b) b.style.width = Math.max(0, 100 - el / LIM * 100) + "%"; if (el >= LIM) end(null); }, 100);
 }
 /** krátká animace ultimátky (2,4 s, ťuknutím přeskočíš) */
-const CINE = {
-engineer: ["#22c55e", (st) => {
-for (let i = 0; i < 26; i++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:${i * 4}%;top:0;color:#22c55e;font:700 14px monospace;writing-mode:vertical-rl;text-shadow:0 0 6px #22c55e;animation:qcRain ${0.9 + rnd() * 0.9}s linear ${rnd() * 0.5}s infinite;`; d.textContent = Array(14).fill(0).map(() => rnd() < 0.5 ? "0" : "1").join(""); st.appendChild(d); }</script>
+const CINE = {</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hsqte2"] = 1;</script>
 <!-- END-OF-FILE: hsqte2 -->

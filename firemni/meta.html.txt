@@ -605,8 +605,8 @@ if (!canFx()) return;
 retrigger(chest, "fx-chest");
 var best = 0, re = /T([1-6])×/g, m;
 while ((m = re.exec(t))) best = Math.max(best, Number(m[1]));
-if (best >= 3) doFlash(COLORS[best]);
-if (best >= 5) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
+if (best >= 3 && !document.documentElement.classList.contains("neon-on")) doFlash(COLORS[best]);      // v12.1: s neonem svítí jen panel bedny
+if (best >= 5 && !document.documentElement.classList.contains("neon-on")) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
 if (/OVERTIME HOUR/.test(t)) doBanner("⏱ OVERTIME HOUR!", "var(--amber)");
 }).observe(chest, { childList: true, characterData: true, subtree: true });
 }

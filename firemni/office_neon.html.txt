@@ -8,10 +8,6 @@ html:not(.neon-on) #on-res { display: none; }
 html.m #on-res { display: none; }
 /* neon room: objekty jako obrysy, hráč jako silueta */
 .rm.neon { background: #05070d; box-shadow: inset 0 0 0 1px rgba(103,232,249,.18), 0 0 24px rgba(34,211,238,.08); }
-.rm.neon .rm-bg { filter: url(#onEdgeBg); }
-.rm.neon .rm-o > svg { filter: url(#onEdge); }
-.rm.neon .rm-o:not(.deco):hover > svg { filter: url(#onEdgeHot); }
-.rm.neon .rm-o.lock > svg { filter: url(#onEdge) saturate(.2) brightness(.6); }
 .rm.neon::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 999; background: repeating-linear-gradient(0deg, rgba(103,232,249,.025) 0 1px, transparent 1px 3px); }
 .on-neon-tg { position: absolute; right: 8px; bottom: 8px; z-index: 1000; font: 600 10px 'Space Grotesk', system-ui, sans-serif; padding: 2px 8px; border-radius: 99px; cursor: pointer; color: #a5f3fc; background: rgba(5,7,13,.75); border: 1px solid rgba(103,232,249,.35); }
 /* resolve ticket: tmavý s glow */
@@ -154,6 +150,7 @@ window.openCompanyChest = function (n) {
 best = -1; var out = open.apply(this, arguments);
 var el = document.getElementById("odds-bar"), p = el && el.closest(".panel");
 if (p && best >= 2 && on() && !root.classList.contains("fx-off")) { p.style.setProperty("--onc", "var(--rarity-t" + best + ")"); p.classList.remove("on-burst"); void p.offsetWidth; p.classList.add("on-burst"); }
+if (best >= 2 && on() && window.OfficeTower) OfficeTower.pulse("chest", "var(--rarity-t" + best + ")");
 return out;
 };
 window.openCompanyChest._on = 1;
@@ -163,6 +160,173 @@ apply();
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
 setInterval(tick, 700);
 window.OfficeNeon = { set: setOn, on: on };
+})();
+</script>
+<style>
+/* ===== v12.1 THE TOWER: kancelář jako řez nočním mrakodrapem, každé patro = část hry ===== */
+html.neon-on #rm { display: none !important; }
+html:not(.neon-on) #tw { display: none !important; }
+.tw { position: relative; width: 100%; aspect-ratio: 400 / 300; border-radius: 16px; overflow: hidden; margin: 0 0 12px; user-select: none; -webkit-user-select: none; isolation: isolate;
+background: linear-gradient(180deg, #04050c 0%, #0a0f24 55%, #1a1030 100%); box-shadow: inset 0 0 0 1px rgba(103,232,249,.16), 0 0 24px rgba(34,211,238,.06); font-family: 'Space Grotesk', system-ui, sans-serif; }
+.tw-sky { position: absolute; inset: 0; pointer-events: none; }
+.tw-sky i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; opacity: .5; animation: twTw 3s ease-in-out infinite alternate; }
+@keyframes twTw { from { opacity: .15; } to { opacity: .8; } }
+.tw-moon { position: absolute; right: 7%; top: 6%; width: 22px; height: 22px; border-radius: 50%; background: #f8f3dc; box-shadow: 0 0 18px rgba(248,243,220,.5), -6px -3px 0 0 #0a0f24 inset; }
+.tw-city { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; pointer-events: none; }
+.tw-b { position: absolute; left: 13%; right: 13%; top: 13%; bottom: 4%; display: flex; flex-direction: column; background: #0b0f1c; border: 2px solid #1e293b; border-bottom: 0; box-shadow: 0 0 0 1px #000, 0 0 30px rgba(0,0,0,.6); z-index: 2; }
+.tw-roof { position: absolute; left: 13%; right: 13%; top: 2%; height: 11%; z-index: 3; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; gap: 6px; border-bottom: 2px solid #1e293b; }
+.tw-roof .tw-ant { position: absolute; left: 14%; bottom: 100%; width: 2px; height: 22px; background: #334155; }
+.tw-roof .tw-ant::after { content: ""; position: absolute; top: -3px; left: -2px; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: twBlink 1.6s steps(2) infinite; }
+@keyframes twBlink { 50% { opacity: .1; } }
+.tw-fl { flex: 1; display: grid; grid-template-columns: 1fr 12px 1fr; border-top: 2px solid #1e293b; min-height: 0; }
+.tw-shaft { background: repeating-linear-gradient(0deg, #0f172a 0 4px, #111827 4px 8px); border-left: 1px solid #1e293b; border-right: 1px solid #1e293b; }
+.tw-r { position: relative; overflow: hidden; cursor: pointer; min-width: 0; background: #070a14; outline: none; }
+.tw-r .tw-in { position: absolute; inset: 0; background: var(--bg); filter: brightness(.28) saturate(.5); transition: filter .3s; }
+.tw-r .tw-p { position: absolute; bottom: 2px; font-size: clamp(11px, 3.4vw, 17px); line-height: 1; filter: drop-shadow(0 1px 0 #000); }
+.tw-r::before { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(90deg, transparent 49.5%, rgba(15,23,42,.9) 49.5% 50.5%, transparent 50.5%), linear-gradient(180deg, rgba(255,255,255,.05), transparent 40%); }
+.tw-r .tw-lb { position: absolute; left: 3px; top: 2px; z-index: 4; font-size: clamp(7px, 2.1vw, 9.5px); font-weight: 700; color: #cbd5e1; opacity: .55; white-space: nowrap; letter-spacing: .2px; transition: opacity .2s, color .2s; text-shadow: 0 1px 2px #000; }
+.tw-r:hover .tw-in, .tw-r:focus-visible .tw-in, .tw-r.here .tw-in, .tw-r.pulse .tw-in { filter: none; }
+.tw-r:hover .tw-lb, .tw-r:focus-visible .tw-lb, .tw-r.here .tw-lb { opacity: 1; color: #fff; }
+.tw-r:hover, .tw-r:focus-visible { box-shadow: inset 0 0 0 1px var(--c), inset 0 0 18px -6px var(--c); }
+.tw-r.here { box-shadow: inset 0 0 0 1px var(--c), inset 0 0 22px -4px var(--c); }
+.tw-r.lock .tw-in { filter: brightness(.15) grayscale(1); }
+.tw-r.lock::after { content: "🔒 under construction"; position: absolute; inset: auto 0 0 0; z-index: 5; text-align: center; font-size: 8px; font-weight: 700; color: #111; padding: 1px 0; background: repeating-linear-gradient(45deg, #facc15 0 6px, #111 6px 12px); opacity: .85; }
+.tw-r.pulse { animation: twPulse 1.1s ease-out; }
+@keyframes twPulse { 0% { box-shadow: inset 0 0 0 2px var(--pc, #fbbf24), inset 0 0 40px var(--pc, #fbbf24); } 100% { box-shadow: inset 0 0 0 0 transparent; } }
+.tw-me { position: absolute; bottom: 0; width: 34%; height: 92%; z-index: 2; pointer-events: none; }
+.tw-me .rig { width: 100%; height: 100%; }
+.tw-lift { position: absolute; left: 0; right: 0; height: 0; z-index: 4; transition: top .55s cubic-bezier(.5,0,.3,1); }
+.tw-cab { position: absolute; left: 1px; right: 1px; top: 0; bottom: 0; background: linear-gradient(180deg, #fbbf24, #b45309); box-shadow: 0 0 10px rgba(251,191,36,.6); border-radius: 1px; }
+.tw-name { position: absolute; left: 8px; top: 6px; z-index: 6; font-size: 10px; font-weight: 700; color: #a5f3fc; opacity: .8; }
+.tw-tg { position: absolute; right: 8px; bottom: 6px; z-index: 6; font: 600 10px 'Space Grotesk', system-ui, sans-serif; padding: 2px 8px; border-radius: 99px; cursor: pointer; color: #a5f3fc; background: rgba(5,7,13,.75); border: 1px solid rgba(103,232,249,.35); }
+.tw-tip { position: absolute; z-index: 7; pointer-events: none; padding: 3px 8px; border-radius: 6px; background: rgba(5,7,13,.92); border: 1px solid var(--c, #67e8f9); color: #e2e8f0; font-size: 11px; white-space: nowrap; transform: translateX(-50%); display: none; }
+.tw .rm-pi { z-index: 8; }
+@media (prefers-reduced-motion: reduce) { .tw *, .tw { animation: none !important; transition: none !important; } }
+/* noční město na pozadí stránky */
+html.neon-on body::before { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 38vh; z-index: -1; pointer-events: none; opacity: .5;
+background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'><g fill='%230b1020'><rect x='0' y='150' width='70' height='150'/><rect x='60' y='90' width='60' height='210'/><rect x='130' y='170' width='90' height='130'/><rect x='210' y='60' width='50' height='240'/><rect x='270' y='130' width='80' height='170'/><rect x='360' y='40' width='70' height='260'/><rect x='440' y='160' width='60' height='140'/><rect x='510' y='100' width='90' height='200'/><rect x='610' y='180' width='50' height='120'/><rect x='670' y='70' width='70' height='230'/><rect x='750' y='140' width='80' height='160'/><rect x='840' y='30' width='60' height='270'/><rect x='910' y='120' width='90' height='180'/><rect x='1010' y='80' width='60' height='220'/><rect x='1080' y='160' width='120' height='140'/></g><g fill='%23f5b942' opacity='.55'><rect x='75' y='110' width='6' height='4'/><rect x='95' y='150' width='6' height='4'/><rect x='220' y='90' width='5' height='4'/><rect x='380' y='70' width='6' height='4'/><rect x='400' y='130' width='6' height='4'/><rect x='530' y='130' width='6' height='4'/><rect x='690' y='100' width='6' height='4'/><rect x='860' y='60' width='5' height='4'/><rect x='870' y='140' width='5' height='4'/><rect x='1030' y='120' width='6' height='4'/></g><g fill='%2367e8f9' opacity='.4'><rect x='290' y='160' width='6' height='4'/><rect x='560' y='170' width='6' height='4'/><rect x='770' y='170' width='6' height='4'/><rect x='940' y='150' width='6' height='4'/></g></svg>") bottom / 100% 100% no-repeat; }
+</style>
+<script>
+(function () {
+"use strict";
+var FLOORS = [
+[["tv", "Server room · High Stakes", "#a855f7", "linear-gradient(180deg,#1b0f2e,#0c0717)"], ["col", "Break room · Colleague", "#f59e0b", "linear-gradient(180deg,#2a1a0b,#120a04)"]],
+[["roul", "Casino floor", "#ef4444", "linear-gradient(180deg,#2b0a12,#14050a)"], ["chest", "Vault · Company Chest", "#fbbf24", "linear-gradient(180deg,#2a2208,#120e03)"]],
+[["desk", "Your desk · Tickets", "#22d3ee", "linear-gradient(180deg,#0a2230,#06121b)"], ["bench", "Workshop · Upgrades", "#94a3b8", "linear-gradient(180deg,#1a2130,#0b0f18)"]],
+[["closet", "Lockers · Gear", "#60a5fa", "linear-gradient(180deg,#0e1a33,#070c18)"], ["phone", "Comms · Chat", "#34d399", "linear-gradient(180deg,#0a261c,#04120d)"]],
+[["shelf", "Lobby · Hall of Fame", "#e879f9", "linear-gradient(180deg,#25102b,#110714)"], ["board", "Lobby · Top 10", "#38bdf8", "linear-gradient(180deg,#0b2033,#050f19)"]]
+];
+var PROPS = {
+tv: '<span class="tw-p" style="left:6%">🗄️</span><span class="tw-p" style="left:26%">🗄️</span><span class="tw-p" style="right:8%">📺</span>',
+col: '<span class="tw-p" style="left:8%">☕</span><span class="tw-p" style="right:40%">🛋️</span>',
+roul: '<span class="tw-p" style="left:6%">🎰</span><span class="tw-p" style="left:32%">🎰</span><span class="tw-p" style="right:8%">🎡</span>',
+chest: '<span class="tw-p" style="left:10%">📦</span><span class="tw-p" style="left:40%">💰</span><span class="tw-p" style="right:10%">🔐</span>',
+desk: '<span class="tw-p" style="right:10%">🖥️</span><span class="tw-p" style="right:34%">🗂️</span>',
+bench: '<span class="tw-p" style="left:8%">🛠️</span><span class="tw-p" style="left:40%">⚙️</span><span class="tw-p" style="right:10%">🔩</span>',
+closet: '<span class="tw-p" style="left:6%">🎒</span><span class="tw-p" style="left:36%">🦺</span><span class="tw-p" style="right:10%">🧰</span>',
+phone: '<span class="tw-p" style="left:8%">☎️</span><span class="tw-p" style="left:38%">💬</span><span class="tw-p" style="right:10%">📡</span>',
+shelf: '<span class="tw-p" style="left:8%">🏆</span><span class="tw-p" style="left:36%">🥇</span><span class="tw-p" style="right:10%">🪴</span>',
+board: '<span class="tw-p" style="left:10%">📋</span><span class="tw-p" style="right:12%">🛎️</span>'
+};
+var root = null, here = "desk", sig = "", lift = null;
+function hsd() { return typeof gameState !== "undefined" && gameState.hs ? gameState.hs : {}; }
+function P() { return typeof gameState !== "undefined" ? (gameState.prestige || 0) : 0; }
+function lockOf(id) { try { return window.Room && Room.locked ? Room.locked(id) : ""; } catch (e) { return ""; } }
+function rig(cls, gear, flip) { if (!window.HSRig) return ""; return '<div style="position:absolute;inset:0;' + (flip ? "transform:scaleX(-1);" : "") + '">' + HSRig.player(cls, gear) + "</div>"; }
+function meGear() { var d = hsd(); return window.Gear && d.cls ? Gear.st() : null; }
+function city() {
+var h = "", x = 0, i = 0;
+while (x < 100) { var w = 5 + ((i * 37) % 9), ht = 30 + ((i * 53) % 55); h += '<div style="position:absolute;bottom:0;left:' + x + '%;width:' + w + '%;height:' + ht + '%;background:#0a0f1e;box-shadow:inset 0 0 0 1px #0f172a;">' + (i % 2 ? '<i style="position:absolute;left:30%;top:20%;width:2px;height:2px;background:#f5b942;opacity:.6;box-shadow:0 6px 0 #f5b942,4px 12px 0 #67e8f9;"></i>' : "") + "</div>"; x += w + 1; i++; }
+return h;
+}
+function stars() { var h = ""; for (var i = 0; i < 26; i++) h += '<i style="left:' + ((i * 37) % 100) + '%;top:' + ((i * 23) % 40) + '%;animation-delay:' + (i % 7) * 0.4 + 's"></i>'; return h; }
+function roomHtml(r) {
+var id = r[0], lk = lockOf(id), d = hsd(), extra = "";
+if (id === "desk") extra = '<div class="tw-me" id="tw-me" style="left:30%">' + rig(d.cls || "sysadmin", meGear()) + "</div>";
+if (id === "col" && d.col && d.col.unlocked) extra = '<div class="tw-me" style="right:4%;left:auto">' + rig(d.col.cls || "engineer", window.Gear ? Gear.vis(d.col.gear) : d.col.gear, true) + "</div>";
+return '<div class="tw-r' + (lk ? " lock" : "") + (here === id ? " here" : "") + '" data-o="' + id + '" role="button" tabindex="0" aria-label="' + r[1] + '" style="--c:' + r[2] + ';--bg:' + r[3] + '"><div class="tw-in">' + (PROPS[id] || "") + extra + '</div><span class="tw-lb">' + r[1] + "</span></div>";
+}
+function render() {
+if (!root) return;
+var plant = 0; try { plant = window.Plant && Plant.stage ? Plant.stage() : 0; } catch (e) {}
+var lkP = lockOf("plant");
+var h = '<div class="tw-sky">' + stars() + '</div><div class="tw-moon"></div><div class="tw-city">' + city() + "</div>" +
+'<div class="tw-name">🏢 Office Royale HQ · Prestige ' + P() + "</div>" +
+'<div class="tw-roof tw-r' + (lkP ? " lock" : "") + (here === "plant" ? " here" : "") + '" data-o="plant" role="button" tabindex="0" aria-label="Roof garden · Office Plant" style="--c:#4ade80;--bg:linear-gradient(180deg,transparent,#0a1f12)"><div class="tw-in" style="filter:none;background:none;"><span class="tw-p" style="left:44%;font-size:clamp(13px,4vw,20px)">' + ["🪴", "🌱", "🌿", "🌳", "🌳"][Math.max(0, Math.min(4, plant))] + '</span></div><span class="tw-lb" style="left:auto;right:4px">Roof · Office Plant</span><div class="tw-ant"></div></div>' +
+'<div class="tw-b">' + FLOORS.map(function (f) { return '<div class="tw-fl">' + roomHtml(f[0]) + '<div class="tw-shaft"></div>' + roomHtml(f[1]) + "</div>"; }).join("") + "</div>" +
+'<div class="tw-lift" id="tw-lift"><div class="tw-cab"></div></div><div class="tw-tip" id="tw-tip"></div><button type="button" class="tw-tg" id="tw-tg">Neon: on</button>';
+root.innerHTML = h;
+var me = root.querySelector("#tw-me .rig"); if (me) me.classList.add("a-type");
+placeLift(true);
+}
+function placeLift(instant) {
+var lf = root && root.querySelector("#tw-lift"), r = root && root.querySelector('.tw-r[data-o="' + here + '"]'), b = root && root.querySelector(".tw-b"); if (!lf || !r || !b) return;
+var rb = root.getBoundingClientRect(), rr = r.getBoundingClientRect(), bb = b.getBoundingClientRect();
+var sh = root.querySelector(".tw-shaft"), sb = sh ? sh.getBoundingClientRect() : bb;
+lf.style.left = (sb.left - rb.left) + "px"; lf.style.right = "auto"; lf.style.width = sb.width + "px";
+if (instant) lf.style.transition = "none";
+lf.style.top = (rr.top - rb.top) + "px"; lf.style.height = rr.height + "px";
+if (instant) { void lf.offsetWidth; lf.style.transition = ""; }
+}
+function go(id) {
+if (!id) return;
+var lk = lockOf(id);
+if (lk) { tip(root.querySelector('.tw-r[data-o="' + id + '"]'), "🔒 " + lk, 2600); return; }
+here = id;
+root.querySelectorAll(".tw-r").forEach(function (x) { x.classList.toggle("here", x.getAttribute("data-o") === id); });
+placeLift(false);
+setTimeout(function () { try { if (window.Room && Room.act) Room.act(id); } catch (e) { console.error(e); } }, 380);
+}
+function tip(el, t, ms) {
+var tp = root && root.querySelector("#tw-tip"); if (!tp || !el) return;
+var rb = root.getBoundingClientRect(), r = el.getBoundingClientRect();
+tp.textContent = t; tp.style.display = "block"; tp.style.setProperty("--c", getComputedStyle(el).getPropertyValue("--c") || "#67e8f9");
+tp.style.left = "50%"; tp.style.top = (r.top - rb.top > rb.height / 2 ? 4 : rb.height - 26) + "px";
+clearTimeout(tp.__t); if (ms) tp.__t = setTimeout(function () { tp.style.display = "none"; }, ms);
+}
+var HINT = { tv: "Fight in HIGH STAKES", col: "Your colleague", roul: "Roulette, slots, blackjack & more", chest: "Open and upgrade the Company Chest", desk: "Resolve tickets", bench: "Upgrade Station", closet: "Your loadout and backpack", phone: "Chat with everyone", shelf: "Achievements", board: "Season top 10", plant: "The Office Plant" };
+function mount() {
+if (root) return true;
+var wrap = document.querySelector(".click-btn-wrap"); if (!wrap) return false;
+root = document.createElement("div"); root.className = "tw"; root.id = "tw";
+wrap.parentNode.insertBefore(root, wrap);
+root.addEventListener("click", function (e) {
+if (e.target.closest("#tw-tg")) { e.stopPropagation(); if (window.OfficeNeon) OfficeNeon.set(false); return; }
+if (e.target.closest(".rm-pi")) return;
+var r = e.target.closest(".tw-r"); if (r) go(r.getAttribute("data-o"));
+});
+root.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { var r = e.target.closest(".tw-r"); if (r) { e.preventDefault(); go(r.getAttribute("data-o")); } } });
+root.addEventListener("mouseover", function (e) { var r = e.target.closest(".tw-r"); if (r) tip(r, (r.getAttribute("aria-label") || "") + " - " + (HINT[r.getAttribute("data-o")] || ""), 0); });
+root.addEventListener("mouseleave", function () { var tp = root.querySelector("#tw-tip"); if (tp) tp.style.display = "none"; });
+var btn = document.getElementById("btn-click");
+if (btn) btn.addEventListener("pointerdown", function () { if (here !== "desk" && root) { here = "desk"; root.querySelectorAll(".tw-r").forEach(function (x) { x.classList.toggle("here", x.getAttribute("data-o") === "desk"); }); placeLift(false); } });
+window.addEventListener("resize", function () { placeLift(true); });
+render(); return true;
+}
+function sigNow() { var d = hsd(), c = d.col || {}, g = meGear(); var pl = 0; try { pl = window.Plant && Plant.stage ? Plant.stage() : 0; } catch (e) {}
+return [P(), d.cls, g ? [g.w && g.w.m, g.a && g.a.m, g.t && g.t.m].join("") : "", !!c.unlocked, c.cls, pl].concat(["roul", "tv", "plant", "col"].map(lockOf)).join("|"); }
+function tick() { if (!mount()) return; var s = sigNow(); if (s !== sig) { sig = s; render(); } }
+/** záblesk patra trezoru podle rarity dropu (volá ho chest hook) */
+function pulse(id, color) { var r = root && root.querySelector('.tw-r[data-o="' + id + '"]'); if (!r) return; r.style.setProperty("--pc", color); r.classList.remove("pulse"); void r.offsetWidth; r.classList.add("pulse"); }
+function hookPostits() {
+if (!window.Room || !Room.postits || Room.postits.__tw) return;
+var orig = Room.postits;
+Room.postits = function (n, onTake) {
+if (!root || !document.documentElement.classList.contains("neon-on")) return orig.apply(this, arguments);
+root.querySelectorAll(".rm-pi").forEach(function (x) { x.remove(); });
+var desk = root.querySelector('.tw-r[data-o="desk"]'); if (!desk) return orig.apply(this, arguments);
+for (var i = 0; i < n; i++) (function (i) {
+var p = document.createElement("div"); p.className = "rm-pi"; p.setAttribute("role", "button"); p.title = "Peel it off";
+p.style.cssText = "position:absolute;left:" + (8 + (i * 17) % 70) + "%;top:" + (20 + (i * 23) % 50) + "%;width:14%;height:26%;z-index:8;background:" + ["#fde047", "#f9a8d4", "#86efac", "#7dd3fc"][i % 4] + ";transform:rotate(" + ((i * 37) % 30 - 15) + "deg);box-shadow:0 2px 3px rgba(0,0,0,.5);cursor:pointer;";
+p.addEventListener("click", function (ev) { ev.stopPropagation(); p.style.transition = "transform .3s,opacity .3s"; p.style.opacity = "0"; setTimeout(function () { p.remove(); }, 300); if (onTake) onTake(); });
+desk.appendChild(p);
+})(i);
+};
+Room.postits.__tw = 1;
+}
+setInterval(function () { try { tick(); hookPostits(); } catch (e) { console.error(e); } }, 900);
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
+window.OfficeTower = { render: render, go: go, pulse: pulse };
 })();
 </script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["office_neon"] = 1;</script>

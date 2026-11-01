@@ -4,7 +4,8 @@
 const H = window.HSEngine, C = window.HSCampaign;
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Math.floor(n).toLocaleString();
-const ENERGY_BASE = 16, ENERGY_MS = 12 * 60 * 1000, TOKEN_ENERGY = 4;
+const ENERGY_BASE = 16, ENERGY_MS0 = 12 * 60 * 1000, TOKEN_ENERGY = 4;
+let ENERGY_MS = ENERGY_MS0;      // v12.1: Office Plant Fast Sap zrychlí obnovu
 function EMAX() { return ENERGY_BASE + (window.Plant ? Plant.fx("energy") : 0); }   // v8.7: Office Plant Sap Reserve
 const STAT_INFO = { str: ["STR", "damage + defence against STR"], agi: ["AGI", "damage + defence against AGI"], int: ["INT", "damage + defence against INT"],
 vit: ["VIT", "max HP (VIT × class multiplier × level)"], luck: ["LUCK", "crit chance (against the enemy's level, max 50%), gamble odds, timing zone"] };
@@ -113,6 +114,7 @@ function unlocked() { const d = HS(); return (gameState.prestige || 0) >= 1 || m
 function regenEnergy() {
 const d = HS(), now = Date.now();
 if (d.energy >= EMAX()) { d.energyAt = now; return; }
+ENERGY_MS = Math.round(ENERGY_MS0 / (window.Plant ? Plant.fx("regen") : 1));
 const n = Math.floor((now - d.energyAt) / ENERGY_MS);
 if (n > 0) { d.energy = Math.min(EMAX(), d.energy + n); d.energyAt = d.energy >= EMAX() ? now : d.energyAt + n * ENERGY_MS; }
 }
@@ -197,20 +199,25 @@ el.innerHTML = `<div class="dk-h"><span>🏢 OFFICE</span><button class="btn" on
 <div class="dk-res"><span>🎫 <b id="dk-t"></b></span><span>🔩 <b id="dk-s"></b></span><span>💰 <b id="dk-g"></b></span><span>⏱ <b id="dk-ot"></b></span></div>
 <div class="dk-row"><button class="btn" onclick="buyScrap(100);Dungeon.dockNow()">+100 scrap<small>1K tickets</small></button><button class="btn btn-gold" onclick="buyMaxScrap();Dungeon.dockNow()">Scrap max</button></div>
 <div class="dk-row"><button class="btn btn-crimson" onclick="openCompanyChest(1);Dungeon.dockNow()">📦 Open ×1<small id="dk-c1"></small></button><button class="btn btn-crimson" onclick="openCompanyChest(10);Dungeon.dockNow()">Open ×10<small id="dk-c10"></small></button></div>
-<div class="dk-h"><span>🎒 INVENTORY</span><span id="dk-n" class="dg-dim"></span></div><div class="dk-inv" id="dk-inv"></div>
-<div class="dk-h"><span>⚗ MERGER</span><span id="dk-m" class="dg-dim"></span></div><button class="btn btn-gold" style="width:100%;" onclick="mergeAll();Dungeon.dockNow()">MERGE ALL</button>`;
+<div class="dk-h"><span>🦾 LOADOUT</span></div><div class="dk-lo" id="dk-lo"></div>
+<div class="dk-h"><span>▲ BETTER THAN YOURS</span><span id="dk-n" class="dg-dim"></span></div><div class="dk-up" id="dk-inv"></div>
+<div class="dk-h"><span>⚗ MERGER</span><span id="dk-m" class="dg-dim"></span></div><div class="dk-up" id="dk-mg"></div><button class="btn btn-gold" style="width:100%;" onclick="mergeAll();Dungeon.dockNow()">MERGE ALL</button>`;
 }
 const g = gameState, tx = (id, t) => { const e = $(id); if (e && e.textContent !== t) e.textContent = t; };
 tx("dk-t", fmtShort(g.tickets || 0)); tx("dk-s", fmtShort(g.scrap || 0)); tx("dk-g", fmtShort(g.coins || 0)); tx("dk-ot", String(g.slotTokens || 0));
 try { tx("dk-tp", "+" + fmtShort(calculateClickPower()) + " per click"); const c = getChestScrapCost(); tx("dk-c1", fmtShort(c) + " scrap"); tx("dk-c10", fmtShort(c * 10) + " scrap"); } catch (e) {}
-const inv = (g.inventory || []).slice().sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0))).slice(0, 20);
-const sig = inv.map(x => x.slot + x.tier + "." + (x.lvl || 0) + "x" + x.n).join(",");
-tx("dk-n", (g.inventory || []).reduce((a, x) => a + x.n, 0) + " items");
-const ready = (g.inventory || []).filter(x => x.n >= 3 && (x.lvl || 0) < 50).length; tx("dk-m", ready ? ready + " ready" : "nothing to merge");
+const nmOf = x => { try { return itemName(x); } catch (e) { return x.slot; } }, keyOf = x => { try { return stackKey(x); } catch (e) { return ""; } };
+const ico = typeof SLOT_ICONS !== "undefined" ? SLOT_ICONS : {}, SL = typeof SLOTS !== "undefined" ? SLOTS : [];
+const lo = SL.map(k => { const it = g.loadout && g.loadout[k]; return it ? `<div class="dk-ls" style="--rc:var(--rarity-t${it.tier}, #888);" title="${escapeHtml(nmOf(it))} +${it.lvl || 0}">${ico[k] || "▪"}<b>T${it.tier}</b><small>+${it.lvl || 0}</small></div>` : `<div class="dk-ls empty" title="${k} empty">${ico[k] || "▪"}<small>-</small></div>`; }).join("");
+const ups = (g.inventory || []).filter(x => { try { return isUpgrade(x); } catch (e) { return false; } }).sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0))).slice(0, 8);
+const mg = (g.inventory || []).filter(x => x.n >= 3 && (x.lvl || 0) < 50 && !(typeof enhOf === "function" && enhOf(x))).sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0))).slice(0, 6);
+tx("dk-n", ups.length ? ups.length + " found" : "none"); tx("dk-m", mg.length ? mg.length + " ready" : "nothing to merge");
+const sig = lo + "|" + ups.map(keyOf).join(",") + "|" + mg.map(x => keyOf(x) + "x" + x.n).join(",");
 if (sig !== dockSig || force) {
-dockSig = sig; const box = $("dk-inv");
-if (box) box.innerHTML = inv.length ? inv.map(x => { let key = ""; try { key = stackKey(x); } catch (e) {} let nm = x.slot; try { nm = itemName(x); } catch (e) {}
-return `<button class="dk-it" style="--rc:var(--rarity-t${x.tier}, #888);" title="${escapeHtml(nm)} +${x.lvl || 0} · ${x.n}× - tap to equip" onclick="equipStack('${key}');Dungeon.dockNow()"><i>+${x.lvl || 0}</i>${(typeof SLOT_ICONS !== "undefined" ? SLOT_ICONS : {})[x.slot] || "▪"}<small>${x.n}×</small></button>`; }).join("") : `<div class="dg-dim" style="grid-column:1/-1;">Empty - open a chest.</div>`;
+dockSig = sig;
+const a = $("dk-lo"); if (a) a.innerHTML = lo;
+const b = $("dk-inv"); if (b) b.innerHTML = ups.length ? ups.map(x => `<div class="dk-row1" style="--rc:var(--rarity-t${x.tier}, #888);"><span>${ico[x.slot] || "▪"} <b>${escapeHtml(nmOf(x))}</b> +${x.lvl || 0}</span><button class="btn btn-cyan" onclick="equipStack('${keyOf(x)}');Dungeon.dockNow()">Equip</button></div>`).join("") : `<div class="dg-dim">Nothing better in your backpack - open a chest.</div>`;
+const c = $("dk-mg"); if (c) c.innerHTML = mg.map(x => `<div class="dk-row1" style="--rc:var(--rarity-t${x.tier}, #888);"><span>${ico[x.slot] || "▪"} <b>${escapeHtml(nmOf(x))}</b> +${x.lvl || 0} · ${x.n}×</span><button class="btn" onclick="performSmartMerge('${keyOf(x)}',${Math.floor(x.n / 3)});Dungeon.dockNow()">×${Math.floor(x.n / 3)}</button></div>`).join("");
 }
 }
 function renderKeys() {
@@ -358,7 +365,7 @@ function talentsHtml(d, h) {
 const T = H.TAL[d.cls] || [], tal = h.tal, inFight = !!(fight && !fight.over);
 const rows = T.map((row, r) => { const lv = H.TAL_LV[r], lock = d.level < lv;
 return `<div class="hs-tr ${lock ? "lock" : ""}"><div class="hs-tlv">LV ${lv}</div>${row.map((x, v) => { const on = tal[r] === v, need = x.req && h.bar.indexOf(x.req) < 0;
-return `<button class="btn hs-tal ${on ? "on" : ""}" ${lock || inFight ? "disabled" : ""} onclick="Dungeon.talPick(${r},${v})" data-tip="${escapeHtml(x.t)}"><b>${escapeHtml(x.n)}</b><small>${escapeHtml(x.t)}</small>${need ? `<em>needs ${escapeHtml(H.AB[x.req].n)} in your bar</em>` : ""}</button>`; }).join("")}</div>`; }).join("");
+return `<button class="btn hs-tal ${on ? "on" : ""}" ${lock || inFight || (need && !on) ? "disabled" : ""} onclick="Dungeon.talPick(${r},${v})" data-tip="${escapeHtml(x.t)}"><b>${escapeHtml(x.n)}</b><small>${escapeHtml(x.t)}</small>${need ? `<em>🔒 put ${escapeHtml(H.AB[x.req].n)} in your bar first</em>` : ""}</button>`; }).join("")}</div>`; }).join("");
 const lo = (d.lo || []);
 const los = [0, 1, 2].map(i => `<span class="hs-lo"><button class="btn ${lo[i] ? "btn-cyan" : ""}" ${lo[i] && !inFight ? "" : "disabled"} onclick="Dungeon.loLoad(${i})">${lo[i] ? "▶ " + escapeHtml(lo[i].n) : "empty"}</button><button class="btn" ${inFight ? "disabled" : ""} onclick="Dungeon.loSave(${i})" title="Save your bar, talents and gear here">💾</button></span>`).join("");
 return `<div class="dg-card"><div class="dg-h"><span>🌳 TALENTS · ${tal.filter(x => x >= 0).length}/6</span><span class="dg-dim">free to change outside a fight</span></div>
@@ -367,7 +374,7 @@ return `<div class="dg-card"><div class="dg-h"><span>🌳 TALENTS · ${tal.filte
 }
 function talPick(r, v) {
 if (fight && !fight.over) return;
-const d = HS(), h = hero(), t = h.tal.slice(); t[r] = t[r] === v ? -1 : v; d.tal = t; TT.saveSoon(); render();
+const d = HS(), h = hero(), t = h.tal.slice(), x = ((H.TAL[h.cls] || [])[r] || [])[v]; if (t[r] !== v && x && x.req && h.bar.indexOf(x.req) < 0) { log("Put " + H.AB[x.req].n + " in your action bar first.", "warning"); return; } t[r] = t[r] === v ? -1 : v; d.tal = t; TT.saveSoon(); render();
 }
 function loSave(i) {
 if (fight && !fight.over) return;
@@ -480,37 +487,6 @@ document.body.appendChild(el);
 function start(id) {
 const intro = $("hs-intro"); if (intro) intro.remove();
 const d = HS(), m = C.mission(id, d.hsp);
-regenEnergy();
-if (d.energy < m.energy && !freeEnergy()) { log(`HIGH STAKES: not enough energy (${m.energy} needed). +1 every 12 min.`, "warning"); render(); return; }
-spendEnergy(m.energy);
-beginFight(m, { mode: "camp" });
-}
-function freeEnergy() { return !!(window.Meta && Meta.mult("energy") === 0); }
-function spendEnergy(n) {
-const d = HS(); regenEnergy();
-if (freeEnergy()) return true;
-if (d.energy < n) return false;
-d.energy -= n;
-if (d.energy < EMAX() && d.energy + n >= EMAX()) d.energyAt = Date.now();
-return true;
-}
-/** ctx: { mode, prepHero(hero), onEnd(f) -> {title, color, lines, buttons:[{label, cls, fn}]}, hud(f), onStep(f, a, evs) } */
-function beginFight(m, ctx) {
-const hh = hero();
-if (ctx && ctx.prepHero) ctx.prepHero(hh);
-fight = H.newFight(hh, m, Math.floor(TT.rnd() * 2147483647) + 1);
-fightMission = m; fightCtx = ctx || { mode: "camp" }; result = null; flog = [];
-if (fightCtx.mode === "camp") view = "camp";
-TT.saveSoon();
-render();
-if (window.HSRig) { HSRig.act("dg-ps", "a-enter"); HSRig.act("dg-bs", "a-enter"); }
-dlog(`⚔ ${escapeHtml(m.enemy.name)} (LV ${m.enemy.level}) appears!`, "y");
-play(fight.events.slice());
-}
-const TELE = { atk: ["⚔", "ATTACK", ""], heavy: ["💥", "HEAVY", "heavy"], spell: ["🔮", "SPELL", "special"], unleash: ["☄", "UNLEASH", "unleash"], withdraw: ["💸", "WITHDRAWAL", "unleash"], "?": ["❓", "???", "special"] };
-function intentHtml() {
-const f = fight; if (!f || f.over) return "";
-if (f.phase === "react") {
-const it = f.intent, x = TELE[it.shown] || TELE.atk;</script>
+regenEnergy();</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hs2"] = 1;</script>
 <!-- END-OF-FILE: hs2 -->

@@ -1,16 +1,48 @@
-<script type="text/plain" data-tt="tt_hs_1" data-i="3"><div class="dg-dim" style="line-height:1.55;">Stamina does NOT refill by itself: STRIKE +10, BRACE +15, BREATHE +30. Every action costs stamina - focus only charges your ULTIMATE (+10 every round, more from hits). HEAVY has a 1-round cooldown. 📋 Forms / decrees: do the asked move for bonus damage, otherwise RED TAPE lowers your damage.<br>
+<script type="text/plain" data-tt="tt_hs_1" data-i="3">if (!fight || fight.over || !tut || busyAnim) return;
+fight.over = true; fight.win = false; fight.fled = true; fight.__ended = true; endFight();
+}
+function help() {
+if (busyAnim) return;
+const ex = document.getElementById("hs-help"); if (ex) { ex.remove(); return; }
+const cls = fight ? fight.h.cls : HS().cls;
+const row = (i, n, t) => `<div class="hs-hrow"><span class="i">${i}</span><div><b>${n}</b> ${t}</div></div>`;
+const el = document.createElement("div");
+el.className = "tt-overlay open"; el.id = "hs-help"; el.style.zIndex = 10000;
+el.onclick = (e) => { if (e.target === el) el.remove(); };
+el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);max-height:86vh;overflow-y:auto;"><h2 style="color:var(--cyan);">❓ HOW TO FIGHT</h2>
+${howHtml(cls)}
+<div class="hs-hsec">WHAT THE ENEMY SHOWS</div>
+${row("⚔", "ATTACK", "a normal hit.")}
+${row("💥", "HEAVY", "2× hit - dodge it or block + PARRY.")}
+${row("🔮", "SPELL", "1.4× magic - can't be dodged, blocks only a little. Mages are immune.")}
+${row("⏳", "CHARGING", "next round ☄ UNLEASH (3×). HEAVY in your next attack interrupts it.")}
+${row("☄", "UNLEASH", "huge hit, 3 rings to parry.")}
+${row("🛡", "GUARD", "your next STRIKE / GAMBLE deals -60%. HEAVY breaks the guard.")}
+${row("😵", "STUNNED", "free round - go all in.")}
+${row("❓", "???", "the LLM is lying about its move. 🎭 After a few High Stakes prestiges some enemies also FAKE their moves.")}
+<div class="hs-hsec">ENEMY CLASSES</div>
+${Object.keys(H.ECLS).map(k => row(H.ECLS[k].n.split(" ")[0], H.ECLS[k].n.split(" ").slice(1).join(" ").toUpperCase(), H.ECLS[k].t + ".")).join("")}
+<div class="hs-hsec">TIPS</div>
+<div class="dg-dim" style="line-height:1.55;">Stamina does NOT refill by itself: STRIKE +10, BRACE +15, BREATHE +30. Every action costs stamina - focus only charges your ULTIMATE (+10 every round, more from hits). HEAVY has a 1-round cooldown. 📋 Forms / decrees: do the asked move for bonus damage, otherwise RED TAPE lowers your damage.<br>
 Keys on PC: 1-5 = the buttons in order, space = timing / parry, 1-3 = dodge lanes.</div>
 <div style="margin-top:12px;"><button class="btn btn-cyan" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">GOT IT</button></div></div>`;
 document.body.appendChild(el);
 }
-function stIcon(icon, txt, n, bad) { return `<span class="hs-st ${bad ? "bad" : ""}" data-tip="${escapeHtml(txt)}" onclick="HSTip(this)" onmouseenter="HSTip(this)">${icon}${n ? "<small>" + n + "</small>" : ""}</span>`; }
-window.HSTip = function (el) {
+function stIcon(icon, txt, n, bad) { return `<span class="hs-st ${bad ? "bad" : ""}" data-tip="${escapeHtml(txt)}" onclick="HSTip(this, 1)">${icon}${n ? "<small>" + n + "</small>" : ""}</span>`; }
+let tipEl = null;
+function tipHide() { const b = document.getElementById("hs-tip"); if (b) b.style.display = "none"; tipEl = null; }
+window.HSTip = function (el, sticky) {
 const t = el && el.getAttribute("data-tip"); if (!t) return;
 let b = document.getElementById("hs-tip"); if (!b) { b = document.createElement("div"); b.id = "hs-tip"; document.body.appendChild(b); }
-const r = el.getBoundingClientRect(); b.textContent = t; b.style.display = "block";
-b.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left - 100)) + "px"; b.style.top = (r.bottom + 6) + "px";
-clearTimeout(b.__t); b.__t = setTimeout(() => { b.style.display = "none"; }, 3500);
+const r = el.getBoundingClientRect(); b.textContent = t; b.style.display = "block"; tipEl = el;
+const top = r.bottom + 6 + 80 > window.innerHeight ? r.top - 6 - Math.min(160, b.offsetHeight || 60) : r.bottom + 6;
+b.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left + r.width / 2 - 130)) + "px"; b.style.top = Math.max(4, top) + "px";
+clearTimeout(b.__t); b.__t = setTimeout(tipHide, sticky ? 3000 : 8000);
 };
+document.addEventListener("mouseover", e => { const el = e.target.closest && e.target.closest("[data-tip]"); if (el && el !== tipEl && el.closest("#dg-screen")) HSTip(el); else if (!el && tipEl) tipHide(); }, true);
+document.addEventListener("pointerdown", e => { if (tipEl && !(e.target.closest && e.target.closest("[data-tip]"))) tipHide(); }, true);
+window.addEventListener("scroll", tipHide, true);
+setInterval(() => { if (tipEl && (!document.body.contains(tipEl) || tipEl.offsetParent === null)) tipHide(); }, 400);
 window.HSStIcon = stIcon;
 /** v12: buffy schopností (sdílí kampaň i duel) */
 const CBUFF = { enrage: ["💢", "ENRAGED: +20% damage"], speech: ["📣", "MOTIVATIONAL SPEECH: +15% damage"], spree: ["📋", "HIRING SPREE: +25% damage (you and the cat)"], cleave: ["📬", "MASS MAIL: the cat deals +30%"],

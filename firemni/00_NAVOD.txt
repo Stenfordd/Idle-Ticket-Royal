@@ -1,22 +1,20 @@
-NÁVOD v7.6 - firemní verze v12.0 (= hra Office Royale v12.0)
+NÁVOD v7.7 - firemní verze v12.1 (= hra Office Royale v12.1)
 
 v12.0: 5 nových tříd (Overtime Berserker, Burnout Specialist, Excel Wizard, Espresso Monk, Headhunter) se spellbookem,
 talenty a loadouty, těžší minihry, NIGHT SHIFT (karetní mód), Overtime Hours místo Slot Tokenů, nové škálování bedny
 (double/triple drop), bonusové číslo v loterii, záložka INCIDENTS v logu, chytřejší "Salvage hopeless" a neonová kancelář.
 
-TENTOKRÁT:
-1) Vytvoř 5 NOVÝCH HTML souborů (+ -> HTML, jméno bez .html):
-   hsengine3, hsqte3, hs4, hs_shift, office_neon
-2) Zkopíruj obsah do těchto 33 souborů (5 nových + 28 změněných):
-   .gs:   server2, server3, engine
-   HTML:  index, style, office, office2, sync, minigames, checkers, plant, changelog, meta,
-          hsengine, hsengine2, hsengine3, hsrig, hsqte, hsqte2, hsqte3, hs, hs2, hs3, hs4,
-          gear, arena, hs_modes, hs_shift, duel, colleague, extras, theme, office_neon
-   Beze změny zůstávají: code, casino, jumpking, prsi, dengine, hscamp, mobile, room, room2, room3.
-3) Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
+v12.1: kancelářská věž místo místnosti, noční město, opravy Night Shift karet / talentů / tooltipů, fake kroužky
+u parry žluté, stamina soupeře v duelu jen jako pásmo, nové animace ult, dock v High Stakes s loadoutem a merge,
+Office Plant: rychlejší obnova energie.
 
-Při prvním načtení se hráčům jednou přepočítají Overtime Hours (podle prestiží a achievementů) a postava
-se převede na novou třídu (level a gear zůstávají, jedna změna třídy zdarma).
+TENTOKRÁT (žádný nový soubor) zkopíruj těchto 18:
+   .gs:   engine
+   HTML:  index, changelog, duel, hs, hs2, hs3, hs4, hsengine, hsengine2, hsengine3, hsqte, hsqte2, hsqte3,
+          meta, office_neon, plant, room3
+Pak Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
+
+(Pokud ještě nemáš v12.0, udělej nejdřív kroky v12.0 níže - 5 nových souborů - a pak zkopíruj všechno.)
 
 ======================================================
 KDE JSOU SOUBORY

@@ -1,4 +1,35 @@
-<script type="text/plain" data-tt="tt_hs_1" data-i="2">const imm = it.shown === "spell" && f.h.spellImmune ? " · IMMUNE" : "";
+<script type="text/plain" data-tt="tt_hs_1" data-i="2">if (d.energy < m.energy && !freeEnergy()) { log(`HIGH STAKES: not enough energy (${m.energy} needed). +1 every 12 min.`, "warning"); render(); return; }
+spendEnergy(m.energy);
+beginFight(m, { mode: "camp" });
+}
+function freeEnergy() { return !!(window.Meta && Meta.mult("energy") === 0); }
+function spendEnergy(n) {
+const d = HS(); regenEnergy();
+if (freeEnergy()) return true;
+if (d.energy < n) return false;
+d.energy -= n;
+if (d.energy < EMAX() && d.energy + n >= EMAX()) d.energyAt = Date.now();
+return true;
+}
+/** ctx: { mode, prepHero(hero), onEnd(f) -> {title, color, lines, buttons:[{label, cls, fn}]}, hud(f), onStep(f, a, evs) } */
+function beginFight(m, ctx) {
+const hh = hero();
+if (ctx && ctx.prepHero) ctx.prepHero(hh);
+fight = H.newFight(hh, m, Math.floor(TT.rnd() * 2147483647) + 1);
+fightMission = m; fightCtx = ctx || { mode: "camp" }; result = null; flog = [];
+if (fightCtx.mode === "camp") view = "camp";
+TT.saveSoon();
+render();
+if (window.HSRig) { HSRig.act("dg-ps", "a-enter"); HSRig.act("dg-bs", "a-enter"); }
+dlog(`⚔ ${escapeHtml(m.enemy.name)} (LV ${m.enemy.level}) appears!`, "y");
+play(fight.events.slice());
+}
+const TELE = { atk: ["⚔", "ATTACK", ""], heavy: ["💥", "HEAVY", "heavy"], spell: ["🔮", "SPELL", "special"], unleash: ["☄", "UNLEASH", "unleash"], withdraw: ["💸", "WITHDRAWAL", "unleash"], "?": ["❓", "???", "special"] };
+function intentHtml() {
+const f = fight; if (!f || f.over) return "";
+if (f.phase === "react") {
+const it = f.intent, x = TELE[it.shown] || TELE.atk;
+const imm = it.shown === "spell" && f.h.spellImmune ? " · IMMUNE" : "";
 return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}${it.shown !== "?" && it.val ? " ~" + fmt(it.val) : ""}${imm}</span>`;
 }
 if (f.unleashNext) return `<span class="hs-intent unleash">☄ UNLEASH NEXT - HEAVY interrupts!</span>`;
@@ -101,7 +132,7 @@ const ph = $("hs-phase");
 if (ph) { const t = f.over ? "" : f.phase === "react" ? `<span class="p-react">② REACT!</span><small>${escapeHtml(f.e.name)} shows its move - pick your reaction</small>` : `<span class="p-atk">① YOUR ATTACK</span><small>${f.channel ? "🔮 channeled ×1.6 · " : ""}${f.sureCrit ? "🎯 sure crit · " : ""}${f.vuln ? "💢 vulnerable ×1.5 · " : ""}then it reacts with its move</small>`;
 if (ph.__h !== t) { ph.innerHTML = t; ph.__h = t; } }
 const box = $("hs-acts");
-if (box) { const key = f.over ? "over" : f.phase + "|" + f.turn; if (box.__k !== key) { box.innerHTML = actsHtml(); box.__k = key; } }
+if (box) { const key = f.over ? "over" : f.phase + "|" + f.turn + (fightCtx && fightCtx.cardsHtml ? "|" + busyAnim + "|" + Math.floor(f.sta) + "|" + Math.floor(f.focus) + "|" + (f.S ? Math.floor(f.S.r) : 0) : "");     /* v12.1: karty se překreslí po animaci (jinak zůstaly šedé) */ if (box.__k !== key) { box.innerHTML = actsHtml(); box.__k = key; } }
 const keys = f.phase === "react" ? H.reactsOf(h) : H.atkKeys(h);
 keys.forEach(a => {
 const b = $("hs-a-" + a); if (!b) return;
@@ -475,31 +506,6 @@ buttons: [{ label: "📖 TO THE CAMPAIGN", cls: "btn-gold", fn: () => tab("camp"
 } });
 tutApply(fight); fightRefresh();
 }
-function tutSkip() {
-if (!fight || fight.over || !tut || busyAnim) return;
-fight.over = true; fight.win = false; fight.fled = true; fight.__ended = true; endFight();
-}
-function help() {
-if (busyAnim) return;
-const ex = document.getElementById("hs-help"); if (ex) { ex.remove(); return; }
-const cls = fight ? fight.h.cls : HS().cls;
-const row = (i, n, t) => `<div class="hs-hrow"><span class="i">${i}</span><div><b>${n}</b> ${t}</div></div>`;
-const el = document.createElement("div");
-el.className = "tt-overlay open"; el.id = "hs-help"; el.style.zIndex = 10000;
-el.onclick = (e) => { if (e.target === el) el.remove(); };
-el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);max-height:86vh;overflow-y:auto;"><h2 style="color:var(--cyan);">❓ HOW TO FIGHT</h2>
-${howHtml(cls)}
-<div class="hs-hsec">WHAT THE ENEMY SHOWS</div>
-${row("⚔", "ATTACK", "a normal hit.")}
-${row("💥", "HEAVY", "2× hit - dodge it or block + PARRY.")}
-${row("🔮", "SPELL", "1.4× magic - can't be dodged, blocks only a little. Mages are immune.")}
-${row("⏳", "CHARGING", "next round ☄ UNLEASH (3×). HEAVY in your next attack interrupts it.")}
-${row("☄", "UNLEASH", "huge hit, 3 rings to parry.")}
-${row("🛡", "GUARD", "your next STRIKE / GAMBLE deals -60%. HEAVY breaks the guard.")}
-${row("😵", "STUNNED", "free round - go all in.")}
-${row("❓", "???", "the LLM is lying about its move. 🎭 After a few High Stakes prestiges some enemies also FAKE their moves.")}
-<div class="hs-hsec">ENEMY CLASSES</div>
-${Object.keys(H.ECLS).map(k => row(H.ECLS[k].n.split(" ")[0], H.ECLS[k].n.split(" ").slice(1).join(" ").toUpperCase(), H.ECLS[k].t + ".")).join("")}
-<div class="hs-hsec">TIPS</div></script>
+function tutSkip() {</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hs3"] = 1;</script>
 <!-- END-OF-FILE: hs3 -->

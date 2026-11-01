@@ -23,6 +23,13 @@ html.m #dg-screen { height: var(--app-h, 100%); }
 .dk-res { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; color: var(--text-dim); }
 .dk-res b { color: var(--text-main); font-family: 'Orbitron', monospace; font-size: 11px; }
 .dk-row { display: flex; gap: 4px; } .dk-row .btn { flex: 1; padding: 6px 2px; font-size: 10.5px; } .dk-row .btn small { display: block; font-size: 9px; opacity: .75; }
+.dk-lo { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.dk-ls { display: flex; flex-direction: column; align-items: center; padding: 4px 0; border-radius: 6px; background: #0f1218; border: 1px solid var(--rc, #333); box-shadow: 0 0 6px color-mix(in srgb, var(--rc, #333) 40%, transparent); font-size: 13px; line-height: 1.1; }
+.dk-ls b { font-size: 9px; color: var(--rc); } .dk-ls small { font-size: 8px; color: #94a3b8; } .dk-ls.empty { opacity: .45; }
+.dk-up { display: grid; gap: 4px; margin-bottom: 6px; }
+.dk-row1 { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 6px; border-radius: 6px; background: #0f1218; border-left: 3px solid var(--rc); font-size: 11px; }
+.dk-row1 span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .dk-row1 b { color: var(--rc); font-weight: 600; }
+.dk-row1 .btn { padding: 3px 8px; font-size: 11px; flex: none; }
 .dk-inv { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
 .dk-it { aspect-ratio: 1; min-width: 0; padding: 0; border-radius: 6px; background: #0f1218; border: 1px solid var(--rc); box-shadow: 0 0 6px color-mix(in srgb, var(--rc) 40%, transparent); color: var(--rc); font-size: 13px; position: relative; cursor: pointer; }
 .dk-it small { position: absolute; bottom: 0; right: 2px; font-size: 8px; color: #e2e8f0; }
@@ -153,7 +160,13 @@ html.m #dg-open-btn { display: none; }
 .hs-parry { position: relative; width: 150px; height: 150px; cursor: pointer; touch-action: none; }
 .hs-parry .tgt { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 4px solid #ffd700; box-shadow: 0 0 12px #ffd700; }
 .hs-parry .ring { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 4px solid #ff1744; box-shadow: 0 0 10px #ff1744; }
-.hs-parry .ring.fake { border-color: #94a3b8; box-shadow: 0 0 8px #94a3b8; opacity: .8; border-style: dashed; }
+.hs-parry .ring.fake { border-color: #facc15 !important; box-shadow: 0 0 10px #facc15 !important; opacity: .9; border-style: dashed; }
+.hs-parry .ring.fake::after { content: "FAKE"; position: absolute; left: 50%; top: -18px; transform: translateX(-50%); font: 700 10px 'Space Grotesk', system-ui, sans-serif; color: #facc15; letter-spacing: 1px; }
+.hs-parry .ring.unbl { border-color: #ffffff !important; box-shadow: 0 0 18px #ff1744, inset 0 0 12px #ff1744 !important; animation: qteUnbl .25s ease-in-out infinite alternate; }
+.hs-parry .ring.unbl::after { content: "⚠ DON'T TAP"; position: absolute; left: 50%; top: -20px; transform: translateX(-50%); white-space: nowrap; font: 700 11px 'Space Grotesk', system-ui, sans-serif; color: #fff; text-shadow: 0 0 6px #ff1744; }
+@keyframes qteUnbl { from { opacity: 1; } to { opacity: .55; } }
+.qte-legend { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+.qte-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 3px solid; vertical-align: -2px; margin-right: 4px; }
 .hs-parry.spiral .ring { border-style: dashed; }
 .hs-pdots { display: flex; gap: 6px; margin-top: 8px; min-height: 12px; }
 .hs-pdots span { width: 12px; height: 12px; border-radius: 50%; background: #1e2636; border: 1px solid #334155; }

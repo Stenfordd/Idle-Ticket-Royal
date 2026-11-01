@@ -79,7 +79,7 @@ const NODES = [
 { id: "h_xp", br: "hs", row: 1, icon: "📈", name: "Growth Rings", desc: l => `+${8 * l}% HIGH STAKES XP`, next: "+8% XP", costs: [1, 1, 1, 2] },
 { id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
 { id: "h_foc", br: "hs", row: 2, icon: "✨", name: "Morning Dew", req: "h_xp", desc: l => `start fights with +${10 * l} focus`, next: "+10 start focus", costs: [1, 2, 2] },
-{ id: "h_parry", br: "hs", row: 3, icon: "🛡", name: "Thick Bark", req: "h_foc", desc: l => `parry windows +${15 * l}%`, next: "+15% parry window", costs: [2, 3] },
+{ id: "h_parry", br: "hs", row: 3, icon: "⚡", name: "Fast Sap", req: "h_foc", desc: l => `HIGH STAKES energy refills ${15 * l}% faster`, next: "+15% faster energy", costs: [2, 3] },
 { id: "k_apple", br: "hs", row: 4, icon: "🍎", name: "Golden Apple", key: true, req: "h_en", desc: () => "Prismatic (T6) drops ×1.5 more often", costs: [6] },
 { id: "r_gc", br: "canopy", row: 4, icon: "☀", name: "Sun Canopy", rep: true, base: 3, desc: l => `+${3 * l}% click power and Auto GC`, next: "+3% click & auto" },
 { id: "r_hs", br: "canopy", row: 4, icon: "🌙", name: "Moon Rings", rep: true, base: 3, desc: l => `+${4 * l}% HIGH STAKES XP`, next: "+4% HS XP" },
@@ -128,7 +128,8 @@ case "wildCherry": return lvl("k_cherry") > 0;
 case "xp": return 1 + 0.08 * lvl("h_xp") + 0.04 * lvl("r_hs");
 case "energy": return lvl("h_en");
 case "focus": return 10 * lvl("h_foc");
-case "parry": return 1 + 0.15 * lvl("h_parry");
+case "parry": return 1;
+case "regen": return 1 + 0.15 * lvl("h_parry");
 case "t6": return lvl("k_apple") ? 1.5 : 1;
 }
 return 0;

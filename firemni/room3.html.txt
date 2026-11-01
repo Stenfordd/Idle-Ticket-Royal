@@ -57,7 +57,7 @@ p.addEventListener("click", (ev) => { ev.stopPropagation(); p.style.transition =
 root.appendChild(p);
 }
 }
-window.Room = { renderStatic: renderStatic, postits: postits, colSay: colSay, render: render, tap: tap, reveal: reveal, ENVS: ENVS, REVEAL: REVEAL, tierOf: tierOf, walkTo: walkTo, say: say, bg: bg, art: (id, t) => { const k = T; T = t; const a = art(id); T = k; return a; } };
+window.Room = { act: act, locked: locked, renderStatic: renderStatic, postits: postits, colSay: colSay, render: render, tap: tap, reveal: reveal, ENVS: ENVS, REVEAL: REVEAL, tierOf: tierOf, walkTo: walkTo, say: say, bg: bg, art: (id, t) => { const k = T; T = t; const a = art(id); T = k; return a; } };
 (function boot() {
 if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded || !window.HSRig) { setTimeout(boot, 120); return; }
 TT.onLoaded(() => {

@@ -1,10 +1,4 @@
-<script type="text/plain" data-tt="tt_hsengine_1" data-i="3">if (k === "spell") { if (h.spellImmune) return "brace"; return can("block") && f.sta >= h.blockCost + 20 ? "block" : "brace"; }
-const big = k === "heavy" || k === "unleash" || k === "withdraw";
-if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel")) return "channel"; return "brace"; }
-if (h.cls === "sysadmin") return can("block") && f.sta >= h.blockCost + 10 ? "block" : "brace";
-if (h.cls === "blood") return can("block") && f.sta >= 60 ? "block" : "brace";
-if (h.cls === "engineer") return can("channel") && f.sta >= 45 ? "channel" : "brace";
-if (can("dodge") && f.sta >= 55) return "dodge";
+<script type="text/plain" data-tt="tt_hsengine_1" data-i="3">if (can("dodge") && f.sta >= 55) return "dodge";
 return "brace";
 }
 function timingRoll(R, zone) { const r = R(); return r < zone * 0.35 ? "perfect" : r < zone * 1.9 ? "good" : "none"; }
