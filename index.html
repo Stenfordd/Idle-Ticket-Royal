@@ -16694,14 +16694,6 @@ html.neon-on .item-card.t6 { box-shadow: 0 0 18px 0 var(--rarity-t6); }
     if (el._h !== h) { el._h = h; el.innerHTML = h; }
   }
 
-  // létající čísla u RESOLVE TICKET
-  document.addEventListener("pointerdown", function (e) {
-    var b = e.target.closest && e.target.closest("#btn-click"); if (!b || !on()) return;
-    var v = document.getElementById("click-val"), n = document.createElement("div");
-    n.className = "on-num"; n.textContent = "+" + (v ? v.textContent : "1");
-    n.style.left = e.clientX + "px"; n.style.top = (e.clientY - 14) + "px"; n.style.setProperty("--dx", (Math.random() * 60 - 30).toFixed(0) + "px");
-    document.body.appendChild(n); setTimeout(function () { n.remove(); }, 850);
-  }, true);
 
   // workshop záložky ve 2. sloupci (PC)
   var WS = [["scrap", "Scrap", "SCRAP FABRICATION"], ["up", "Upgrades", "#forge-mount"], ["load", "Loadout", "CYBERNETIC LOADOUT"], ["plant", "Plant", "OFFICE PLANT"]];
