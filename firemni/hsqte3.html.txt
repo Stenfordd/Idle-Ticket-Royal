@@ -1,0 +1,38 @@
+<script type="text/plain" data-tt="tt_hsqte_1" data-i="2">const b = document.createElement("div"); b.className = "p"; b.style.cssText = "left:0;right:0;top:52%;height:34px;margin-top:-17px;transform-origin:left;background:linear-gradient(90deg,#fff,#22d3ee 30%,#a855f7);box-shadow:0 0 40px #22d3ee;animation:qcBeam 1.3s ease-out .6s both;"; st.appendChild(b);
+const l = document.createElement("div"); l.className = "p"; l.style.cssText = "left:6%;top:52%;font-size:56px;margin-top:-34px;animation:qcPop .4s ease-out both;"; l.textContent = "💻"; st.appendChild(l);
+}],
+sysadmin: ["#f97316", (st) => {
+for (let row = 0; row < 4; row++) for (let c = 0; c < 6; c++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:calc(50% - 150px + ${c * 50 + (row % 2) * 25}px);bottom:calc(16% + ${row * 29}px);width:46px;height:26px;border-radius:3px;background:linear-gradient(180deg,#ff7849,#9a3412);border:1px solid #fdba74;animation:qcDrop .5s cubic-bezier(.5,0,.8,1) ${(3 - row) * 0.18 + c * 0.04}s both;`; st.appendChild(d); }
+const s = document.createElement("div"); s.className = "p"; s.style.cssText = "left:50%;bottom:calc(16% + 130px);font-size:70px;margin-left:-35px;animation:qcPop .5s ease-out 1s both;filter:drop-shadow(0 0 20px #63c5ff);"; s.textContent = "🛡"; st.appendChild(s);
+st.style.animation = "qcShake .25s linear 1s 3";
+}],
+hunter: ["#facc15", (st) => {
+[0, 1, 2, 3].forEach(i => { const a = document.createElement("div"); a.className = "p"; a.style.cssText = `left:0;top:${38 + i * 7}%;width:170px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#fde68a 40%,#facc15);box-shadow:0 0 12px #facc15;animation:qcArrow 1.4s cubic-bezier(.2,.7,.3,1) ${0.15 + i * 0.22}s both;`; a.innerHTML = '<span style="position:absolute;right:-10px;top:-9px;color:#facc15;font-size:18px;line-height:1;">▶</span>'; st.appendChild(a); });
+const t = document.createElement("div"); t.className = "p"; t.style.cssText = "right:8%;top:42%;font-size:64px;animation:qcPop .4s ease-out both;"; t.textContent = "🎯"; st.appendChild(t);
+}],
+cyber: ["#00ff88", (st) => {
+st.style.animation = "qcGlitch .12s steps(2) infinite";
+for (let i = 0; i < 22; i++) { const v = document.createElement("div"); v.className = "p"; v.style.cssText = `left:${rnd() * 90}%;top:${rnd() * 85}%;font-size:${22 + rnd() * 30}px;animation:qcPop .3s ease-out ${i * 0.07}s both;`; v.textContent = "🦠"; st.appendChild(v); }
+const g = document.createElement("div"); g.className = "p"; g.style.cssText = "left:0;right:0;top:62%;text-align:center;font:900 22px monospace;color:#ff1744;text-shadow:3px 0 #00f0ff,-3px 0 #ff4dff;"; g.textContent = "ACCESS GRANTED"; st.appendChild(g);
+}],
+blood: ["#c8a27a", (st) => {
+const c = document.createElement("div"); c.className = "p"; c.style.cssText = "left:calc(50% - 50px);top:46%;font-size:100px;animation:qcDash 2.2s ease-in both;"; c.textContent = "☕"; st.appendChild(c);
+for (let i = 0; i < 9; i++) { const s = document.createElement("div"); s.className = "p"; s.style.cssText = `left:calc(50% - 20px + ${(i - 4) * 9}px);top:44%;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.55);filter:blur(4px);animation:qcSteam 1.4s ease-out ${i * 0.09}s both;`; st.appendChild(s); }
+}]
+};
+function cine(cls, name, cb) {
+const C0 = CINE[cls] || CINE.engineer, ov = document.createElement("div");
+ov.className = "qcine"; ov.style.setProperty("--qc", C0[0]);
+ov.innerHTML = `<div class="st" style="position:absolute;inset:0;"></div><div class="nm">${name}</div><div class="skip">tap to skip</div>`;
+document.body.appendChild(ov);
+try { C0[1](ov.querySelector(".st")); } catch (e) {}
+let done = false; const end = () => { if (done) return; done = true; ov.remove(); if (cb) cb(); };
+ov.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); end(); });
+setTimeout(end, 2400);
+}
+window.HSQTE = { setDiff: (n) => { D.diff = Math.max(0, Math.min(3, n | 0)); }, ultRun: ultRun, timing: timing, parry: parry, dodge: dodge, ult: ult, gamble: gamble, mathProblem: mathProblem, ULT: ULT, channel: channel, parry3: parry3, dodge3: dodge3, guess: guess, cine: cine };
+})();
+</script>
+<script>(function () { var p = document.querySelectorAll('script[data-tt="tt_hsqte_1"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["hsqte3"] = 1;</script>
+<!-- END-OF-FILE: hsqte3 -->

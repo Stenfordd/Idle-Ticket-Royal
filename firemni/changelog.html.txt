@@ -24,6 +24,23 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "12.0", d: "2026-11-01", i: [
+"⚔ <b>NEW CLASSES</b>: 😤 Overtime Berserker (Stress, Enrage, Rage Quit), 🔥 Burnout Specialist (burns, Reply-All Nuke), 📊 Excel Wizard (Nested Formulas, Ctrl+Enter), ☕ Espresso Monk (Shots, combos, clones) and 🐈 Headhunter with the Office Cat. Your character switched automatically (level and gear stay) and you get one FREE class change",
+"📖 <b>SPELLBOOK</b> (HERO tab): every class has 8 abilities unlocked by level - pick 4 for your action bar. STRIKE, HEAVY, GAMBLE, BREATHE and the ultimate are always there. Keys 1-9 work in a fight",
+"✨ New ultimates: CRUNCH TIME, SUMMON THE INTERN, VLOOKUP OF DOOM, TRIPLE SHOT ESPRESSO, CAT DISTRIBUTION SYSTEM",
+"🧮 Gear has a secondary stat (Crit, Haste, Versatility or Mastery - a different bonus for every class) and some pieces belong to a class SET: 2 pieces = a bonus",
+"⚖ Duels: 3× HP, no single hit can take more than 35% of your max HP (until sudden death), burns don't stack and deal at most 15% max HP per round, BREATHE cleans your oldest burn. Classes re-balanced",
+"🌳 <b>TALENTS</b>: every 10 levels pick 1 of 3 talents, the last row is a legendary one. Save up to 3 LOADOUTS (talents, bar and gear)",
+"🎮 Harder mini-games: dodge comes in waves with feints, parry has combos and white unblockable rings, new CRUNCH TIME, ESPRESSO and INTERN RUN ultimates. On touch screens you get a bit more time",
+"🏢 The office sits next to High Stakes now: resolve tickets, buy scrap and open chests without leaving the fight screen",
+"🌙 <b>NIGHT SHIFT</b> (new mode): climb an 11-floor office at night with a deck of cards - open spaces, server rooms, helpdesk incidents, the kitchen, vending machines and the CEO at the top. New cards and relics every floor",
+"⏱ <b>SLOT TOKENS ARE NOW OVERTIME HOURS</b>: they don't drop from chests any more. You get them for every 10 chest levels, prestige (+5, +1 per 5 prestiges), first win on a campaign boss, every 10th new tower floor, joining the weekly boss, plant fruit (Overtime Blossom now adds +10% per level) and achievements. Your balance was recalculated once",
+"📦 Company Chest: cost grows more gently at high levels, Legendary/Mythic/Prismatic keep growing slowly past their cap, <b>double drop</b> from LV 170 and <b>triple drop</b> from LV 400. Odds are shown as a coloured bar with a 'next level gives…' preview",
+"♻ Salvage hopeless only takes pieces that can't beat yours even at your +level plus a margin you choose (keep +0 to +5, default +2)",
+"🎱 Lottery: a bonus ball - 2 numbers + the bonus = MINI JACKPOT (25% of the pool)",
+"📜 The log has a third tab, INCIDENTS, with system messages - the chat is just people now",
+"🌃 <b>OFFICE AFTER DARK</b>: the room is drawn in neon outlines, RESOLVE TICKET glows and throws numbers, a resource strip sits under the top bar, the middle column has tabs (Scrap / Upgrades / Loadout / Plant), rare items glow in the backpack, drag a stack onto the Merge Station to merge it, and chests flash in the colour of the best drop. 'Neon: off' in the room corner switches it all back"
+] },
 { v: "11.8", d: "2026-10-30", i: [
 "🏳 FLEE needs a second tap within 3 seconds - no more fleeing by accident",
 "☕ Caffeine Abuser: healing is the class's thing, so it <b>ignores 🩸 WOUND</b> and only loses 15% healing in duels (others 35%). SUGAR RUSH now makes HEAVY free (no stamina, no cooldown) for 2 rounds",

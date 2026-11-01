@@ -83,7 +83,7 @@ mount.innerHTML = `
 <button class="casino-tab-btn" id="adv-tab-prsi" onclick="AdvMini.tab('prsi')">♣ PRŠÍ</button>
 <button class="casino-tab-btn" id="adv-tab-checkers" onclick="AdvMini.tab('checkers')">⛀ CHECKERS</button>
 <button class="casino-tab-btn" id="adv-tab-mines" onclick="AdvMini.tab('mines')">🐞 MINES</button>
-<button class="casino-tab-btn" id="adv-tab-lotto" onclick="AdvMini.tab('lotto')">🎟 LOTTERY</button>
+<button class="casino-tab-btn" id="adv-tab-lotto" onclick="AdvMini.tab('lotto')">⏱ LOTTERY</button>
 <button class="casino-tab-btn" id="adv-tab-stocks" onclick="AdvMini.tab('stocks')">📈 STOCKS</button>
 </div>
 <div id="adv-view-chicken">

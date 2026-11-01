@@ -142,7 +142,7 @@ function claimLotto() {
 call("lottoClaim", [], function (r) {
 if (!r || !r.ok || !r.gc) return;
 gameState.coins += r.gc;
-log(`🎟 LOTTERY: you won ${fmt(r.gc)} GC in the last draw!`, "special");
+log(`⏱ LOTTERY: you won ${fmt(r.gc)} GC in the last draw!`, "special");
 if (window.TT && TT.announce && r.gc >= 1e6) try { TT.announce("WON THE LOTTERY", "LOTTERY", 0, r.gc); } catch (e) {}
 if (typeof updateUI === "function") updateUI(); TT.saveSoon();
 });
@@ -292,16 +292,16 @@ const left = Math.max(0, r.drawAt - Date.now()), h = Math.floor(left / 3600000),
 const cur = LT.rows[LT.act] || [];
 const ready = LT.rows.filter(x => x.length === r.k), cost = ready.length * r.price;
 const mine = (r.mine || []).map(t => `<div>${t.map(n => `<span class="lt-ball">${n}</span>`).join("")}</div>`).join("") || `<span class="dg-dim">No tickets for this draw yet.</span>`;
-const last = r.last ? `<div class="adv-info" style="margin-top:8px;">Last draw #${r.last.round}: ${r.last.nums.map(n => `<span class="lt-ball">${n}</span>`).join("")} · ${r.last.tickets} tickets from ${r.last.players} players<br>${r.last.winners.length ? r.last.winners.map(w => `${w.kind === 3 ? "🏆 JACKPOT" : "✨ 2 numbers"}: <b>${esc(w.nick)}</b> +${short(w.prize)} GC`).join("<br>") : "Nobody won - the pool rolls over! 🎉"}</div>` : "";
+const last = r.last ? `<div class="adv-info" style="margin-top:8px;">Last draw #${r.last.round}: ${r.last.nums.map(n => `<span class="lt-ball">${n}</span>`).join("")}${r.last.bonus ? ` + bonus <span class="lt-ball" style="background:#f2a541;color:#1a1406;">${r.last.bonus}</span>` : ""} · ${r.last.tickets} tickets from ${r.last.players} players<br>${r.last.winners.length ? r.last.winners.map(w => `${w.kind === 3 ? "🏆 JACKPOT" : w.kind === 25 ? "💰 MINI JACKPOT (2 + bonus)" : "✨ 2 numbers"}: <b>${esc(w.nick)}</b> +${short(w.prize)} GC`).join("<br>") : "Nobody won - the pool rolls over! 🎉"}</div>` : "";
 const rows = LT.rows.map((t, i) => `<div class="mn-row" style="justify-content:flex-start;padding:4px 6px;border-radius:10px;${i === LT.act ? "background:rgba(255,184,0,.10);outline:1px solid var(--amber);" : ""}" onclick="Extras.ltAct(${i})">
 <b style="width:58px;">Ticket ${i + 1}</b>${Array.from({ length: r.k }, (_, q) => t[q] ? `<span class="lt-ball">${t[q]}</span>` : `<span class="lt-ball dim">?</span>`).join("")}
 <button class="btn" style="padding:2px 8px;margin-left:auto;" onclick="event.stopPropagation();Extras.ltRow(${i},'r')">🎲</button>${LT.rows.length > 1 ? `<button class="btn" style="padding:2px 8px;" onclick="event.stopPropagation();Extras.ltRow(${i},'x')">✕</button>` : ""}</div>`).join("");
-box.innerHTML = `<div class="adv-info">Pick <b>${r.k}</b> numbers from 1-${r.n} on each ticket. Draw every day at <b>18:00</b>. All <b>${r.k}</b> = JACKPOT (90% of the pool, split between winners) · 2 numbers = ×5 the ticket. 40% of everyone's casino losses and the Prší / Checkers cut go into the pool.</div>
+box.innerHTML = `<div class="adv-info">Pick <b>${r.k}</b> numbers from 1-${r.n} on each ticket. Draw every day at <b>18:00</b>. All <b>${r.k}</b> = JACKPOT (90% of the pool, split between winners) · 2 numbers + the <b>bonus number</b> = MINI JACKPOT (25% of the pool, split) · 2 numbers = ×5 the ticket. 40% of everyone's casino losses and the Prší / Checkers cut go into the pool.</div>
 <div class="lt-pool">${short(r.pool)} GC</div><div style="text-align:center;" class="dg-dim">Draw #${r.round} in <b>${h} h ${m} min</b> · ${r.players} player${r.players === 1 ? "" : "s"} in · you can buy <b>${ltFree()}</b> more</div>
 <div style="display:grid;gap:4px;margin:8px 0;">${rows}</div>
 <div class="lt-nums">${Array.from({ length: r.n }, (_, i) => i + 1).map(n => `<div class="lt-n ${cur.indexOf(n) >= 0 ? "on" : ""}" onclick="Extras.ltPick(${n})">${n}</div>`).join("")}</div>
 <div class="mn-row"><button class="btn" ${LT.rows.length < ltFree() ? "" : "disabled"} onclick="Extras.ltAdd()">➕ Ticket</button><button class="btn" onclick="Extras.ltQuick()">🎲 Randomize all</button>
-<button class="btn btn-gold" ${ready.length && gameState.coins >= cost ? "" : "disabled"} onclick="Extras.ltBuy()">🎟 Buy ${ready.length || ""} ticket${ready.length === 1 ? "" : "s"} · ${short(cost || r.price)} GC</button></div>
+<button class="btn btn-gold" ${ready.length && gameState.coins >= cost ? "" : "disabled"} onclick="Extras.ltBuy()">⏱ Buy ${ready.length || ""} ticket${ready.length === 1 ? "" : "s"} · ${short(cost || r.price)} GC</button></div>
 <div style="margin-top:8px;"><b>Your tickets (${(r.mine || []).length}/${r.max})</b><div style="display:grid;gap:4px;margin-top:4px;">${mine}</div></div>${last}`;
 }
 function ltAct(i) { LT.act = i; ltRender(); }
@@ -321,7 +321,7 @@ gameState.coins -= cost; if (typeof updateUI === "function") updateUI();
 call("lottoBuyMany", [list], function (x) {
 const n = x && x.ok ? x.bought : 0, back = (list.length - n) * r.price;
 if (back > 0) gameState.coins += back;
-if (x && x.ok) { r.mine = x.mine; r.pool = x.pool; LT.rows = [[]]; LT.act = 0; log(`🎟 ${n} lottery ticket${n === 1 ? "" : "s"} bought. Good luck at 18:00!${back ? " (" + short(back) + " GC refunded - ticket limit)" : ""}`, "success"); TT.saveSoon(); }
+if (x && x.ok) { r.mine = x.mine; r.pool = x.pool; LT.rows = [[]]; LT.act = 0; log(`⏱ ${n} lottery ticket${n === 1 ? "" : "s"} bought. Good luck at 18:00!${back ? " (" + short(back) + " GC refunded - ticket limit)" : ""}`, "success"); TT.saveSoon(); }
 else log("Ticket purchase failed - refunded.", "warning");
 if (typeof updateUI === "function") updateUI(); ltRender();
 }, function () { gameState.coins += cost; log("Ticket purchase failed (server) - refunded.", "warning"); if (typeof updateUI === "function") updateUI(); });

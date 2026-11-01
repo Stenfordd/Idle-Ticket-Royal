@@ -23,7 +23,7 @@ const TUTORIAL_STEPS = [
 <ul><li>From chest <b>level 20</b> opening costs ×2, then ×1.5 every 10 levels</li>
 <li><b>Mythic (T5)</b> only drops from chest level 40</li>
 <li>🌌 <b>Prismatic / Quantum (T6)</b>: every HIGH STAKES <b>chapter boss</b> unlocks T6 for one body slot (Great "I" = HEAD, Pookie = RIG, Ransomware = OS, LLM = AUGMENT, Massi = TOOL, Compliance = RELIC). From then on that slot can drop T6 from the chest (LV 50+, always rarer than Mythic), even after prestige. Beating the boss gives no free T6 item. The 🌌 T6 cell in the odds table shows your chance</li>
-<li>🎟 <b>Slot Token</b> (rare): +1 merge level to the item equipped in a slot you pick (or a new item if the slot is empty) - or turn it into 4 HIGH STAKES energy</li></ul>` },
+<li>⏱ <b>Overtime Hour</b> (rare): +1 merge level to the item equipped in a slot you pick (or a new item if the slot is empty) - or turn it into 4 HIGH STAKES energy</li></ul>` },
 { t: "4) GEAR, MERGE & AUTOSELL", b: `
 <p>Equal items <b>stack</b>. <b>Merge 3 identical → +1 level</b> (+60% base stats per level). <b>MERGE ALL</b> merges everything at once.</p>
 <ul><li><b>Autosell</b> (up to T4): new drops at or below the chosen tier become scrap instantly, but <b>upgrades are always kept</b></li>
@@ -32,7 +32,7 @@ const TUTORIAL_STEPS = [
 <p>Upgrade the <b>item you have equipped</b> from <b>+1 to +15</b> with GC (shown as ⚒). The upgrade stays <b>on that item</b> - if you swap it out, it keeps its ⚒ level in the backpack.</p>
 <ul><li>Every stage: <b>+8% all stats</b> of the item + a bonus you pick: 🖱 +12% Click, ⚙ +12% Auto or ✨ +0.5% Mult</li>
 <li>⚒1-5 always succeed. ⚒6-10: 90% → 50% chance, a fail only costs GC. ⚒11-15: 45% → 20%, a fail <b>drops the item one stage</b></li>
-<li>🎟 <b>Slot Tokens</b> can now be bought with GC (price rises with every buy, resets on prestige). 1 token = protection against the drop, 2 tokens = guaranteed success</li>
+<li>⏱ <b>Overtime Hours</b> can now be bought with GC (price rises with every buy, resets on prestige). 1 token = protection against the drop, 2 tokens = guaranteed success</li>
 <li>Upgraded items can be merged by hand in the Merge Station (your equipped item counts too): the result keeps the best ⚒ minus 1 stage. MERGE ALL skips them. Prestige wipes gear (Heirloom keeps half the ⚒ stages)</li></ul>` },
 { t: "5) AUTOGEN, PRESTIGE & LEGACY", b: `
 <p><b>45M Autogen</b> makes GC from the Auto stat of your gear. <b>Prestige</b> resets your run (tickets, scrap, GC, chest, gear) but raises the multiplier and gives <b>Legacy Points</b>.</p>
@@ -49,7 +49,8 @@ const TUTORIAL_STEPS = [
 <p>Unlocks at <b>chest level 10</b> (or Prestige 1). A 1v1 fighting game. Every round: <b>① you attack</b>, <b>② the enemy shows its move</b> (⚔ attack, 💥 HEAVY, 🔮 spell, ⏳ charge, 🛡 guard), <b>③ you react</b>.</p>
 <ul><li>Attacks: ⚔ <b>Strike</b> (free) · 💥 <b>Heavy</b> (30 stamina, stop the needle: 1.3× / green 1.7× / gold 2.2×, breaks a guard and interrupts a charge) · 🎰 <b>Gamble</b> (20 stamina, HOLD reels + 1 re-spin) · ✨ <b>Ultimate</b> at 100 focus (2-second tap mini-game, 70-125%)</li>
 <li>Reactions depend on your class: 🛡 <b>Block</b> (tap the ring vs big hits for a PERFECT parry), 💨 <b>Dodge</b> (a chance to take nothing, not vs spells), 🔮 <b>Channel</b> (mage: -25% now, next hit ×1.6) or 😮‍💨 <b>Breathe</b> (+10 stamina, +10 focus). Stamina +15 and focus +10 every round</li>
-<li>Classes: 🛡 Firewall Warden (warrior, STR, blocks + counters), 🗡 Shadow Admin (assassin, AGI, dodge + 2.5× crits), 🧙 Code Wizard (mage, INT, +75% damage, immune to spells, low HP), 🩸 Blood Walker (STR, lifesteal + rise again), 🏹 Bug Hunter (AGI, double hits, first strike, mark)</li>
+<li>Classes (v12): 😤 Overtime Berserker (STR, builds Stress, Enrage, Rage Quit), 🔥 Burnout Specialist (AGI, burns + the Reply-All Nuke, dodge), 📊 Excel Wizard (INT, stacks Nested Formulas, +75% damage, channel), ☕ Espresso Monk (STR, Shots + combos, clones), 🐈 Headhunter (AGI, the Office Cat fights with you)</li>
+<li>📖 <b>Spellbook</b> (HERO tab): every class has 8 abilities unlocked by level - put 4 into your action bar. They use stamina and your class resource (Stress, Burnout, Formulas, Shots, Leads). Secondary gear stats: Crit, Haste, Versatility and Mastery (a different bonus for every class); 2 pieces of your class set give a bonus</li>
 <li>Stats like SFGame: damage = weapon × (1 + max(yours/2, yours − enemy's/2) / 10) with your class's ★ main stat, VIT = HP, LUCK = crit against the enemy's level (max 50%). +5 points per level, extra points can be bought with GC (each one 6% more expensive)</li>
 <li>⚒ <b>Combat gear</b> (HERO tab) drops at the enemy's level: weapon = damage, armor = less damage taken, every piece gives flat stats. Common → Mythic, upgrade +1 to +10 with GC, salvage the rest</li>
 <li>Campaign: 5 chapters, 51 missions, 3 stars each (★ win, ★ 50%+ HP, ★ bonus goal or a win within 4 rounds). Beat the Big Massi to <b>ascend</b> to Campaign 2, 3... (+40 enemy levels). Stars add up over all campaigns, every ★ = <b>+0.3% office multiplier</b>. Missions cost energy ⚡ (+1 every 12 min, max 16)</li>
@@ -58,8 +59,8 @@ const TUTORIAL_STEPS = [
 <li>⚔ <b>DUEL</b>: a live 1v1 with a friend (friendly or for GC, own stats or equal terms). 🏟 <b>ARENA</b>: an AI plays your saved build against your friends' builds for honor + GC. Office prestige never resets High Stakes</li></ul>` },
 { t: "9) 🏆 HALL OF FAME", b: `
 <p>Open it with the <b>🏆 HALL OF FAME</b> button (on mobile: MORE).</p>
-<ul><li><b>Achievements</b>: ${window.Meta ? Meta.ACH.length : 42} badges, each one gives +1 🎟 Slot Token and shows on your player card</li>
-<li><b>Weekly boards</b>: Corporate Climb height, best Shift, world boss damage and biggest casino win. Top 3 get 3 / 2 / 1 🎟 every week</li>
+<ul><li><b>Achievements</b>: ${window.Meta ? Meta.ACH.length : 42} badges, each one gives +1 ⏱ Overtime Hour and shows on your player card</li>
+<li><b>Weekly boards</b>: Corporate Climb height, best Shift, world boss damage and biggest casino win. Top 3 get 3 / 2 / 1 ⏱ every week</li>
 <li><b>Company events</b>: every hour a 10-minute event for everyone (Payday, Coffee Machine Broke, Audit Week, Supply Drop, Overtime). Watch for the banner</li></ul>` },
 { t: "10) SCORE", b: `
 <p>Score = prestige, lifetime tickets, best chest level and HIGH STAKES missions cleared. It never goes down. Click a player in the Top 10 to see their card.</p>
@@ -161,7 +162,7 @@ peakCps: g.peakCps, gambleNet: g.gambleNet,
 loadout: g.loadout, inventory: g.inventory,
 autosellTier: g.autosellTier,
 focusAutogenActive: g.focusAutogenActive, focusAutogenRemaining: g.focusAutogenRemaining,
-tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy,
+tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy, ot12: g.ot12 || 0, otChest: g.otChest || 0,
 lp: g.lp, lpUp: window.Plant ? {} : g.lpUp, plant: window.Plant ? Plant.payload() : g.plant,
 autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
 pachinko: g.pachinko, pcPending: g.pcPending, stk: g.stk,
@@ -316,6 +317,7 @@ g.focusAutogenRemaining = Math.max(0, nv(l.focusAutogenRemaining, 0));
 g.tutorialDone = !!l.tutorialDone;
 g.slotTokens = Math.max(0, Math.floor(nv(l.slotTokens, 0)));
 g.tokBuy = Math.max(0, Math.floor(nv(l.tokBuy, 0)));
+g.ot12 = l.ot12 ? 1 : 0; g.otChest = Math.max(0, Math.floor(nv(l.otChest, 0)));
 if (l.lp === undefined) {
 let lp = 0;
 for (let p = 1; p <= g.prestige; p++) lp += lpGainFor(p);
@@ -348,6 +350,7 @@ while (_loadedCallbacks.length) {
 try { _loadedCallbacks.shift()(); } catch (e) { console.error(e); }
 }
 if (!gameState.tutorialDone) openTutorial();
+try { if (typeof otMigrate12 === "function") otMigrate12(); } catch (e) { console.error(e); }
 checkWipeNotice();
 startVersionWatch();
 }

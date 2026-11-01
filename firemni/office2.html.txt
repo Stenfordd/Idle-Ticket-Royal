@@ -1,4 +1,64 @@
-<script type="text/plain" data-tt="tt_office_1" data-i="2">const box = document.getElementById("merge-list");
+<script type="text/plain" data-tt="tt_office_1" data-i="2">function setAutosellTier(v) {
+gameState.autosellTier = Math.max(0, Math.min(4, Number(v) || 0));
+log(gameState.autosellTier ? `Autosell ON: new chest drops up to T${gameState.autosellTier} are scrapped instantly - unless they are better than what you wear.` : "Autosell OFF.");
+renderAutosellInfo();
+TT.saveSoon();
+}
+function renderAutosellInfo() {
+const t = gameState.autosellTier;
+setHtml("autosell-info", t
+? `♻ <b>Autosell ≤ T${t}</b>: new drops up to <b>${tierLabel(t)}</b> become scrap right away. Upgrades for your equipped gear are <b>always kept</b>. This session: <b>${autosellSession.n}</b> items → <b>+${autosellSession.scrap.toLocaleString()}</b> scrap.`
+: `♻ Autosell is <b>off</b> - every drop goes to your backpack. Turn it on to auto-scrap low drops (upgrades are always kept).`);
+}
+/** v8.7.3: skupiny se ⚒ itemy - 3 stejné (slot, tier, merge level) bez ohledu na ⚒, počítá se i nasazený item.
+*  Výsledek: merge level +1 a nejvyšší ⚒ ze tří, o 1 stupeň menší. MERGE ALL je přeskakuje. */
+function enhMergeGroups() {
+const G = {};
+const add = (k, u) => { (G[k] = G[k] || { units: [], slot: u.slot, tier: u.tier, lvl: u.lvl }).units.push(u); };
+gameState.inventory.forEach(st => {
+if ((st.lvl || 0) >= MERGE_MAX_LVL) return;
+const k = st.slot + "|" + st.tier + "|" + (st.lvl || 0);
+for (let i = 0; i < Math.min(st.n, 3); i++) add(k, { src: "inv", key: stackKey(st), e: enhOf(st), slot: st.slot, tier: st.tier, lvl: st.lvl || 0 });
+});
+SLOTS.forEach(sl => {
+const it = gameState.loadout[sl]; if (!it || (it.lvl || 0) >= MERGE_MAX_LVL) return;
+add(sl + "|" + it.tier + "|" + (it.lvl || 0), { src: "eq", e: enhOf(it), slot: sl, tier: it.tier, lvl: it.lvl || 0 });
+});
+return Object.keys(G).map(k => {
+const g = G[k]; g.key = k;
+if (g.units.length < MERGE_COUNT || !g.units.some(u => u.e)) return null;
+const best = g.units.slice().sort((x, y) => y.e.length - x.e.length || (y.src === "eq") - (x.src === "eq"))[0];
+const rest = g.units.filter(u => u !== best).sort((x, y) => x.e.length - y.e.length || (x.src === "eq") - (y.src === "eq")).slice(0, MERGE_COUNT - 1);
+g.use = [best].concat(rest); g.best = best; g.eq = g.use.some(u => u.src === "eq");
+g.lost = rest.reduce((a, u) => a + u.e.length, 0);
+return g;
+}).filter(Boolean).sort((a, b) => (b.tier - a.tier) || (b.lvl - a.lvl));
+}
+function mergeEnh(gkey) {
+const g = enhMergeGroups().find(x => x.key === gkey); if (!g) return;
+const E = g.best.e.length, name = itemName(g);
+if (!confirm(`Merge 3× ${name} +${g.lvl}${g.eq ? " (incl. your equipped one)" : ""}?\nResult: +${g.lvl + 1} with ⚒${E} → ⚒${Math.max(0, E - 1)}${g.lost ? "\nThe other ⚒ stages (" + g.lost + ") are used up." : ""}`)) return;
+g.use.forEach(u => { if (u.src === "inv") invTake(u.key, 1); });
+if (g.eq) gameState.loadout[g.slot] = null;
+const roll = Math.random() * 100;
+let res;
+if (roll < 5) {                                       // fail: nejlepší item přežije beze změny, ostatní dva se spotřebují
+res = { slot: g.slot, tier: g.tier, lvl: g.lvl }; if (g.best.e) res.e = g.best.e;
+const refund = g.use.slice(1).reduce((a, u) => a + Math.floor(itemScrapValue({ tier: g.tier, lvl: g.lvl }) * 0.5), 0);
+gameState.scrap += refund;
+log(`MERGE FAILED: ${name} +${g.lvl} ⚒${E} survived, the other two were lost (+${refund} scrap salvaged).`, "error");
+} else {
+const bonus = roll < 15 ? 2 : 1;
+res = { slot: g.slot, tier: g.tier, lvl: Math.min(MERGE_MAX_LVL, g.lvl + bonus) };
+const e = g.best.e.slice(0, -1); if (e) res.e = e;
+log(`⚒ MERGE: ${name} → +${res.lvl}${bonus === 2 ? " (CRIT +2)" : ""} with ⚒${e.length}.`, "special");
+}
+if (g.eq) gameState.loadout[g.slot] = res;
+else invAdd(res.slot, res.tier, res.lvl, 1, res.e);
+updateUI(); TT.saveSoon();
+}
+function renderMergeStation() {
+const box = document.getElementById("merge-list");
 if (!box) return;
 const list = gameState.inventory.filter(s => s.n >= MERGE_COUNT && (s.lvl || 0) < MERGE_MAX_LVL && !enhOf(s))
 .sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0)));
@@ -148,7 +208,7 @@ chips.push(b.type === "overdrive"
 }
 if (window.Meta && Meta.current()) chips.push(Meta.chip());
 if (window.Colleague) { const cc = Colleague.chip(); if (cc) chips.push(cc); }
-if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">🎟 ${g.slotTokens} token${g.slotTokens > 1 ? "s" : ""}</span>`);
+if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">⏱ ${g.slotTokens} OT</span>`);
 if (window.Dungeon && Dungeon.netMultBonus() > 1) chips.push(`<span class="buff-chip lp" title="Permanent bonus from HIGH STAKES stars">🎰 STARS ×${Dungeon.netMultBonus().toFixed(2)}</span>`);
 return chips.join("");
 }
@@ -226,14 +286,19 @@ setTxt("odd-t4", o.t4.toFixed(2) + "%");
 setTxt("odd-t6", o.t6 > 0 ? o.t6.toFixed(3) + "%" : (g.chestLevel < T6_UNLOCK_LVL && window.Dungeon && Dungeon.t6Slots && Dungeon.t6Slots().length ? "🔒 LVL " + T6_UNLOCK_LVL : "🔒 BOSS"));
 setTxt("odd-t5", g.chestLevel < T5_UNLOCK_LVL ? "🔒 LVL " + T5_UNLOCK_LVL : o.t5.toFixed(3) + "%");
 const nf = chestLevelCostFactor(g.chestLevel + 1), cf = chestLevelCostFactor(g.chestLevel);
-setTxt("chest-next-info", (o.trash > 0
-? "Next level: -0.5% Empty, +0.8% Rare, +0.15% Epic (0% Empty at level 90)."
-: "Level 90+: 0% empty drops.") +
-(nf > cf ? ` ⚠ Next level makes opening ×${(nf / cf).toFixed(2)} more expensive.` : "") +
+const bar = document.getElementById("odds-bar");
+if (bar) { const k = ["trash", "t1", "t2", "t3", "t4", "t5", "t6"], sig = k.map(x => o[x].toFixed(3)).join(); if (bar.dataset.s !== sig) { bar.dataset.s = sig; bar.innerHTML = k.filter(x => o[x] > 0).map((x, i) => `<i style="flex:${Math.max(o[x], 0.6)};background:var(--rarity-${x === "trash" ? "t0" : x})" title="${x.toUpperCase()} ${o[x].toFixed(3)}%"></i>`).join(""); } }
+const on = getChestOdds(g.chestLevel + 1), nl = g.chestLevel + 1, parts = [];
+[["trash", "Empty"], ["t2", "Rare"], ["t3", "Epic"], ["t4", "Legendary"], ["t5", "Mythic"], ["t6", "Prismatic"]].forEach(([x, nm]) => { const dd = on[x] - o[x]; if (Math.abs(dd) >= 0.0005) parts.push(`${dd > 0 ? "+" : ""}${dd.toFixed(Math.abs(dd) < 0.1 ? 3 : 2)}% ${nm}`); });
+if (nl % 10 === 0 && nl > (g.otChest || 0)) parts.push("+1 ⏱ Overtime Hour");
+if (doubleDropChance(nl) > doubleDropChance(g.chestLevel)) parts.push(`double drop ${(doubleDropChance(nl) * 100).toFixed(2)}%`);
+if (tripleDropChance(nl) > tripleDropChance(g.chestLevel)) parts.push(`triple drop ${(tripleDropChance(nl) * 100).toFixed(1)}%`);
+setTxt("chest-next-info", `Next level gives: ${parts.length ? parts.join(", ") : "no change"}.` +
+(nf > cf ? ` ⚠ Opening gets ×${(nf / cf).toFixed(2)} more expensive.` : "") +
 (o.t6 > 0 ? ` 🌌 Prismatic T6: ${o.t6.toFixed(2)}% (${Dungeon.t6Slots().join(", ")}).`
 : " 🌌 Prismatic T6: beat HIGH STAKES chapter bosses to unlock body slots (drops from chest LV 50+)."));
 const btnTok = document.getElementById("btn-token");
-if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `🎟 USE SLOT TOKEN (${g.slotTokens})`); }
+if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `⏱ USE OVERTIME HOUR (${g.slotTokens})`); }
 setTxt("bp-count", `${g.inventory.length} / ${INV_MAX_STACKS} stacks · ${invItems()} items`);
 const cd = document.getElementById("roulette-cd");
 if (cd) {

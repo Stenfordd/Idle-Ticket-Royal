@@ -26,7 +26,7 @@ const INV_MAX_STACKS = 400;
 const MERGE_COUNT = 3;          // kolik stejných itemů se mergne
 const MERGE_MAX_LVL = 10;
 const MERGE_STAT_STEP = 0.6;    // +60 % základních statů za level (aditivně, ne složeně)
-const TOKEN_CHANCE = 0.003;     // šance na Slot Token za každé otevření bedny
+const TOKEN_CHANCE = 0.003;     // šance na Overtime Hour za každé otevření bedny
 const CLICK_CRIT_CHANCE = 0.05; // 5 % kliků je kritických
 const CLICK_CRIT_MULT = 3;
 const HEAT_CPS = 14;            // nad tímhle CPS se "CPU" začne zahřívat
@@ -172,12 +172,29 @@ const e = document.getElementById(id);
 if (e) e.innerHTML = v;
 }
 function switchBottomLeftTab(tab) {
-const isLog = tab === "log";
+const isLog = tab === "log", isInc = tab === "inc", isChat = !isLog && !isInc;
+const vi = document.getElementById("view-incidents"), bi = document.getElementById("tab-btn-inc");
 document.getElementById("view-system-log").style.display = isLog ? "block" : "none";
-document.getElementById("view-office-chat").style.display = isLog ? "none" : "block";
+document.getElementById("view-office-chat").style.display = isChat ? "block" : "none";
+if (vi) vi.style.display = isInc ? "block" : "none";
 document.getElementById("tab-btn-log").classList.toggle("active", isLog);
-document.getElementById("tab-btn-chat").classList.toggle("active", !isLog);
-if (!isLog) { scrollChatToBottom(); chatUnread = 0; renderChatUnread(); }
+document.getElementById("tab-btn-chat").classList.toggle("active", isChat);
+if (bi) bi.classList.toggle("active", isInc);
+if (isChat) { scrollChatToBottom(); chatUnread = 0; renderChatUnread(); }
+if (isInc) { const c = document.getElementById("inc-messages"); if (c) c.scrollTop = c.scrollHeight; incUnread = 0; setTxt("inc-unread", ""); }
+}
+/** v12: systémové zprávy (duely, Prší, dáma, týdenní boss) jdou do záložky INCIDENTS */
+let incUnread = 0, incLastSig = null;
+function isSysMsg(m) { return !/^[A-Za-z0-9._@-]/.test(String(m.user || "")); }
+function renderIncidents(list) {
+const c = document.getElementById("inc-messages"); if (!c) return;
+const sig = list.length + "|" + (list.length ? list[list.length - 1].time + list[list.length - 1].text : "");
+if (incLastSig !== null && sig !== incLastSig) { const vi = document.getElementById("view-incidents"); if (!vi || vi.style.display === "none") { incUnread++; setTxt("inc-unread", "•"); } }
+if (sig === incLastSig) return; incLastSig = sig;
+if (!list.length) return;
+const atBottom = c.scrollHeight - c.clientHeight <= c.scrollTop + 30;
+c.innerHTML = list.map(m => `<div class="chat-row"><span class="chat-time">${escapeHtml(m.time || "")}</span><span class="chat-author" style="color:var(--amber);">${escapeHtml(m.user)}</span> <span class="chat-text">${escapeHtml(m.text)}</span></div>`).join("");
+if (atBottom) c.scrollTop = c.scrollHeight;
 }
 let chatUnread = 0, chatLastSig = null;
 function chatVisible() {
@@ -192,6 +209,8 @@ document.documentElement.classList.toggle("has-unread", chatUnread > 0);
 }
 function renderChatMessages(messages) {
 if (!messages) return;
+renderIncidents(messages.filter(isSysMsg));
+messages = messages.filter(m => !isSysMsg(m));
 const last = messages[messages.length - 1];
 const sig = messages.length ? messages.length + "|" + (last.time || "") + "|" + last.user + "|" + last.text : "0";
 if (chatLastSig !== null && sig !== chatLastSig && !chatVisible()) {
@@ -510,6 +529,17 @@ TT.saveSoon();
 function getPrestigeCost(p) { return Math.floor(200000 * Math.pow(4.2, p)); }
 function lpGainFor(p) { return window.Plant ? Plant.lpGainFor(p) : 2 + Math.floor(p / 2); }   // v8.7: víc LP (dřív 1 + floor(p/3))
 let prestigeArmedUntil = 0;
+/** v12: Overtime Hours za prestiž: 5 + 1 za každých 5 prestiží */
+function otForPrestige(p) { return 5 + Math.floor(p / 5); }
+/** v12 migrace: Slot Tokeny -> Overtime Hours. Všem se vynulují a dostanou zpět jen za prestiže a achievementy (jednou). */
+function otMigrate12() {
+const g = gameState; if (g.ot12) return;
+let n = 0; for (let p = 1; p <= (g.prestige || 0); p++) n += otForPrestige(p);
+let ach = 0; try { const d = window.Dungeon && Dungeon.state ? Dungeon.state() : g.hs || {}; ach = Object.keys((d.ach && d.ach.u) || {}).length; } catch (e) {}
+const old = g.slotTokens || 0; g.slotTokens = n + ach; g.ot12 = 1; g.otChest = Math.floor((g.chestLevel || 0) / 10) * 10;
+log(`⏱ SLOT TOKENS ARE NOW OVERTIME HOURS: they no longer drop from chests. Your balance was reset to what your ${g.prestige || 0} prestiges and ${ach} achievements are worth: ${g.slotTokens} (before: ${old}). New ones come from chest levels, prestige, High Stakes bosses and the plant.`, "special");
+TT.saveSoon();
+}
 function performPrestige() {
 const cost = getPrestigeCost(gameState.prestige);
 if (gameState.tickets < cost) {
@@ -531,6 +561,7 @@ SLOTS.map(s => gameState.loadout[s]).filter(Boolean)
 .forEach(it => { const k = { slot: it.slot, tier: Math.max(1, Math.ceil(it.tier / 2)), lvl: Math.floor((it.lvl || 0) / 2) }; const e = enhOf(it).slice(0, Math.floor(enhOf(it).length / 2)); if (e) k.e = e; keep.push(k); });   // polovina tieru (nahoru), merge levelu i upgradu (dolů)
 }
 gameState.prestige += 1;
+const otGain = otForPrestige(gameState.prestige); gameState.slotTokens = (gameState.slotTokens || 0) + otGain; gameState.otChest = 0;   // v12: Overtime Hours za prestiž
 const lpGain = lpGainFor(gameState.prestige) + Math.floor((gameState.chestLevel || 0) / 10);     // v11.6: +1 LP za každých 10 levelů Company Chest
 gameState.lp += lpGain;
 gameState.tickets = 0;
@@ -545,7 +576,7 @@ keep.forEach(it => { gameState.loadout[it.slot] = it; });
 gameState.focusAutogenActive = false;
 gameState.focusAutogenRemaining = 0;
 if (window.Dungeon && Dungeon.onPrestige) try { Dungeon.onPrestige(); } catch (e) { console.error(e); }   // v8.6: HIGH STAKES kampaň + tower reset
-log(`ASCENDED TO PRESTIGE ${gameState.prestige}! +${lpGain} Legacy Points (total ${gameState.lp}). Start bonus: ${gameState.coins.toLocaleString()} GC.${keep.length ? " Heirloom kept " + keep.length + " item(s) at half tier & merge level." : ""}`, "special");
+log(`ASCENDED TO PRESTIGE ${gameState.prestige}! +${lpGain} Legacy Points (total ${gameState.lp}), +${otGain} ⏱ Overtime Hours. Start bonus: ${gameState.coins.toLocaleString()} GC.${keep.length ? " Heirloom kept " + keep.length + " item(s) at half tier & merge level." : ""}`, "special");
 saveGame();
 updateUI();
 }
@@ -603,8 +634,12 @@ updateUI();
 function getChestUpgradeCost(lvl) { return Math.floor(75 * Math.pow(lvl, 1.35)); }
 /** Sezóna 2+: od levelu 20 dvojnásob, pak každých 10 levelů ×1.5 (lvl 30 = ×3, lvl 40 = ×4.5 ...) */
 function chestLevelCostFactor(lvl) {
-return lvl < 20 ? 1 : Math.pow(1.25, 1 + Math.floor((lvl - 20) / 10));   // v8.2: ×1.25 každých 10 levelů od LV20 (dřív 2×1.5^n)
+if (lvl < 20) return 1;
+const a = Math.min(lvl, 100), b = Math.max(0, Math.min(lvl, 300) - 100), c = Math.max(0, lvl - 300);
+return Math.pow(1.25, 1 + Math.floor((a - 20) / 10)) * Math.pow(1.12, Math.floor(b / 10)) * Math.pow(1.08, Math.floor(c / 10));
 }
+function doubleDropChance(l) { return l < 170 ? 0 : Math.min(0.5, (l - 170) * 0.0025); }
+function tripleDropChance(l) { return l < 400 ? 0 : Math.min(0.25, (l - 400) * 0.001); }
 function getChestScrapCost() {
 const base = 100 * Math.pow(1.15, gameState.prestige || 0) * (1 - 0.03 * gameState.lpUp.scrap) * chestLevelCostFactor(gameState.chestLevel) * (window.Meta ? Meta.mult("chest") : 1);
 return Math.max(10, Math.floor(base));
@@ -616,10 +651,10 @@ const l = Math.max(1, lvl);
 const trash = Math.max(0, 45.0 - (l - 1) * 0.5);
 const t2 = Math.min(50.0, 9.8 + (l - 1) * 0.8);
 const t3 = Math.min(25.0, 0.20 + (l - 1) * 0.15);
-const t4 = Math.min(10.0, 0.01 + (l - 1) * 0.03);
-const t5 = l < T5_UNLOCK_LVL ? 0 : Math.min(0.75, 0.025 + (l - T5_UNLOCK_LVL) * 0.003);   // v8.2: poloviční šance na Mythic
+const t4 = Math.min(10.0, 0.01 + (l - 1) * 0.03) + Math.max(0, l - 334) * 0.002;        // v12: po stropu dál pomalu roste
+const t5 = l < T5_UNLOCK_LVL ? 0 : Math.min(0.75, 0.025 + (l - T5_UNLOCK_LVL) * 0.003) + Math.max(0, l - 282) * 0.002;   // v8.2: poloviční šance na Mythic
 const t6n = window.Dungeon && Dungeon.t6Slots ? Dungeon.t6Slots().length : 0;
-const t6 = l < T6_UNLOCK_LVL || !t6n ? 0 : Math.min(0.45, (0.005 + (l - T6_UNLOCK_LVL) * 0.002) * (window.Plant ? Plant.fx("t6") : 1)) * t6n / 6;
+const t6 = l < T6_UNLOCK_LVL || !t6n ? 0 : (Math.min(0.45, (0.005 + (l - T6_UNLOCK_LVL) * 0.002) * (window.Plant ? Plant.fx("t6") : 1)) + Math.max(0, l - 272) * 0.002) * t6n / 6;
 const t1 = Math.max(0, 100.0 - (trash + t2 + t3 + t4 + t5 + t6));
 return { trash, t1, t2, t3, t4, t5, t6 };
 }
@@ -645,6 +680,10 @@ gameState.coins -= cost;
 gameState.chestLevel += 1;
 if (gameState.chestLevel > gameState.maxChestLevel) gameState.maxChestLevel = gameState.chestLevel;
 log(`COMPANY CHEST UPGRADED TO LEVEL ${gameState.chestLevel}!`, "special");
+if (gameState.chestLevel % 10 === 0 && gameState.chestLevel > (gameState.otChest || 0)) {      // v12: +1 Overtime Hour za každých 10 levelů (jednou za prestiž)
+gameState.otChest = gameState.chestLevel; gameState.slotTokens = (gameState.slotTokens || 0) + 1;
+log(`⏱ +1 Overtime Hour for chest level ${gameState.chestLevel} (you have ${gameState.slotTokens}).`, "special");
+}
 updateUI();
 saveGame();
 }
@@ -656,14 +695,16 @@ function tierLabel(t) { return "T" + t + " " + rarityOf(t).name; }
 function openCompanyChest(n) {
 n = Math.max(1, n | 0);
 const cost = getChestScrapCost();
-let opened = 0, trash = 0, sold = 0, soldScrap = 0, tokens = 0, full = false;
+let opened = 0, trash = 0, sold = 0, soldScrap = 0, tokens = 0, full = false, multi = 0;
 const byTier = {};
 let best = null;
 for (let i = 0; i < n; i++) {
 if (gameState.scrap < cost) break;
 gameState.scrap -= cost;
 opened++;
-if (Math.random() < TOKEN_CHANCE * (window.Plant ? Plant.fx("token") : 1)) { gameState.slotTokens += 1; tokens++; }
+const extra = Math.random() < tripleDropChance(gameState.chestLevel) ? 2 : Math.random() < doubleDropChance(gameState.chestLevel) ? 1 : 0;
+for (let x = 0; x <= extra; x++) {
+if (x) multi++;
 const t = rollTier(true);
 if (t === 0) { trash++; continue; }
 const t6s = t === 6 && window.Dungeon && Dungeon.t6Slots ? Dungeon.t6Slots() : [];
@@ -683,6 +724,8 @@ invAdd(slot, t, 0, 1);
 byTier[t] = (byTier[t] || 0) + 1;
 if (!best || t > best.tier) best = it;
 }
+if (full) break;
+}
 if (opened === 0) {
 log(full ? "Backpack has no free stack slots." : `Insufficient scrap: opening a chest costs ${cost.toLocaleString()} Scrap.`, "warning");
 return;
@@ -691,10 +734,11 @@ const parts = [];
 Object.keys(byTier).sort((a, b) => b - a).forEach(t => parts.push(`T${t}×${byTier[t]}`));
 if (sold) parts.push(`${sold} auto-scrapped (+${soldScrap})`);
 if (trash) parts.push(`${trash} empty`);
+if (multi) parts.push(`${multi} bonus drop${multi > 1 ? "s" : ""}`);
 const summary = `Opened ${opened}: ${parts.join(", ") || "nothing"}${best ? " | best: " + itemName(best) : ""}`;
-setHtml("chest-result", escapeHtml(summary) + (tokens ? ` <b style="color:var(--amber);">🎟 +${tokens} SLOT TOKEN!</b>` : "") + (full ? " (backpack full)" : ""));
+setHtml("chest-result", escapeHtml(summary) + (tokens ? ` <b style="color:var(--amber);">⏱ +${tokens} OVERTIME HOUR!</b>` : "") + (full ? " (backpack full)" : ""));
 log(`CHEST x${opened}: ${escapeHtml(parts.join(", ") || "nothing")}${best ? " | best " + escapeHtml(itemName(best)) + " (T" + best.tier + ")" : ""}`, best && best.tier >= 4 ? "special" : "success");
-if (tokens) log(`🎟 SLOT TOKEN found! You now have ${gameState.slotTokens}.`, "special");
+if (tokens) log(`⏱ OVERTIME HOUR found! You now have ${gameState.slotTokens}.`, "special");
 updateUI();
 }
 let tokenPick = { slot: null, armedAt: 0, open: false };
@@ -738,7 +782,7 @@ const eq = gameState.loadout[slot];
 if (eq && (eq.lvl || 0) < MERGE_MAX_LVL) {        // token = +1 merge level nasazenému itemu
 gameState.slotTokens -= 1;
 eq.lvl = (eq.lvl || 0) + 1;
-log(`🎟 SLOT TOKEN: ${SLOT_ICONS[slot]} ${itemName(eq)} upgraded to merge +${eq.lvl}!`, "special");
+log(`⏱ OVERTIME HOUR: ${SLOT_ICONS[slot]} ${itemName(eq)} upgraded to merge +${eq.lvl}!`, "special");
 closeTokenPicker(); updateUI(); TT.saveSoon();
 return;
 }
@@ -749,7 +793,7 @@ return;
 }
 gameState.slotTokens -= 1;
 invAdd(slot, tier, 0, 1);
-log(`🎟 SLOT TOKEN: ${SLOT_ICONS[slot]} ${slot} -> ${tierLabel(tier)} ${itemName({ slot: slot, tier: tier })}!`, tier >= 4 ? "special" : "success");
+log(`⏱ OVERTIME HOUR: ${SLOT_ICONS[slot]} ${slot} -> ${tierLabel(tier)} ${itemName({ slot: slot, tier: tier })}!`, tier >= 4 ? "special" : "success");
 closeTokenPicker();
 updateUI();
 TT.saveSoon();
@@ -915,66 +959,6 @@ gameState.scrap += p.scrap;
 if (p.gc) gameState.coins += p.gc;
 log(`Scrapped ${p.items} items for +${p.scrap.toLocaleString()} Scrap${p.gc ? " and +" + p.gc.toLocaleString() + " GC" : ""}.`, "success");
 updateUI();
-}
-function setAutosellTier(v) {
-gameState.autosellTier = Math.max(0, Math.min(4, Number(v) || 0));
-log(gameState.autosellTier ? `Autosell ON: new chest drops up to T${gameState.autosellTier} are scrapped instantly - unless they are better than what you wear.` : "Autosell OFF.");
-renderAutosellInfo();
-TT.saveSoon();
-}
-function renderAutosellInfo() {
-const t = gameState.autosellTier;
-setHtml("autosell-info", t
-? `♻ <b>Autosell ≤ T${t}</b>: new drops up to <b>${tierLabel(t)}</b> become scrap right away. Upgrades for your equipped gear are <b>always kept</b>. This session: <b>${autosellSession.n}</b> items → <b>+${autosellSession.scrap.toLocaleString()}</b> scrap.`
-: `♻ Autosell is <b>off</b> - every drop goes to your backpack. Turn it on to auto-scrap low drops (upgrades are always kept).`);
-}
-/** v8.7.3: skupiny se ⚒ itemy - 3 stejné (slot, tier, merge level) bez ohledu na ⚒, počítá se i nasazený item.
-*  Výsledek: merge level +1 a nejvyšší ⚒ ze tří, o 1 stupeň menší. MERGE ALL je přeskakuje. */
-function enhMergeGroups() {
-const G = {};
-const add = (k, u) => { (G[k] = G[k] || { units: [], slot: u.slot, tier: u.tier, lvl: u.lvl }).units.push(u); };
-gameState.inventory.forEach(st => {
-if ((st.lvl || 0) >= MERGE_MAX_LVL) return;
-const k = st.slot + "|" + st.tier + "|" + (st.lvl || 0);
-for (let i = 0; i < Math.min(st.n, 3); i++) add(k, { src: "inv", key: stackKey(st), e: enhOf(st), slot: st.slot, tier: st.tier, lvl: st.lvl || 0 });
-});
-SLOTS.forEach(sl => {
-const it = gameState.loadout[sl]; if (!it || (it.lvl || 0) >= MERGE_MAX_LVL) return;
-add(sl + "|" + it.tier + "|" + (it.lvl || 0), { src: "eq", e: enhOf(it), slot: sl, tier: it.tier, lvl: it.lvl || 0 });
-});
-return Object.keys(G).map(k => {
-const g = G[k]; g.key = k;
-if (g.units.length < MERGE_COUNT || !g.units.some(u => u.e)) return null;
-const best = g.units.slice().sort((x, y) => y.e.length - x.e.length || (y.src === "eq") - (x.src === "eq"))[0];
-const rest = g.units.filter(u => u !== best).sort((x, y) => x.e.length - y.e.length || (x.src === "eq") - (y.src === "eq")).slice(0, MERGE_COUNT - 1);
-g.use = [best].concat(rest); g.best = best; g.eq = g.use.some(u => u.src === "eq");
-g.lost = rest.reduce((a, u) => a + u.e.length, 0);
-return g;
-}).filter(Boolean).sort((a, b) => (b.tier - a.tier) || (b.lvl - a.lvl));
-}
-function mergeEnh(gkey) {
-const g = enhMergeGroups().find(x => x.key === gkey); if (!g) return;
-const E = g.best.e.length, name = itemName(g);
-if (!confirm(`Merge 3× ${name} +${g.lvl}${g.eq ? " (incl. your equipped one)" : ""}?\nResult: +${g.lvl + 1} with ⚒${E} → ⚒${Math.max(0, E - 1)}${g.lost ? "\nThe other ⚒ stages (" + g.lost + ") are used up." : ""}`)) return;
-g.use.forEach(u => { if (u.src === "inv") invTake(u.key, 1); });
-if (g.eq) gameState.loadout[g.slot] = null;
-const roll = Math.random() * 100;
-let res;
-if (roll < 5) {                                       // fail: nejlepší item přežije beze změny, ostatní dva se spotřebují
-res = { slot: g.slot, tier: g.tier, lvl: g.lvl }; if (g.best.e) res.e = g.best.e;
-const refund = g.use.slice(1).reduce((a, u) => a + Math.floor(itemScrapValue({ tier: g.tier, lvl: g.lvl }) * 0.5), 0);
-gameState.scrap += refund;
-log(`MERGE FAILED: ${name} +${g.lvl} ⚒${E} survived, the other two were lost (+${refund} scrap salvaged).`, "error");
-} else {
-const bonus = roll < 15 ? 2 : 1;
-res = { slot: g.slot, tier: g.tier, lvl: Math.min(MERGE_MAX_LVL, g.lvl + bonus) };
-const e = g.best.e.slice(0, -1); if (e) res.e = e;
-log(`⚒ MERGE: ${name} → +${res.lvl}${bonus === 2 ? " (CRIT +2)" : ""} with ⚒${e.length}.`, "special");
-}
-if (g.eq) gameState.loadout[g.slot] = res;
-else invAdd(res.slot, res.tier, res.lvl, 1, res.e);
-updateUI(); TT.saveSoon();
-}
-function renderMergeStation() {</script>
+}</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["office"] = 1;</script>
 <!-- END-OF-FILE: office -->

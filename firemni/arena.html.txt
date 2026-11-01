@@ -106,23 +106,25 @@ const RX = { block: "blocked", dodgefail: "dodge failed", nododge: "can't dodge 
 function arenaLine(e) {
 const r = arena.replay.r, nm = (i) => i === 0 ? "You" : escapeHtml(r.opp.nick), T = `<span style="color:#556;">R${e.t}</span> `, i = e.i, j = 1 - e.i, good = (k) => k === 0 ? "g" : "r";
 if (e.type === "hit") {
-const lab = e.a === "gamble" ? "🎰 " + (e.reels ? e.reels.join("") : "") + (e.jp ? " <b>JACKPOT</b>" : "") : e.a === "ult" ? "✨ " + escapeHtml((H.CLASSES[(i === 0 ? A.HS().cls : r.opp.cls)] || {}).skill || "ULTIMATE") : e.a === "heavy" ? "💥 HEAVY" : "⚔ STRIKE";
+const lab = e.a === "gamble" ? "🎰 " + (e.reels ? e.reels.join("") : "") + (e.jp ? " <b>JACKPOT</b>" : "") : e.a === "ult" ? "✨ " + escapeHtml((H.CLASSES[(i === 0 ? A.HS().cls : r.opp.cls)] || {}).skill || "ULTIMATE") : e.a === "heavy" ? "💥 HEAVY" : H.AB[e.a] ? H.AB[e.a].i + " " + escapeHtml(H.AB[e.a].n.toUpperCase()) : e.a === "rest" ? "😮‍💨 BREATHE" : "⚔ STRIKE";
 const rx = RX[e.outcome] ? ` (${nm(j)} ${RX[e.outcome]}${e.saved ? " " + fmt(e.saved) : ""})` : "";
-return [T + `${nm(i)}: ${lab} for <b>${fmt(e.val)}</b>${e.crit ? " - CRIT" : ""}${rx}${e.counter ? ` · ⚔ counter ${fmt(e.counter)}` : ""}${e.heal ? ` · ❤ +${fmt(e.heal)}` : ""}`, good(i)];
+return [T + `${nm(i)}: ${lab} for <b>${fmt(e.val)}</b>${e.crit ? " - CRIT" : ""}${rx}${e.counter ? ` · ⚔ counter ${fmt(e.counter)}` : ""}${e.heal ? ` · ❤ +${fmt(e.heal)}` : ""}${e.fx ? " · " + escapeHtml(e.fx) : ""}`, good(i)];
 }
 if (e.type === "dodge") return [T + `💨 ${nm(j)} dodged ${i === 0 ? "your" : nm(i) + "'s"} ${e.a === "heavy" ? "HEAVY" : e.a === "ult" ? "ultimate" : "attack"}`, j === 0 ? "c" : "r"];
 if (e.type === "bf") return [T + `💀 ${nm(i)} BACKFIRED for ${fmt(e.val)}`, i === 0 ? "r" : "g"];
 if (e.type === "ult") return [T + `✨ ${nm(i)}: ${escapeHtml(e.a)} - +${fmt(e.shield)} shield, +${fmt(e.heal)} HP`, good(i)];
 if (e.type === "revive") return [T + `🩸 ${nm(e.who)} rises again with ${fmt(e.val)} HP!`, e.who === 0 ? "g" : "r"];
 if (e.type === "stun") return [T + `😵 ${nm(e.who)} is stunned`, e.who === 0 ? "r" : "g"];
+if (e.type === "tick") return [T + (e.by != null ? `${nm(e.by)}: ${escapeHtml(e.msg)} → ${nm(e.who)}` : `${nm(e.who)}: ${escapeHtml(e.msg)}`), e.val > 0 ? (e.who === 0 ? "r" : "g") : "c"];
+if (e.type === "bm" || e.type === "guess" || e.type === "poison") return null;
 if (e.type === "end") return [T + (e.why === "time" ? "⏱ Time is up - more HP left wins." : "🏁 K.O."), "y"];
 return [T + e.type, ""];
 }
 function arenaApply(e, animate) {
 const rp = arena.replay;
 if (e.hp) rp.hp = e.hp.slice(); if (e.sh) rp.sh = e.sh.slice();
-const ln = arenaLine(e); rp.lines.unshift(ln);
-const el = $("ar-log"); if (el) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
+const ln = arenaLine(e); if (ln) rp.lines.unshift(ln);
+const el = $("ar-log"); if (el && ln) { const div = document.createElement("div"); div.className = ln[1]; div.innerHTML = ln[0]; el.prepend(div); }
 if (animate && !document.hidden) {
 const atk = e.i === 0 ? "ar-a" : "ar-b", def = e.i === 0 ? "ar-b" : "ar-a", dSide = e.i === 0 ? "b" : "p", aSide = e.i === 0 ? "p" : "b";
 if (e.type === "hit" || e.type === "dodge") { anim(atk, e.i === 0 ? "atk-l" : "atk-r"); if (e.type === "hit" && e.val) anim(def, "hit"); }

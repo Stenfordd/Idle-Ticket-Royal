@@ -368,11 +368,12 @@ function lottoDraw_(s) {
 var nums = [];
 while (nums.length < LOTTO_K) { var x = 1 + Math.floor(Math.random() * LOTTO_N); if (nums.indexOf(x) < 0) nums.push(x); }
 nums.sort(function (a, b) { return a - b; });
-var pay = m96Get_('ir_lotto_pay', {}), jack = [], small = [];
+var bonus = 0; while (!bonus) { var y = 1 + Math.floor(Math.random() * LOTTO_N); if (nums.indexOf(y) < 0) bonus = y; }      // v12: bonusové číslo
+var pay = m96Get_('ir_lotto_pay', {}), jack = [], small = [], mini = [];
 Object.keys(s.t).forEach(function (nick) {
 (s.t[nick] || []).forEach(function (tk) {
 var hit = tk.filter(function (n) { return nums.indexOf(n) >= 0; }).length;
-if (hit === 3) jack.push(nick); else if (hit === 2) small.push(nick);
+if (hit === 3) jack.push(nick); else if (hit === 2 && tk.indexOf(bonus) >= 0) mini.push(nick); else if (hit === 2) small.push(nick);
 });
 });
 var winners = [];
@@ -382,8 +383,13 @@ var pot = Math.floor(s.pool * 0.9), each = Math.floor(pot / jack.length);
 jack.forEach(function (nick) { pay[nick] = (pay[nick] || 0) + each; winners.push({ nick: nick, prize: each, kind: 3 }); });
 s.pool -= each * jack.length;
 }
+if (mini.length) {                                                       // v12: 2 čísla + bonus = MINI JACKPOT 25 % poolu (dělí se)
+var mpot = Math.floor(s.pool * 0.25), meach = Math.floor(mpot / mini.length);
+mini.forEach(function (nick) { pay[nick] = (pay[nick] || 0) + meach; winners.push({ nick: nick, prize: meach, kind: 25 }); });
+s.pool -= meach * mini.length;
+}
 var players = Object.keys(s.t).length, tickets = Object.keys(s.t).reduce(function (a, k) { return a + (s.t[k] || []).length; }, 0);
-s.last = { round: s.round, nums: nums, winners: winners.slice(0, 30), pool: s.pool, players: players, tickets: tickets, at: s.drawAt };
+s.last = { round: s.round, nums: nums, bonus: bonus, winners: winners.slice(0, 30), pool: s.pool, players: players, tickets: tickets, at: s.drawAt };
 s.round++; s.t = {}; s.drawAt = lottoNextDraw_(Math.max(Date.now(), s.drawAt + 1000));
 m96Put_('ir_lotto_pay', pay);
 }
@@ -528,6 +534,8 @@ if (e.counter) x.push(B + ' countered for ' + e.counter);
 if (e.outcome === 'parry') x.push('🛡 ' + B + ' FORTIFIED (-20% damage 2 rounds)');
 if (e.heal) x.push(A + ' healed ' + e.heal + (e.healCut ? ' (-' + e.healCut + ' anti-heal)' : ''));
 if (e.wound) x.push('🩸 WOUND' + (e.wound === 'parry' ? ' on ' + A : ' on ' + B) + ': healing -50% for 2 rounds');
+if (e.fx) x.push(e.fx); if (e.abHeal) x.push(A + ' +' + e.abHeal + ' HP'); if (e.karma) x.push(B + ' sent ' + e.karma + ' back');
+if (e.lost === 'skip') x.push(A + ' lost the move (stunned)'); else if (e.lost === 'mute') x.push(A + ' was interrupted');
 return 'R' + e.t + ' ' + A + ': ' + what + ' → ' + (e.val || 0) + (e.crit ? ' CRIT' : '') + (x.length ? ' · ' + x.join(' · ') : '');
 }
 function dlPay_(nick, amt, why, id) {
@@ -546,7 +554,7 @@ return null;
 }
 function dlHeroes_(t) {
 var a = HSEngine.fromCard(t.cards[t.host]), b = HSEngine.fromCard(t.cards[t.guest]);
-if (t.mode === 'equal') { var L = Math.max(a.level, b.level), al = t.al || {}; a = HSEngine.stdHero(a.cls, L, al[t.host]); b = HSEngine.stdHero(b.cls, L, al[t.guest]); }
+if (t.mode === 'equal') { var L = Math.max(a.level, b.level), al = t.al || {}; a = HSEngine.stdHero(a.cls, L, al[t.host], t.cards[t.host]); b = HSEngine.stdHero(b.cls, L, al[t.guest], t.cards[t.guest]); }
 return [a, b];
 }
 /** v11.2: "rovné podmínky" - před startem si každý rozdělí stejné body (45 s), pak se teprve začne */
@@ -592,6 +600,7 @@ else if (e.type === 'guess') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + (e.ok ? ' 
 else if (e.type === 'bm') dlLog_(t, names[e.i] + ' Blood Magic +' + e.val + ' HP');
 else if (e.type === 'ult' && e.shield) dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': FIREWALL ' + Math.round((e.q || 1) * 100) + '% · +' + e.shield + ' shield, +' + e.heal + ' HP');
 else if (e.type === 'poison') dlLog_(t, names[e.who] + ' infection -' + e.val + ' HP');
+else if (e.type === 'tick') dlLog_(t, (e.by != null ? names[e.by] + ': ' + e.msg + ' → ' + names[e.who] : names[e.who] + ': ' + e.msg));
 else if (e.type === 'dodge') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ': ' + (e.a === 'ult' ? 'ULTIMATE' : (e.label || e.a)) + ' → ' + names[1 - e.i] + ' DODGED' + (e.dodged ? ' all 3' : '') + (e.riposte ? ' · ↩ riposte ' + e.riposte : ''));
 else if (e.type === 'bf') dlLog_(t, 'R' + e.t + ' ' + names[e.i] + ' backfired (' + e.val + ')');
 else if (e.type === 'revive') dlLog_(t, names[e.who] + ' gets back up with ' + e.val + ' HP!');
@@ -703,22 +712,5 @@ return { ok: true };
 }
 /** v11.1: 6 náhodných čísel na gamble válce v tomto půlkole (klient je ukáže, server z nich spočítá stejné válce) */
 function dlRolls_(t) { var d = t.ds, R = HSEngine.rng(((t.seed || 1) + (d ? d.half : 0) * 104729 + 77) >>> 0), a = []; for (var k = 0; k < 6; k++) a.push(Math.round(R() * 1e6) / 1e6); return a; }
-function dlView_(t, me) {
-var you = t.host === me ? 0 : t.guest === me ? 1 : -1, d = t.ds || null;
-var role = '', picked = false, oppPicked = false;
-if (d && t.status === 'play' && you >= 0) {
-role = d.atk === you ? 'atk' : 'react';
-picked = !!t.pick[role === 'atk' ? 'a' : 'r']; oppPicked = !!t.pick[role === 'atk' ? 'r' : 'a'];
-}
-var ultReady = !!(d && t.status === 'play' && d.foc[d.atk] >= 100), su = null;
-if (t.setup && you >= 0) { var Ls = dlEqualL_(t); su = { L: Ls, pts: HSEngine.statPoints(Ls), ready: [!!(t.al || {})[t.host], !!(t.al || {})[t.guest]], mine: (t.al || {})[me] || null }; }
-return { id: t.id, rev: t.rev, status: t.status, host: t.host, guest: t.guest, target: t.target || '', stake: t.stake, mode: t.mode, you: you, names: [t.host, t.guest],
-cls: t.cls || [t.hostCls, ''], lv: t.lv || [t.hostLv, 0], cards: t.cards, max: t.max || null,
-hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh : null, sure: d ? d.sure : null, chan: d ? d.chan : null, atk: d ? d.atk : -1, turn: d ? d.turn : 0, half: d ? d.half : 0,
-cd: d ? (d.cd || [0, 0]) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null, ultReady: ultReady, waitAtk: role === 'react' && ultReady && !t.pick.a, setup: su,
-gu: d ? (d.gu || [false, false]) : null, wd: d ? (d.wd || [0, 0]) : null, fort: d ? (d.fort || [0, 0]) : null, mana: d ? (d.mana || [0, 0]) : null, vuln: d ? d.vuln : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
-role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
-winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-30) };
-}
 
 // END-OF-FILE: server2 (continues in server3)

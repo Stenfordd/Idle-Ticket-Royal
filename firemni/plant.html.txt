@@ -74,7 +74,7 @@ const NODES = [
 { id: "k_roots", br: "office", row: 4, icon: "🌰", name: "Deep Roots", key: true, req: "o_heir", desc: () => "Keep 10% of your GC on prestige", costs: [5] },
 { id: "c_bet", br: "casino", row: 1, icon: "🎲", name: "High Roller Leaves", desc: l => `max bets ×${Math.pow(1.5, l).toFixed(2)}`, next: "max bet ×1.5", costs: [1, 2, 2] },
 { id: "c_cons", br: "casino", row: 2, icon: "🧑‍💼", name: "Consultant Bark", req: "c_bet", desc: l => `consult costs ${10 * l}% less`, next: "-10% consult", costs: [1, 1, 2] },
-{ id: "c_tok", br: "casino", row: 2, icon: "🎟", name: "Token Blossom", req: "c_bet", desc: l => `Slot Token chance from chests +${50 * l}%`, next: "+50% token chance", costs: [2, 2, 3] },
+{ id: "c_tok", br: "casino", row: 2, icon: "⏱", name: "Overtime Blossom", req: "c_bet", desc: l => `Every fruit has a ${10 * l}% chance for +1 Overtime Hour`, next: "+10% chance per fruit", costs: [2, 2, 3] },
 { id: "k_cherry", br: "casino", row: 4, icon: "🍒", name: "Lucky Cherry", key: true, req: "c_tok", desc: () => "HIGH STAKES gamble: 🍒 counts as a wild symbol", costs: [5] },
 { id: "h_xp", br: "hs", row: 1, icon: "📈", name: "Growth Rings", desc: l => `+${8 * l}% HIGH STAKES XP`, next: "+8% XP", costs: [1, 1, 1, 2] },
 { id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
@@ -220,8 +220,8 @@ function harvest() {
 const p = st(), n = fruits(); if (!n) return;
 const s = stage(), got = [];
 for (let i = 0; i < n; i++) {
-const r = Math.random(), tokP = 0.03 + 0.02 * s;
-if (r < tokP) { gameState.slotTokens += 1; got.push("🎟 Slot Token"); }
+const r = Math.random(), tokP = 0.03 + 0.02 * s + 0.1 * lvl("c_tok");
+if (r < tokP) { gameState.slotTokens += 1; got.push("⏱ Overtime Hour"); }
 else if (r < tokP + 0.17 && window.Dungeon && Dungeon.state && Dungeon.unlocked()) { const d = Dungeon.state(); d.energy = Math.min(d.energy + 2 + (s >= 3 ? 1 : 0), 99); got.push("⚡ +" + (2 + (s >= 3 ? 1 : 0)) + " energy"); }
 else if (r < 0.55) { const gc = Math.round(Math.max(5000, Math.round(calculateAutoGcRate() * 600)) * s * (1 + 0.15 * lvl("r_luck"))); gameState.coins += gc; got.push("💰 +" + short(gc) + " GC"); }
 else { const sc = Math.round(Math.max(500, Math.round(getChestScrapCost() * 4)) * s * (1 + 0.15 * lvl("r_luck"))); gameState.scrap += sc; got.push("⚙ +" + short(sc) + " scrap"); }

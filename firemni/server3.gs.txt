@@ -1,4 +1,21 @@
 /** server3 = 3. část serveru */
+function dlView_(t, me) {
+var you = t.host === me ? 0 : t.guest === me ? 1 : -1, d = t.ds || null;
+var role = '', picked = false, oppPicked = false;
+if (d && t.status === 'play' && you >= 0) {
+role = d.atk === you ? 'atk' : 'react';
+picked = !!t.pick[role === 'atk' ? 'a' : 'r']; oppPicked = !!t.pick[role === 'atk' ? 'r' : 'a'];
+}
+var ultReady = !!(d && t.status === 'play' && d.foc[d.atk] >= 100), su = null;
+if (t.setup && you >= 0) { var Ls = dlEqualL_(t); su = { L: Ls, pts: HSEngine.statPoints(Ls), ready: [!!(t.al || {})[t.host], !!(t.al || {})[t.guest]], mine: (t.al || {})[me] || null }; }
+return { id: t.id, rev: t.rev, status: t.status, host: t.host, guest: t.guest, target: t.target || '', stake: t.stake, mode: t.mode, you: you, names: [t.host, t.guest],
+cls: t.cls || [t.hostCls, ''], lv: t.lv || [t.hostLv, 0], cards: t.cards, max: t.max || null,
+hp: d ? d.hp : null, sta: d ? d.sta : null, foc: d ? d.foc : null, sh: d ? d.sh : null, sure: d ? d.sure : null, chan: d ? d.chan : null, atk: d ? d.atk : -1, turn: d ? d.turn : 0, half: d ? d.half : 0,
+cd: d ? (d.cd || [0, 0]) : null, S: d ? (d.S || null) : null, gr: role === 'atk' && !picked ? dlRolls_(t) : null, ultReady: ultReady, waitAtk: role === 'react' && ultReady && !t.pick.a, setup: su,
+gu: d ? (d.gu || [false, false]) : null, wd: d ? (d.wd || [0, 0]) : null, fort: d ? (d.fort || [0, 0]) : null, mana: d ? (d.mana || [0, 0]) : null, vuln: d ? d.vuln : null, bm: d ? (d.bm || [0, 0]) : null, ep: d ? (d.ep || [0, 0]) : null, sa: d ? (d.sa || [0, 0]) : null, nocd: d ? (d.nocd || [0, 0]) : null,
+role: role, picked: picked, oppPicked: oppPicked, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, last: t.lastEv || [], evSeq: t.evSeq || 0, miss: t.miss || {},
+winner: t.winner || '', why: t.why || '', win: t.win || 0, waitLeft: t.status === 'wait' ? Math.max(0, DL_WAIT_MS - (Date.now() - t.created)) : 0, log: t.log.slice(-30) };
+}
 function dlPoll(id, rev) {
 var me = getUserLdap(), t = dlGet_(id), pay = [];
 var due = t && ((t.status === 'play' && t.deadline && Date.now() > t.deadline) || (t.status === 'wait' && Date.now() - t.created > DL_WAIT_MS) || (t.status === 'play' && Date.now() - t.moved > DL_IDLE_MS));
@@ -27,13 +44,14 @@ var d = t.ds, role = d.atk === you ? 'a' : 'r';
 if (role === 'r' && d.foc[d.atk] >= 100 && !t.pick.a) return { ok: false, reason: 'wait', view: dlView_(t, me) };
 choice = String(choice || '');
 var okA = ['strike', 'heavy', 'gamble', 'rest', 'ult'], okR = ['block', 'dodge', 'channel', 'brace'];
-if ((role === 'a' ? okA : okR).indexOf(choice) < 0) return { ok: false, reason: 'choice', view: dlView_(t, me) };
+var isAb = role === 'a' && HSEngine.AB[choice] ? true : false;
+if (!isAb && (role === 'a' ? okA : okR).indexOf(choice) < 0) return { ok: false, reason: 'choice', view: dlView_(t, me) };
 if (t.pick[role]) return { ok: false, reason: 'picked', view: dlView_(t, me) };
 opt = opt && typeof opt === 'object' ? opt : {};
 if (opt.h != null && Number(opt.h) !== d.half) return { ok: false, reason: 'late', view: dlView_(t, me) };
 var TIER = ['perfect', 'good', 'none'], o = {};
 if (role === 'a') {
-if (choice === 'heavy' && TIER.indexOf(opt.t) >= 0) o.t = opt.t;
+if ((choice === 'heavy' || (isAb && HSEngine.AB[choice].hv)) && TIER.indexOf(opt.t) >= 0) o.t = opt.t;
 if (choice === 'ult' && isFinite(Number(opt.q))) o.q = Math.max(0.7, Math.min(1.25, Number(opt.q)));
 if (choice === 'gamble' && opt.g && Array.isArray(opt.g.hold)) o.g = { hold: [0, 1, 2].map(function (k) { return !!opt.g.hold[k]; }), re: !!opt.g.re };
 if (choice === 'ult' && ['block', 'dodge', 'channel', 'brace'].indexOf(opt.guess) >= 0) o.guess = opt.guess;

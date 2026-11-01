@@ -1,0 +1,169 @@
+<style>
+/* ===== v12 OFFICE NEON: resource strip, neon room, glowing resolve button, workshop tabs, rarity glow, drag-to-merge, chest burst ===== */
+#on-res { display: flex; gap: 8px; align-items: center; justify-content: center; margin: -4px auto 10px; flex-wrap: wrap; position: sticky; top: 0; z-index: 50; padding: 5px 10px; width: max-content; max-width: 100%; border-radius: 99px; background: rgba(6,9,16,.82); backdrop-filter: blur(6px); border: 1px solid rgba(103,232,249,.14); }
+html:not(.neon-on) #on-res { display: none; }
+#on-res span { font: 600 12px 'Space Grotesk', system-ui, sans-serif; padding: 3px 9px; border-radius: 99px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); color: #dbe4f0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#on-res span b { font-weight: 700; margin-left: 3px; }
+#on-res .r-t b { color: #67e8f9; } #on-res .r-s b { color: #cbd5e1; } #on-res .r-g b { color: #fbbf24; } #on-res .r-o b { color: #c4b5fd; }
+html.m #on-res { display: none; }
+/* neon room: objekty jako obrysy, hráč jako silueta */
+.rm.neon { background: #05070d; box-shadow: inset 0 0 0 1px rgba(103,232,249,.18), 0 0 24px rgba(34,211,238,.08); }
+.rm.neon .rm-bg { filter: url(#onEdgeBg); }
+.rm.neon .rm-o > svg { filter: url(#onEdge); }
+.rm.neon .rm-o:not(.deco):hover > svg { filter: url(#onEdgeHot); }
+.rm.neon .rm-o.lock > svg { filter: url(#onEdge) saturate(.2) brightness(.6); }
+.rm.neon::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 999; background: repeating-linear-gradient(0deg, rgba(103,232,249,.025) 0 1px, transparent 1px 3px); }
+.on-neon-tg { position: absolute; right: 8px; bottom: 8px; z-index: 1000; font: 600 10px 'Space Grotesk', system-ui, sans-serif; padding: 2px 8px; border-radius: 99px; cursor: pointer; color: #a5f3fc; background: rgba(5,7,13,.75); border: 1px solid rgba(103,232,249,.35); }
+/* resolve ticket: tmavý s glow */
+html.v9.neon-on .btn-primary-action#btn-click { background: radial-gradient(120% 140% at 50% 0%, #2a0f1c 0%, #12070d 70%); color: #ffd1dc; border: 1px solid rgba(255,77,109,.65); box-shadow: 0 0 0 1px rgba(255,77,109,.25), 0 0 22px rgba(255,46,99,.35), inset 0 0 24px rgba(255,46,99,.18); text-shadow: 0 0 10px rgba(255,77,109,.8); }
+html.v9.neon-on .btn-primary-action#btn-click:hover { box-shadow: 0 0 0 1px rgba(255,77,109,.4), 0 0 32px rgba(255,46,99,.5), inset 0 0 30px rgba(255,46,99,.25); transform: none; }
+html.v9.neon-on .btn-primary-action#btn-click:active, html.v9.neon-on .btn-primary-action#btn-click.pressed { transform: scale(.985) !important; box-shadow: 0 0 40px rgba(255,46,99,.6), inset 0 0 40px rgba(255,46,99,.35); }
+.on-num { position: fixed; z-index: 9999; pointer-events: none; font: 700 15px 'Space Grotesk', system-ui, sans-serif; color: #ff8fa8; text-shadow: 0 0 8px rgba(255,46,99,.9); animation: onNum .8s ease-out forwards; }
+@keyframes onNum { from { opacity: 1; transform: translate(-50%, 0) scale(1); } to { opacity: 0; transform: translate(calc(-50% + var(--dx)), -70px) scale(1.15); } }
+html.fx-off .on-num { display: none; }
+/* inventář: rarity glow + drag */
+html.neon-on .item-card.t3 { box-shadow: 0 0 10px -2px var(--rarity-t3); }
+html.neon-on .item-card.t4 { box-shadow: 0 0 14px -2px var(--rarity-t4); }
+html.neon-on .item-card.t5 { box-shadow: 0 0 16px -1px var(--rarity-t5); }
+html.neon-on .item-card.t6 { box-shadow: 0 0 18px 0 var(--rarity-t6); }
+.item-card[draggable="true"] { cursor: grab; }
+.item-card.on-drag { opacity: .45; }
+.on-drop { outline: 2px dashed #fbbf24 !important; outline-offset: 3px; box-shadow: 0 0 22px rgba(251,191,36,.35) !important; }
+/* workshop záložky (jen PC) */
+.on-ws { display: flex; gap: 4px; margin: 0 0 10px; padding: 4px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); }
+.on-ws button { flex: 1; padding: 7px 4px; border: 0; border-radius: 9px; background: transparent; color: #94a3b8; font: 600 12px 'Space Grotesk', system-ui, sans-serif; cursor: pointer; }
+.on-ws button.on { background: rgba(103,232,249,.12); color: #e0faff; box-shadow: inset 0 0 0 1px rgba(103,232,249,.35); }
+.on-ws button:focus-visible { outline: 2px solid #67e8f9; outline-offset: 1px; }
+.on-hide { display: none !important; }
+/* chest: výbuch podle rarity */
+.on-burst { animation: onBurst .9s ease-out; }
+@keyframes onBurst { 0% { box-shadow: 0 0 0 0 var(--onc), inset 0 0 0 0 var(--onc); transform: scale(1); } 15% { transform: scale(1.012) rotate(-.3deg); } 30% { transform: scale(1.008) rotate(.3deg); } 40% { box-shadow: 0 0 40px 6px var(--onc), inset 0 0 30px var(--onc); } 100% { box-shadow: 0 0 0 0 transparent, inset 0 0 0 0 transparent; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .on-burst, .on-num { animation: none; } }
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<filter id="onEdge" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+<feColorMatrix in="SourceGraphic" type="matrix" values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0" result="lum"/>
+<feConvolveMatrix in="lum" order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true" result="e1"/>
+<feMorphology in="SourceAlpha" operator="dilate" radius="0.6" result="dil"/>
+<feComposite in="dil" in2="SourceAlpha" operator="out" result="rim"/>
+<feColorMatrix in="e1" type="matrix" values="0 0 0 0 0.40  0 0 0 0 0.91  0 0 0 0 0.98  2.2 2.2 2.2 0 0" result="lines"/>
+<feFlood flood-color="#67e8f9" result="c"/><feComposite in="c" in2="rim" operator="in" result="rimc"/>
+<feComponentTransfer in="SourceGraphic" result="dim"><feFuncR type="linear" slope="0.22"/><feFuncG type="linear" slope="0.24"/><feFuncB type="linear" slope="0.32"/></feComponentTransfer>
+<feMerge result="m"><feMergeNode in="dim"/><feMergeNode in="lines"/><feMergeNode in="rimc"/></feMerge>
+<feGaussianBlur in="m" stdDeviation="1.4" result="g"/>
+<feMerge><feMergeNode in="g"/><feMergeNode in="m"/></feMerge>
+</filter>
+<filter id="onEdgeHot" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+<feMorphology in="SourceAlpha" operator="dilate" radius="0.8" result="dil"/>
+<feComposite in="dil" in2="SourceAlpha" operator="out" result="rim"/>
+<feFlood flood-color="#f0abfc" result="c"/><feComposite in="c" in2="rim" operator="in" result="rimc"/>
+<feComponentTransfer in="SourceGraphic" result="dim"><feFuncR type="linear" slope="0.4"/><feFuncG type="linear" slope="0.4"/><feFuncB type="linear" slope="0.5"/></feComponentTransfer>
+<feMerge result="m"><feMergeNode in="dim"/><feMergeNode in="rimc"/></feMerge>
+<feGaussianBlur in="m" stdDeviation="2" result="g"/>
+<feMerge><feMergeNode in="g"/><feMergeNode in="m"/></feMerge>
+</filter>
+<filter id="onEdgeBg" color-interpolation-filters="sRGB">
+<feColorMatrix in="SourceGraphic" type="matrix" values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0" result="lum"/>
+<feConvolveMatrix in="lum" order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true" result="e1"/>
+<feColorMatrix in="e1" type="matrix" values="0 0 0 0 0.75  0 0 0 0 0.35  0 0 0 0 0.98  1.6 1.6 1.6 0 0" result="lines"/>
+<feComponentTransfer in="SourceGraphic" result="dim"><feFuncR type="linear" slope="0.16"/><feFuncG type="linear" slope="0.17"/><feFuncB type="linear" slope="0.26"/></feComponentTransfer>
+<feMerge><feMergeNode in="dim"/><feMergeNode in="lines"/></feMerge>
+</filter>
+</defs>
+</svg>
+<script>
+(function () {
+"use strict";
+var KEY = "ir_neon", root = document.documentElement;
+function on() { try { return localStorage.getItem(KEY) !== "0"; } catch (e) { return true; } }
+function setOn(v) { try { localStorage.setItem(KEY, v ? "1" : "0"); } catch (e) {} apply(); }
+function apply() {
+var v = on(); root.classList.toggle("neon-on", v);
+document.querySelectorAll(".rm").forEach(function (r) {
+r.classList.toggle("neon", v);
+var t = r.querySelector(".on-neon-tg");
+if (!t) { t = document.createElement("button"); t.type = "button"; t.className = "on-neon-tg"; t.addEventListener("click", function (e) { e.stopPropagation(); setOn(!on()); }); r.appendChild(t); }
+t.textContent = v ? "Neon: on" : "Neon: off";
+});
+}
+function short(n) { n = Math.floor(n || 0); var u = ["", "K", "M", "B", "T", "Qa", "Qi"], i = 0, v = n; while (Math.abs(v) >= 1000 && i < u.length - 1) { v /= 1000; i++; } return i ? (v >= 100 ? v.toFixed(0) : v.toFixed(v >= 10 ? 1 : 2)) + u[i] : String(n); }
+function res() {
+var g = typeof gameState !== "undefined" ? gameState : null; if (!g) return;
+var el = document.getElementById("on-res");
+if (!el) { var bar = document.querySelector(".top-bar"); if (!bar) return; el = document.createElement("div"); el.id = "on-res"; bar.insertAdjacentElement("afterend", el); }
+var h = '<span class="r-t" title="Tickets">🎫<b>' + short(g.tickets) + '</b></span><span class="r-s" title="Scrap">🔩<b>' + short(g.scrap) + '</b></span><span class="r-g" title="Google Coins">💰<b>' + short(g.coins) + '</b></span><span class="r-o" title="Overtime Hours">⏱<b>' + (g.slotTokens || 0) + '</b></span>';
+if (el._h !== h) { el._h = h; el.innerHTML = h; }
+}
+document.addEventListener("pointerdown", function (e) {
+var b = e.target.closest && e.target.closest("#btn-click"); if (!b || !on()) return;
+var v = document.getElementById("click-val"), n = document.createElement("div");
+n.className = "on-num"; n.textContent = "+" + (v ? v.textContent : "1");
+n.style.left = e.clientX + "px"; n.style.top = (e.clientY - 14) + "px"; n.style.setProperty("--dx", (Math.random() * 60 - 30).toFixed(0) + "px");
+document.body.appendChild(n); setTimeout(function () { n.remove(); }, 850);
+}, true);
+var WS = [["scrap", "Scrap", "SCRAP FABRICATION"], ["up", "Upgrades", "#forge-mount"], ["load", "Loadout", "CYBERNETIC LOADOUT"], ["plant", "Plant", "OFFICE PLANT"]];
+function wsPanels() {
+var col = document.querySelectorAll(".grid-columns > .column")[1]; if (!col) return null;
+var map = {};
+WS.forEach(function (w) {
+if (w[2].charAt(0) === "#") { map[w[0]] = document.querySelector(w[2]); return; }
+[].some.call(col.children, function (p) { var h = p.querySelector(".panel-header"); if (h && h.textContent.toUpperCase().indexOf(w[2]) >= 0) { map[w[0]] = p; return true; } });
+});
+return { col: col, map: map };
+}
+var wsCur = (function () { try { return localStorage.getItem("ir_ws") || "scrap"; } catch (e) { return "scrap"; } })();
+function ws() {
+var m = root.classList.contains("m"), P = wsPanels(); if (!P) return;
+var bar = document.getElementById("on-ws");
+if (m || !on()) { if (bar) bar.remove(); WS.forEach(function (w) { var p = P.map[w[0]]; if (p) p.classList.remove("on-hide"); }); return; }
+if (!bar) {
+bar = document.createElement("div"); bar.id = "on-ws"; bar.className = "on-ws"; bar.setAttribute("role", "tablist");
+bar.innerHTML = WS.map(function (w) { return '<button type="button" role="tab" data-k="' + w[0] + '">' + w[1] + '</button>'; }).join("");
+bar.addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; wsCur = b.dataset.k; try { localStorage.setItem("ir_ws", wsCur); } catch (er) {} ws(); });
+P.col.insertBefore(bar, P.col.firstChild);
+}
+WS.forEach(function (w) { var p = P.map[w[0]]; if (p) p.classList.toggle("on-hide", w[0] !== wsCur); });
+[].forEach.call(bar.children, function (b) { b.classList.toggle("on", b.dataset.k === wsCur); b.setAttribute("aria-selected", b.dataset.k === wsCur ? "true" : "false"); });
+}
+function keyOf(card) { var b = card.querySelector('[onclick^="equipStack"]'); var m = b && /equipStack\('([^']+)'\)/.exec(b.getAttribute("onclick")); return m ? m[1] : null; }
+function mergeBox() { var l = document.getElementById("merge-list"); return l && l.closest(".panel"); }
+function dnd() {
+document.querySelectorAll("#backpack-grid .item-card:not([draggable])").forEach(function (c) { c.setAttribute("draggable", "true"); });
+var mb = mergeBox(); if (!mb || mb._on) return; mb._on = 1;
+mb.addEventListener("dragover", function (e) { if (e.dataTransfer.types.indexOf("text/x-stack") < 0) return; e.preventDefault(); mb.classList.add("on-drop"); });
+mb.addEventListener("dragleave", function () { mb.classList.remove("on-drop"); });
+mb.addEventListener("drop", function (e) {
+mb.classList.remove("on-drop"); var k = e.dataTransfer.getData("text/x-stack"); if (!k) return; e.preventDefault();
+var s = typeof invByKey === "function" && invByKey(k);
+if (!s || s.n < MERGE_COUNT) { log("Drag a stack with at least " + MERGE_COUNT + " copies to merge it.", "warning"); return; }
+if (typeof performSmartMerge === "function") performSmartMerge(k, Math.floor(s.n / MERGE_COUNT));
+});
+}
+document.addEventListener("dragstart", function (e) {
+var c = e.target.closest && e.target.closest("#backpack-grid .item-card"); if (!c) return;
+var k = keyOf(c); if (!k) return; e.dataTransfer.setData("text/x-stack", k); e.dataTransfer.effectAllowed = "move"; c.classList.add("on-drag");
+});
+document.addEventListener("dragend", function (e) { var c = e.target.closest && e.target.closest(".item-card"); if (c) c.classList.remove("on-drag"); });
+function hookChest() {
+if (typeof window.openCompanyChest !== "function" || window.openCompanyChest._on || typeof window.rollTier !== "function") return;
+var roll = window.rollTier, best = -1;
+window.rollTier = function (t) { var r = roll(t); if (r > best) best = r; return r; };
+var open = window.openCompanyChest;
+window.openCompanyChest = function (n) {
+best = -1; var out = open.apply(this, arguments);
+var el = document.getElementById("odds-bar"), p = el && el.closest(".panel");
+if (p && best >= 2 && on() && !root.classList.contains("fx-off")) { p.style.setProperty("--onc", "var(--rarity-t" + best + ")"); p.classList.remove("on-burst"); void p.offsetWidth; p.classList.add("on-burst"); }
+return out;
+};
+window.openCompanyChest._on = 1;
+}
+function tick() { try { apply(); res(); ws(); dnd(); hookChest(); } catch (e) { console.error(e); } }
+apply();
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
+setInterval(tick, 700);
+window.OfficeNeon = { set: setOn, on: on };
+})();
+</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["office_neon"] = 1;</script>
+<!-- END-OF-FILE: office_neon -->

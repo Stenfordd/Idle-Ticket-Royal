@@ -1,0 +1,329 @@
+<style>
+/* ===== v12 NIGHT SHIFT - deckbuilder (kancelář v noci: papír, inkoust a sodíkové lampy) ===== */
+.ns { --ns-night: #0f1b2d; --ns-lamp: #f2a541; --ns-paper: #efe6d2; --ns-ink: #2b2b2b; --ns-stamp: #c8372d; --ns-line: rgba(120,170,230,.22);
+background: var(--ns-night) linear-gradient(var(--ns-line) 1px, transparent 1px) 0 0 / 22px 22px, var(--ns-night) linear-gradient(90deg, var(--ns-line) 1px, transparent 1px) 0 0 / 22px 22px;
+background-blend-mode: normal; border: 1px solid #22385a; border-radius: 10px; padding: 12px; margin-bottom: 10px; color: #dbe6f5; position: relative; }
+.ns h3 { margin: 0 0 8px; font: 700 14px 'IBM Plex Mono', 'Courier New', monospace; letter-spacing: 2px; color: var(--ns-lamp); text-transform: uppercase; display: flex; justify-content: space-between; gap: 8px; }
+.ns .ns-dim { font: 400 12px 'IBM Plex Mono', 'Courier New', monospace; color: #9fb3cf; line-height: 1.5; }
+.ns .ns-dim b { color: var(--ns-lamp); }
+.ns-btn { font: 700 12px 'IBM Plex Mono', 'Courier New', monospace; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--ns-lamp); background: rgba(242,165,65,.12); color: var(--ns-lamp); cursor: pointer; }
+.ns-btn:disabled { opacity: .35; cursor: default; }
+.ns-btn.red { border-color: var(--ns-stamp); color: #ff8a80; background: rgba(200,55,45,.12); }
+/* mapa = půdorys */
+.ns-map { display: flex; flex-direction: column-reverse; gap: 6px; }
+.ns-fl { display: grid; grid-template-columns: 34px repeat(3, minmax(0, 1fr)); gap: 6px; align-items: center; }
+.ns-fl > span { font: 700 10px 'IBM Plex Mono', monospace; color: #6f86a8; }
+.ns-room { min-height: 40px; border: 1.5px solid #3b5f8f; border-radius: 3px; background: rgba(15,27,45,.85); display: flex; align-items: center; justify-content: center; gap: 6px; font: 700 10px 'IBM Plex Mono', monospace; color: #8fb0d8; letter-spacing: 1px; text-transform: uppercase; padding: 4px; text-align: center; }
+.ns-room i { font-style: normal; font-size: 16px; }
+.ns-room.done { border-color: #2e4b6f; background: rgba(242,165,65,.08); color: #6f86a8; }
+.ns-room.here { border-color: var(--ns-lamp); box-shadow: 0 0 14px rgba(242,165,65,.45); color: var(--ns-lamp); }
+.ns-room.go { border-color: var(--ns-lamp); color: #ffd9a0; cursor: pointer; animation: nsPulse 1.4s ease-in-out infinite; }
+.ns-room.go:hover { background: rgba(242,165,65,.18); }
+.ns-room.far { opacity: .45; }
+@keyframes nsPulse { 50% { box-shadow: 0 0 12px rgba(242,165,65,.55); } }
+.ns-boss { grid-column: 2 / 5; min-height: 46px; border-color: var(--ns-stamp); color: #ff8a80; }
+/* karty = kartotéční lístky */
+.ns-hand { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 6px 0; }
+.ns-card { position: relative; width: 132px; min-height: 150px; padding: 10px 9px 8px; border: none; border-radius: 3px; text-align: left; cursor: pointer;
+background: var(--ns-paper) repeating-linear-gradient(180deg, transparent 0 17px, rgba(91,138,201,.25) 17px 18px); color: var(--ns-ink);
+box-shadow: 0 6px 14px rgba(0,0,0,.45), inset 0 0 22px rgba(160,130,80,.18); transform: rotate(var(--rot, 0deg)); transition: transform .12s, box-shadow .12s; font-family: 'Special Elite', 'Courier New', monospace; }
+.ns-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 22px; border-bottom: 2px solid rgba(200,55,45,.55); }
+.ns-card:hover:not(:disabled) { transform: translateY(-6px) rotate(0deg); box-shadow: 0 10px 22px rgba(0,0,0,.55), 0 0 0 2px var(--ns-lamp); }
+.ns-card:disabled { opacity: .45; cursor: default; filter: grayscale(.6); }
+.ns-card .ci { position: absolute; top: 2px; right: 6px; font-size: 18px; }
+.ns-card .cn { display: block; font-size: 13px; font-weight: 700; margin: 0 22px 8px 0; line-height: 1.15; }
+.ns-card .ct { display: block; font: 400 10.5px 'IBM Plex Mono', 'Courier New', monospace; line-height: 1.35; color: #3b3b3b; }
+.ns-card .ck { display: block; margin-top: 6px; font: 700 9.5px 'IBM Plex Mono', monospace; color: #7a5a1e; }
+.ns-card .cu { position: absolute; bottom: 6px; right: 7px; font: 700 12px 'IBM Plex Mono', monospace; color: var(--ns-stamp); }
+.ns-card .clip { position: absolute; top: -7px; left: 14px; width: 9px; height: 22px; border: 2px solid #8a94a6; border-radius: 5px; }
+.ns-card.sm { width: 112px; min-height: 120px; }
+.ns-pile { font: 400 11px 'IBM Plex Mono', monospace; color: #9fb3cf; text-align: center; }
+/* incident = vytištěný ticket */
+.ns-ticket { position: relative; background: var(--ns-paper); color: var(--ns-ink); border-radius: 2px; padding: 16px 16px 12px; font-family: 'Special Elite', 'Courier New', monospace; box-shadow: 0 8px 20px rgba(0,0,0,.5);
+-webkit-mask: radial-gradient(circle 6px at 6px 50%, transparent 98%, #000) -6px 0 / 100% 18px repeat-y, linear-gradient(#000, #000); }
+.ns-ticket .tno { font: 700 11px 'IBM Plex Mono', monospace; color: #7a5a1e; letter-spacing: 1px; }
+.ns-ticket h4 { margin: 4px 0 6px; font-size: 18px; }
+.ns-ticket p { margin: 0 0 10px; font: 400 12.5px 'IBM Plex Mono', monospace; line-height: 1.5; }
+.ns-stamp { position: absolute; top: 10px; right: 12px; transform: rotate(-12deg); border: 3px solid var(--ns-stamp); color: var(--ns-stamp); font: 900 16px 'IBM Plex Mono', monospace; letter-spacing: 3px; padding: 2px 8px; border-radius: 4px; opacity: .85; }
+.ns-stamp.ok { border-color: #2f8f4e; color: #2f8f4e; }
+.ns-opts { display: flex; flex-direction: column; gap: 6px; }
+.ns-opt { text-align: left; padding: 8px 10px; border: 1.5px dashed #8a7a5a; background: rgba(255,255,255,.35); border-radius: 3px; font: 700 12px 'IBM Plex Mono', monospace; color: var(--ns-ink); cursor: pointer; }
+.ns-opt small { display: block; font-weight: 400; color: #5a4a2a; }
+.ns-opt:hover { background: rgba(242,165,65,.25); }
+.ns-relics { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.ns-relics span { font: 400 11px 'IBM Plex Mono', monospace; padding: 2px 7px; border: 1px solid #3b5f8f; border-radius: 10px; color: #cfe0f5; }
+.ns-hp { height: 8px; background: #08111e; border: 1px solid #22385a; border-radius: 4px; overflow: hidden; margin: 6px 0; }
+.ns-hp div { height: 100%; background: linear-gradient(90deg, #3ddc84, #f2a541); }
+.ns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; justify-items: center; }
+@media (max-width: 600px) { .ns-card { width: 46%; min-height: 128px; } .ns-room { font-size: 8.5px; min-height: 36px; } }
+</style>
+<script>
+/* v12 NIGHT SHIFT: mapa (půdorys budovy), boj kartami z balíčku, relikvie, incidenty, automat a kuchyňka. Nahrazuje On-Call Shift. */
+(function () {
+"use strict";
+function boot() {
+if (!window.HS_API || !window.HSEngine || !window.HSCampaign || !window.HSModes || !window.HS_API.registerMode) { setTimeout(boot, 100); return; }
+const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign, M = window.HSModes, R = Math.random;
+const fmt = (n) => Math.floor(n).toLocaleString(), esc = (t) => (typeof escapeHtml === "function" ? escapeHtml(String(t)) : String(t));
+const COST = 3, FL = 11, ASC_MAX = 10;
+const ROOM = { fight: ["⚔", "Open space", "A normal incident"], elite: ["☠", "Server room", "An elite: harder, a relic"], incident: ["❓", "Helpdesk", "Something happened"],
+shop: ["🛒", "Vending", "Buy cards, relics"], kitchen: ["☕", "Kitchen", "Heal or upgrade a card"], boss: ["👑", "CEO office", "The end of the night"] };
+const BASIC = { strike: { a: "strike", n: "Strike", i: "⚔", t: "1× hit · +10 stamina" }, heavy: { a: "heavy", n: "Heavy", i: "💥", t: "Timed big hit · 30 stamina" },
+gamble: { a: "gamble", n: "Gamble", i: "🎰", t: "Slot machine · 20 stamina" }, breathe: { a: "rest", n: "Breathe", i: "😮‍💨", t: "+30 stamina, +15 focus" } };
+const OFFICE = {
+overtime: { a: "heavy", n: "Overtime", i: "🌙", xm: 1.3, selfHp: 0.08, t: "HEAVY ×1.3 · costs 8% HP" },
+coffee: { a: "rest", n: "Coffee Break", i: "☕", sta: 10, draw: 1, t: "BREATHE +10 stamina · draw 1 more card next round" },
+replyall: { a: "strike", n: "Reply All", i: "📨", xm: 1.25, t: "STRIKE ×1.25" },
+escalate: { a: "strike", n: "Escalate", i: "📈", xm: 0.5, next: 2, t: "Weak STRIKE · your NEXT card deals ×2" },
+rootcause: { a: "strike", n: "Root Cause", i: "🔍", brk: 40, t: "STRIKE + 40 BREAK" },
+freeze: { a: "strike", n: "Code Freeze", i: "🧊", xm: 0.5, stun: 1, ex: 1, t: "Weak STRIKE · the enemy loses its move · EXHAUST" },
+duck: { a: "strike", n: "Rubber Duck", i: "🦆", xm: 0.7, half: 1, t: "STRIKE ×0.7 · the next hit on you is halved" },
+pto: { a: "rest", n: "PTO Day", i: "🏖", heal: 0.1, t: "BREATHE + heal 10%" },
+standup: { a: "strike", n: "Stand-up", i: "🧍", xm: 0.8, foc: 15, t: "STRIKE ×0.8 · +15 focus" },
+deadline: { a: "heavy", n: "Hard Deadline", i: "⏰", xm: 1.6, selfHp: 0.15, t: "HEAVY ×1.6 · costs 15% HP" },
+bugfix: { a: "strike", n: "Bugfix", i: "🐞", heal: 0.05, t: "STRIKE + heal 5%" },
+allin: { a: "gamble", n: "All-hands Bet", i: "🎲", xm: 1.3, t: "GAMBLE ×1.3" },
+lunch: { a: "rest", n: "Team Lunch", i: "🍕", heal: 0.2, ex: 1, t: "BREATHE + heal 20% · EXHAUST" },
+merge: { a: "strike", n: "Merge Conflict", i: "⚡", xm: 1.5, selfHp: 0.05, t: "STRIKE ×1.5 · costs 5% HP" },
+overclock: { a: "rest", n: "Overclock", i: "🔥", sta: 20, next: 1.3, t: "BREATHE +20 stamina · next card ×1.3" },
+sweep: { a: "strike", n: "Ticket Sweep", i: "🧹", xm: 1.1, brk: 15, t: "STRIKE ×1.1 + 15 BREAK" },
+deepwork: { a: "rest", n: "Deep Work", i: "🎧", foc: 30, t: "BREATHE + 30 focus" },
+escall: { a: "heavy", n: "Escalation Call", i: "📞", brk: 30, t: "HEAVY + 30 BREAK" },
+dnd: { a: "rest", n: "Do Not Disturb", i: "🔕", half: 1, sta: 5, t: "BREATHE · the next hit on you is halved" },
+reorg: { a: "strike", n: "Re-org", i: "🔀", xm: 0.9, draw: 2, t: "STRIKE ×0.9 · draw 2 more cards next round" }
+};
+function def(id) { if (BASIC[id]) return BASIC[id]; if (OFFICE[id]) return OFFICE[id]; const ab = H.AB[id]; if (ab) return { a: id, n: ab.n, i: ab.i, t: ab.t, cls: ab.c }; return BASIC.strike; }
+function cardOpt(c) {
+const d = def(c.c), o = {};
+["xm", "heal", "sta", "foc", "brk", "selfHp", "half", "stun"].forEach(k => { if (d[k] != null) o[k] = d[k]; });
+if (c.u) { if (o.xm) o.xm *= 1.25; else if (d.a !== "rest") o.xm = 1.2; ["heal", "sta", "foc", "brk"].forEach(k => { if (o[k]) o[k] *= 1.5; }); if (o.selfHp) o.selfHp *= 0.5; }
+return o;
+}
+function cardHtml(c, i, ok, onclick, small) {
+const d = def(c.c), rot = ((i * 37) % 7 - 3) * 0.8;
+return `<button class="ns-card${small ? " sm" : ""}" style="--rot:${rot}deg;" ${ok ? "" : "disabled"} onclick="${onclick}"><span class="clip"></span><span class="ci">${d.i}</span><span class="cn">${esc(d.n)}${c.u ? "+" : ""}</span><span class="ct">${esc(d.t)}${c.u ? " · <b>upgraded</b>" : ""}</span>${d.ex ? `<span class="ck">EXHAUST</span>` : ""}${i != null && i < 9 && !small ? `<span class="cu">${i + 1}</span>` : ""}</button>`;
+}
+function starterDeck(cls) { const ab = H.spellbook(cls).slice(0, 2); return ["strike", "strike", "strike", "strike", "heavy", "heavy", "gamble", "breathe"].concat(ab).map(c => ({ c: c, u: 0 })); }
+function cardPool(r) { const L = A.HS().level, cls = A.HS().cls; return Object.keys(OFFICE).concat(H.unlockedAb(cls, L)); }
+function offerCards(r, n) { const p = cardPool(r).slice(), out = []; while (out.length < n && p.length) out.push(p.splice(Math.floor(R() * p.length), 1)[0]); return out; }
+const PERKS = M.PERKS;
+function relicOffer(r, n) { const pool = Object.keys(PERKS).filter(id => PERKS[id].st || !r.relics[id]), out = []; while (out.length < n && pool.length) out.push(pool.splice(Math.floor(R() * pool.length), 1)[0]); return out; }
+function genMap(seed) {
+const rr = H.rng(seed), map = [];
+for (let f = 0; f < FL; f++) {
+const row = [];
+for (let l = 0; l < 3; l++) {
+let t = "fight";
+if (f === 0) t = "fight";
+else if (f === 6 && l === 1) t = "kitchen";
+else { const w = [["fight", 44], ["elite", f >= 2 ? 15 : 0], ["incident", 20], ["shop", f >= 2 ? 10 : 0], ["kitchen", f >= 3 ? 11 : 0]]; let x = rr() * w.reduce((a, b) => a + b[1], 0); for (const [k, v] of w) { if (x < v) { t = k; break; } x -= v; } }
+row.push(t);
+}
+map.push(row);
+}
+return map;
+}
+function run() { const r = A.HS().shift.run; return r && r.v === 2 ? r : null; }
+function reach(r) { if (r.fl < 0) return [0, 1, 2]; if (r.fl >= FL - 1) return []; return [r.ln - 1, r.ln, r.ln + 1].filter(x => x >= 0 && x <= 2); }
+function stepGc() { return Math.round(C.gcAt(A.HS().level, "normal") * 0.25 * A.presBonus()); }
+function rlog(t) { const r = run(); if (r) { r.log.push(t); if (r.log.length > 20) r.log.shift(); } }
+function heal(p) { const r = run(); r.hp = Math.min(1, r.hp + p); }
+function hurt(p) { const r = run(); r.hp = Math.max(0.05, r.hp - p); }
+function hero() { const r = run(), h = A.hero(); M.applyPerks(h, r ? r.relics : {}); return h; }
+function save() { TT.saveSoon(); A.render(); }
+function start(asc) {
+const d = A.HS(); if (run()) return;
+asc = Math.max(0, Math.min(d.shift.asc || 0, asc | 0));
+if (!A.spendEnergy(COST)) { log(`NIGHT SHIFT costs ⚡${COST}.`, "warning"); A.render(); return; }
+const seed = Math.floor(R() * 1e6);
+d.shift.run = { v: 2, asc: asc, fl: -1, ln: 1, map: genMap(seed), hp: 1, coins: 0, relics: {}, deck: starterDeck(d.cls), phase: "map", offer: null, ev: null, seed: seed, log: [], path: [] };
+d.shift.runs = (d.shift.runs || 0) + 1; save();
+}
+function go(ln) {
+const r = run(); if (!r || r.phase !== "map") return;
+const boss = r.fl >= FL - 1;
+if (!boss && reach(r).indexOf(ln) < 0) return;
+if (boss) return fight("boss");
+r.fl++; r.ln = ln; r.path.push([r.fl, ln]);
+const t = r.map[r.fl][ln];
+if (t === "fight" || t === "elite") return fight(t);
+if (t === "incident") { r.ev = Math.floor(R() * INC.length); r.phase = "incident"; }
+if (t === "shop") { r.phase = "shop"; r.shop = { cards: offerCards(r, 3), sold: {} }; }
+if (t === "kitchen") r.phase = "kitchen";
+save();
+}
+let st = null;
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function drawHand() {
+if (!st) return;
+st.disc = st.disc.concat(st.hand); st.hand = [];
+const n = Math.min(6, 4 + st.extra); st.extra = 0;
+for (let i = 0; i < n; i++) { if (!st.draw.length) { st.draw = shuffle(st.disc); st.disc = []; } if (!st.draw.length) break; st.hand.push(st.draw.pop()); }
+}
+function cardsHtml(f) {
+if (!st) return "";
+const hand = st.hand.map((c, i) => cardHtml(c, i, Dungeon.canAct ? Dungeon.canAct(def(c.c).a) : true, `HSShift.play(${i})`)).join("");
+return `<div class="ns" style="grid-column:1/-1;padding:8px;margin:0;"><div class="ns-hand">${hand || `<span class="ns-pile">no cards left</span>`}</div>
+<div class="ns-pile">🂠 deck ${st.draw.length} · discard ${st.disc.length}${st.exh.length ? " · exhausted " + st.exh.length : ""}${st.next !== 1 ? ` · <b style="color:#f2a541;">next card ×${st.next}</b>` : ""} · ✨ ULTIMATE: ${f.focus >= 100 ? `<button class="ns-btn" onclick="Dungeon.act('ult')">USE IT</button>` : Math.floor(f.focus) + "/100 focus"} · <button class="ns-btn" onclick="Dungeon.act('rest')" title="No card fits? Skip the attack and catch your breath (+30 stamina)">😮‍💨 PASS</button></div></div>`;
+}
+function play(i) {
+if (!st) return; const c = st.hand[i]; if (!c) return;
+const d = def(c.c);
+if (Dungeon.canAct && !Dungeon.canAct(d.a)) { log("You can't play that card right now (stamina, cooldown or resource).", "warning"); return; }
+const o = cardOpt(c); if (st.next !== 1) { o.xm = (o.xm || 1) * st.next; st.next = 1; }
+st.hand.splice(i, 1);
+if (d.ex) st.exh.push(c); else st.disc.push(c);
+if (d.next) st.next = d.next * (c.u ? 1.15 : 1);
+if (d.draw) st.extra += d.draw;
+Dungeon.act(d.a, { card: o });
+}
+function fight(node) {
+const r = run(), d = A.HS(), step = Math.round(Math.max(0, r.fl) * 9 / (FL - 1));
+const m = C.shiftEnemy(d.level, node, node === "boss" ? 9 : step, r.asc, r.seed + (r.fl + 2) * 31, d.hsp || 0);
+st = { draw: shuffle(r.deck.map(x => ({ c: x.c, u: x.u }))), hand: [], disc: [], exh: [], next: 1, extra: 0 };
+drawHand();
+const abs = Array.from(new Set(r.deck.map(x => x.c).filter(c => H.AB[c])));
+A.beginFight(m, { mode: "shift",
+prepHero: function (h) { M.applyPerks(h, r.relics); h.startHp = Math.max(1, r.hp * h.maxHp); h.bar = abs.filter(c => H.AB[c].lv <= h.level); },
+hud: () => `🌙 Night Shift ${node === "boss" ? "· CEO OFFICE" : "· floor " + (r.fl + 1) + "/" + FL}${r.asc ? " · ASC " + r.asc : ""} · enemy LV ${m.level} · HP carries over`,
+cardsHtml: cardsHtml, cardKey: (n) => play(n - 1),
+onStep: function (f) { if (!f.over && f.phase === "atk") drawHand(); },
+onEnd: function (f) {
+const lines = []; st = null;
+if (f.win) {
+d.wins++;
+r.hp = Math.max(0.01, f.hp / f.h.maxHp);
+const coins = node === "boss" ? 0 : node === "elite" ? 50 : 28; r.coins += coins;
+const gc = Math.round(stepGc() * (node === "elite" ? 1.5 : 1) * (1 + 0.25 * r.asc)); gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
+const xp = Math.round(C.xpAt(m.level, node === "boss" ? "boss" : node === "elite" ? "elite" : "normal") * 0.3 * (1 + 0.15 * r.asc));
+A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`);
+if (coins) lines.push(`+${coins} 🪙`);
+rlog(`${ROOM[node][0]} RESOLVED: ${esc(f.e.name)} (${Math.round(r.hp * 100)}% HP left)`);
+if (node === "boss") return end(true, lines);
+d.shift.best = Math.max(d.shift.best || 0, r.fl + 1);
+r.phase = node === "elite" ? "relic" : "card"; r.offer = node === "elite" ? relicOffer(r, 3) : offerCards(r, 3); r.afterRelic = node === "elite";
+return { title: "✅ RESOLVED", lines: lines, buttons: [{ label: node === "elite" ? "PICK A RELIC ▶" : "PICK A CARD ▶", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+}
+d.losses++;
+return end(false, lines);
+} });
+}
+function end(win, lines) {
+const d = A.HS(), r = run(), stops = win ? FL + 1 : r.fl + 1;
+d.shift.best = Math.max(d.shift.best || 0, Math.min(stops, FL));
+if (win) {
+d.shift.clears = (d.shift.clears || 0) + 1;
+const bonus = Math.round(stepGc() * 3.5 * (1 + 0.25 * r.asc)); gameState.coins += bonus; lines.push(`🏆 night shift bonus +${fmt(bonus)} GC`);
+A.dropItem(lines); A.dropItem(lines);
+if (r.asc >= (d.shift.asc || 0) && (d.shift.asc || 0) < ASC_MAX) { d.shift.asc = (d.shift.asc || 0) + 1; lines.push(`🔓 Ascension ${d.shift.asc} unlocked`); }
+log(`🌙 NIGHT SHIFT RESOLVED${r.asc ? " (ASC " + r.asc + ")" : ""}! ${lines.join(", ")}`, "special");
+if (r.asc >= 5) TT.announce("RESOLVED AN ASCENSION " + r.asc + " NIGHT SHIFT", "HIGH STAKES", 0, bonus);
+} else log(`🌙 Night shift over on floor ${r.fl + 1}/${FL}.`, "warning");
+d.shift.last = { win: win, fl: Math.min(stops, FL + 1), asc: r.asc, deck: r.deck.length };
+d.shift.run = null;
+if (window.Meta && Meta.onShift) try { Meta.onShift(r.asc, Math.min(10, Math.round(stops * 10 / (FL + 1)))); } catch (e) {}
+TT.saveSoon();
+return { title: win ? "🌙 SHIFT RESOLVED" : "🌙 BURNED OUT", sub: win ? "the CEO signed it off" : `floor ${r.fl + 1}/${FL}`, lines: lines.length ? lines : ["Better luck next night."],
+buttons: [{ label: "◀ NIGHT SHIFT", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+}
+function pickCard(i) { const r = run(); if (!r || r.phase !== "card") return; if (i >= 0) { const c = r.offer[i]; if (!c) return; r.deck.push({ c: c, u: 0 }); rlog(`🂠 Added ${esc(def(c).n)} to the deck`); } r.phase = "map"; r.offer = null; save(); }
+function pickRelic(id) { const r = run(); if (!r || r.phase !== "relic" || r.offer.indexOf(id) < 0) return; r.relics[id] = (r.relics[id] || 0) + 1; rlog(`${PERKS[id].i} Relic: ${esc(PERKS[id].n)}`); r.phase = "card"; r.offer = offerCards(r, 3); save(); }
+const INC = [
+{ i: "🖨", n: "Printer on fire", t: "The 3rd floor printer is on fire. Again. Everybody is filming it.", o: [["Put it out", "-10% HP, +1 random card upgraded"], ["Film it too", "+20 coins (it goes viral)"], ["Walk away", "nothing"]],
+f: [() => { hurt(0.1); upRandom(); return "🧯 Fire out. A card got upgraded, -10% HP"; }, () => { run().coins += 20; return "📱 +20 coins"; }, () => "🚶 Not your printer."] },
+{ i: "🎣", n: "Phishing e-mail", t: "\"URGENT: your password expires in 5 minutes. Click here.\"", o: [["Report it to IT", "+1 relic"], ["Click it", "50%: +60 coins / 50%: -20% HP"]],
+f: [() => { const id = relicOffer(run(), 1)[0]; if (id) { run().relics[id] = (run().relics[id] || 0) + 1; return "🛡 IT is grateful: " + PERKS[id].n; } return "🛡 IT says thanks."; }, () => { if (R() < 0.5) { run().coins += 60; return "🤑 It was a real bonus? +60 coins"; } hurt(0.2); return "💀 Malware. -20% HP"; }] },
+{ i: "🛗", n: "CEO in the elevator", t: "The CEO steps into the elevator. 12 floors. Small talk.", o: [["Pitch your idea", "50%: +1 relic / 50%: -15% HP"], ["Pretend to be on a call", "+15 coins"], ["Take the stairs", "heal 10%"]],
+f: [() => { if (R() < 0.5) { const id = relicOffer(run(), 1)[0]; if (id) run().relics[id] = (run().relics[id] || 0) + 1; return "🚀 The CEO loves it! " + (id ? PERKS[id].n : ""); } hurt(0.15); return "😬 Awkward. -15% HP"; }, () => { run().coins += 15; return "📞 +15 coins"; }, () => { heal(0.1); return "🚶 Cardio. +10% HP"; }] },
+{ i: "☕", n: "Free coffee", t: "A full coffee on an empty desk. Nobody is looking.", o: [["Drink it", "75%: heal 30%"], ["Leave it", "+15 coins"]],
+f: [() => { if (R() < 0.75) { heal(0.3); return "☕ +30% HP"; } return "☕ Decaf. Nothing."; }, () => { run().coins += 15; return "😇 +15 coins"; }] },
+{ i: "🍕", n: "Pizza Friday", t: "Leftover pizza in the kitchen. It's 2 AM.", o: [["Eat 3 slices", "heal 40%"], ["Add TEAM LUNCH to the deck", "a new card"]],
+f: [() => { heal(0.4); return "🍕 +40% HP"; }, () => { run().deck.push({ c: "lunch", u: 0 }); return "🍕 TEAM LUNCH added"; }] },
+{ i: "💾", n: "Mysterious USB stick", t: "A USB stick labelled 'SALARIES 2026' lies on the floor.", o: [["Plug it in", "50%: relic / 50%: -25% HP"], ["Bin it", "remove a STRIKE from your deck"]],
+f: [() => { if (R() < 0.5) { const id = relicOffer(run(), 1)[0]; if (id) run().relics[id] = (run().relics[id] || 0) + 1; return "💾 Free relic: " + (id ? PERKS[id].n : "-"); } hurt(0.25); return "💾 Malware. -25% HP"; }, () => { const r = run(), i = r.deck.findIndex(c => c.c === "strike"); if (i >= 0 && r.deck.length > 6) r.deck.splice(i, 1); return "🗑 One STRIKE fewer"; }] },
+{ i: "📅", n: "Quick sync?", t: "Your manager wants a 'quick sync'. At 3 AM.", o: [["Accept", "-10% HP, +40 coins"], ["Fake a call", "nothing"]],
+f: [() => { hurt(0.1); run().coins += 40; return "📅 1 hour later... +40 coins"; }, () => "📞 'Sorry, bad connection!'"] }
+];
+function upRandom() { const r = run(), c = r.deck.filter(x => !x.u); if (c.length) c[Math.floor(R() * c.length)].u = 1; }
+function incident(i) { const r = run(); if (!r || r.phase !== "incident") return; const e = INC[r.ev]; const msg = e.f[i] ? e.f[i]() : ""; rlog(msg); r.lastInc = { i: r.ev, msg: msg }; r.phase = "map"; save(); }
+const PRICE = { card: 45, remove: 50, relic: 110, heal: 30 };
+function buy(k, x) {
+const r = run(); if (!r || r.phase !== "shop") return;
+const p = PRICE[k]; if (r.coins < p) return;
+if (k === "card") { const c = r.shop.cards[x]; if (!c || r.shop.sold["c" + x]) return; r.deck.push({ c: c, u: 0 }); r.shop.sold["c" + x] = 1; rlog("🛒 Bought " + def(c).n); }
+else if (k === "relic") { if (r.shop.sold.relic) return; const id = relicOffer(r, 1)[0]; if (!id) return; r.relics[id] = (r.relics[id] || 0) + 1; r.shop.sold.relic = 1; rlog("🛒 Relic: " + PERKS[id].n); }
+else if (k === "heal") { if (r.shop.sold.heal) return; heal(0.35); r.shop.sold.heal = 1; }
+else if (k === "remove") { if (r.shop.sold.remove || r.deck.length <= 6) return; r.phase = "remove"; r.coins -= p; r.shop.sold.remove = 1; save(); return; }
+r.coins -= p; save();
+}
+function removeCard(i) { const r = run(); if (!r || r.phase !== "remove") return; if (i >= 0 && r.deck[i]) { rlog("🗑 Removed " + def(r.deck[i].c).n); r.deck.splice(i, 1); } r.phase = "shop"; save(); }
+function shopDone() { const r = run(); if (!r) return; r.phase = "map"; save(); }
+function kitchen(k) { const r = run(); if (!r || r.phase !== "kitchen") return; if (k === 0) { heal(0.3); rlog("☕ Kitchen: +30% HP"); r.phase = "map"; } else r.phase = "upgrade"; save(); }
+function upgrade(i) { const r = run(); if (!r || r.phase !== "upgrade") return; const c = r.deck[i]; if (!c || c.u) return; c.u = 1; rlog("✏ Upgraded " + def(c.c).n); r.phase = "map"; save(); }
+function quit() { const r = run(); if (!r) return; if (!confirm("End this night shift? You keep what you earned so far.")) return; A.HS().shift.run = null; save(); }
+function deckHtml(r, fn, filter) { return `<div class="ns-grid">${r.deck.map((c, i) => filter && !filter(c) ? "" : cardHtml(c, null, true, `${fn}(${i})`, true)).join("")}</div>`; }
+function html(box) {
+const d = A.HS(), sh = d.shift; let r = sh.run;
+if (r && r.v !== 2) { sh.run = null; r = null; }                                              // starý On-Call Shift se zahodí
+if (!r) {
+const ascBtns = []; for (let a = 0; a <= Math.min(ASC_MAX, sh.asc || 0); a++) ascBtns.push(`<button class="ns-btn" onclick="HSShift.start(${a})">${a === 0 ? "NORMAL" : "ASC " + a}</button>`);
+const last = sh.last ? `<div class="ns-ticket" style="margin:10px 0;"><span class="ns-stamp ${sh.last.win ? "ok" : ""}">${sh.last.win ? "RESOLVED" : "ESCALATED"}</span><div class="tno">LAST NIGHT · ${sh.last.asc ? "ASC " + sh.last.asc : "NORMAL"}</div><h4>${sh.last.win ? "The CEO signed it off." : "Burned out on floor " + sh.last.fl + "."}</h4><p>Deck of ${sh.last.deck} cards.</p></div>` : "";
+box.innerHTML = `<div class="ns"><h3><span>🌙 Night Shift</span><span>⚡${COST}</span></h3>
+<div class="ns-dim">The office at night. Pick your way through the building <b>floor by floor</b> to the CEO's office. You fight with a <b>deck of cards</b>: every round you draw 4 and play one as your attack - reactions stay the same. <b>HP carries over.</b> Win fights to add cards, beat the server room for <b>relics</b>, upgrade cards in the kitchen, buy and remove cards at the vending machine. Clear it to unlock the next Ascension.</div>
+${last}
+<div class="ns-dim" style="margin:8px 0;">Runs ${sh.runs || 0} · Resolved ${sh.clears || 0} · Ascension ${sh.asc || 0}/${ASC_MAX}</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;">${ascBtns.join("")}</div></div>`;
+return;
+}
+const hh = hero(), rel = Object.keys(r.relics).map(id => `<span title="${esc(PERKS[id].t)}">${PERKS[id].i} ${esc(PERKS[id].n)}${r.relics[id] > 1 ? " ×" + r.relics[id] : ""}</span>`).join("");
+const head = `<div class="ns"><h3><span>🌙 Night Shift${r.asc ? " · ASC " + r.asc : ""} · floor ${Math.max(0, r.fl + 1)}/${FL}</span><span>🪙 ${r.coins} · 🂠 ${r.deck.length}</span></h3>
+<div class="ns-dim">❤ <b>${fmt(Math.ceil(r.hp * hh.maxHp))}</b> / ${fmt(hh.maxHp)}</div><div class="ns-hp"><div style="width:${Math.round(r.hp * 100)}%"></div></div>
+${rel ? `<div class="ns-relics">${rel}</div>` : `<div class="ns-dim">no relics yet - beat a ☠ server room</div>`}</div>`;
+let body = "";
+if (r.phase === "map") {
+const rc = reach(r), boss = r.fl >= FL - 1, done = {}; r.path.forEach(p => { done[p[0] + "_" + p[1]] = 1; });
+const rows = r.map.map((row, f) => `<div class="ns-fl"><span>F${f + 1}</span>${row.map((t, l) => { const here = f === r.fl && l === r.ln, go = !boss && f === r.fl + 1 && rc.indexOf(l) >= 0, past = done[f + "_" + l];
+return `<div class="ns-room ${here ? "here" : past ? "done" : go ? "go" : f <= r.fl ? "far" : ""}" ${go ? `onclick="HSShift.go(${l})"` : ""} title="${esc(ROOM[t][2])}"><i>${ROOM[t][0]}</i>${esc(ROOM[t][1])}</div>`; }).join("")}</div>`).join("");
+const bossRow = `<div class="ns-fl"><span>TOP</span><div class="ns-room ns-boss ${boss ? "go" : ""}" ${boss ? `onclick="HSShift.go(1)"` : ""}><i>👑</i>CEO office</div></div>`;
+const inc = r.lastInc ? `<div class="ns-dim" style="margin-bottom:6px;">${INC[r.lastInc.i].i} ${esc(r.lastInc.msg)}</div>` : "";
+body = `<div class="ns"><h3><span>📐 Floor plan</span><span class="ns-dim">pick a lit room</span></h3>${inc}<div class="ns-map">${rows}${bossRow}</div>
+<div style="display:flex;justify-content:space-between;margin-top:10px;gap:8px;flex-wrap:wrap;"><button class="ns-btn" onclick="HSShift.view('deck')">🂠 DECK (${r.deck.length})</button><button class="ns-btn red" onclick="HSShift.quit()">END SHIFT</button></div>
+${r.showDeck ? `<div style="margin-top:10px;">${deckHtml(r, "HSShift.noop")}</div>` : ""}</div>`;
+} else if (r.phase === "card") {
+body = `<div class="ns"><h3><span>🂠 Add a card to your deck</span></h3><div class="ns-hand">${r.offer.map((c, i) => cardHtml({ c: c, u: 0 }, null, true, `HSShift.pickCard(${i})`)).join("")}</div>
+<div style="text-align:center;margin-top:6px;"><button class="ns-btn" onclick="HSShift.pickCard(-1)">SKIP (keep the deck thin)</button></div></div>`;
+} else if (r.phase === "relic") {
+body = `<div class="ns"><h3><span>🗝 Pick a relic</span></h3><div class="ns-opts">${r.offer.map(id => `<button class="ns-opt" style="color:#efe6d2;border-color:#3b5f8f;background:rgba(15,27,45,.7);" onclick="HSShift.pickRelic('${id}')">${PERKS[id].i} ${esc(PERKS[id].n)}${r.relics[id] ? " (" + (r.relics[id] + 1) + ")" : ""}<small style="color:#9fb3cf;">${esc(PERKS[id].t)}</small></button>`).join("")}</div></div>`;
+} else if (r.phase === "incident") {
+const e = INC[r.ev];
+body = `<div class="ns"><div class="ns-ticket"><span class="ns-stamp">URGENT</span><div class="tno">TICKET #${1000 + ((r.seed + r.fl * 97) % 9000)} · FLOOR ${r.fl + 1}</div><h4>${e.i} ${esc(e.n)}</h4><p>${esc(e.t)}</p>
+<div class="ns-opts">${e.o.map((o, i) => `<button class="ns-opt" onclick="HSShift.incident(${i})">${esc(o[0])}<small>${esc(o[1])}</small></button>`).join("")}</div></div></div>`;
+} else if (r.phase === "shop") {
+const sold = r.shop.sold;
+body = `<div class="ns"><h3><span>🛒 Vending machine</span><span>🪙 ${r.coins}</span></h3><div class="ns-hand">${r.shop.cards.map((c, i) => `<div style="text-align:center;">${cardHtml({ c: c, u: 0 }, null, !sold["c" + i] && r.coins >= PRICE.card, `HSShift.buy('card',${i})`)}<div class="ns-pile">${sold["c" + i] ? "SOLD" : "🪙 " + PRICE.card}</div></div>`).join("")}</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
+<button class="ns-btn" ${sold.relic || r.coins < PRICE.relic ? "disabled" : ""} onclick="HSShift.buy('relic')">🗝 Random relic · 🪙${PRICE.relic}</button>
+<button class="ns-btn" ${sold.remove || r.coins < PRICE.remove || r.deck.length <= 6 ? "disabled" : ""} onclick="HSShift.buy('remove')">🗑 Remove a card · 🪙${PRICE.remove}</button>
+<button class="ns-btn" ${sold.heal || r.coins < PRICE.heal ? "disabled" : ""} onclick="HSShift.buy('heal')">🩹 Heal 35% · 🪙${PRICE.heal}</button>
+<button class="ns-btn red" onclick="HSShift.shopDone()">CONTINUE ▶</button></div></div>`;
+} else if (r.phase === "remove") {
+body = `<div class="ns"><h3><span>🗑 Remove a card</span></h3>${deckHtml(r, "HSShift.removeCard")}<div style="text-align:center;margin-top:8px;"><button class="ns-btn" onclick="HSShift.removeCard(-1)">CANCEL</button></div></div>`;
+} else if (r.phase === "kitchen") {
+body = `<div class="ns"><h3><span>☕ Kitchen</span></h3><div class="ns-opts"><button class="ns-opt" style="color:#efe6d2;border-color:#3b5f8f;background:rgba(15,27,45,.7);" onclick="HSShift.kitchen(0)">😴 Power nap<small style="color:#9fb3cf;">heal 30% max HP</small></button>
+<button class="ns-opt" style="color:#efe6d2;border-color:#3b5f8f;background:rgba(15,27,45,.7);" onclick="HSShift.kitchen(1)">✏ Rewrite a card<small style="color:#9fb3cf;">upgrade one card (stronger for the rest of the run)</small></button></div></div>`;
+} else if (r.phase === "upgrade") {
+body = `<div class="ns"><h3><span>✏ Upgrade a card</span></h3>${deckHtml(r, "HSShift.upgrade", c => !c.u)}</div>`;
+}
+const logH = r.log.length ? `<div class="ns"><h3><span>📋 Night log</span></h3>${r.log.slice(-6).reverse().map(l => `<div class="ns-dim">${l}</div>`).join("")}</div>` : "";
+box.innerHTML = head + body + logH;
+}
+function view(k) { const r = run(); if (!r) return; if (k === "deck") r.showDeck = !r.showDeck; A.render(); }
+A.registerMode("shift", { label: "🌙 SHIFT", order: 30, render: html });
+window.HSShift = { start: start, go: go, play: play, pickCard: pickCard, pickRelic: pickRelic, incident: incident, buy: buy, removeCard: removeCard, shopDone: shopDone,
+kitchen: kitchen, upgrade: upgrade, quit: quit, view: view, noop: function () {}, CARDS: OFFICE, def: def, cardOpt: cardOpt };
+}
+boot();
+})();
+</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["hs_shift"] = 1;</script>
+<!-- END-OF-FILE: hs_shift -->

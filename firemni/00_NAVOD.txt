@@ -1,11 +1,22 @@
-NÁVOD v7.5 - firemní verze v11.8 (= hra Office Royale v11.8)
+NÁVOD v7.6 - firemní verze v12.0 (= hra Office Royale v12.0)
 
-v11.8: FLEE s dvojitým potvrzením, Caffeine Abuser ignoruje Wound (léčení -15 % místo -35 %), Sugar Rush = HEAVY zdarma,
-procentuální damage (Hunter, Trojan, mana, náhlá smrt), nové vyvážení duelu.
+v12.0: 5 nových tříd (Overtime Berserker, Burnout Specialist, Excel Wizard, Espresso Monk, Headhunter) se spellbookem,
+talenty a loadouty, těžší minihry, NIGHT SHIFT (karetní mód), Overtime Hours místo Slot Tokenů, nové škálování bedny
+(double/triple drop), bonusové číslo v loterii, záložka INCIDENTS v logu, chytřejší "Salvage hopeless" a neonová kancelář.
 
-TENTOKRÁT ZKOPÍRUJ JEN TYHLE (žádný nový soubor, ostatní beze změny):
-  changelog, duel, engine, hs2, hs3, hsengine, hsengine2, index
-Pak Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
+TENTOKRÁT:
+1) Vytvoř 5 NOVÝCH HTML souborů (+ -> HTML, jméno bez .html):
+   hsengine3, hsqte3, hs4, hs_shift, office_neon
+2) Zkopíruj obsah do těchto 33 souborů (5 nových + 28 změněných):
+   .gs:   server2, server3, engine
+   HTML:  index, style, office, office2, sync, minigames, checkers, plant, changelog, meta,
+          hsengine, hsengine2, hsengine3, hsrig, hsqte, hsqte2, hsqte3, hs, hs2, hs3, hs4,
+          gear, arena, hs_modes, hs_shift, duel, colleague, extras, theme, office_neon
+   Beze změny zůstávají: code, casino, jumpking, prsi, dengine, hscamp, mobile, room, room2, room3.
+3) Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
+
+Při prvním načtení se hráčům jednou přepočítají Overtime Hours (podle prestiží a achievementů) a postava
+se převede na novou třídu (level a gear zůstávají, jedna změna třídy zdarma).
 
 ======================================================
 KDE JSOU SOUBORY
@@ -14,12 +25,12 @@ https://stenfordd.github.io/Idle-Ticket-Royal/firemni/   (každý soubor má tla
 POZOR: "index.html" na GitHubu je jen tahle stránka. Do Apps Scriptu patří "index.html.txt" (soubor index).
 
 ======================================================
-SOUBORY V APPS SCRIPT PROJEKTU (38)
+SOUBORY V APPS SCRIPT PROJEKTU (43)
 ======================================================
 .gs:   code, server2, server3, engine
 HTML:  index, style, office, office2, casino, sync, minigames, jumpking, prsi, checkers, plant, changelog, meta,
-       dengine, hsengine, hsengine2, hscamp, hsrig, hsqte, hsqte2, hs, hs2, hs3, gear, arena, hs_modes, duel, colleague,
-       extras, mobile, theme, room, room2, room3
+       dengine, hsengine, hsengine2, hsengine3, hscamp, hsrig, hsqte, hsqte2, hsqte3, hs, hs2, hs3, hs4, gear, arena, hs_modes,
+       hs_shift, duel, colleague, extras, mobile, theme, room, room2, room3, office_neon
 
 1) Vytvoř NOVÉ HTML soubory (+ -> HTML, jméno bez .html):
    office2, sync, jumpking, checkers, plant, changelog, dengine, hsengine, hsengine2, hscamp, hsrig, hsqte,

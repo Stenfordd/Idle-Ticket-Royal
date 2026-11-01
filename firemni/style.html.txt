@@ -2,7 +2,7 @@
 /* ==========================================================================
 TICKET TYCOON // CASINO ROYALE v5.2 - OBSIDIAN & CRIMSON MODULAR UI
 ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Special+Elite&family=IBM+Plex+Mono:wght@400;700&display=swap');
 :root {
 --bg-core: #07090e;
 --bg-panel: #0d111a;
@@ -276,6 +276,8 @@ font-weight: 900;
 color: var(--amber);
 text-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
 }
+.odds-bar { display:flex; height:8px; border-radius:4px; overflow:hidden; margin:0 0 8px; gap:1px; background:rgba(255,255,255,.05); }
+.odds-bar i { display:block; min-width:2px; }
 .odds-table {
 display: grid;
 grid-template-columns: repeat(3, 1fr);

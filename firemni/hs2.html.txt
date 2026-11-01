@@ -17,6 +17,10 @@ const g = gameState;
 if (!g.hs || typeof g.hs !== "object") g.hs = {};
 const d = g.hs;
 if (!H.CLASSES[d.cls]) d.cls = null;
+if (d.bar != null && !Array.isArray(d.bar)) d.bar = null;
+if (d.tal != null && !Array.isArray(d.tal)) d.tal = null;
+if (d.lo != null && !Array.isArray(d.lo)) d.lo = null;
+if (!d.v12) { d.v12 = 1; d.bar = null; if (d.cls) d.frc = 1; }       // v12: nové třídy - výchozí panel a jedna změna třídy zdarma
 d.level = Math.max(1, Math.floor(Number(d.level) || 1));
 d.xp = Math.max(0, Number(d.xp) || 0);
 if (!d.stats || typeof d.stats !== "object") d.stats = {};
@@ -155,7 +159,7 @@ el.style.top = (30 + Math.random() * 20) + "%";
 ar.appendChild(el);
 setTimeout(() => el.remove(), 1150);
 }
-function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); const d = HS(); if (d.cls && !d.tut && !fight) setTimeout(tutStart, 300); }
+function openScreen() { open = true; $("dg-screen").classList.add("open"); regenEnergy(); render(); renderDock("init"); const d = HS(); if (d.cls && !d.tut && !fight) setTimeout(tutStart, 300); }
 function askFlee() {
 if (!fight || fight.over) return true;
 if (busyAnim) return false;
@@ -178,6 +182,37 @@ if (MODES[view] && MODES[view].busy && MODES[view].busy() && !(MODES[view].leave
 view = t; result = null; fight = null; fightCtx = null;
 renderTabs(); render();
 }
+/** v12: OFFICE DOCK */
+function dockOpen() { try { const v = localStorage.getItem("hs_dock"); return v == null ? window.innerWidth > 760 : v === "1"; } catch (e) { return window.innerWidth > 760; } }
+function dock() { const el = $("dg-dock"); if (!el) return; const on = el.classList.contains("mini"); el.classList.toggle("mini", !on); try { localStorage.setItem("hs_dock", on ? "1" : "0"); } catch (e) {} renderDock(true); }
+let dockSig = "";
+function renderDock(force) {
+const el = $("dg-dock"); if (!el || !open || typeof gameState === "undefined") return;
+if (force === "init") el.classList.toggle("mini", !dockOpen());
+if (el.classList.contains("mini")) return;
+if (!el.__built) {
+el.__built = 1;
+el.innerHTML = `<div class="dk-h"><span>🏢 OFFICE</span><button class="btn" onclick="Dungeon.dock()" title="Hide">◀</button></div>
+<button class="dk-ticket" onclick="handleManualClick(event);Dungeon.dockNow()">🎫 RESOLVE TICKET<small id="dk-tp"></small></button>
+<div class="dk-res"><span>🎫 <b id="dk-t"></b></span><span>🔩 <b id="dk-s"></b></span><span>💰 <b id="dk-g"></b></span><span>⏱ <b id="dk-ot"></b></span></div>
+<div class="dk-row"><button class="btn" onclick="buyScrap(100);Dungeon.dockNow()">+100 scrap<small>1K tickets</small></button><button class="btn btn-gold" onclick="buyMaxScrap();Dungeon.dockNow()">Scrap max</button></div>
+<div class="dk-row"><button class="btn btn-crimson" onclick="openCompanyChest(1);Dungeon.dockNow()">📦 Open ×1<small id="dk-c1"></small></button><button class="btn btn-crimson" onclick="openCompanyChest(10);Dungeon.dockNow()">Open ×10<small id="dk-c10"></small></button></div>
+<div class="dk-h"><span>🎒 INVENTORY</span><span id="dk-n" class="dg-dim"></span></div><div class="dk-inv" id="dk-inv"></div>
+<div class="dk-h"><span>⚗ MERGER</span><span id="dk-m" class="dg-dim"></span></div><button class="btn btn-gold" style="width:100%;" onclick="mergeAll();Dungeon.dockNow()">MERGE ALL</button>`;
+}
+const g = gameState, tx = (id, t) => { const e = $(id); if (e && e.textContent !== t) e.textContent = t; };
+tx("dk-t", fmtShort(g.tickets || 0)); tx("dk-s", fmtShort(g.scrap || 0)); tx("dk-g", fmtShort(g.coins || 0)); tx("dk-ot", String(g.slotTokens || 0));
+try { tx("dk-tp", "+" + fmtShort(calculateClickPower()) + " per click"); const c = getChestScrapCost(); tx("dk-c1", fmtShort(c) + " scrap"); tx("dk-c10", fmtShort(c * 10) + " scrap"); } catch (e) {}
+const inv = (g.inventory || []).slice().sort((a, b) => (b.tier - a.tier) || ((b.lvl || 0) - (a.lvl || 0))).slice(0, 20);
+const sig = inv.map(x => x.slot + x.tier + "." + (x.lvl || 0) + "x" + x.n).join(",");
+tx("dk-n", (g.inventory || []).reduce((a, x) => a + x.n, 0) + " items");
+const ready = (g.inventory || []).filter(x => x.n >= 3 && (x.lvl || 0) < 50).length; tx("dk-m", ready ? ready + " ready" : "nothing to merge");
+if (sig !== dockSig || force) {
+dockSig = sig; const box = $("dk-inv");
+if (box) box.innerHTML = inv.length ? inv.map(x => { let key = ""; try { key = stackKey(x); } catch (e) {} let nm = x.slot; try { nm = itemName(x); } catch (e) {}
+return `<button class="dk-it" style="--rc:var(--rarity-t${x.tier}, #888);" title="${escapeHtml(nm)} +${x.lvl || 0} · ${x.n}× - tap to equip" onclick="equipStack('${key}');Dungeon.dockNow()"><i>+${x.lvl || 0}</i>${(typeof SLOT_ICONS !== "undefined" ? SLOT_ICONS : {})[x.slot] || "▪"}<small>${x.n}×</small></button>`; }).join("") : `<div class="dg-dim" style="grid-column:1/-1;">Empty - open a chest.</div>`;
+}
+}
 function renderKeys() {
 const d = HS(), el = $("dg-keys"); if (!el) return;
 const next = d.energy >= EMAX() ? "" : " (" + fmtT(ENERGY_MS - (Date.now() - d.energyAt)) + ")";
@@ -187,9 +222,9 @@ el.title = "Energy: +1 every 12 min, max " + EMAX();
 const tb = $("dg-tokbtn");
 if (tb) {
 const show = gameState.slotTokens > 0 && d.energy < EMAX() && !(fight && !fight.over);
-const t = `🎟→+${TOKEN_ENERGY}⚡ (${gameState.slotTokens})`;
+const t = `⏱→+${TOKEN_ENERGY}⚡ (${gameState.slotTokens})`;
 tb.style.display = show ? "" : "none"; if (tb.textContent !== t) tb.textContent = t;
-tb.title = "Turn 1 Slot Token into " + TOKEN_ENERGY + " energy";
+tb.title = "Turn 1 Overtime Hour into " + TOKEN_ENERGY + " energy";
 }
 }
 function fmtT(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
@@ -299,7 +334,7 @@ return `<div class="hs-stat"><b>${STAT_INFO[k][0]}${k === mk ? " ★" : ""}</b><
 <button class="btn btn-gold" style="padding:3px 10px;" ${d.pts > 0 ? "" : "disabled"} data-hold="stat-${k}" onclick="Dungeon.stat('${k}',1)">+1</button>
 <button class="btn" style="padding:3px 8px;" ${d.pts >= 5 ? "" : "disabled"} onclick="Dungeon.stat('${k}',5)">+5</button></div>`; }).join("");
 const bc = bpCost(d), bok = gameState.coins >= bc;
-return (window.Gear ? Gear.card() : "") + `<div class="dg-grid2">
+return spellbookHtml(d, h) + talentsHtml(d, h) + (window.Gear ? Gear.card() : "") + `<div class="dg-grid2">
 <div class="dg-card"><div class="dg-h"><span>${C0.icon} ${C0.name} · LV ${d.level}</span><span>${title()}</span></div>
 <div style="display:flex;gap:10px;align-items:center;">${playerSprite()}<div class="dg-dim">${statLine()}<br>${C0.role} · ${C0.hpM}× HP · reactions: ${H.reactsOf(h).map(r => H.REACTS[r].icon + " " + H.REACTS[r].name).join(", ")}<br>HEAVY timing zone ${Math.round(h.zone * 100)}% · weapon ${g.wpn ? g.wpn.toFixed(1) : "fists"}<br>✨ <b>${C0.skill}</b>: ${C0.skillTxt}<br>Wins ${d.wins} · Losses ${d.losses}</div></div>
 ${titlesHtml(d)}
@@ -307,8 +342,52 @@ ${titlesHtml(d)}
 <div class="hs-buy"><div class="dg-dim" style="flex:1;min-width:160px;">💰 <b>Buy a stat point</b> (${d.bp} bought). Every point costs 6% more than the last.</div>
 <button class="btn ${bok ? "btn-gold" : ""}" ${bok ? "" : "disabled"} data-hold="hs-bp" onclick="Dungeon.buyPoint()">+1 point · ${fmtShort(bc)} GC</button></div>
 <div class="dg-dim" style="margin-top:6px;">+5 points every level. ★ = your class's main stat. Damage = weapon × (1 + max(yours/2, yours − enemy's/2) / 10): a main stat above the enemy's hits much harder. Green numbers come from your ⚒ gear.</div>
-<div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 🎟)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmtShort(resetCost())} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${d.frc ? "FREE" : fmtShort(respecCost()) + " GC"})</button></div></div>
+<div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 ⏱)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmtShort(resetCost())} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${d.frc ? "FREE" : fmtShort(respecCost()) + " GC"})</button></div></div>
 <div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>${howHtml(d.cls)}</div></div>`;
+}
+function spellbookHtml(d, h) {
+const R0 = H.RES[d.cls], bar = h.bar, all = H.spellbook(d.cls), M0 = H.MASTERY[d.cls];
+const rows = all.map(k => { const A = H.AB[k], lock = A.lv > d.level, on = bar.indexOf(k) >= 0;
+return `<div class="hs-ab ${on ? "on" : ""} ${lock ? "lock" : ""}"><div class="hs-ab-i">${A.i}</div><div class="hs-ab-t"><b>${escapeHtml(A.n)}</b>${A.hv ? " 💥" : ""}<span>${lock ? "🔒 unlocks at LV " + A.lv : abCost(A, h)}</span><small>${escapeHtml(A.t)}</small></div>${lock ? "" : `<button class="btn ${on ? "btn-gold" : ""}" onclick="Dungeon.barToggle('${k}')">${on ? "✓ In bar" : bar.length < 4 ? "+ Add" : "Full"}</button>`}</div>`; }).join("");
+return `<div class="dg-card"><div class="dg-h"><span>📖 SPELLBOOK · ${bar.length}/4 in your action bar</span><span class="dg-dim">${R0.i} ${R0.n} · ${M0.n} ${Math.round(h.mast * 100)}%${h.set2 ? " · " + H.SETS[h.set2].n : ""}</span></div>
+<div class="hs-abs">${rows}</div>
+<div class="dg-dim" style="margin-top:6px;">Pick up to 4 abilities for your bar - STRIKE, HEAVY, GAMBLE, BREATHE and your ultimate are always there. 💥 = timed like HEAVY (breaks a guard, interrupts a charge). Your bar is also what you fight with in duels. New abilities unlock at LV 5, 10, 15, 20, 30 and 40. Mastery: ${escapeHtml(M0.t.replace("X%", Math.round(h.mast * 100) + "%"))}.</div></div>`;
+}
+/** v12: talenty - řádek na LV 10 / 20 / 30 / 40 / 50 / 60, 3 volby, přenastavení zdarma mimo boj */
+function talentsHtml(d, h) {
+const T = H.TAL[d.cls] || [], tal = h.tal, inFight = !!(fight && !fight.over);
+const rows = T.map((row, r) => { const lv = H.TAL_LV[r], lock = d.level < lv;
+return `<div class="hs-tr ${lock ? "lock" : ""}"><div class="hs-tlv">LV ${lv}</div>${row.map((x, v) => { const on = tal[r] === v, need = x.req && h.bar.indexOf(x.req) < 0;
+return `<button class="btn hs-tal ${on ? "on" : ""}" ${lock || inFight ? "disabled" : ""} onclick="Dungeon.talPick(${r},${v})" data-tip="${escapeHtml(x.t)}"><b>${escapeHtml(x.n)}</b><small>${escapeHtml(x.t)}</small>${need ? `<em>needs ${escapeHtml(H.AB[x.req].n)} in your bar</em>` : ""}</button>`; }).join("")}</div>`; }).join("");
+const lo = (d.lo || []);
+const los = [0, 1, 2].map(i => `<span class="hs-lo"><button class="btn ${lo[i] ? "btn-cyan" : ""}" ${lo[i] && !inFight ? "" : "disabled"} onclick="Dungeon.loLoad(${i})">${lo[i] ? "▶ " + escapeHtml(lo[i].n) : "empty"}</button><button class="btn" ${inFight ? "disabled" : ""} onclick="Dungeon.loSave(${i})" title="Save your bar, talents and gear here">💾</button></span>`).join("");
+return `<div class="dg-card"><div class="dg-h"><span>🌳 TALENTS · ${tal.filter(x => x >= 0).length}/6</span><span class="dg-dim">free to change outside a fight</span></div>
+<div class="hs-trs">${rows}</div>
+<div class="dg-h" style="margin-top:10px;"><span>🎒 LOADOUTS</span><span class="dg-dim">bar + talents + gear in one click</span></div><div class="hs-los">${los}</div></div>`;
+}
+function talPick(r, v) {
+if (fight && !fight.over) return;
+const d = HS(), h = hero(), t = h.tal.slice(); t[r] = t[r] === v ? -1 : v; d.tal = t; TT.saveSoon(); render();
+}
+function loSave(i) {
+if (fight && !fight.over) return;
+const d = HS(), h = hero(), eq = {}; if (window.Gear) { const g = Gear.st(); ["w", "a", "h", "t"].forEach(k => { if (g.eq[k]) eq[k] = g.eq[k].id; }); }
+d.lo = Array.isArray(d.lo) ? d.lo.slice(0, 3) : []; while (d.lo.length < 3) d.lo.push(null);
+d.lo[i] = { n: "Loadout " + (i + 1), bar: h.bar.slice(), tal: h.tal.slice(), eq: eq };
+log(`💾 Loadout ${i + 1} saved.`, "success"); TT.saveSoon(); render();
+}
+function loLoad(i) {
+if (fight && !fight.over) return;
+const d = HS(), L = (d.lo || [])[i]; if (!L) return;
+d.bar = Array.isArray(L.bar) ? L.bar.slice(0, 4) : null; d.tal = Array.isArray(L.tal) ? L.tal.slice(0, 6) : null;
+if (window.Gear && Gear.equipIds) Gear.equipIds(L.eq || {});
+log(`▶ ${L.n} loaded.`, "success"); TT.saveSoon(); render();
+}
+function barToggle(k) {
+const d = HS(), h = hero(), bar = h.bar.slice(), i = bar.indexOf(k);
+if (i >= 0) bar.splice(i, 1);
+else { if (bar.length >= 4) { log("Your action bar is full - remove an ability first.", "warning"); return; } bar.push(k); }
+d.bar = bar; TT.saveSoon(); render();
 }
 function howHtml(cls) {
 const C0 = H.CLASSES[cls || "sysadmin"], h = hero();
@@ -345,7 +424,7 @@ gameState.coins -= cost; if (d.frc) d.frc = 0; else d.rc = (d.rc || 0) + 1;
 d.stats = {}; log(`HIGH STAKES: class changed to ${H.CLASSES[k].name}. Your stat points were refunded.`, "special");
 } else if (!d.cls) log(`🎰 HIGH STAKES: welcome, ${escapeHtml(gameState.ldap)} the ${H.CLASSES[k].name}!`, "special");
 if (d.s3) d.s3.seen = 1;
-d.cls = k; view = "camp"; HS(); if (window.Gear && Gear.starter && !d.kit) { d.kit = 1; Gear.starter(); }
+d.cls = k; d.bar = null; d.tal = null; d.lo = null; view = "camp"; HS(); if (window.Gear && Gear.starter && !d.kit) { d.kit = 1; Gear.starter(); }
 TT.saveSoon(); updateUI(); render();
 if (!d.tut) setTimeout(tutStart, 300);
 }
@@ -432,103 +511,6 @@ const TELE = { atk: ["⚔", "ATTACK", ""], heavy: ["💥", "HEAVY", "heavy"], sp
 function intentHtml() {
 const f = fight; if (!f || f.over) return "";
 if (f.phase === "react") {
-const it = f.intent, x = TELE[it.shown] || TELE.atk;
-const imm = it.shown === "spell" && f.h.spellImmune ? " · IMMUNE" : "";
-return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}${it.shown !== "?" && it.val ? " ~" + fmt(it.val) : ""}${imm}</span>`;
-}
-if (f.unleashNext) return `<span class="hs-intent unleash">☄ UNLEASH NEXT - HEAVY interrupts!</span>`;
-if (f.stunNext) return `<span class="hs-intent stun">😵 STUNNED this round</span>`;
-if (f.eguard) return `<span class="hs-intent defend">🛡 GUARDING - HEAVY breaks it</span>`;
-if (f.siesta) return `<span class="hs-intent stun">😴 ASLEEP - next hit +50%</span>`;
-return `<span class="hs-intent" style="opacity:.6;">… waiting for your move</span>`;
-}
-function blockHint(f) {
-const h = f.h, k = f.intent.shown === "?" ? "atk" : f.intent.shown, b = h.block;
-if (k === "atk") return "-" + Math.round(b * 100) + "%" + (h.counter ? " · counter" : "");
-if (k === "spell") return "-" + Math.round(b * 40) + "%";
-if (k === "withdraw") return "only a PARRY";
-return "-" + Math.round(b * 50) + "% · PARRY ring";
-}
-function reactHint(f, r) {
-if (r === "block") return f.h.blockCost + " STA · " + blockHint(f);
-if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " STA · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
-if (r === "channel") return "20 STA · hold: -10-35% + mana";
-return "+15 STA +10 FOC" + (f.poison > 0 ? " · cure" : "");
-}
-function atkHint(f, a) {
-if (a === "strike") return (f.h.double ? "2 × 60%" : "free") + " · +10 STA";
-if (a === "heavy") return f.nocd > 0 ? "FREE ☕" : f.cd.heavy > 0 ? "COOLDOWN " + f.cd.heavy : "30 STA" + (f.unleashNext ? " · INTERRUPT" : f.eguard ? " · break guard" : "");
-if (a === "gamble") return "20 STA";
-if (a === "rest") return "+30 STA +15 FOC" + (f.poison > 0 ? " · cure" : "");
-return "100 focus";
-}
-function actsHtml() {
-const f = fight; if (!f || f.over) return "";
-const flee = `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">FLEE<small>lose</small></button>`;
-if (f.phase === "react") {
-return H.reactsOf(f.h).map((r, i) => { const R0 = H.REACTS[r];
-return `<button class="btn btn-cyan react" id="hs-a-${r}" onclick="Dungeon.act('${r}')">${R0.icon} ${R0.name}<small id="hs-as-${r}">${reactHint(f, r)}</small></button>`; }).join("") + flee;
-}
-return H.ATK_KEYS.map(a => { const A0 = H.ATTACKS[a];
-return `<button class="btn ${a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" id="hs-a-${a}" onclick="Dungeon.act('${a}')">${a === "ult" ? "✨ " + H.CLASSES[f.h.cls].skill.split(" ")[0] : A0.icon + " " + A0.name}<small id="hs-as-${a}">${atkHint(f, a)}</small></button>`; }).join("") + flee;
-}
-function fightHtml() {
-const f = fight, m = fightMission, h = f.h;
-return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span style="display:flex;gap:6px;align-items:center;"><span id="hs-turn">ROUND 0</span><button type="button" class="btn hs-help-btn" onclick="Dungeon.help()" title="How to fight">?</button></span></div>
-<div class="dg-dim" id="hs-hud">${fightCtx && fightCtx.hud ? fightCtx.hud(f) : "★ win · ★ 50%+ HP · ★ " + escapeHtml(starGoals(m)[2])}</div></div>
-<div class="hs-form" id="hs-form" style="display:none;"></div>
-<div class="hs-fight">
-<div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(fightCtx && (fightCtx.mode === "pool" || fightCtx.mode === "boss") ? 4 : (m.ch != null ? m.ch : 0)) : ""}
-<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${H.CLASSES[h.cls].name} LV ${h.level}</div>
-<div id="dg-ps">${playerSprite()}</div>
-<div class="hs-bars">
-<div class="hs-lbl"><span>HP</span><span id="hs-hpt"></span></div><div class="hs-bar"><div class="hp" id="hs-hp"></div><div class="sh" id="hs-sh"></div></div>
-<div class="hs-lbl"><span>STAMINA</span><span id="hs-stat"></span></div><div class="hs-bar"><div class="sta" id="hs-sta"></div></div>
-<div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div><div class="hs-sts" id="hs-buffs"></div></div></div>
-<div class="dg-vs">VS</div>
-<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div class="dg-sub">LV ${f.e.level}${f.e.archName ? " · " + f.e.archName : ""}</div><div id="hs-intent">${intentHtml()}</div>
-<div id="dg-bs">${enemySprite(m)}</div>
-<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div>
-<div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div><div class="hs-sts" id="hs-ebuffs"></div></div></div>
-</div>
-<div class="dg-mech" id="dg-mech"></div>
-<div class="hs-coach" id="hs-coach" style="display:none;"></div>
-<div class="hs-phase" id="hs-phase"></div>
-<div class="hs-acts" id="hs-acts"></div>
-<div id="hs-ov-slot"></div>
-</div>
-<div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>`;
-}
-function fightRefresh() {
-const f = fight; if (!f) return;
-if (tut && fightCtx && fightCtx.tutorial) { const c = $("hs-coach"); if (c && !c.innerHTML) tutCoach(); }
-const h = f.h;
-const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
-const txt = (id, t) => { const el = $(id); if (el) el.textContent = t; };
-set("hs-hp", f.hp / h.maxHp * 100); set("hs-sh", f.shield / h.maxHp * 100); set("hs-sta", f.sta / h.staMax * 100); set("hs-foc", f.focus);
-set("hs-ehp", f.ehp / f.emax * 100); set("hs-brk", f.brk);
-const bb = $("hs-brkb"); if (bb) bb.classList.toggle("full", !!f.vuln); if (f.vuln) set("hs-brk", 100);
-txt("hs-brkt", f.vuln ? "VULNERABLE 1.5×" : Math.floor(f.brk) + " / 100");
-txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
-const defCost = Math.min.apply(null, [h.block > 0 ? h.blockCost : 999, h.dodge > 0 ? h.dodgeCost : 999, h.canChannel ? H.REACTS.channel.sta : 999]);
-const low = defCost < 999 && f.sta < defCost && !f.over, sb = $("hs-sta"); if (sb && sb.parentNode) sb.parentNode.classList.toggle("low", low);
-txt("hs-stat", low ? "LOW · BREATHE? " + Math.floor(f.sta) + " / " + h.staMax : Math.floor(f.sta) + " / " + h.staMax);
-txt("hs-foct", (f.mana > 0 ? "🔮 " + fmt(f.mana) + " mana · " : "") + Math.floor(f.focus) + " / 100");
-txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
-txt("hs-turn", "ROUND " + Math.max(1, f.turn + (f.phase === "atk" ? 1 : 0)) + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
-if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
-const bf = $("hs-buffs"); if (bf) { const x = myBuffs(f); if (bf.__h !== x) { bf.innerHTML = x; bf.__h = x; } }
-const eb = $("hs-ebuffs"); if (eb) { const x = enemyBuffs(f); if (eb.__h !== x) { eb.innerHTML = x; eb.__h = x; } }
-const it = $("hs-intent"); if (it) { const ih = intentHtml(); if (it.__h !== ih) { it.innerHTML = ih; it.__h = ih; } }
-const ph = $("hs-phase");
-if (ph) { const t = f.over ? "" : f.phase === "react" ? `<span class="p-react">② REACT!</span><small>${escapeHtml(f.e.name)} shows its move - pick your reaction</small>` : `<span class="p-atk">① YOUR ATTACK</span><small>${f.channel ? "🔮 channeled ×1.6 · " : ""}${f.sureCrit ? "🎯 sure crit · " : ""}${f.vuln ? "💢 vulnerable ×1.5 · " : ""}then it reacts with its move</small>`;
-if (ph.__h !== t) { ph.innerHTML = t; ph.__h = t; } }
-const box = $("hs-acts");
-if (box) { const key = f.over ? "over" : f.phase + "|" + f.turn; if (box.__k !== key) { box.innerHTML = actsHtml(); box.__k = key; } }
-const keys = f.phase === "react" ? H.reactsOf(h) : H.ATK_KEYS;
-keys.forEach(a => {
-const b = $("hs-a-" + a); if (!b) return;
-const ok = H.allowed(f, a) && !f.over && !busyAnim;
-b.disabled = !ok; b.classList.toggle("off", !ok); b.classList.toggle("lock", !!f.disabled[a]);</script>
+const it = f.intent, x = TELE[it.shown] || TELE.atk;</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hs2"] = 1;</script>
 <!-- END-OF-FILE: hs2 -->

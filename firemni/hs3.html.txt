@@ -1,4 +1,113 @@
-<script type="text/plain" data-tt="tt_hs_1" data-i="2">b.classList.toggle("want", !!f.demand && f.demand === a && !f.over);
+<script type="text/plain" data-tt="tt_hs_1" data-i="2">const imm = it.shown === "spell" && f.h.spellImmune ? " · IMMUNE" : "";
+return `<span class="hs-intent ${x[2]}">${x[0]} ${x[1]}${it.shown !== "?" && it.val ? " ~" + fmt(it.val) : ""}${imm}</span>`;
+}
+if (f.unleashNext) return `<span class="hs-intent unleash">☄ UNLEASH NEXT - HEAVY interrupts!</span>`;
+if (f.stunNext) return `<span class="hs-intent stun">😵 STUNNED this round</span>`;
+if (f.eguard) return `<span class="hs-intent defend">🛡 GUARDING - HEAVY breaks it</span>`;
+if (f.siesta) return `<span class="hs-intent stun">😴 ASLEEP - next hit +50%</span>`;
+return `<span class="hs-intent" style="opacity:.6;">… waiting for your move</span>`;
+}
+function blockHint(f) {
+const h = f.h, k = f.intent.shown === "?" ? "atk" : f.intent.shown, b = h.block;
+if (k === "atk") return "-" + Math.round(b * 100) + "%" + (h.counter ? " · counter" : "");
+if (k === "spell") return "-" + Math.round(b * 40) + "%";
+if (k === "withdraw") return "only a PARRY";
+return "-" + Math.round(b * 50) + "% · PARRY ring";
+}
+function reactHint(f, r) {
+if (r === "block") return f.h.blockCost + " STA · " + blockHint(f);
+if (r === "dodge") return f.intent.shown === "spell" ? "not vs spells" : f.h.dodgeCost + " STA · " + Math.round(f.dodgeCh * Math.pow(0.8, f.dodgeStreak) * 100) + "%";
+if (r === "channel") return "20 STA · hold: -10-35% + mana";
+return "+15 STA +10 FOC" + (f.poison > 0 ? " · cure" : "");
+}
+function abCost(A, h, S) {
+const R0 = H.RES[A.c], t = [];
+const sta = S ? H.abSta(S, h, Object.keys(H.AB).find(k => H.AB[k] === A)) : (A.sta || 0);
+if (sta) t.push(sta + " STA"); if (A.rc) t.push(A.rc + " " + R0.n); if (A.cd) t.push("CD " + A.cd);
+return t.join(" · ") || "free";
+}
+function atkHint(f, a) {
+const AB0 = H.AB[a];
+if (AB0) { const S = f.S; if (S.cd[a] > 0) return "COOLDOWN " + S.cd[a]; if (AB0.need && !H.abReady(S, f.h, a, 999, f.ehp / f.emax) && !(AB0.rc > S.r)) return a === "fired" ? "target < 25%" : a === "autofill" ? "needs ✨" : "not now"; return abCost(AB0, f.h, S); }
+if (a === "strike") return (f.h.double ? "2 × 60%" : "free") + " · +10 STA";
+if (a === "heavy") return f.nocd > 0 ? "FREE ☕" : f.cd.heavy > 0 ? "COOLDOWN " + f.cd.heavy : "30 STA" + (f.unleashNext ? " · INTERRUPT" : f.eguard ? " · break guard" : "");
+if (a === "gamble") return "20 STA";
+if (a === "rest") return "+30 STA +15 FOC" + (f.poison > 0 ? " · cure" : "");
+return "100 focus";
+}
+function actsHtml() {
+const f = fight; if (!f || f.over) return "";
+const flee = `<button class="btn" id="hs-a-flee" onclick="Dungeon.flee()">FLEE<small>lose</small></button>`;
+if (f.phase === "react") {
+return H.reactsOf(f.h).map((r, i) => { const R0 = H.REACTS[r];
+return `<button class="btn btn-cyan react" id="hs-a-${r}" onclick="Dungeon.act('${r}')">${R0.icon} ${R0.name}<small id="hs-as-${r}">${reactHint(f, r)}</small></button>`; }).join("") + flee;
+}
+if (fightCtx && fightCtx.cardsHtml) return fightCtx.cardsHtml(f) + flee;       // v12: Night Shift - útočí se kartami z ruky
+const rc = (H.RES[f.h.cls] || {}).c || "#888";
+return H.atkKeys(f.h).map((a, n) => { const A0 = H.ATTACKS[a], ab = !!H.AB[a];
+return `<button class="btn ${ab ? "ab" : a === "heavy" || a === "gamble" ? "btn-gold" : a === "ult" ? "btn-crimson" : a === "rest" ? "btn-cyan" : ""}" style="--rc:${rc};" id="hs-a-${a}" data-tip="${escapeHtml(ab ? H.AB[a].t : A0.txt || "")}" onclick="Dungeon.act('${a}')"><span class="hs-key">${n + 1}</span>${a === "ult" ? "✨ " + H.CLASSES[f.h.cls].skill.split(" ")[0] : A0.icon + " " + (ab ? H.AB[a].n : A0.name)}<small id="hs-as-${a}">${atkHint(f, a)}</small></button>`; }).join("") + flee;
+}
+function fightHtml() {
+const f = fight, m = fightMission, h = f.h;
+return `<div class="dg-card"><div class="dg-h"><span>${m.enemy.icon} ${escapeHtml(m.name)}</span><span style="display:flex;gap:6px;align-items:center;"><span id="hs-turn">ROUND 0</span><button type="button" class="btn hs-help-btn" onclick="Dungeon.help()" title="How to fight">?</button></span></div>
+<div class="dg-dim" id="hs-hud">${fightCtx && fightCtx.hud ? fightCtx.hud(f) : "★ win · ★ 50%+ HP · ★ " + escapeHtml(starGoals(m)[2])}</div></div>
+<div class="hs-form" id="hs-form" style="display:none;"></div>
+<div class="hs-fight">
+<div class="dg-arena" id="dg-arena">${window.HSRig ? HSRig.scene(fightCtx && (fightCtx.mode === "pool" || fightCtx.mode === "boss") ? 4 : (m.ch != null ? m.ch : 0)) : ""}
+<div class="dg-side"><div class="dg-name">${escapeHtml(gameState.ldap)}</div><div class="dg-sub">${H.CLASSES[h.cls].name} LV ${h.level}</div>
+<div id="dg-ps">${playerSprite()}</div>
+<div class="hs-bars">
+<div class="hs-lbl"><span>HP</span><span id="hs-hpt"></span></div><div class="hs-bar"><div class="hp" id="hs-hp"></div><div class="sh" id="hs-sh"></div></div>
+<div class="hs-lbl"><span>STAMINA</span><span id="hs-stat"></span></div><div class="hs-bar"><div class="sta" id="hs-sta"></div></div>
+<div class="hs-lbl"><span>FOCUS</span><span id="hs-foct"></span></div><div class="hs-bar"><div class="foc" id="hs-foc"></div></div>
+<div class="hs-lbl"><span>${(H.RES[h.cls] || {}).i} ${((H.RES[h.cls] || {}).n || "").toUpperCase()}</span><span id="hs-rest"></span></div><div class="hs-bar"><div class="res" id="hs-res" style="background:${(H.RES[h.cls] || {}).c};"></div></div><div class="hs-sts" id="hs-buffs"></div></div></div>
+<div class="dg-vs">VS</div>
+<div class="dg-side"><div class="dg-name" style="color:var(--crimson);">${escapeHtml(m.enemy.name)}</div><div class="dg-sub">LV ${f.e.level}${f.e.archName ? " · " + f.e.archName : ""}</div><div id="hs-intent">${intentHtml()}</div>
+<div id="dg-bs">${enemySprite(m)}</div>
+<div class="hs-bars"><div class="hs-lbl"><span>HP</span><span id="hs-ehpt"></span></div><div class="hs-bar"><div class="ehp" id="hs-ehp"></div></div>
+<div class="hs-lbl"><span>BREAK</span><span id="hs-brkt"></span></div><div class="hs-bar" id="hs-brkb"><div class="brk" id="hs-brk"></div></div><div class="hs-sts" id="hs-ebuffs"></div></div></div>
+</div>
+<div class="dg-mech" id="dg-mech"></div>
+<div class="hs-coach" id="hs-coach" style="display:none;"></div>
+<div class="hs-phase" id="hs-phase"></div>
+<div class="hs-acts" id="hs-acts"></div>
+<div id="hs-ov-slot"></div>
+</div>
+<div class="dg-card" style="margin-top:10px;"><div class="dg-h">COMBAT LOG</div><div class="dg-log" id="dg-log"></div></div>`;
+}
+function fightRefresh() {
+const f = fight; if (!f) return;
+if (tut && fightCtx && fightCtx.tutorial) { const c = $("hs-coach"); if (c && !c.innerHTML) tutCoach(); }
+const h = f.h;
+const set = (id, w) => { const el = $(id); if (el) el.style.width = Math.max(0, Math.min(100, w)) + "%"; };
+const txt = (id, t) => { const el = $(id); if (el) el.textContent = t; };
+set("hs-hp", f.hp / h.maxHp * 100); set("hs-sh", f.shield / h.maxHp * 100); set("hs-sta", f.sta / h.staMax * 100); set("hs-foc", f.focus);
+set("hs-ehp", f.ehp / f.emax * 100); set("hs-brk", f.brk);
+if (f.S) { const R0 = H.RES[h.cls], pr = document.querySelector("#dg-ps .rig"); if (pr) pr.setAttribute("data-r", R0.max <= 6 ? Math.min(5, Math.floor(f.S.r + 1e-9)) : Math.round(f.S.r / 20)); set("hs-res", f.S.r / R0.max * 100); txt("hs-rest", (R0.max <= 5 ? Math.floor(f.S.r + 1e-9) : Math.floor(f.S.r)) + " / " + R0.max); }
+const bb = $("hs-brkb"); if (bb) bb.classList.toggle("full", !!f.vuln); if (f.vuln) set("hs-brk", 100);
+txt("hs-brkt", f.vuln ? "VULNERABLE 1.5×" : Math.floor(f.brk) + " / 100");
+txt("hs-hpt", fmt(Math.max(0, f.hp)) + " / " + fmt(h.maxHp) + (f.shield ? " 🛡" + fmt(f.shield) : ""));
+const defCost = Math.min.apply(null, [h.block > 0 ? h.blockCost : 999, h.dodge > 0 ? h.dodgeCost : 999, h.canChannel ? H.REACTS.channel.sta : 999]);
+const low = defCost < 999 && f.sta < defCost && !f.over, sb = $("hs-sta"); if (sb && sb.parentNode) sb.parentNode.classList.toggle("low", low);
+txt("hs-stat", low ? "LOW · BREATHE? " + Math.floor(f.sta) + " / " + h.staMax : Math.floor(f.sta) + " / " + h.staMax);
+txt("hs-foct", (f.mana > 0 ? "🔮 " + fmt(f.mana) + " mana · " : "") + Math.floor(f.focus) + " / 100");
+txt("hs-ehpt", fmt(Math.max(0, f.ehp)) + " / " + fmt(f.emax));
+txt("hs-turn", "ROUND " + Math.max(1, f.turn + (f.phase === "atk" ? 1 : 0)) + (f.m.survive ? " / " + f.m.survive : f.m.turnLimit ? " / " + f.m.turnLimit : ""));
+if (fightCtx && fightCtx.hud) { const hu = $("hs-hud"); if (hu) hu.innerHTML = fightCtx.hud(f); }
+const bf = $("hs-buffs"); if (bf) { const x = myBuffs(f); if (bf.__h !== x) { bf.innerHTML = x; bf.__h = x; } }
+const eb = $("hs-ebuffs"); if (eb) { const x = enemyBuffs(f); if (eb.__h !== x) { eb.innerHTML = x; eb.__h = x; } }
+const it = $("hs-intent"); if (it) { const ih = intentHtml(); if (it.__h !== ih) { it.innerHTML = ih; it.__h = ih; } }
+const ph = $("hs-phase");
+if (ph) { const t = f.over ? "" : f.phase === "react" ? `<span class="p-react">② REACT!</span><small>${escapeHtml(f.e.name)} shows its move - pick your reaction</small>` : `<span class="p-atk">① YOUR ATTACK</span><small>${f.channel ? "🔮 channeled ×1.6 · " : ""}${f.sureCrit ? "🎯 sure crit · " : ""}${f.vuln ? "💢 vulnerable ×1.5 · " : ""}then it reacts with its move</small>`;
+if (ph.__h !== t) { ph.innerHTML = t; ph.__h = t; } }
+const box = $("hs-acts");
+if (box) { const key = f.over ? "over" : f.phase + "|" + f.turn; if (box.__k !== key) { box.innerHTML = actsHtml(); box.__k = key; } }
+const keys = f.phase === "react" ? H.reactsOf(h) : H.atkKeys(h);
+keys.forEach(a => {
+const b = $("hs-a-" + a); if (!b) return;
+const ok = H.allowed(f, a) && !f.over && !busyAnim;
+b.disabled = !ok; b.classList.toggle("off", !ok); if (H.AB[a]) { b.classList.toggle("ready", ok && !!H.AB[a].rc); const cv = f.S.cd[a] || 0, tot = ((h.tcd && h.tcd[a] != null ? h.tcd[a] : H.AB[a].cd) || 1) + 1; b.style.setProperty("--cd", Math.min(1, cv / tot).toFixed(3)); } b.classList.toggle("lock", !!f.disabled[a]);
+b.classList.toggle("want", !!f.demand && f.demand === a && !f.over);
 const sm = $("hs-as-" + a); if (sm) { const t = f.disabled[a] ? "LOCKED" : f.phase === "react" ? reactHint(f, a) : atkHint(f, a); if (sm.textContent !== t) sm.textContent = t; }
 });
 const fb = $("hs-form");
@@ -20,10 +129,16 @@ const div = document.createElement("div"); if (cls) div.className = cls; div.inn
 el.prepend(div); while (el.childNodes.length > 80) el.removeChild(el.lastChild);
 }
 function restoreLog() { const el = $("dg-log"); if (el) el.innerHTML = flog.slice().reverse().map(x => `<div class="${x.c}">${x.t}</div>`).join(""); }
-function act(a) {
+/** v12: obtížnost mini-her: běžný boj < tower < boss */
+function qDiff() { const m = fightMission || {}, k = m.kind || (m.enemy || {}).kind; return k === "boss" || k === "secret" || k === "world" || k === "mini" ? 2 : fightCtx && (fightCtx.mode === "tower" || fightCtx.mode === "pool") ? 1 : 0; }
+let actExtra = null;
+function canAct(a) { return !!(fight && !fight.over && !busyAnim && H.allowed(fight, a)); }
+function act(a, extra) {
 const f = fight; if (!f || f.over || busyAnim || !H.allowed(f, a)) return;
+actExtra = f.phase === "atk" && extra && typeof extra === "object" ? extra : null;
+if (window.HSQTE && HSQTE.setDiff) HSQTE.setDiff(fightCtx && fightCtx.tutorial ? 0 : qDiff());
 if (f.phase === "atk") {
-if (a === "heavy") { timingGame(q => resolve("heavy", { t: q })); return; }
+if (a === "heavy" || (H.AB[a] && H.AB[a].hv)) { timingGame(q => resolve(a, { t: q })); return; }
 if (a === "gamble") { gambleGame(); return; }
 if (a === "ult") { ultGame(o => guessGame(g => cineGame(() => resolve("ult", Object.assign({}, o, g ? { guess: g } : {}))))); return; }
 resolve(a, {}); return;
@@ -35,9 +150,10 @@ if (a === "channel") { qteRun(done => HSQTE.channel(done, ((f.h.perks || {}).par
 resolve(a, {});
 }
 let assistPending = 0;
+function isAtkPhase(f) { return f && f.phase === "atk"; }
 function resolve(a, opt) {
 const f = fight; if (!f || f.over) return;
-opt = Object.assign({}, opt || {});
+opt = Object.assign({}, isAtkPhase(f) && actExtra ? actExtra : {}, opt || {}); actExtra = null;
 const isAtk = f.phase === "atk";
 if (isAtk && assistPending) { opt.assist = assistPending; opt.assistName = (A_col() || {}).name || "Your colleague"; assistPending = 0; }
 const evs = isAtk ? H.attack(f, a, opt) : H.react(f, a, opt);
@@ -134,8 +250,11 @@ if (e.hits && e.hits.length > 1) {                                // v11.2: Hunt
 e.hits.forEach((v, k) => setTimeout(() => { float(fmt(v), "b", e.crit ? "#ffb800" : e.timing === "PERFECT" ? "#ffd700" : "#fff", !!e.crit); if (k) { pose("p", "a-quick"); setTimeout(() => pose("b", "a-hit"), 150); } }, k * 260));
 if (e.crit) float("CRIT", "b", "#ffb800", true);
 } else float((e.crit ? "CRIT " : "") + fmt(e.val), "b", e.crit ? "#ffb800" : e.timing === "PERFECT" ? "#ffd700" : "#fff", e.crit || e.timing === "PERFECT");
-const nm = e.a === "first" ? "🏹 FIRST STRIKE" : H.ATTACKS[e.a].name;
-dlog(T(e) + `${nm}${e.timing ? " (" + e.timing + ")" : ""} hits for <b>${fmt(e.val)}</b>${e.hits ? " (" + e.hits.map(fmt).join(" + ") + ")" : ""}${e.crit ? " - CRIT!" : ""}`, e.crit || e.timing ? "g" : "");
+const nm = e.a === "first" ? "🏹 FIRST STRIKE" : H.AB[e.a] ? H.AB[e.a].i + " " + H.AB[e.a].n.toUpperCase() : H.ATTACKS[e.a].name;
+dlog(T(e) + `${nm}${e.timing ? " (" + e.timing + ")" : ""}${e.val ? ` hits for <b>${fmt(e.val)}</b>` : ""}${e.hits ? " (" + e.hits.map(fmt).join(" + ") + ")" : ""}${e.crit ? " - CRIT!" : ""}${e.fx ? " · " + escapeHtml(e.fx) : ""}`, e.crit || e.timing ? "g" : "");
+} else if (e.type === "pet" || e.type === "dot") {
+later(() => { pose("b", "a-hit"); sfx("spark", "b", e.type === "dot" ? "#ff9a3c" : "#4fd1ff"); });
+float(fmt(e.val), "b", e.type === "dot" ? "#ff9a3c" : "#4fd1ff"); dlog(T(e) + escapeHtml(e.msg), "");
 } else if (e.type === "assist") {
 colRunIn(); setTimeout(() => { pose("b", "a-hit"); sfx("spark", "b", "#22d3ee"); }, 380);
 float(fmt(e.val), "b", "#22d3ee", true); dlog(T(e) + `🧑‍💼 <b>${escapeHtml(e.who)}</b> runs in and hits for <b>${fmt(e.val)}</b>!`, "g");
@@ -207,6 +326,7 @@ sm[m.id] = newMask; d.stars[m.id] = total; d.cl[m.id] = 1;
 if ((first && TT.rnd() < 0.5) || (total === 3 && prev < 3) || TT.rnd() < 0.12) dropItem(lines, m.level);
 if (window.Gear && Gear.drop) try { Gear.drop(first && (m.kind === "boss" || m.kind === "secret") ? Object.assign({}, m, { kind: "boss" }) : m, lines); } catch (e) { console.error(e); }
 if (first && (m.kind === "boss" || m.kind === "secret")) {
+gameState.slotTokens = (gameState.slotTokens || 0) + 1; lines.push("+1 ⏱ Overtime Hour");
 const slot = C.BOSS_SLOT[m.id] || SLOTS[Math.floor(TT.rnd() * SLOTS.length)];
 if (!d.t6[slot]) { d.t6[slot] = true; lines.push(`🔓 Prismatic ${slot} can now drop from chests`); log(`🌌 PRISMATIC UNLOCK: Quantum ${slot} items can now drop from the Company Chest (chest LV 50+).`, "special"); }
 if (m.id === 49) TT.announce(n > 0 ? "BEAT THE BIG MASSI ON HIGH STAKES PRESTIGE " + n : "BEAT THE BIG MASSI", "HIGH STAKES", 0, gc);
@@ -274,7 +394,7 @@ tier: 1, artifacts: {}, equipped: [], promos: {}, mode: "highstakes" };
 }
 function hsPayload() { const d = HS(); return { cls: d.cls, level: d.level, xp: Math.floor(d.xp), stats: d.stats, bp: d.bp, energy: d.energy, energyAt: d.energyAt, stars: d.stars, wins: d.wins, losses: d.losses, arenaStance: d.arenaStance,
 t6: d.t6, tower: d.tower, shift: d.shift, wb: d.wb, legacyBest: d.legacyBest, jk: d.jk, sm: d.sm, hsp: d.hsp, sb: d.sb, cl: d.cl, g111: d.g111, g111gc: d.g111gc, ach: d.ach, wk: d.wk, pool: d.pool, bt: d.bt, tsel: d.tsel, tut: d.tut, col: d.col, gear: d.gear,
-season: d.season, s2: d.s2, s3: d.s3, br: d.br, kit: d.kit, rc: d.rc, frc: d.frc, duel: d.duel }; }
+season: d.season, s2: d.s2, s3: d.s3, br: d.br, kit: d.kit, rc: d.rc, frc: d.frc, duel: d.duel, bar: d.bar, v12: d.v12, tal: d.tal, lo: d.lo }; }
 window.HS_API = { HS: HS, hero: hero, gear: gear, player: player, fmt: fmt, fmtT: fmtT, anim: anim, float: float, sprite: sprite, enemySprite: enemySprite, classSprite: classSprite, SPRITE_IDX: SPRITE_IDX,
 playerSprite: playerSprite, render: render, registerMode: registerMode, isOpen: () => open, view: () => view, beginFight: beginFight, spendEnergy: spendEnergy,
 regenEnergy: regenEnergy, gainXp: gainXp, starHtml: starHtml, statLine: statLine, ENERGY_MAX: ENERGY_BASE, emax: EMAX, dropItem: dropItem, title: title, presBonus: presBonus,
@@ -346,7 +466,7 @@ onEnd: function (f) {
 const d = HS(), first = !d.tut, lines = [];
 const done = !!(tut && tut.done);
 d.tut = done ? 2 : (d.tut || 1);
-if (done && first) { gameState.slotTokens += 1; gainXp(100, lines); lines.unshift("+100 XP", "+1 🎟 Slot Token"); log("🎓 TRAINING COMPLETE: +1 🎟 Slot Token, +100 XP. Good luck out there!", "special"); }
+if (done && first) { gameState.slotTokens += 1; gainXp(100, lines); lines.unshift("+100 XP", "+1 ⏱ Overtime Hour"); log("🎓 TRAINING COMPLETE: +1 ⏱ Overtime Hour, +100 XP. Good luck out there!", "special"); }
 tut = null;
 return { title: done ? "TRAINING COMPLETE" : "TRAINING SKIPPED", color: done ? "var(--emerald)" : "var(--text-dim)",
 lines: done ? (lines.length ? lines : ["You already got the reward"]) : ["You can replay it any time from the HERO tab"],
@@ -380,79 +500,6 @@ ${row("😵", "STUNNED", "free round - go all in.")}
 ${row("❓", "???", "the LLM is lying about its move. 🎭 After a few High Stakes prestiges some enemies also FAKE their moves.")}
 <div class="hs-hsec">ENEMY CLASSES</div>
 ${Object.keys(H.ECLS).map(k => row(H.ECLS[k].n.split(" ")[0], H.ECLS[k].n.split(" ").slice(1).join(" ").toUpperCase(), H.ECLS[k].t + ".")).join("")}
-<div class="hs-hsec">TIPS</div>
-<div class="dg-dim" style="line-height:1.55;">Stamina does NOT refill by itself: STRIKE +10, BRACE +15, BREATHE +30. Every action costs stamina - focus only charges your ULTIMATE (+10 every round, more from hits). HEAVY has a 1-round cooldown. 📋 Forms / decrees: do the asked move for bonus damage, otherwise RED TAPE lowers your damage.<br>
-Keys on PC: 1-5 = the buttons in order, space = timing / parry, 1-3 = dodge lanes.</div>
-<div style="margin-top:12px;"><button class="btn btn-cyan" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">GOT IT</button></div></div>`;
-document.body.appendChild(el);
-}
-function stIcon(icon, txt, n, bad) { return `<span class="hs-st ${bad ? "bad" : ""}" data-tip="${escapeHtml(txt)}" onclick="HSTip(this)" onmouseenter="HSTip(this)">${icon}${n ? "<small>" + n + "</small>" : ""}</span>`; }
-window.HSTip = function (el) {
-const t = el && el.getAttribute("data-tip"); if (!t) return;
-let b = document.getElementById("hs-tip"); if (!b) { b = document.createElement("div"); b.id = "hs-tip"; document.body.appendChild(b); }
-const r = el.getBoundingClientRect(); b.textContent = t; b.style.display = "block";
-b.style.left = Math.max(8, Math.min(window.innerWidth - 268, r.left - 100)) + "px"; b.style.top = (r.bottom + 6) + "px";
-clearTimeout(b.__t); b.__t = setTimeout(() => { b.style.display = "none"; }, 3500);
-};
-window.HSStIcon = stIcon;
-function myBuffs(f) {
-const h = f.h, o = [];
-if (f.fort > 0) o.push(stIcon("🛡", "FORTIFIED: you take 20% less damage (" + f.fort + " rounds)", f.fort));
-if (f.halfNext) o.push(stIcon("🧱", "FIREWALL UP: the next hit you take is halved"));
-if (f.mana > 0) o.push(stIcon("🔮", "MANA " + fmt(f.mana) + ": added to your next hit", ""));
-if (f.channel > 1) o.push(stIcon("✨", "CHANNELED: your next hit ×" + f.channel.toFixed(2)));
-if (f.bm > 0) o.push(stIcon("🩸", "BLOOD MAGIC: your next " + f.bm + " hits heal 25% of their damage", f.bm));
-if (f.sureCrit || f.sureAtk > 0) o.push(stIcon("🎯", f.sureAtk > 0 ? "MARKED FOR DEATH: your next " + f.sureAtk + " attacks always crit" : "SURE CRIT: your next hit crits", f.sureAtk || ""));
-if (f.nocd > 0) o.push(stIcon("☕", "SUGAR RUSH: HEAVY is free - no stamina, no cooldown (" + f.nocd + " rounds)", f.nocd));
-if (f.cd && f.cd.heavy > 0) o.push(stIcon("💥", "HEAVY is on cooldown (" + f.cd.heavy + ")", f.cd.heavy, true));
-if (f.poison > 0) o.push(stIcon("🦠", "POISONED: -4% HP per round (" + f.poison + " rounds) - BREATHE cures it", f.poison, true));
-if (f.redTape > 0) o.push(stIcon("📋", "RED TAPE ×" + f.redTape + ": -" + 8 * f.redTape + "% damage", f.redTape, true));
-return o.join("");
-}
-function enemyBuffs(f) {
-const o = [];
-if (f.vuln) o.push(stIcon("💢", "VULNERABLE: your next hit deals ×1.5", "", true));
-if (f.marked && f.h.mark) o.push(stIcon("🏹", "MARKED: takes +" + Math.round(f.h.mark * 100) + "% damage", "", true));
-if (f.epoison > 0) o.push(stIcon("🦠", "INFECTED: loses HP every round (" + f.epoison + ")", f.epoison, true));
-if (f.eguard) o.push(stIcon("🛡", "GUARDING: STRIKE / GAMBLE deal -60%, HEAVY breaks it"));
-if (f.eshieldP > 0) o.push(stIcon("💼", "BUDGET SHIELD " + fmt(f.eshieldP) + ": only HEAVY / ULTIMATE break it at full strength"));
-if (f.adds > 0) o.push(stIcon("📇", f.adds + " intern(s) heal it every round", f.adds));
-if (f.mgr > 0) o.push(stIcon("📈", "MOTIVATED: +" + 12 * f.mgr + "% damage", f.mgr));
-return o.join("");
-}
-window.Dungeon = { bribe: bribe,
-open: openScreen, close: closeScreen, tab: tab, chapter: chapter, mission: mission, start: start, act: act, flee: flee, camp: campSel, ascend: ascend, buyPoint: buyPoint,
-leave: leave, retry: retry, next: nextM, pickClass: pickClass, respec: respec, tokenEnergy: tokenEnergy, stat: stat, resetStats: resetStats,
-netMultBonus: netMultBonus, clickCritBonus: clickCritBonus, payload: payload, hsPayload: hsPayload, showProfile: function () {},
-state: HS, unlocked: unlocked, totalStars: totalStars, clearedAny: clearedAny,
-isBusy: () => !!(fight && !fight.over) || Object.keys(MODES).some(k => MODES[k].busy && MODES[k].busy()), onLeaderboard: function () {},
-resBtn: resBtn, help: help, tutStart: tutStart, tutSkip: tutSkip, setTitle: setTitle, onPrestige: onPrestige, BOSS_TITLES: BOSS_TITLES, t6Slots: t6Slots, t6Unlocked: t6Unlocked, _fight: () => fight
-};
-function boot() {
-if (!window.TT || typeof gameState === "undefined") { setTimeout(boot, 50); return; }
-const badge = document.querySelector(".user-badge");
-if (badge && !$("dg-open-btn")) {
-const b = document.createElement("button");
-b.id = "dg-open-btn"; b.className = "btn btn-crimson"; b.textContent = "🎰 HIGH STAKES";
-b.onclick = openScreen;
-badge.insertBefore(b, badge.firstChild);
-}
-const prev = TT.isBusy;
-TT.isBusy = function () { return prev() || Dungeon.isBusy(); };
-setInterval(() => { if (open) { regenEnergy(); renderKeys(); } }, 1000);
-document.addEventListener("keydown", (e) => {
-if (!open) return;
-if (e.key === "Escape" && (!Dungeon.isBusy() || (fight && !fight.over))) closeScreen();
-if (fight && !fight.over && !busyAnim && !e.target.closest("input,textarea") && /^[1-5]$/.test(e.key) && !document.querySelector(".hs-ov")) {
-const keys = fight.phase === "react" ? H.reactsOf(fight.h) : H.ATK_KEYS;
-const a = keys[Number(e.key) - 1];
-if (a) { e.preventDefault(); act(a); }
-}
-});
-}
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
-})();
-</script>
-<script>(function () { var p = document.querySelectorAll('script[data-tt="tt_hs_1"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<div class="hs-hsec">TIPS</div></script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hs3"] = 1;</script>
 <!-- END-OF-FILE: hs3 -->

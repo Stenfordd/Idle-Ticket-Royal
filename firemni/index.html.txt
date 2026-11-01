@@ -92,12 +92,12 @@ input, textarea, select { user-select: text; -webkit-user-select: text; }
 <body>
 <div id="tt-load" style="position:fixed;inset:0;z-index:99990;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:radial-gradient(circle at 50% 40%,#1b2340,#0a0d16 70%);color:#e2e8f0;font-family:Orbitron,monospace;text-align:center;padding:20px;transition:opacity .45s;">
 <div style="font-size:clamp(26px,7vw,48px);font-weight:900;letter-spacing:4px;color:#ffb800;text-shadow:0 0 22px rgba(255,184,0,.45);">TICKET TYCOON</div>
-<div style="font-size:12px;letter-spacing:6px;color:#00f0ff;">// CASINO ROYALE v11.8</div>
+<div style="font-size:12px;letter-spacing:6px;color:#00f0ff;">// CASINO ROYALE v12.0</div>
 <div style="width:min(320px,80vw);height:8px;background:#000;border-radius:4px;overflow:hidden;border:1px solid #334155;margin-top:10px;"><div id="tl-fill" style="height:100%;width:4%;background:linear-gradient(90deg,#00f0ff,#ffb800);transition:width .25s;"></div></div>
 <div id="tl-msg" style="font-size:12px;color:#94a3b8;font-family:sans-serif;">Connecting to the office server...</div>
 <div id="tl-tip" style="max-width:360px;font-size:12px;color:#cbd5e1;font-family:sans-serif;line-height:1.5;min-height:36px;"></div></div>
 <script>(function () {
-var need = ["office", "office2", "casino", "sync", "minigames", "jumpking", "prsi", "checkers", "plant", "changelog", "meta", "dengine", "hsengine", "hsengine2", "hscamp", "hsrig", "hsqte", "hsqte2", "hs", "hs2", "hs3", "gear", "arena", "hs_modes", "duel", "colleague", "extras", "mobile", "theme", "room", "room2", "room3"], el = document.getElementById("tt-load"), f = document.getElementById("tl-fill"), m = document.getElementById("tl-msg"), tp = document.getElementById("tl-tip"), t0 = Date.now(), k = Math.floor(Math.random() * 9);
+var need = ["office", "office2", "casino", "sync", "minigames", "jumpking", "prsi", "checkers", "plant", "changelog", "meta", "dengine", "hsengine", "hsengine2", "hsengine3", "hscamp", "hsrig", "hsqte", "hsqte2", "hsqte3", "hs", "hs2", "hs3", "hs4", "gear", "arena", "hs_modes", "hs_shift", "duel", "colleague", "extras", "mobile", "theme", "room", "room2", "room3", "office_neon"], el = document.getElementById("tt-load"), f = document.getElementById("tl-fill"), m = document.getElementById("tl-msg"), tp = document.getElementById("tl-tip"), t0 = Date.now(), k = Math.floor(Math.random() * 9);
 var tips = ["💡 Press ESC anywhere and the game hides behind a blank spreadsheet.", "💡 Click your name at the top to set a nickname.", "💡 High Stakes: guess the enemy's next move after your ultimate for a class bonus.", "💡 Stamina pays for every action - BREATHE when you run low.", "💡 Gear that's weaker now may beat yours after a few upgrades.", "💡 The weekly boss changes every week - some have their own rules.", "💡 In a duel, a ready ULTIMATE means BLOCK and DODGE are played 3 times.", "💡 Tap a stock to see your buy price and your trades on the chart.", "💡 When FIGHT glows gold, a High Stakes event is running."];
 function tip() { tp.textContent = tips[k++ % tips.length]; } tip(); var ti = setInterval(tip, 3200);
 var iv = setInterval(function () {
@@ -110,7 +110,7 @@ if (ok || Date.now() - t0 > 90000) { clearInterval(iv); clearInterval(ti); el.st
 })();</script>
 <!-- TOP HEADER -->
 <div class="top-bar">
-<div class="brand-title">TICKET TYCOON // CASINO ROYALE v11.8</div>
+<div class="brand-title">TICKET TYCOON // CASINO ROYALE v12.0</div>
 <div class="user-badge">
 <span>AGENT: <strong id="user-display" style="color:var(--cyan);">CONNECTING...</strong></span>
 <span>SEASON: <strong id="season-display" style="color:var(--amber);">6</strong></span>
@@ -195,8 +195,10 @@ Merges 3 identical items into +1 level (+60% base stats per level, 10% crit +2, 
 <div class="tab-row">
 <button class="casino-tab-btn active" id="tab-btn-log" onclick="switchBottomLeftTab('log')">📋 SYSTEM LOG</button>
 <button class="casino-tab-btn" id="tab-btn-chat" onclick="switchBottomLeftTab('chat')">💬 OFFICE CHAT <span class="unread" id="chat-unread"></span></button>
+<button class="casino-tab-btn" id="tab-btn-inc" onclick="switchBottomLeftTab('inc')">🚨 INCIDENTS <span class="unread" id="inc-unread"></span></button>
 </div>
 <div id="view-system-log"><div id="log" class="log-container"></div></div>
+<div id="view-incidents" style="display:none;"><div id="inc-messages" class="chat-container"><div class="chat-empty">No incidents yet - duels, card tables and boss kills show up here.</div></div></div>
 <div id="view-office-chat" style="display:none;">
 <div id="chat-messages" class="chat-container"><div class="chat-empty">Loading office chat...</div></div>
 <div class="chat-input-row">
@@ -278,6 +280,7 @@ Merges 3 identical items into +1 level (+60% base stats per level, 10% crit +2, 
 <span>COMPANY CHEST</span>
 <span class="chest-lvl-tag">LVL <span id="chest-lvl">1</span></span>
 </div>
+<div class="odds-bar" id="odds-bar"></div>
 <div class="odds-table">
 <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t0);">🗑️ Empty</div><div class="odds-val" id="odd-trash" style="color:var(--rarity-t0);">45.0%</div></div>
 <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t1);">⚪ Common T1</div><div class="odds-val" id="odd-t1" style="color:var(--rarity-t1);">45.0%</div></div>
@@ -295,7 +298,7 @@ Merges 3 identical items into +1 level (+60% base stats per level, 10% crit +2, 
 </div>
 <div style="display:flex; gap:6px;">
 <button class="btn btn-gold" id="btn-upgrade-chest" data-hold="chestup" style="flex:1; padding:8px 6px;" onclick="upgradeCompanyChest()">UPGRADE (<span id="chest-upgrade-cost">100</span> GC)</button>
-<button class="btn btn-cyan" id="btn-token" style="flex:1; padding:8px 6px;" disabled onclick="openTokenPicker(event)">🎟 USE SLOT TOKEN (0)</button>
+<button class="btn btn-cyan" id="btn-token" style="display:none; flex:1; padding:8px 6px;" disabled onclick="openTokenPicker(event)">⏱ USE OVERTIME HOUR (0)</button>
 </div>
 </div>
 <div class="panel">
@@ -471,10 +474,10 @@ Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose
 <div style="text-align:right; margin-top:8px;"><button class="btn" style="font-size:10px;" onclick="closeTutorial()">CLOSE</button></div>
 </div>
 </div>
-<!-- SLOT TOKEN PICKER -->
+<!-- OVERTIME HOUR PICKER -->
 <div class="tt-overlay" id="token-overlay">
 <div class="tt-modal">
-<h2>🎟 SLOT TOKEN</h2>
+<h2>⏱ OVERTIME HOUR</h2>
 <div style="font-size:13px; color:var(--text-dim);">Pick a body slot. The item you have equipped there gets <b>+1 merge level</b>. If the slot is empty or already maxed, a new item is rolled instead (Rare to Legendary). Use the mouse - the keyboard is disabled here.</div>
 <div class="token-grid" id="token-slots"></div>
 <div style="display:flex; gap:8px;">
@@ -506,16 +509,20 @@ Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose
   <?!= include('dengine'); ?>
   <?!= include('hsengine'); ?>
   <?!= include('hsengine2'); ?>
+  <?!= include('hsengine3'); ?>
   <?!= include('hscamp'); ?>
   <?!= include('hsrig'); ?>
   <?!= include('hsqte'); ?>
   <?!= include('hsqte2'); ?>
+  <?!= include('hsqte3'); ?>
   <?!= include('hs'); ?>
   <?!= include('hs2'); ?>
   <?!= include('hs3'); ?>
+  <?!= include('hs4'); ?>
   <?!= include('gear'); ?>
   <?!= include('arena'); ?>
   <?!= include('hs_modes'); ?>
+  <?!= include('hs_shift'); ?>
   <?!= include('duel'); ?>
   <?!= include('colleague'); ?>
   <?!= include('extras'); ?>
@@ -524,10 +531,11 @@ Escalate to global SME nodes. <b>Win</b>: 5-30 min of Auto GC. <b>Loss</b>: lose
   <?!= include('room'); ?>
   <?!= include('room2'); ?>
   <?!= include('room3'); ?>
+  <?!= include('office_neon'); ?>
 <script>
 /* Kontrola po vložení: když se některý soubor nezkopíroval celý, ukáže se červená lišta s jeho jménem. */
 (function () {
-var need = ["office", "office2", "casino", "sync", "minigames", "jumpking", "prsi", "checkers", "plant", "changelog", "meta", "dengine", "hsengine", "hsengine2", "hscamp", "hsrig", "hsqte", "hsqte2", "hs", "hs2", "hs3", "gear", "arena", "hs_modes", "duel", "colleague", "extras", "mobile", "theme", "room", "room2", "room3"], got = window.__TT_FILES || {};
+var need = ["office", "office2", "casino", "sync", "minigames", "jumpking", "prsi", "checkers", "plant", "changelog", "meta", "dengine", "hsengine", "hsengine2", "hsengine3", "hscamp", "hsrig", "hsqte", "hsqte2", "hsqte3", "hs", "hs2", "hs3", "hs4", "gear", "arena", "hs_modes", "hs_shift", "duel", "colleague", "extras", "mobile", "theme", "room", "room2", "room3", "office_neon"], got = window.__TT_FILES || {};
 var bad = need.filter(function (k) { return !got[k]; });
 if (bad.length) {
 var d = document.createElement("div");

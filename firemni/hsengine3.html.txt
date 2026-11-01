@@ -1,0 +1,362 @@
+<script type="text/plain" data-tt="tt_hsengine_1" data-i="3">if (k === "spell") { if (h.spellImmune) return "brace"; return can("block") && f.sta >= h.blockCost + 20 ? "block" : "brace"; }
+const big = k === "heavy" || k === "unleash" || k === "withdraw";
+if (big) { if (can("dodge")) return "dodge"; if (can("block")) return "block"; if (can("channel")) return "channel"; return "brace"; }
+if (h.cls === "sysadmin") return can("block") && f.sta >= h.blockCost + 10 ? "block" : "brace";
+if (h.cls === "blood") return can("block") && f.sta >= 60 ? "block" : "brace";
+if (h.cls === "engineer") return can("channel") && f.sta >= 45 ? "channel" : "brace";
+if (can("dodge") && f.sta >= 55) return "dodge";
+return "brace";
+}
+function timingRoll(R, zone) { const r = R(); return r < zone * 0.35 ? "perfect" : r < zone * 1.9 ? "good" : "none"; }
+const PARRY_SKILL = { perfect: 0.3, good: 0.45, dodge: { perfect: 0.3, good: 0.45 } };
+const ULT_SKILL = { q: 1.0, sd: 0.1, all: 0.6 };
+function parryRoll(R) { const r = R(); return r < PARRY_SKILL.perfect ? "perfect" : r < PARRY_SKILL.perfect + PARRY_SKILL.good ? "good" : "none"; }
+function dodgeRoll(R) { const r = R(), D = PARRY_SKILL.dodge; return r < D.perfect ? "perfect" : r < D.perfect + D.good ? "good" : "none"; }
+function autoOpt(f, a, R, skill) {
+if (a === "heavy" || (AB[a] && AB[a].hv)) return { t: timingRoll(R, skill == null ? f.h.zone : skill) };
+if (a === "ult") return { q: ULT_SKILL.q + (R() + R() + R() - 1.5) * ULT_SKILL.sd * 2, all: R() < ULT_SKILL.all, guess: GUESS_PVE[Math.floor(R() * 4)] };
+if (a === "channel") return { cv: Math.min(1, Math.max(0, 0.45 + (R() + R() - 1) * 0.35)) };
+if (a === "gamble") { const r = gambleRoll(f), hold = autoHold(r); if (!hold.every(Boolean) && canRespin(f) && R() < 0.85) gambleRespin(f, hold); return {}; }
+if (a === "dodge") return { dq: dodgeRoll(R) };
+if (a === "block" && f.intent && (f.intent.k === "heavy" || f.intent.k === "unleash" || f.intent.k === "withdraw")) {
+if (f.intent.k === "unleash") return { rings: [parryRoll(R), parryRoll(R), parryRoll(R)] };
+return { parry: parryRoll(R) };
+}
+return {};
+}
+function simulate(hero, mission, seed, skill, style) {
+const f = newFight(hero, mission, seed), R = rng((seed || 1) * 7 + 3);
+let g = 0;
+while (!f.over && g++ < 400) {
+if (f.phase === "atk") { const a = autoAttack(f, R, style); attack(f, a, autoOpt(f, a, R, skill)); }
+else { const r = autoReact(f, R); react(f, r, autoOpt(f, r, R, skill)); }
+}
+return f;
+}
+/** karta = co se ukládá na server (z ní se postava přepočítá znovu, nic se nepřebírá slepě) */
+function card(h) { return { v: 12, cls: h.cls, level: h.level, main: Math.round(h.main), vit: Math.round(h.vit), luck: Math.round(h.luck), wpn: Math.round(h.wpn * 10) / 10, armor: Math.round(h.armor / ((CLASSES[h.cls] || {}).armorM || 1)),
+bar: (h.bar || []).slice(0, 4), sec: h.sec || {}, set2: h.set2 || "", tal: (h.tal || []).slice(0, 6), lfx: (h.lfx || []).slice(0, 4) }; }
+/** v12: co se z karty počítá i v "rovných podmínkách" (panel, set; čísla gearu ne) */
+function kitOf(c) { return c ? { bar: Array.isArray(c.bar) ? c.bar.slice(0, 4).map(String) : null, set2: SETS[c.set2] ? String(c.set2) : "", tal: Array.isArray(c.tal) ? c.tal.slice(0, 6) : null, lfx: Array.isArray(c.lfx) ? c.lfx.slice(0, 4) : [] } : {}; }
+function fromCard(c) {
+if (!c || !CLASSES[c.cls]) return null;
+const L = clamp(Math.floor(Number(c.level) || 1), 1, 999), cap = 60 + 25 * L;
+const C = CLASSES[c.cls], st = {};
+st[C.main] = clamp(Number(c.main) || BASE, BASE, cap) - BASE; st.vit = clamp(Number(c.vit) || BASE, BASE, cap) - BASE; st.luck = clamp(Number(c.luck) || BASE, BASE, cap) - BASE;
+const sc = c.sec || {}, k = kitOf(c);
+return buildHero({ cls: c.cls, level: L, stats: st, bar: k.bar, tal: k.tal }, { lfx: k.lfx, wpn: clamp(Number(c.wpn) || 1, 1, 30 + 30 * L), armor: clamp(Number(c.armor) || 0, 0, 120 * L),
+sec: { crit: clamp(Number(sc.crit) || 0, 0, 0.25), haste: clamp(Number(sc.haste) || 0, 0, 0.6), vers: clamp(Number(sc.vers) || 0, 0, 0.3), mast: clamp(Number(sc.mast) || 0, 0, 0.6) }, set2: k.set2 });
+}
+/** "rovné podmínky": typická postava levelu L s gearem Rare+3 */
+function stdHero(cls, L, al, kitCard) {
+const kit = kitOf(kitCard);
+const t = typical(L, 1.5), C = CLASSES[cls] || CLASSES.sysadmin, st = {};
+st[C.main] = t.main - BASE; st.vit = t.vit - BASE; st.luck = t.luck - BASE;
+const a = okAlloc(al, L);
+if (a) { const k = 1.5, pts = statPoints(L); st[C.main] += a.main - 0.5 * pts; st.vit += a.vit - 0.3 * pts; st.luck += a.luck - 0.2 * pts; }      // v11.2: vlastní rozdělení bodů (rovné podmínky)
+return buildHero({ cls: cls, level: L, stats: st, bar: kit.bar, tal: kit.tal }, { wpn: t.wpn, armor: t.armor, set2: kit.set2, lfx: kit.lfx });
+}
+/** rozdělení bodů pro duel "rovné podmínky": { main, vit, luck } - celá čísla, součet = body levelu L */
+function okAlloc(al, L) {
+if (!al || typeof al !== "object") return null;
+const pts = statPoints(L), v = ["main", "vit", "luck"].map(k => Math.max(0, Math.floor(Number(al[k]) || 0)));
+const sum = v[0] + v[1] + v[2]; if (sum <= 0 || sum > pts) return null;
+return { main: v[0], vit: v[1], luck: v[2] + (pts - sum) };
+}
+function power(h) { if (!h) return 0; return Math.round(Math.sqrt(estDmg(h, h.level, h.level * 4.75 + 10) * h.maxHp * (h.cls === "sysadmin" ? 1.5 : h.cls === "engineer" ? 1.1 : 1.25))); }
+const PVP_ATK = ["strike", "heavy", "gamble", "rest", "ult"];
+const SYMS = ["🍒", "🔔", "⭐", "7️⃣", "💀"];
+/** d = stav duelu: dva bojovníci, střídají se v útoku. V jednom půlkole volí útočník útok a obránce naslepo reakci. */
+function duelNew(A, B, seed) {
+const R = rng(seed || 1);
+const c = [A, B];
+const pv = (h) => PVP.dmg[h.cls] || 1;
+let first = A.firstStrike && !B.firstStrike ? 0 : B.firstStrike && !A.firstStrike ? 1 : (R() < 0.5 ? 0 : 1);
+const mA = Math.round(A.maxHp * PVP.hp * ((PVP.hpc || {})[A.cls] || 1)), mB = Math.round(B.maxHp * PVP.hp * ((PVP.hpc || {})[B.cls] || 1));
+const d = { R: R, c: c, hp: [mA, mB], max: [mA, mB], pv: [pv(A), pv(B)], sta: [100, 100], foc: [30, 30], sh: [0, 0], sure: [false, false], chan: [0, 0], mark: [false, false],
+rev: [false, false], streak: [0, 0], vuln: [false, false], cd: [0, 0], mana: [0, 0], bm: [0, 0], ep: [0, 0], sa: [0, 0], nocd: [0, 0], gd: [false, false], gu: [false, false], half: 0, turn: 1, atk: first, first: first, over: false, win: -1, events: [], miss: [0, 0] };
+d.armor = [clamp(A.armor / (B.level * 100), 0, A.armorCap), clamp(B.armor / (A.level * 100), 0, B.armorCap)];
+d.S = [newS(A), newS(B)];
+d.dodge = [A.dodge > 0 ? Math.min(0.75, A.dodge + (A.cls === "cyber" ? 0.3 * clamp(A.main / Math.max(1, B.main) - 0.5, 0, 1) : 0)) : 0,
+B.dodge > 0 ? Math.min(0.75, B.dodge + (B.cls === "cyber" ? 0.3 * clamp(B.main / Math.max(1, A.main) - 0.5, 0, 1) : 0)) : 0];
+return d;
+}
+function dEv(d, type, x) { const e = Object.assign({ t: d.turn, i: d.atk, type: type, hp: d.hp.slice(), sh: d.sh.slice() }, x || {}); d.events.push(e); return e; }
+function duelAtkOk(d, i, a) {
+if (a === "strike" || a === "rest") return true;
+if (AB[a]) { if (!d.S) return false; const j = 1 - i; return abReady(d.S[i], d.c ? d.c[i] : { cls: AB[a].c, level: 999 }, a, d.sta[i], d.hp[j] / d.max[j]) && !(d.S[i].deb.mute > 0 && AB[a].hv); }
+if (a === "heavy") return (d.nocd && d.nocd[i] > 0) || (d.sta[i] >= 30 && !((d.cd || [])[i] > 0));
+if (a === "gamble") return d.sta[i] >= 20;
+if (a === "ult") return d.foc[i] >= 100;
+return false;
+}
+function duelReactOk(d, i, r) { const h = d.c[i]; if (!hasReact(h, r)) return false; if (r === "block") return d.sta[i] >= h.blockCost; if (r === "dodge") return d.sta[i] >= h.dodgeCost; if (r === "channel") return d.sta[i] >= REACTS.channel.sta; return true; }
+function dHurt(d, i, v) {
+v = Math.max(0, Math.round(v)); const s = Math.min(d.sh[i], v); d.sh[i] -= s; d.hp[i] -= v - s;
+if (d.S && d.S[i].vl && v > 0) d.S[i].vl.acc += v * 0.25;
+if (s > 0) d.absorbed = (d.absorbed || 0) + s;                       // v11.6: pro log (kolik vzal štít)
+if (v > 0) d.foc[i] = Math.min(100, d.foc[i] + 8);
+const h = d.c[i];
+if (d.hp[i] <= 0 && h.revive && !d.rev[i]) { d.rev[i] = true; if (d.R() < h.revive) { d.hp[i] = Math.round(d.max[i] * PVP.revive); dEv(d, "revive", { who: i, val: d.hp[i] }); } }
+return v;
+}
+function dHit(d, a, b, mult, o) {
+o = o || {};
+const A = d.c[a], B = d.c[b];
+let m = mult * (d.chan[a] || 1) * (d.mark[a] ? 1 + (A.mark || 0) : 1) * (d.vuln[b] ? 1.5 : 1) * ((d.pv && d.pv[a]) || 1) * (d.S ? sMul(d.S[a], A) : 1);
+if (d.turn > 12) m *= 1 + 0.15 * (d.turn - 12);                       // v11.7: NÁHLÁ SMRT - od 13. kola +15 % damage každé kolo (žádné nekonečné tankování)
+d.vuln[b] = false;
+const sure = d.sure[a]; if (sure) d.sure[a] = false;
+if (d.S && d.S[b].deb.erad > 0) m *= 1.12;
+const r = rawHit(d.R, A, Object.assign({}, B, { armorRed: o.ignoreArmor ? 0 : d.armor[b] }), { mult: m, crit: sure || o.crit ? true : undefined, critMul: o.critMul, critAdd: (o.critAdd || 0) + (d.S && d.S[a].buf.enrage > 0 && tf(A, "enrCrit") ? 0.1 : 0) });
+return r;
+}
+/** v11.1: válce v duelu z předem daných čísel (server je losuje za každé půlkolo) - klient i server dostanou stejný výsledek */
+function duelReels(h, rolls, hold, re) {
+let k = 0; const f = { h: h, R: () => Number(rolls[k++ % rolls.length]) || 0 };
+const a = spinReels(f); if (!re) return a;
+const b = spinReels(f); return a.map((s, i) => hold && hold[i] ? s : b[i]);
+}
+function okReels(x) { return Array.isArray(x) && x.length === 3 && x.every(s => SYMS.indexOf(s) >= 0) ? x.slice() : null; }
+/** v12: nevyhnutelná rána (mazlíček, DoT) útočníka a na b */
+function dRaw(d, a, b, mult) { const A = d.c[a], B = d.c[b]; let m = mult * ((d.pv && d.pv[a]) || 1); if (d.turn > 12) m *= 1 + 0.15 * (d.turn - 12); return rawHit(d.R, A, Object.assign({}, B, { armorRed: d.armor[b] }), { mult: m, crit: false }).v; }
+function duelX(d, i, j, k, opt, out) {
+const h = d.c[i], S = d.S[i], A = AB[k];
+const X = { S: S, h: h, T: d.S[j], R: d.R, q: A.hv ? hvQ(opt.t || "none") : 1, staFrac: d.sta[i] / 100, hitN: 0, combo: 1, msgs: out.msgs, lands: out.lands,
+tf: () => Math.max(0, d.hp[j]) / d.max[j],
+hit: (m, o) => {
+o = o || {}; X.hitN++;
+if (o.pet) { const v = dHurt(d, j, Math.min(dRaw(d, i, j, m), d.turn > 12 ? 1e15 : d.max[j] * HIT_CAP)); out.pet += v; return; }
+out.hits.push({ m: m * X.combo, o: o });
+if (!o.noClone && S.clones > 0 && S.cloneT > 0) out.hits.push({ m: m * X.combo * S.cloneM * S.clones, o: { clone: 1 } });
+},
+land: fn => out.lands.push(fn),
+gain: n => addRes(S, h, n),
+heal: p => { const hh = Math.round(d.max[i] * p * PVP.heal * (d.wd && d.wd[i] > 0 ? PVP.wound : 1)); d.hp[i] = Math.min(d.max[i], d.hp[i] + hh); out.heal += hh; },
+shield: p => { const sh = Math.round(d.max[i] * p); d.sh[i] += sh; out.msgs.push("+" + sh + " shield"); },
+selfHurt: p => { d.hp[i] = Math.max(1, d.hp[i] - Math.round(d.max[i] * p)); },
+sta: n => { d.sta[i] = clamp(d.sta[i] + n, 0, 100); },
+buff: (b, n, nm) => { S.buf[b] = n; if (nm) out.msgs.push(nm); },
+deb: (b, n, nm) => { if (b === "antiheal") { d.wd[j] = Math.max(d.wd[j] || 0, n); } else d.S[j].deb[b] = n; if (nm) out.msgs.push(nm); },
+dot: (id, m, n, nm) => out.lands.push(() => { const v = dRaw(d, i, j, m * dotMulOf(h)); addDot(d.S[j], id, v, n + (h.set2 === "cyber" && h.cls === "cyber" ? 1 : 0), nm, "o"); out.msgs.push(nm + " " + v + "/round"); }),
+burning: () => d.S[j].dots.length > 0,
+interrupt: () => out.lands.push(() => { d.S[j].deb.mute = 2; out.msgs.push("INTERRUPTED: no big moves next turn"); }),
+skip: () => out.lands.push(() => { d.S[j].deb.skip = 2; out.msgs.push("loses its next move"); }),
+drainFocus: n => out.lands.push(() => { d.foc[j] = Math.max(0, d.foc[j] - n); }),
+cc: () => { S.buf.cc = 1; out.msgs.push("✨ CLEARCASTING"); },
+focus: n => { d.foc[i] = Math.min(100, d.foc[i] + n); },
+petMul: () => petMulOf(S, h)
+};
+return X;
+}
+/** v12: obrana podle třídy (Read-Only, úhyb, Jittery Hands, Versatility, Per My Last Email, Stress z ran) */
+function defMods(d, j, i, v) {
+const S = d.S[j], B = d.c[j];
+if (v <= 0) return v;
+if (S.buf.ro > 0) return 0;
+if (S.buf.evade > 0) { S.buf.evade = 0; return 0; }
+if (S.buf.jit > 0) v *= tf(B, "dampen") ? 0.55 : 0.7;
+if (S.buf.enrage > 0 && tf(B, "enrDR")) v *= 0.9;
+v *= 1 - (B.vers || 0) / 2;
+if (S.buf.karma > 0) { const ref = Math.max(0, Math.min(v * 0.5, d.max[i] * 0.2 - S.kp)); v *= 0.5; if (ref > 0) { S.kp += ref; dHurt(d, i, ref); d.karmaOut = (d.karmaOut || 0) + Math.round(ref); } }
+if (B.cls === "sysadmin") addRes(S, B, v / d.max[j] * 100 * (B.set2 === "sysadmin" ? 1.1 : 1) * (tf(B, "stress2") ? 2 : 1));
+return v;
+}
+/** v12: konec kola v duelu - mazlíčci, DoTy, VLOOKUP, buffy */
+function duelRoundEnd(d) {
+for (let k = 0; k < 2; k++) {
+const o = 1 - k, S = d.S[k], h = d.c[k];
+abRound(S, h, { heal: (p, nm) => { const hh = Math.round(d.max[k] * p * PVP.heal * (d.wd[k] > 0 ? PVP.wound : 1)); d.hp[k] = Math.min(d.max[k], d.hp[k] + hh); dEv(d, "tick", { who: k, val: -hh, msg: nm + " +" + hh + " HP" }); },
+pet: (m, nm) => { if (d.hp[o] <= 0) return; const v = dHurt(d, o, dRaw(d, k, o, m)); dEv(d, "tick", { who: o, by: k, val: v, msg: nm + " hits for " + v }); }, sta: n => { d.sta[k] = Math.min(100, d.sta[k] + n); } });
+}
+for (let k = 0; k < 2; k++) {
+const S = d.S[k], o = 1 - k;
+if (S.dots.length && d.hp[k] > 0) { const t = tickDots(S, d.max[k], () => { if (d.c[o].cls === "cyber" && d.R() < 0.4) addRes(d.S[o], d.c[o], 1); }); if (t.v > 0) { const v = dHurt(d, k, t.v); dEv(d, "tick", { who: k, by: o, val: v, msg: t.names.join(" + ") + " burns for " + v }); } }
+if (S.vl && --S.vl.n <= 0 && d.hp[k] > 0) { const x = S.vl; S.vl = null; const v = dHurt(d, k, Math.min(x.acc * x.x, d.max[k] * HIT_CAP)); if (v > 0) dEv(d, "tick", { who: k, val: v, msg: "📊 VLOOKUP OF DOOM -" + v }); }
+Object.keys(S.deb).forEach(b => { if (--S.deb[b] <= 0) delete S.deb[b]; });
+}
+}
+/** jedno půlkolo: útočník d.atk dá útok a, obránce naslepo reaguje r.
+*  opt (v11.1 - quick time eventy v duelu): { t: HEAVY timing, q: síla ulti 0.7-1.25, reels: válce z gamble mini-hry,
+*        parry: tier obránce při BLOCKu (proti HEAVY / GAMBLE / ULTI), dq: dodge mini-hra obránce } */
+/** jedno půlkolo: útočník d.atk dá útok a, obránce naslepo reaguje r.
+*  opt: { t: HEAVY timing, q: síla ulti, reels/respin: gamble, parry: tier BLOCKu, dq: dodge mini-hra, cq: CHANNEL mini-hra,
+*        rings: [3 tiery] BLOCK proti ulti (3× jako UNLEASH), dqs: [3 tiery] DODGE proti ulti, guess: tip útočníka na reakci (ulti) } */
+function duelHalf(d, a, r, opt) {
+if (d.over) return [];
+opt = opt || {};
+["cd", "bm", "ep", "sa", "nocd"].forEach(k => { if (!d[k]) d[k] = [0, 0]; });
+["gd", "gu"].forEach(k => { if (!d[k]) d[k] = [false, false]; });
+if (!d.wd) d.wd = [0, 0]; if (!d.fort) d.fort = [0, 0];
+const start = d.events.length, i = d.atk, j = 1 - i, A = d.c[i], B = d.c[j], R = d.R;
+if (!d.S) d.S = [newS(d.c[0]), newS(d.c[1])];
+const Si = d.S[i]; let lost = "";
+if (Si.deb.skip > 0) { delete Si.deb.skip; if (a !== "ult") { a = "rest"; lost = "skip"; } }
+else if (Si.deb.mute > 0) { delete Si.deb.mute; if (a === "heavy" || (AB[a] && AB[a].hv)) { a = "strike"; lost = "mute"; } }
+if (!duelAtkOk(d, i, a)) a = "strike";
+if (!duelReactOk(d, j, r)) r = "brace";
+const q = clamp(opt.q == null ? 1 : Number(opt.q) || 0.7, 0.7, 1.25);
+const T3 = (x) => Array.isArray(x) ? [0, 1, 2].map(k => x[k] === "perfect" || x[k] === "good" ? x[k] : "none") : null;
+const rings = T3(opt.rings), dqs = T3(opt.dqs);
+const parry = rings ? rings[0] : opt.parry, dq1 = dqs ? dqs[0] : opt.dq;
+if (a === "gamble" && opt.respin && d.sta[i] >= ATTACKS.gamble.sta + RESPIN_STA) d.sta[i] -= RESPIN_STA;
+if (a === "heavy" && !(d.nocd[i] > 0)) d.sta[i] -= 30; if (a === "gamble") d.sta[i] -= 20;
+d.cd[i] = a === "heavy" && !(d.nocd[i] > 0) ? 1 : 0;
+if (d.nocd[i] > 0) d.nocd[i]--;
+const sure = d.sa[i] > 0 && a !== "rest"; if (sure) d.sa[i]--;
+if (r === "block") d.sta[j] -= B.blockCost; if (r === "dodge") d.sta[j] -= B.dodgeCost; if (r === "channel") d.sta[j] -= REACTS.channel.sta;
+if (r === "brace") { d.sta[j] = Math.min(100, d.sta[j] + 15); d.foc[j] = Math.min(100, d.foc[j] + 10); }
+d.streak[j] = r === "dodge" ? d.streak[j] + 1 : 0;
+let hits = [], label = ATTACKS[a].name, ignoreArmor = false, critMul = 1, critAdd = 0, forceCrit = sure, gres = null, healSelf = 0, timing = "", ablOut = null;
+const combo = A.cls === "blood" && Si.last && Si.last !== a ? 1.08 + (A.mast || 0) + (tf(A, "hc") ? 0.04 : 0) : 1;
+const flip = () => { if (Si.buf.flip > 0) { Si.buf.flip--; hits.push(0.3); } };
+if (a === "strike") { hits = A.double ? [0.6 * combo, 0.6 * combo] : [combo]; d.sta[i] = Math.min(100, d.sta[i] + 10); flip(); if (A.cls === "sysadmin") addRes(Si, A, 15); else if (A.cls === "blood") addRes(Si, A, 1); }
+else if (a === "rest") { d.sta[i] = Math.min(100, d.sta[i] + 30); d.foc[i] = Math.min(100, d.foc[i] + 15); if (Si.dots.length) Si.dots.shift(); else if (d.wd[i] > 0) d.wd[i] = 0; }
+else if (a === "heavy") { const m = (opt.t === "perfect" ? 2.2 : opt.t === "none" ? 1.3 : 1.7) * combo; timing = opt.t === "perfect" ? "PERFECT" : opt.t === "none" ? "MISS" : "GOOD"; hits = A.double ? [0.6 * m, 0.6 * m] : [m]; flip(); }
+else if (AB[a]) {
+ablOut = { hits: [], lands: [], msgs: [], heal: 0, pet: 0 };
+abUse(duelX(d, i, j, a, opt, ablOut), a); hits = ablOut.hits; label = AB[a].n.toUpperCase();
+if (AB[a].hv) timing = opt.t === "perfect" ? "PERFECT" : opt.t === "none" ? "MISS" : "GOOD";
+}
+else if (a === "gamble") {
+const reels = okReels(opt.reels) || spinReels({ h: A, R: R });
+gres = reelResult(reels); gres.reels = reels;
+if (gres.bf) { const s = dHurt(d, i, estDmg(A, A.level) * gres.self); dEv(d, "bf", { val: s, reels: reels }); hits = []; }
+else { hits = gres.mult > 0 ? [gres.mult] : []; if (gres.heal) healSelf = Math.round(d.max[i] * gres.heal); d.foc[i] = Math.min(100, d.foc[i] + gres.foc); if (gres.jp) forceCrit = true; critAdd = gres.critAdd || 0; }
+} else if (a === "ult") {
+d.foc[i] = 0;
+const uk = ultK(q), all = opt.all == null ? uk >= 0.9 : !!opt.all;
+if (A.cls === "sysadmin") { const n = 3 + Math.round(6 * uk); for (let x = 0; x < n; x++) hits.push(0.15); if (all) hits.push(0.45, 0.45, 0.45, 0.45); if (n >= 6) Si.buf.enrage = 3 + (tf(A, "enrLong") ? 1 : 0); addRes(Si, A, 40); }
+else if (A.cls === "engineer") { const c = Math.round(4 * uk); hits = [1.0]; critMul = 2; ablOut = { hits: [], lands: [() => { d.S[j].vl = { n: 2, acc: 0, x: 1 + 0.25 * c }; }], msgs: ["VLOOKUP ×" + (1 + 0.25 * c).toFixed(2)], heal: 0, pet: 0 }; if (c >= 4 || all) Si.r = 4; }
+else if (A.cls === "cyber") { hits = [0.6]; Si.intern = 1 + Math.round(3 * uk); ablOut = { hits: [], lands: all ? [() => addDot(d.S[j], "toxic", dRaw(d, i, j, 0.3 * dotMulOf(A)), 4, "Toxic Feedback", "o")] : [], msgs: ["intern " + Si.intern + " rounds"], heal: 0, pet: 0 }; }
+else if (A.cls === "blood") { hits = [1.2]; Si.clones = Math.max(1, Math.round(3 * uk)) + (tf(A, "xuen1") ? 1 : 0); Si.cloneT = 3 + (tf(A, "xuen") ? 1 : 0); Si.cloneM = all ? 0.45 : 0.35; if (all) addRes(Si, A, 2); }
+else { hits = [0.6, 0.6]; Si.cats = Math.max(1, Math.round(3 * uk)) + (tf(A, "stomp") ? 1 : 0); Si.catT = 2; ablOut = { hits: [], lands: [], msgs: [Si.cats + " cat" + (Si.cats > 1 ? "s" : "")], heal: 0, pet: all ? dHurt(d, j, dRaw(d, i, j, 1.1 * petMulOf(Si, A))) : 0 }; }
+}
+const small = a === "strike" || (AB[a] && !AB[a].hv);
+const magic = A.cls === "engineer", big = !small, ult3 = a === "ult";
+let total = 0, anyCrit = false, outcome = a === "rest" ? "rest" : "hit", saved = 0, counter = 0, scale = 1, hv = [], dodged = 0, manaOut = 0, manaIn = 0, cvD = 0, riposte = 0;
+if (!d.mana) d.mana = [0, 0];
+if (hits.length) {
+if (r === "dodge") {
+const base = d.dodge[j] * (magic ? 0.5 : 1) * Math.pow(0.8, d.streak[j] - 1);          // v11.4: proti Mágovi poloviční šance (dřív 0)
+const chOf = (x) => Math.min(0.95, Math.max(0, base * (x === "perfect" ? 1.6 : x === "good" ? 1.15 : x === "none" ? 0.4 : 1)));
+if (ult3 && dqs) {                                                // v11.2: proti ULTI 3 uskoky - každý úspěšný vezme třetinu
+dodged = dqs.filter(x => R() < chOf(x)).length; scale = 1 - dodged / 3;
+if (dodged === 3) { outcome = "dodge"; hits = []; } else outcome = dodged ? "partdodge" : "dodgefail";
+} else if (dq1 === "perfect" || R() < chOf(dq1)) outcome = "dodge", hits = [];   // v11.7: PERFECT dodge = jistý (i proti Mágovi)
+else outcome = "dodgefail";
+if (outcome === "dodge") { d.foc[j] = Math.min(100, d.foc[j] + 5); if (B.cls === "cyber") d.sure[j] = true;
+if (dq1 === "perfect" && !(ult3 && dqs && dqs.some(x => x !== "perfect"))) { const rp = dHit(d, j, i, 0.5, {}); riposte = dHurt(d, i, rp.v); d.sta[j] = Math.min(100, d.sta[j] + 10); } }
+}
+let red = 0;
+if (r === "channel") { cvD = chanVal(opt); red = 0.1 + 0.25 * cvD; d.chan[j] = 1.2; outcome = "channel"; }
+if (r === "block") {
+const bk = B.block * ((PVP.blk || {})[B.cls] || 1) * (small ? 1 : 0.5), tierRed = (x) => x === "perfect" ? 0.75 : x === "good" ? Math.min(0.7, bk + 0.3) : bk;
+if (ult3 && rings) red = rings.reduce((s2, x) => s2 + tierRed(x), 0) / 3;
+else red = big ? tierRed(parry) : bk;
+const full = big && (ult3 && rings ? rings.every(x => x === "perfect") : parry === "perfect");
+if (magic) red *= 0.5;                                            // v11.2: proti Mágovi blok funguje jen z poloviny
+outcome = full ? "parry" : "block";
+if (full) d.fort[j] = 1;                                // proti Mágovi perfect parry vezme jen polovinu, ale protiútok dá
+}
+hits.forEach(hx => {
+const m = typeof hx === "number" ? hx : hx.m, ho = typeof hx === "number" ? {} : hx.o || {};
+const h0 = dHit(d, i, j, m, { ignoreArmor: ignoreArmor, critMul: critMul, critAdd: critAdd, crit: forceCrit || ho.crit || undefined });
+if (d.mana[i] > 0) { const mx = Math.round(d.max[j] * 0.03); h0.v += d.mana[i] + mx; manaOut = d.mana[i] + mx; d.mana[i] = 0; }
+if (d.turn > 12 && !hv.length) h0.v += Math.round(d.max[j] * 0.02 * (d.turn - 12));
+let v = h0.v * scale * (1 - (ho.noBlock ? 0 : red)) * (d.fort[j] > 0 ? 0.8 : 1);
+if (d.gd[j] && v > 0) { d.gd[j] = false; v *= 0.5; }
+v = defMods(d, j, i, v);
+if (d.turn <= 12) v = Math.min(v, d.max[j] * HIT_CAP);
+saved += h0.v - v; const got = dHurt(d, j, v); total += got; hv.push(got); if (h0.crit) anyCrit = true;
+});
+if (hits.length) d.chan[i] = 0;
+if (r === "channel" && saved > 0) { manaIn = Math.round(saved * (0.5 + 0.5 * cvD)); d.mana[j] += manaIn; }
+if (r === "block" && hits.length && ((small && B.counter) || outcome === "parry")) { const c0 = dHit(d, j, i, (outcome === "parry" ? (B.counter ? 1 : 0.6) : B.counter) * (PVP.ctr || 1), {}); counter = dHurt(d, i, c0.v); }
+if (A.lifesteal && total) healSelf += Math.round(total * A.lifesteal);
+if (d.bm[i] > 0 && total > 0) { d.bm[i]--; const bh = Math.min(Math.round(d.max[i] * 0.08), Math.round(total * 0.25)); healSelf += bh; dEv(d, "bm", { val: bh, left: d.bm[i] }); }
+if (A.mark) d.mark[i] = true;
+}
+let healRaw = healSelf;
+if (healSelf) { healSelf = Math.round(healSelf * (A.cls === "blood" ? 0.85 : PVP.heal * (d.wd[i] > 0 ? PVP.wound : 1)));   /* v11.8: Caffeine Abuser ignoruje Wound a léčí se v PvP jen o 15 % méně */ d.hp[i] = Math.min(d.max[i], d.hp[i] + healSelf); }   // v11.6: v PvP léčení -35 %, 🩸 Wound dalších -50 %
+let wound = "";
+if (outcome === "parry" && B.cls === "sysadmin") { d.wd[i] = 2; wound = "parry"; }
+if (a === "heavy" && timing === "PERFECT" && A.cls === "sysadmin" && total > 0) { d.wd[j] = 2; wound = "heavy"; }
+if (ablOut) { if (outcome !== "dodge") ablOut.lands.forEach(fn => fn()); total += ablOut.pet; }
+Si.last = a;
+const absorbed = d.absorbed || 0; d.absorbed = 0;
+dEv(d, outcome === "dodge" ? "dodge" : a === "rest" ? "rest" : "hit", { a: a, r: r, val: total, fx: ablOut && ablOut.msgs.length ? ablOut.msgs.join(" · ") : undefined, karma: d.karmaOut || undefined, abHeal: ablOut && ablOut.heal ? ablOut.heal : undefined, lost: lost || undefined, crit: anyCrit, outcome: outcome, saved: Math.round(saved), counter: counter, heal: healSelf, reels: gres && gres.reels, jp: gres && gres.jp, label: label, mult: gres ? gres.mult : null, timing: timing, q: a === "ult" ? q : undefined, hv: hv.length > 1 ? hv : undefined, mana: manaIn || undefined, manaOut: manaOut || undefined, dodged: ult3 && r === "dodge" ? dodged : undefined, rings: ult3 && r === "block" ? rings : undefined, shield: absorbed || undefined, wound: wound || undefined, riposte: riposte || undefined, healCut: healRaw > healSelf ? healRaw - healSelf : undefined, cv: r === "channel" ? Math.round(cvD * 100) / 100 : undefined, parry: r === "block" && !rings ? parry : undefined });
+d.karmaOut = 0;
+if (a === "ult" && opt.guess) {                                       // v11.6: u každé ulti; první trefa plný efekt, další poloviční
+const ok = opt.guess === r, k = d.gu[i] ? 0.5 : 1;
+if (ok) {
+d.gu[i] = true;
+if (A.cls === "engineer") d.bm[i] = Math.max(d.bm[i], Math.round(3 * k));
+else if (A.cls === "sysadmin") { d.sh[i] += Math.round(d.max[i] * 0.2 * k); d.gd[i] = true; }
+else if (A.cls === "cyber") d.ep[j] = Math.max(d.ep[j], Math.round(3 * k));
+else if (A.cls === "hunter") d.sa[i] = Math.max(d.sa[i], Math.round(2 * k));
+else { d.nocd[i] = Math.max(d.nocd[i], Math.max(1, Math.round(2 * k))); d.cd[i] = 0; }
+}
+dEv(d, "guess", { ok: ok, g: opt.guess, real: r, fx: ok ? GUESS_FX[A.cls].n + (k < 1 ? " (half)" : "") : "" });
+}
+if (d.hp[j] <= 0 || d.hp[i] <= 0) return duelEnd(d, d.hp[j] <= 0 && d.hp[i] > 0 ? i : d.hp[i] <= 0 && d.hp[j] > 0 ? j : (d.hp[i] >= d.hp[j] ? i : j), start);
+d.half++;
+if (d.half % 2 === 0) {
+for (let k = 0; k < 2; k++) { d.foc[k] = Math.min(100, d.foc[k] + 10); if (d.wd[k] > 0) d.wd[k]--; if (d.fort[k] > 0) d.fort[k]--; }      // v11.1: stamina se sama nedoplňuje
+for (let k = 0; k < 2; k++) if (d.ep[k] > 0 && d.hp[k] > 0) { d.ep[k]--; const pv = dHurt(d, k, d.max[k] * 0.04); dEv(d, "poison", { who: k, val: pv }); }
+duelRoundEnd(d);
+d.turn++;
+if (d.hp[0] <= 0 || d.hp[1] <= 0) return duelEnd(d, d.hp[0] > 0 ? 0 : d.hp[1] > 0 ? 1 : (d.hp[0] >= d.hp[1] ? 0 : 1), start);
+}
+d.atk = j;
+if (d.turn > 30) return duelEnd(d, d.hp[0] / d.max[0] >= d.hp[1] / d.max[1] ? 0 : 1, start, "time");
+return d.events.slice(start);
+}
+function duelEnd(d, w, start, why) { d.over = true; d.win = w; d.hp = d.hp.map(x => Math.max(0, x)); dEv(d, "end", { win: w, why: why || "ko" }); return d.events.slice(start); }
+/** AI v duelu: útočí podle stavu, reaguje naslepo (neví, co soupeř zvolí) */
+function duelAiAtk(d, i, R, style) {
+if (duelAtkOk(d, i, "ult")) return "ult";
+const st = d.sta[i], h = d.c[i], reserve = h.block > 0 ? h.blockCost : h.dodge > 0 ? h.dodgeCost : 20, j = 1 - i;
+if (d.S && h.bar && h.bar.length) {
+const ab = aiAb(d.S[i], h, st - reserve * 0.5, d.hp[j] / d.max[j], d.hp[i] / d.max[i], R, { big: d.foc[j] >= 100 });
+if (ab && duelAtkOk(d, i, ab)) return ab;
+}
+if (st < 30 + reserve * 0.5 && R() < 0.5) return "rest";
+if (style === "allin" && st >= 20 && R() < 0.35) return "gamble";
+if (duelAtkOk(d, i, "heavy") && st - 30 >= reserve && (st >= 65 || R() < 0.45)) return "heavy";
+if (style !== "safe" && st - 20 >= reserve + 10 && R() < 0.12) return "gamble";
+return "strike";
+}
+function duelAiReact(d, j, R, style) {
+const h = d.c[j], opp = d.c[1 - j], heavyLikely = (d.sta[1 - j] >= 65 && !(d.cd && d.cd[1 - j] > 0)) || d.foc[1 - j] >= 100;
+if (h.cls === "sysadmin") return duelReactOk(d, j, "block") && d.sta[j] >= h.blockCost + 10 ? "block" : "brace";
+if (h.dodge > 0 && duelReactOk(d, j, "dodge") && (heavyLikely || d.sta[j] >= 55)) return "dodge";
+if (h.cls === "blood" && duelReactOk(d, j, "block") && d.sta[j] >= 60) return "block";
+if (h.canChannel && duelReactOk(d, j, "channel") && d.sta[j] >= 45) return "channel";
+return "brace";
+}
+function duelAI(A, B, seed, sa, sb) {
+const d = duelNew(A, B, seed), R = rng((seed || 1) * 13 + 5), st = [sa || "normal", sb || "normal"];
+let g = 0;
+while (!d.over && g++ < 200) {
+const i = d.atk, j = 1 - i;
+const a = duelAiAtk(d, i, R, st[i]), r = duelAiReact(d, j, R, st[j]), rs = reactsOf(d.c[j]);
+duelHalf(d, a, r, { t: R() < 0.25 ? "perfect" : "good", parry: parryRoll(R), dq: dodgeRoll(R), cv: Math.min(1, Math.max(0, 0.45 + (R() + R() - 1) * 0.35)), rings: [parryRoll(R), parryRoll(R), parryRoll(R)], dqs: [dodgeRoll(R), dodgeRoll(R), dodgeRoll(R)], guess: rs[Math.floor(R() * rs.length)] });
+}
+return { win: d.win === 0, first: d.first, events: d.events, max: d.max, turns: d.turn };
+}
+const api = { rng: rng, CLASSES: CLASSES, CLASS_IDS: CLASS_IDS, ATTACKS: ATTACKS, REACTS: REACTS, ACTIONS: ACTIONS, ITEMS: ITEMS, MAX_ITEMS_PER_FIGHT: MAX_ITEMS_PER_FIGHT,
+statPoints: statPoints, typical: typical, buildHero: buildHero, buildEnemy: buildEnemy, estDmg: estDmg, critOf: critOf, rawHit: rawHit, ARCH: ARCH, KIND: KIND,
+newFight: newFight, attack: attack, react: react, step: step, allowed: allowed, allowedAtk: allowedAtk, allowedReact: allowedReact, hasReact: hasReact, reactsOf: reactsOf, isDmgIntent: isDmgIntent, useItem: useItem,
+stars: stars, starMask: starMask, starCount: starCount, QUICK_WIN: QUICK_WIN, bonusDone: bonusDone, bonusText: bonusText, FORM_NO: FORM_NO,
+simulate: simulate, autoAttack: autoAttack, autoReact: autoReact, autoPolicy: autoAttack, autoOpt: autoOpt, PARRY_SKILL: PARRY_SKILL, ULT_SKILL: ULT_SKILL, timingRoll: timingRoll,
+reelResult: reelResult, gambleRoll: gambleRoll, gambleRespin: gambleRespin, canRespin: canRespin, autoHold: autoHold, RESPIN_STA: RESPIN_STA, SYM: SYM,
+AB: AB, PVE: PVE, RES: RES, TAL: TAL, TAL_LV: TAL_LV, LEG: LEG, talOf: talOf, okTal: okTal, MASTERY: MASTERY, SETS: SETS, spellbook: spellbook, unlockedAb: unlockedAb, okBar: okBar, atkKeys: atkKeys, abReady: abReady, abSta: abSta, kitOf: kitOf, HIT_CAP: HIT_CAP, DOT_CAP: DOT_CAP,
+chanVal: chanVal, GUESS_FX: GUESS_FX, GUESS_PVE: GUESS_PVE, guessCat: guessCat, card: card, fromCard: fromCard, PVP: PVP, ATK_KEYS: ATK_KEYS, ECLS: ECLS, dodgeRoll: dodgeRoll, okReels: okReels, duelReels: duelReels, stdHero: stdHero, okAlloc: okAlloc, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
+if (typeof module !== "undefined" && module.exports) module.exports = api;
+else root.HSEngine = api;
+})(typeof window !== "undefined" ? window : this);
+</script>
+<script>(function () { var p = document.querySelectorAll('script[data-tt="tt_hsengine_1"]'), a = []; for (var i = 0; i < p.length; i++) a[Number(p[i].getAttribute("data-i")) - 1] = p[i].textContent; var s = document.createElement("script"); s.textContent = a.join("\n"); document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling); })();</script>
+<script>(window.__TT_FILES = window.__TT_FILES || {})["hsengine3"] = 1;</script>
+<!-- END-OF-FILE: hsengine3 -->

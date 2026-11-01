@@ -262,7 +262,7 @@ var PHRASES = [
 ["high stakes", "High Stakes"], ["office royale", "Office Royale"], ["idle royale", "Idle Royale"], ["casino royale", "Casino Royale"], ["hall of fame", "Hall of Fame"],
 ["the office plant", "the Office Plant"], ["office plant", "Office Plant"], ["clear the pool", "Clear the Pool"], ["server tower", "Server Tower"],
 ["quarterly review", "Quarterly Review"], ["on-call shift", "On-Call Shift"], ["the administrator", "the Administrator"], ["google coins", "Google Coins"],
-["slot token", "Slot Token"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
+["overtime hour", "Overtime Hour"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
 ["big massi", "Big Massi"], ["da polishen", "Da Polishen"], ["italian guy", "Italian Guy"], ["supreme louis", "Supreme Louis"], ["the cobol", "The Cobol"],
 ["company chest", "Company Chest"], ["upgrade station", "Upgrade Station"], ["merge station", "Merge Station"], ["corporate climb", "Corporate Climb"]
 ];

@@ -267,7 +267,7 @@ const SECS = {
 basic: { icon: "🎰", name: "BASIC CASINO", games: [["roulette", "🎰 ROULETTE", "c"], ["slots", "🍒 SLOTS", "c"], ["blackjack", "♠ BLACKJACK", "c"]] },
 adv: { icon: "⚡", name: "ADVANCED", games: [["mega", "💰 MEGA 5×5", "c"], ["crash", "🚀 CRASH", "c"], ["chicken", "🐔 CHICKEN", "a"], ["pachinko", "⚪ PACHINKO", "a"], ["mines", "🐞 MINES", "a"]] },
 special: { icon: "👥", name: "SPECIAL", games: [["showdown", "⚔ SHOWDOWN", "a"], ["climb", "🧗 CLIMB", "a"], ["prsi", "♣ PRŠÍ", "a"], ["checkers", "⛀ CHECKERS", "a"]] },
-money: { icon: "📈", name: "LOTTERY & STOCKS", games: [["lotto", "🎟 LOTTERY", "a"], ["stocks", "📈 STOCKS", "a"]] }
+money: { icon: "📈", name: "LOTTERY & STOCKS", games: [["lotto", "⏱ LOTTERY", "a"], ["stocks", "📈 STOCKS", "a"]] }
 };
 const ALL = []; Object.keys(SECS).forEach(s => SECS[s].games.forEach(g => ALL.push({ id: g[0], label: g[1], kind: g[2], sec: s })));
 const viewOf = (g) => $(g.kind === "c" ? "view-" + g.id : "adv-view-" + g.id);
@@ -405,7 +405,7 @@ const sig = [sel, it ? it.tier + "_" + (it.lvl || 0) + "_" + e : "-", choice, gu
 SLOTS.map(s => g.loadout[s] ? g.loadout[s].tier + enhOf(g.loadout[s]) : "-").join(",")].join("|");
 if (!force && sig === lastSig) return;
 lastSig = sig;
-const tk = $("fg-tokens"); if (tk) tk.textContent = "🎟 " + g.slotTokens + " TOKEN" + (g.slotTokens === 1 ? "" : "S");
+const tk = $("fg-tokens"); if (tk) tk.textContent = "⏱ " + g.slotTokens + " OVERTIME HOUR" + (g.slotTokens === 1 ? "" : "S");
 const slots = SLOTS.map(s => { const x = g.loadout[s];
 return `<button class="btn ${s === sel ? "sel" : ""}" onclick="Forge.slot('${s}')" ${x ? "" : "disabled"}>${SLOT_ICONS[s]} ${s}${x && enhOf(x) ? " ⚒" + enhOf(x).length : ""}</button>`; }).join("");
 let html = `<div class="fg-slots">${slots}</div>`;
@@ -423,17 +423,17 @@ else {
 html += `<div class="fg-choice">${Object.keys(CH).map(k => `<button class="btn ${k === choice ? "sel" : ""}" onclick="Forge.pick('${k}')">${CH[k][0]} ${CH[k][1]}<br><small>${CH[k][2]}</small></button>`).join("")}</div>`;
 const risk = ch >= 100 ? "always succeeds" : t >= 11 ? `fail = GC lost <b style="color:var(--crimson);">and the item drops to ⚒${E - 1 < 0 ? 0 : E - 1}</b>` : "fail = only the GC is lost";
 html += `<div class="fg-info">Every stage: +8% all stats + your bonus. Cost <b>${short(c)} GC</b> · chance <b>${guarantee ? 100 : ch}%</b> · ${guarantee ? "guaranteed" : risk}</div>`;
-if (ch < 100) html += `<label class="fg-opt"><input type="checkbox" ${guarantee ? "checked" : ""} onchange="Forge.opt('g',this.checked)"> ✅ Guarantee success (2 🎟)</label>`;
-if (t >= 11 && !guarantee) html += `<label class="fg-opt"><input type="checkbox" ${protect ? "checked" : ""} onchange="Forge.opt('p',this.checked)"> 🛡 Protect from the drop (1 🎟, only spent if it fails)</label>`;
+if (ch < 100) html += `<label class="fg-opt"><input type="checkbox" ${guarantee ? "checked" : ""} onchange="Forge.opt('g',this.checked)"> ✅ Guarantee success (2 ⏱)</label>`;
+if (t >= 11 && !guarantee) html += `<label class="fg-opt"><input type="checkbox" ${protect ? "checked" : ""} onchange="Forge.opt('p',this.checked)"> 🛡 Protect from the drop (1 ⏱, only spent if it fails)</label>`;
 const can = g.coins >= c && (!guarantee || g.slotTokens >= 2);
-html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} data-hold="forge-go" onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 🎟" : ""})</button>`;
+html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} data-hold="forge-go" onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 ⏱" : ""})</button>`;
 }
 }
 html += `<div class="fg-msg" style="color:${msg.c || "var(--text-dim)"};">${msg.t}</div>`;
-html += `<div class="fg-tok"><span>🎟 Slot Token: <b style="color:var(--amber);">${short(tp)} GC</b></span>
+html += `<div class="fg-tok"><span>⏱ Overtime Hour: <b style="color:var(--amber);">${short(tp)} GC</b></span>
 <button class="btn btn-cyan" ${g.coins >= tp ? "" : "disabled"} data-hold="forge-buy1" onclick="Forge.buy(1)">BUY 1</button>
 <button class="btn btn-cyan" ${g.coins >= tp * 5 ? "" : "disabled"} onclick="Forge.buy(5)">BUY 5</button>
-<span style="color:var(--text-dim);font-size:10px;width:100%;">Price +30% per token, resets on prestige. Tokens also give +1 merge level (USE SLOT TOKEN) or HIGH STAKES energy.</span></div>`;
+<span style="color:var(--text-dim);font-size:10px;width:100%;">Price +30% per Overtime Hour, resets on prestige. Overtime Hours also pay for HIGH STAKES energy, dungeon keys and upgrade guarantees.</span></div>`;
 body.innerHTML = html;
 }
 function say(t, c) { msg = { t: t, c: c }; render(true); }
@@ -458,8 +458,8 @@ log(`⚒ UPGRADE: ${name} → ⚒${t} (${CH[choice][2]}) for ${short(c)} GC.`, t
 if (t >= 13) TT.announce("UPGRADED TO +" + t, name, c, 0);
 } else if (t >= 11 && protect && g.slotTokens >= 1) {
 g.slotTokens -= 1;
-say(`✖ FAILED - 🛡 token saved ${name} at ⚒${E}`, "var(--amber)");
-log(`⚒ UPGRADE FAILED on ${name} ⚒${t}, protected by a token.`, "warning");
+say(`✖ FAILED - 🛡 an Overtime Hour saved ${name} at ⚒${E}`, "var(--amber)");
+log(`⚒ UPGRADE FAILED on ${name} ⚒${t}, protected by an Overtime Hour.`, "warning");
 } else if (t >= 11) {
 it.e = e.slice(0, -1);
 if (!it.e) delete it.e;
@@ -479,8 +479,8 @@ if (g.coins < p) break;
 g.coins -= p; paid += p; g.slotTokens += 1; g.tokBuy = (g.tokBuy || 0) + 1; got++;
 }
 if (!got) { say("Not enough GC.", "var(--crimson)"); return; }
-say(`🎟 +${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC`, "var(--amber)");
-log(`🎟 Bought ${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC (you have ${g.slotTokens}).`, "success");
+say(`⏱ +${got} Overtime Hour${got > 1 ? "s" : ""} for ${short(paid)} GC`, "var(--amber)");
+log(`⏱ Bought ${got} Overtime Hour${got > 1 ? "s" : ""} for ${short(paid)} GC (you have ${g.slotTokens}).`, "success");
 updateUI(); TT.saveSoon();
 }
 window.Forge = {

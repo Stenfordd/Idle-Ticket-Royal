@@ -38,6 +38,7 @@
 .qte-lane.danger { border-color: #ff1744; background: linear-gradient(180deg, rgba(255,23,68,.45), rgba(255,23,68,.08)); }
 .qte-lane.danger::before { content: "⚔"; position: absolute; top: 18px; font-size: 34px; animation: qteSlash .35s ease-in infinite alternate; }
 .qte-lane.me { border-color: var(--cyan); }
+.qte-lane .qte-imp { position: absolute; left: 0; right: 0; top: 0; height: 0; background: linear-gradient(180deg, rgba(255,23,68,.65), rgba(255,23,68,.2)); pointer-events: none; }
 @keyframes qteSlash { from { transform: translateY(-6px) rotate(-12deg); } to { transform: translateY(10px) rotate(12deg); } }
 /* v11.2: CHANNEL, tip u ulti, animace ulti */
 .hs-parry.chan .ring { border-color: #c084fc; box-shadow: 0 0 12px #c084fc; }

@@ -8,6 +8,30 @@ html.m #dg-screen { height: var(--app-h, 100%); }
 .dg-keys { font: 700 11px 'Orbitron', monospace; color: var(--amber); white-space: nowrap; }
 .dg-tabs { flex: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px; }
 .dg-tabs button { flex: 1 1 96px; min-width: 0; }
+.dg-main { flex: 1 1 auto; min-height: 0; display: flex; position: relative; }
+/* v12: OFFICE DOCK - kancelář vedle boje (ticket, scrap, bedna, inventář, merge) */
+.dg-dock { flex: none; width: 236px; overflow-y: auto; padding: 10px; border-right: 1px solid var(--border-subtle); background: rgba(8,10,16,.72); display: flex; flex-direction: column; gap: 8px; }
+.dg-dock.mini { display: none; }
+.dg-dock-tab { display: none; position: absolute; left: 0; top: 10px; z-index: 5; padding: 8px 6px; border-radius: 0 8px 8px 0; border: 1px solid var(--border-subtle); border-left: 0; background: var(--bg-panel); cursor: pointer; }
+.dg-dock.mini + .dg-dock-tab { display: block; }
+.dg-dock-m { display: none; padding: 3px 8px !important; }
+.dk-h { display: flex; justify-content: space-between; align-items: center; font: 800 11px 'Orbitron', monospace; letter-spacing: 1px; color: var(--cyan); }
+.dk-h .btn { padding: 2px 8px; font-size: 11px; }
+.dk-ticket { width: 100%; padding: 14px 6px; border-radius: 10px; border: 1px solid #ff5a6e; background: #2a1219; color: #ffd6db; font: 800 13px 'Orbitron', monospace; letter-spacing: 1px; box-shadow: 0 0 16px rgba(255,90,110,.3), inset 0 0 14px rgba(255,90,110,.12); cursor: pointer; transition: transform .06s; }
+.dk-ticket:active { transform: scale(.97); }
+.dk-ticket small { display: block; font: 400 10px sans-serif; color: #ff9aa6; margin-top: 3px; }
+.dk-res { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; color: var(--text-dim); }
+.dk-res b { color: var(--text-main); font-family: 'Orbitron', monospace; font-size: 11px; }
+.dk-row { display: flex; gap: 4px; } .dk-row .btn { flex: 1; padding: 6px 2px; font-size: 10.5px; } .dk-row .btn small { display: block; font-size: 9px; opacity: .75; }
+.dk-inv { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.dk-it { aspect-ratio: 1; min-width: 0; padding: 0; border-radius: 6px; background: #0f1218; border: 1px solid var(--rc); box-shadow: 0 0 6px color-mix(in srgb, var(--rc) 40%, transparent); color: var(--rc); font-size: 13px; position: relative; cursor: pointer; }
+.dk-it small { position: absolute; bottom: 0; right: 2px; font-size: 8px; color: #e2e8f0; }
+.dk-it i { position: absolute; top: 0; left: 2px; font-size: 8px; font-style: normal; color: #e2e8f0; }
+@media (max-width: 760px) {
+.dg-dock { position: absolute; left: 0; top: 0; bottom: 0; z-index: 20; width: min(270px, 82vw); box-shadow: 8px 0 30px rgba(0,0,0,.6); background: #0a0d14; }
+.dg-dock.mini + .dg-dock-tab { display: none; }
+.dg-dock-m { display: inline-block; }
+}
 .dg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
 .dg-inner { max-width: 980px; margin: 0 auto; }
 .dg-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
@@ -91,9 +115,10 @@ html.m #dg-open-btn { display: none; }
 <h1><span class="dg-hic">🎰 </span>HIGH STAKES</h1>
 <button class="btn btn-cyan" id="dg-tokbtn" style="display:none;padding:3px 8px;font-size:10px;" onclick="Dungeon.tokenEnergy()"></button>
 <span class="dg-keys" id="dg-keys">⚡ -</span>
+<button class="btn dg-dock-m" onclick="Dungeon.dock()" title="Office">🗄</button>
 </div>
 <div class="dg-tabs" id="dg-tabs"></div>
-<div class="dg-body"><div class="dg-inner" id="dg-inner"></div></div>
+<div class="dg-main"><aside class="dg-dock" id="dg-dock"></aside><button class="dg-dock-tab" id="dg-dock-tab" onclick="Dungeon.dock()" title="Office">🏢</button><div class="dg-body"><div class="dg-inner" id="dg-inner"></div></div></div>
 </div>
 <style>
 /* ===== HIGH STAKES (akční souboj) - doplňky k dg-* stylům ===== */
@@ -170,6 +195,32 @@ html.m #dg-open-btn { display: none; }
 .hs-acts .btn { padding: 9px 2px; font-size: 11px; line-height: 1.2; }
 .hs-acts .btn small { display: block; font-size: 8.5px; opacity: .75; font-family: inherit; letter-spacing: 0; }
 .hs-acts .btn.off { opacity: .32; }
+.hs-acts .btn.ab { border-color: var(--rc, #888); box-shadow: inset 0 -2px 0 var(--rc, #888); position: relative; }
+.hs-acts .btn.ab.ready { box-shadow: inset 0 -2px 0 var(--rc), 0 0 10px color-mix(in srgb, var(--rc) 55%, transparent); }
+.hs-acts .btn.ab::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: conic-gradient(rgba(4,6,12,.72) calc(var(--cd, 0) * 360deg), transparent 0); }
+.hs-acts .btn .hs-key { position: absolute; top: 2px; left: 4px; font-size: 8px; opacity: .55; }
+.hs-bar .res { height: 100%; transition: width .3s; }
+.hs-abs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.hs-ab { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: var(--bg-panel-elevated); border: 1px solid rgba(255,255,255,.06); }
+.hs-ab.on { border-color: var(--amber); }
+.hs-ab.lock { opacity: .45; }
+.hs-ab-i { font-size: 20px; width: 26px; text-align: center; }
+.hs-ab-t { flex: 1; min-width: 0; font-size: 12px; line-height: 1.3; }
+.hs-ab-t span { display: block; font-size: 10px; color: var(--amber); }
+.hs-ab-t small { display: block; font-size: 10px; color: var(--text-dim); }
+.hs-ab .btn { padding: 4px 8px; font-size: 11px; }
+.hs-trs { display: flex; flex-direction: column; gap: 5px; }
+.hs-tr { display: grid; grid-template-columns: 46px repeat(3, minmax(0, 1fr)); gap: 5px; align-items: stretch; }
+.hs-tr.lock { opacity: .4; }
+.hs-tlv { font: 800 10px 'Orbitron', monospace; color: var(--text-dim); display: flex; align-items: center; }
+.hs-tal { text-align: left; padding: 5px 7px; font-size: 11px; line-height: 1.25; white-space: normal; }
+.hs-tal small { display: block; font-size: 9.5px; color: var(--text-dim); }
+.hs-tal em { display: block; font-size: 9px; color: var(--amber); font-style: normal; }
+.hs-tal.on { border-color: var(--emerald); box-shadow: 0 0 8px rgba(0,255,136,.35) inset; }
+.hs-los { display: flex; gap: 8px; flex-wrap: wrap; }
+.hs-lo { display: inline-flex; gap: 2px; }
+.hs-lo .btn { padding: 5px 9px; font-size: 11px; }
+@media (max-width: 600px) { .hs-tr { grid-template-columns: 1fr; } .hs-tlv { justify-content: flex-start; } }
 .hs-acts .btn.lock { text-decoration: line-through; }
 .hs-items { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .hs-items .btn { flex: 1; padding: 6px 2px; font-size: 10px; }

@@ -76,7 +76,9 @@ onEnd: function (fi) {
 const lines = [], dd = A.HS();
 if (fi.win) {
 dd.wins++;
-dd.tower.best = Math.max(dd.tower.best, rush ? ri : f);
+const nb = rush ? ri : f, newBest = nb > dd.tower.best;
+dd.tower.best = Math.max(dd.tower.best, nb);
+if (newBest && (rush || f % 10 === 0)) { gameState.slotTokens = (gameState.slotTokens || 0) + 1; lines.push("+1 ⏱ Overtime Hour"); }
 if (f === 100) dd.tower.conq = 1; if (rush) dd.tower.rush = 1;
 const gc = towerGc(f, P) * K; gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
 A.gainXp(towerXp(f, P) * K, lines); lines.unshift(`+${fmt(towerXp(f, P) * K)} XP`);
@@ -310,6 +312,7 @@ function wbClaim() {
 const l = wb.st && wb.st.last, d = A.HS();
 if (!l || d.wb.claimed === String(l.week)) return;
 d.wb.claimed = String(l.week);
+if (l.myDmg > 0) { gameState.slotTokens = (gameState.slotTokens || 0) + 1; log("⏱ +1 Overtime Hour for showing up to last week's boss.", "special"); }
 if (l.killed && l.myDmg > 0) {
 const rw = wbReward(l.kills, l.top === gameState.ldap);
 d.wb.buff = rw.buff; d.wb.buffWeek = week();

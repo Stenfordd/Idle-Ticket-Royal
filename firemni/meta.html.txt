@@ -157,7 +157,7 @@ const ACH = [
 ["chest_20", "📦", "Box Opener", "Chest level 20", maxChest, 20],
 ["chest_40", "🎁", "Mythic Hunter", "Chest level 40", maxChest, 40],
 ["chest_75", "🗝", "Chest Whisperer", "Chest level 75", maxChest, 75],
-["tokens_10", "🎟", "Token Collector", "Hold 10 Slot Tokens at once", () => gameState.slotTokens || 0, 10]
+["tokens_10", "⏱", "Token Collector", "Hold 10 Overtime Hours at once", () => gameState.slotTokens || 0, 10]
 ]],
 ["GEAR", [
 ["gear_mythic", "🟥", "Red Alert", "Equip a Mythic (T5) item", () => eq().some(i => i.tier >= 5) ? 1 : 0, 1],
@@ -224,14 +224,14 @@ ALL.forEach(a => { if (!S.u[a.id] && prog(a) >= 1) { S.u[a.id] = Date.now(); got
 checking = false;
 if (!got.length) return;
 gameState.slotTokens = (gameState.slotTokens || 0) + REWARD_TOKENS * got.length;
-got.forEach((a, i) => { log(`🏆 ACHIEVEMENT UNLOCKED: ${a.icon} ${a.name} - ${a.desc} (+${REWARD_TOKENS} 🎟)`, "special"); setTimeout(() => toast(a), i * 1600); });
+got.forEach((a, i) => { log(`🏆 ACHIEVEMENT UNLOCKED: ${a.icon} ${a.name} - ${a.desc} (+${REWARD_TOKENS} ⏱)`, "special"); setTimeout(() => toast(a), i * 1600); });
 TT.saveSoon(); if (typeof updateUI === "function") updateUI();
 if (isOpen) render();
 }
 function toast(a) {
 if (document.hidden) return;
 const el = document.createElement("div"); el.className = "mt-toast";
-el.innerHTML = `<span class="ic">${a.icon}</span><div><b>ACHIEVEMENT UNLOCKED</b>${esc(a.name)} · +${REWARD_TOKENS} 🎟</div>`;
+el.innerHTML = `<span class="ic">${a.icon}</span><div><b>ACHIEVEMENT UNLOCKED</b>${esc(a.name)} · +${REWARD_TOKENS} ⏱</div>`;
 el.onclick = () => { el.remove(); open("ach"); };
 const n = document.querySelectorAll(".mt-toast").length;
 if (document.documentElement.classList.contains("m")) { el.style.bottom = "auto"; el.style.top = "calc(" + (58 + n * 58) + "px + env(safe-area-inset-top))"; el.style.left = "8px"; el.style.right = "8px"; }   // v8.8: na mobilu nahoře, ať nepřekrývá tlačítka
@@ -287,7 +287,7 @@ if (r && r.ok) { wkSt.data = r; wkSt.err = ""; claim(); } else wkSt.err = "Could
 if (isOpen && view === "weekly") render();
 }).withFailureHandler(e => { wkSt.loading = false; wkSt.err = String(e && e.message || e); if (isOpen && view === "weekly") render(); }).weeklyState();
 }
-/** top 3 minulého týdne: 3 / 2 / 1 Slot Token za každý žebříček */
+/** top 3 minulého týdne: 3 / 2 / 1 Overtime Hour za každý žebříček */
 function claim() {
 const r = wkSt.data, w = wk(); if (!r || !r.last) return;
 const lw = String(r.week - 1); if (w.claimed[lw]) return;
@@ -297,7 +297,7 @@ let tok = 0; const parts = [];
 Object.keys(CATS).forEach(c => { const i = (r.last[c] || []).findIndex(x => x.nick === gameState.ldap); if (i >= 0 && i < 3) { tok += PRIZE[i]; parts.push(`#${i + 1} ${CATS[c].name}`); } });
 if (tok) {
 gameState.slotTokens = (gameState.slotTokens || 0) + tok; bump("weeklyTop", 1);
-log(`🏅 WEEKLY BOARDS: last week you finished ${parts.join(", ")} → +${tok} 🎟 Slot Tokens!`, "special");
+log(`🏅 WEEKLY BOARDS: last week you finished ${parts.join(", ")} → +${tok} ⏱ Overtime Hours!`, "special");
 if (typeof updateUI === "function") updateUI();
 setTimeout(check, 300);
 }
@@ -319,7 +319,7 @@ else box.innerHTML = eventsHtml();
 }
 function achHtml(S, n) {
 return `<div class="mt-card"><div class="mt-h"><span>🏆 ACHIEVEMENTS</span><span>${n}/${ALL.length}</span></div>
-<div class="mt-dim">Every achievement gives <b>+${REWARD_TOKENS} 🎟 Slot Token</b> and a badge on your player card. Progress never resets (not even on prestige).</div>
+<div class="mt-dim">Every achievement gives <b>+${REWARD_TOKENS} ⏱ Overtime Hour</b> and a badge on your player card. Progress never resets (not even on prestige).</div>
 <div class="mt-pb" style="height:7px;margin-top:6px;"><div style="width:${n / ALL.length * 100}%"></div></div></div>` +
 ACH.map(g => `<div class="mt-cat">${g[0]}</div><div class="mt-grid">${g[1].map(x => { const a = BY[x[0]], done = !!S.u[a.id], p = done ? 1 : prog(a);
 let cur = 0; try { cur = Number(a.cur()) || 0; } catch (e) {}
@@ -332,7 +332,7 @@ const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 864
 if (!r) return `<div class="mt-card"><div class="mt-dim">${wkSt.err ? "⚠ " + esc(wkSt.err) : "Loading the weekly boards..."}</div></div>`;
 const me = gameState.ldap;
 return `<div class="mt-card"><div class="mt-h"><span>📅 WEEKLY BOARDS</span><span class="mt-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
-<div class="mt-dim">Four boards, new every Monday. Top 3 on each board get <b>3 / 2 / 1 🎟 Slot Tokens</b> (collected automatically next week).</div></div>
+<div class="mt-dim">Four boards, new every Monday. Top 3 on each board get <b>3 / 2 / 1 ⏱ Overtime Hours</b> (collected automatically next week).</div></div>
 <div class="mt-lb">${Object.keys(CATS).map(c => { const C = CATS[c], rows = r.cur[c] || [], last = r.last[c] || [];
 return `<div class="mt-card"><div class="mt-h"><span>${C.icon} ${C.name}</span><span class="mt-dim">you: ${r.mine[c] ? C.unit(r.mine[c]) : "-"}</span></div>
 ${rows.length ? rows.map((x, i) => `<div class="mt-row ${x.nick === me ? "me" : ""}"><span>${i < 3 ? ["🥇", "🥈", "🥉"][i] : (i + 1) + "."} ${esc(x.nick)}</span><span>${C.unit(x.v)}</span></div>`).join("") : `<div class="mt-dim">Nobody yet this week.</div>`}
@@ -607,7 +607,7 @@ var best = 0, re = /T([1-6])×/g, m;
 while ((m = re.exec(t))) best = Math.max(best, Number(m[1]));
 if (best >= 3) doFlash(COLORS[best]);
 if (best >= 5) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
-if (/SLOT TOKEN/.test(t)) doBanner("🎟 SLOT TOKEN!", "var(--amber)");
+if (/OVERTIME HOUR/.test(t)) doBanner("⏱ OVERTIME HOUR!", "var(--amber)");
 }).observe(chest, { childList: true, characterData: true, subtree: true });
 }
 var pl = $("prestige-lvl");

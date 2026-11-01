@@ -1,4 +1,4 @@
-<script>
+<script type="text/plain" data-tt="tt_hsqte_1" data-i="1">
 /* HSQTE - všechny mini-hry High Stakes na jednom místě (kampaň i duel). Každá volá cb(výsledek) a sama po sobě uklidí. */
 (function () {
 "use strict";
@@ -30,6 +30,193 @@ setTimeout(() => { ov.remove(); cb(val); }, ms == null ? 650 : ms);
 }
 const qOf = (pts, max) => Math.round((0.7 + 0.55 * Math.max(0, Math.min(1, pts / max))) * 100) / 100;
 const qColor = (q) => q >= 1.1 ? "#ffd700" : q >= 0.95 ? "var(--emerald)" : "var(--text-dim)";
+const D = { diff: 0 };
+const touch = () => { try { return matchMedia("(pointer: coarse)").matches; } catch (e) { return false; } };
+const TM = () => touch() ? 1.2 : 1;
+const DSTREAK = { n: 0 };
+function dodge(cb, title, one) {
+const waves = one ? 1 : Math.min(3, 1 + (D.diff >= 2 ? 1 : 0) + (rnd() < 0.3 ? 1 : 0));
+const ov = open(`<div class="qte-t">${title || "💨 DODGE! Jump into a SAFE lane"}</div><div class="qte-h">Red lanes get hit. Move to a safe lane <b>right before the hit</b> for a PERFECT · watch out for feints · keys 1 2 3 / ← ↓ →</div>
+<div class="qte-dots" id="qte-wd">${Array(waves).fill("<span></span>").join("")}</div>
+<div class="qte-lanes" id="qte-lanes">${[0, 1, 2].map(i => `<div class="qte-lane ${i === 1 ? "me" : ""}" data-i="${i}"><div class="qte-imp"></div>${i === 1 ? "🧍" : ""}</div>`).join("")}</div><div class="qte-res"></div>`);
+let w = 0, state = "wait", t0 = 0, danger = [], done = false, timer = 0, raf = 0, imp = 0, me = 1, feint = false, res = [];
+const lanes = () => [...ov.querySelectorAll(".qte-lane")];
+const sk = Math.max(0.65, Math.pow(0.9, DSTREAK.n));
+function setDanger(d) { danger = d; lanes().forEach((l, i) => l.classList.toggle("danger", d.indexOf(i) >= 0)); }
+function wave() {
+state = "wait"; setDanger([]);
+timer = setTimeout(() => {
+if (done) return;
+const a = Math.floor(rnd() * 3), d = [a]; if (rnd() < 0.45) d.push((a + 1 + Math.floor(rnd() * 2)) % 3);
+setDanger(d); state = "go"; t0 = performance.now();
+imp = (560 - 70 * D.diff) * (0.85 + rnd() * 0.3) * sk * TM();
+feint = rnd() < 0.3;
+if (feint) setTimeout(() => { if (done || (state !== "go" && state !== "moved")) return; const b = Math.floor(rnd() * 3), nd = [b]; if (rnd() < 0.4) nd.push((b + 1) % 3); setDanger(nd); }, imp * (0.4 + rnd() * 0.15));
+const bar = (now) => { if (done || (state !== "go" && state !== "moved")) return; const t = (now - t0) / imp; lanes().forEach((l, i) => { const x = l.querySelector(".qte-imp"); if (x) x.style.height = (danger.indexOf(i) >= 0 ? Math.min(100, t * 100) : 0) + "%"; }); if (t >= 1) return impact(); raf = requestAnimationFrame(bar); };
+raf = requestAnimationFrame(bar);
+}, 380 + rnd() * 700);
+}
+function move(i) {
+if (done) return;
+if (state === "wait") { res.push("none"); markWave("none", "TOO EARLY!"); return; }
+me = i; lanes().forEach((l, k) => { l.classList.toggle("me", k === i); const x = l.querySelector(".qte-imp"); l.innerHTML = ""; if (x) l.appendChild(x); if (k === i) l.insertAdjacentText("beforeend", "🧍"); });
+const left = imp - (performance.now() - t0);
+state = "moved"; ov.__q = left <= 140 * TM() ? "perfect" : "good";
+}
+function impact() {
+cancelAnimationFrame(raf);
+const safe = danger.indexOf(me) < 0;
+const q = !safe ? "none" : state === "moved" ? ov.__q : "good";
+res.push(q); markWave(q, !safe ? "HIT!" : q === "perfect" ? "PERFECT!" : "dodged");
+}
+function markWave(q, txt) {
+state = "done"; cancelAnimationFrame(raf); clearTimeout(timer);
+const d = $("qte-wd"); if (d && d.children[w]) d.children[w].className = q === "perfect" ? "ok" : q === "good" ? "mid" : "no";
+const r = ov.querySelector(".qte-res"); if (r) { r.textContent = txt; r.style.color = q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--crimson)"; }
+w++;
+if (q === "none" || w >= waves) return end();
+setTimeout(wave, 380);
+}
+function end() {
+if (done) return; done = true; document.removeEventListener("keydown", key, true); clearTimeout(timer); cancelAnimationFrame(raf);
+const best = res.some(x => x === "none") ? "none" : res.every(x => x === "perfect") ? "perfect" : "good";
+DSTREAK.n = best === "perfect" ? DSTREAK.n + 1 : best === "none" ? 0 : DSTREAK.n;
+finish(ov, best === "perfect" ? "PERFECT DODGE" + (waves > 1 ? " ×" + waves : "") + "!" : best === "good" ? "Dodged!" : "You got hit.", best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--crimson)", cb, best, 560);
+}
+ov.querySelector("#qte-lanes").addEventListener("pointerdown", (e) => { const l = e.target.closest(".qte-lane"); if (l) { e.preventDefault(); move(Number(l.dataset.i)); } });
+const key = (e) => { const m = { "1": 0, "2": 1, "3": 2, ArrowLeft: 0, ArrowDown: 1, ArrowRight: 2 }; if (m[e.key] != null) { e.preventDefault(); move(m[e.key]); } };
+document.addEventListener("keydown", key, true);
+wave();
+}
+function ultCatch(title, cb) {
+intro(title, "Move the box (drag / mouse / ← →) and catch 📄 tasks. 📅 meeting invites cost a task and freeze you, the 💣 URGENT from the CEO ends it. Everything speeds up, the box shrinks.", (ov, body) => {
+body.innerHTML = `<div class="qte-field" id="qte-f"><div class="qte-paddle" id="qte-p" style="left:50%"></div></div><div class="qte-bar"><div id="qte-tb"></div></div><div class="qte-res" id="qte-sc">0 tasks</div>`;
+const F = $("qte-f"), Pd = $("qte-p"), W = () => F.clientWidth, Hh = () => F.clientHeight;
+let px = 0.5, items = [], good = 0, bad = 0, t0 = performance.now(), last = t0, spawnAt = t0 + 250, over = false, keys = {}, raf = 0, frozen = 0, pw = 78;
+const DUR = 6500 * TM(), plan = [];
+for (let i = 0; i < 9; i++) plan.push("t"); for (let i = 0; i < 4; i++) plan.push("m");
+for (let i = plan.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [plan[i], plan[j]] = [plan[j], plan[i]]; }
+plan.splice(4 + Math.floor(rnd() * 6), 0, "b");
+const setX = (e) => { if (performance.now() < frozen) return; const r = F.getBoundingClientRect(); px = Math.max(0.06, Math.min(0.94, (e.clientX - r.left) / r.width)); };
+F.addEventListener("pointermove", setX); F.addEventListener("pointerdown", (e) => { e.preventDefault(); setX(e); });
+const kd = (e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { keys[e.key] = 1; e.preventDefault(); } }, ku = (e) => { delete keys[e.key]; };
+document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
+function frame(now) {
+if (over) return;
+const dt = Math.min(50, now - last) / 1000; last = now;
+if (now >= frozen) { if (keys.ArrowLeft) px = Math.max(0.06, px - dt * 1.5); if (keys.ArrowRight) px = Math.min(0.94, px + dt * 1.5); }
+Pd.style.left = (px * 100) + "%"; Pd.style.width = pw + "px"; Pd.style.marginLeft = (-pw / 2) + "px"; Pd.style.opacity = now < frozen ? ".4" : "1";
+const el = now - t0, sp = (0.42 + 0.06 * good + 0.25 * el / DUR) * (1 + 0.1 * D.diff);
+if (now >= spawnAt && plan.length) {
+const k = plan.shift(), d = document.createElement("div"); d.className = "qte-fall"; d.textContent = k === "t" ? "📄" : k === "m" ? "📅" : "💣";
+const it = { x: 0.1 + rnd() * 0.8, x0: 0, y: -0.05, v: sp * (0.85 + rnd() * 0.4), k: k, el: d, ph: rnd() * 6, amp: 0.03 + rnd() * 0.05 }; it.x0 = it.x; F.appendChild(d); items.push(it);
+spawnAt = now + (DUR - 900) / 15 * (0.7 + rnd() * 0.6);
+}
+for (const it of items.slice()) {
+it.y += it.v * dt; it.x = Math.max(0.05, Math.min(0.95, it.x0 + Math.sin(it.ph + it.y * 9) * it.amp));
+it.el.style.left = (it.x * 100) + "%"; it.el.style.top = (it.y * Hh()) + "px";
+const py = (Hh() - 16) / Hh();
+if (it.y >= py - 0.02 && it.y <= py + 0.05 && Math.abs(it.x - px) * W() < pw / 2 + 8) {
+it.el.remove(); items.splice(items.indexOf(it), 1);
+if (it.k === "b") { boom(); return; }
+if (it.k === "m") { bad++; frozen = now + 500; F.style.background = "#1e1a3a"; setTimeout(() => { F.style.background = ""; }, 300); }
+else { good++; pw = Math.max(40, pw * 0.94); }
+const s = $("qte-sc"); if (s) s.textContent = good + " tasks" + (bad ? " · " + bad + " meeting" + (bad > 1 ? "s" : "") : "");
+} else if (it.y > 1.05) { it.el.remove(); items.splice(items.indexOf(it), 1); }
+}
+const b = $("qte-tb"); if (b) b.style.width = Math.max(0, 100 - el / DUR * 100) + "%";
+if (el >= DUR || (!plan.length && !items.length)) return end("DONE! ");
+raf = requestAnimationFrame(frame);
+}
+function boom() { F.style.background = "#3a0b12"; end("💥 URGENT FROM THE CEO! "); }
+function end(t) { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true);
+const sc = Math.max(0, good - 2 * bad), q = qOf(sc, 9); finish(ov, t + good + " tasks" + (bad ? " - " + bad + " meetings" : "") + " · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: good >= 9 && !bad }, 800); }
+raf = requestAnimationFrame(frame);
+});
+}
+function ultBrew(title, cb) {
+intro(title, "Stop the needle in the coffee zone (tap / space). The thin gold strip = PERFECT shot. 3 shots, a miss is lost - the zone shrinks, the needle speeds up and changes direction.", (ov, body) => {
+body.innerHTML = `<div class="hs-timing" style="width:100%;" id="qte-bt"><div class="g" id="qte-bz"></div><div class="p" id="qte-bp"></div><div class="n" id="qte-bn"></div></div><div class="qte-dots" id="qte-d"><span></span><span></span><span></span></div><div class="qte-res" id="qte-sc">shot 1/3</div>`;
+let shot = 0, pts = 0, perf = 0, hits = 0, pos = 0, dir = 1, spd = (0.85 + 0.1 * D.diff) / TM(), zw = 0.26, zc = 0.5, raf = 0, last = 0, over = false, wait = false, flips = [], t0 = 0, idle = 0;
+function setup() {
+wait = false; zc = 0.18 + rnd() * 0.64; pos = rnd() < 0.5 ? 0 : 1; dir = pos ? -1 : 1; t0 = performance.now();
+const z = $("qte-bz"), p = $("qte-bp"), pw = zw * 0.24; z.style.left = ((zc - zw / 2) * 100) + "%"; z.style.width = (zw * 100) + "%"; p.style.left = ((zc - pw / 2) * 100) + "%"; p.style.width = (pw * 100) + "%";
+flips = []; const nf = 1 + (rnd() < 0.5 ? 1 : 0); for (let i = 0; i < nf; i++) flips.push(400 + rnd() * 1400);
+const s = $("qte-sc"); if (s) s.textContent = "shot " + (shot + 1) + "/3";
+clearTimeout(idle); idle = setTimeout(() => { if (!over && !wait) stop(true); }, 3200 * TM());
+}
+function frame(now) {
+if (over) return; const dt = Math.min(50, now - last) / 1000; last = now;
+if (!wait) { if (flips.length && now - t0 > flips[0]) { flips.shift(); dir = -dir; } pos += dir * spd * dt; if (pos > 1) { pos = 1; dir = -1; } if (pos < 0) { pos = 0; dir = 1; } const n = $("qte-bn"); if (n) n.style.left = "calc(" + (pos * 100) + "% - 2px)"; }
+raf = requestAnimationFrame(frame);
+}
+function stop(timeout) {
+if (wait || over) return; wait = true; clearTimeout(idle);
+const d0 = Math.abs(pos - zc), p = timeout ? 0 : d0 <= zw * 0.12 ? 3 : d0 <= zw / 2 ? 2 : 0;
+pts += p; if (p === 3) perf++; if (p) hits++;
+const d = $("qte-d"); if (d && d.children[shot]) d.children[shot].className = p === 3 ? "ok" : p ? "mid" : "no";
+const s = $("qte-sc"); if (s) s.textContent = p === 3 ? "PERFECT SHOT!" : p ? "Good shot" : timeout ? "Too slow - shot lost" : "Missed - shot lost";
+shot++; zw *= 0.7; spd *= 1.25;
+if (shot >= 3) return setTimeout(end, 450); setTimeout(setup, 600);
+}
+function end() { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); const q = qOf(pts, 9); finish(ov, hits + "/3 shots" + (perf ? " (" + perf + " perfect)" : "") + " · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: hits === 3 }, 750); }
+ov.querySelector(".qte-box").addEventListener("pointerdown", (e) => { e.preventDefault(); stop(false); });
+const kd = (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); stop(false); } };
+document.addEventListener("keydown", kd, true);
+setup(); last = performance.now(); raf = requestAnimationFrame(frame);
+});
+}
+function ultRun(title, cb) {
+intro(title, "Drag anywhere to move the intern 🧑‍🎓 (he moves with your finger, not under it) or use the arrow keys. Stay inside the corridor - touching a wall = DETECTED, back to the last checkpoint. 3 checkpoints + the goal.", (ov, body) => {
+const tch = touch(), cw = tch ? 38 : 28;
+body.innerHTML = `<canvas id="qte-run" style="width:100%;height:260px;background:#0b1220;border:1px solid #1e2a44;border-radius:10px;touch-action:none;"></canvas><div class="qte-bar"><div id="qte-tb"></div></div><div class="qte-res" id="qte-sc">checkpoint 0/3</div>`;
+const cv = $("qte-run"), dpr = window.devicePixelRatio || 1, Wd = cv.clientWidth, Hd = 260;
+cv.width = Wd * dpr; cv.height = Hd * dpr; const g = cv.getContext("2d"); g.scale(dpr, dpr);
+const N = 11, pts = []; for (let i = 0; i < N; i++) pts.push({ x: 24 + (Wd - 48) * i / (N - 1), y: 34 + rnd() * (Hd - 68) });
+const segLen = []; let total = 0; for (let i = 1; i < N; i++) { const l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); segLen.push(l); total += l; }
+const at = (f) => { let d = f * total; for (let i = 0; i < segLen.length; i++) { if (d <= segLen[i]) { const t = d / segLen[i]; return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * t, y: pts[i].y + (pts[i + 1].y - pts[i].y) * t }; } d -= segLen[i]; } return pts[N - 1]; };
+const CPS = [0.25, 0.5, 0.75].map(at), GOAL = pts[N - 1];
+let me = { x: pts[0].x, y: pts[0].y }, cp = -1, det = 0, over = false, raf = 0, t0 = performance.now(), last = t0, anchor = null, keys = {}, flash = 0, won = false;
+const DUR = (6200 - 400 * D.diff) * TM();
+const distSeg = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy))); return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy); };
+const inside = (p) => { for (let i = 1; i < N; i++) if (distSeg(p, pts[i - 1], pts[i]) <= cw / 2 - 5) return true; return false; };
+const back = () => cp >= 0 ? { x: CPS[cp].x, y: CPS[cp].y } : { x: pts[0].x, y: pts[0].y };
+function draw(now) {
+g.clearRect(0, 0, Wd, Hd);
+g.lineCap = g.lineJoin = "round";
+g.strokeStyle = flash > now ? "#ff4d6d" : "#ff9a3c"; g.globalAlpha = .9; g.lineWidth = cw + 4; g.shadowColor = g.strokeStyle; g.shadowBlur = 14;
+g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.stroke();
+g.shadowBlur = 0; g.strokeStyle = "#0f1626"; g.lineWidth = cw; g.globalAlpha = 1; g.stroke();
+g.font = "16px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+CPS.forEach((c, i) => { g.fillStyle = i <= cp ? "#3ddc84" : "#334155"; g.beginPath(); g.arc(c.x, c.y, 7, 0, 7); g.fill(); });
+g.fillText("🏁", GOAL.x, GOAL.y);
+g.font = "20px sans-serif"; g.fillText("🧑‍🎓", me.x, me.y - (tch ? 0 : 0));
+}
+function step(now) {
+if (over) return;
+const dt = Math.min(50, now - last) / 1000; last = now;
+const v = 150 * dt; if (keys.ArrowLeft) me.x -= v; if (keys.ArrowRight) me.x += v; if (keys.ArrowUp) me.y -= v; if (keys.ArrowDown) me.y += v;
+me.x = Math.max(0, Math.min(Wd, me.x)); me.y = Math.max(0, Math.min(Hd, me.y));
+if (!inside(me)) { det++; flash = now + 300; me = back(); anchor = null; const s = $("qte-sc"); if (s) s.textContent = "DETECTED! back to checkpoint " + Math.max(0, cp + 1) + " · " + det + "×"; }
+if (cp < 2 && Math.hypot(me.x - CPS[cp + 1].x, me.y - CPS[cp + 1].y) < 14) { cp++; const s = $("qte-sc"); if (s) s.textContent = "checkpoint " + (cp + 1) + "/3"; }
+if (cp >= 2 && Math.hypot(me.x - GOAL.x, me.y - GOAL.y) < 16) { won = true; return end("MADE IT! "); }
+const el = now - t0, b = $("qte-tb"); if (b) b.style.width = Math.max(0, 100 - el / DUR * 100) + "%";
+if (el >= DUR) return end("TIME! ");
+draw(now); raf = requestAnimationFrame(step);
+}
+cv.addEventListener("pointerdown", (e) => { e.preventDefault(); anchor = { px: e.clientX, py: e.clientY, x: me.x, y: me.y }; try { cv.setPointerCapture(e.pointerId); } catch (x) {} });
+cv.addEventListener("pointermove", (e) => { if (!anchor || over) return; me = { x: anchor.x + (e.clientX - anchor.px), y: anchor.y + (e.clientY - anchor.py) }; });
+cv.addEventListener("pointerup", () => { anchor = null; });
+const kd = (e) => { if (/^Arrow/.test(e.key)) { keys[e.key] = 1; e.preventDefault(); } }, ku = (e) => { delete keys[e.key]; };
+document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
+function end(t) {
+over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true); draw(performance.now());
+const sc = Math.max(0, (cp + 1) * 3 + (won ? 3 : 0) - det), q = qOf(sc, 12);
+finish(ov, t + (cp + 1) + "/3 checkpoints" + (won ? " + goal" : "") + (det ? " · " + det + "× detected" : "") + " · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: won }, 800);
+}
+draw(t0); raf = requestAnimationFrame(step);
+});
+}
 function timing(zone, cb) {
 const gStart = 0.15 + rnd() * (0.85 - zone - 0.15), pW = zone * 0.3, pStart = gStart + (zone - pW) / 2;
 const ov = open(`<div class="qte-t">💥 STOP THE NEEDLE!</div><div class="qte-h">tap anywhere / space</div>
@@ -46,16 +233,17 @@ ov.addEventListener("pointerdown", (e) => { e.preventDefault(); stop(); });
 const frame = (now) => { const t = ((now - t0) % (period * 2)) / period; pos = t < 1 ? t : 2 - t; const n = $("qte-needle"); if (n) n.style.left = "calc(" + (pos * 100) + "% - 2px)"; if (now - t0 > period * 4) { pos = -1; stop(); return; } raf = requestAnimationFrame(frame); };
 raf = requestAnimationFrame(frame);
 }
-const PARRY_WIN = { perfect: 8, good: 18 }, PSTREAK = { n: 0 };
+const PARRY_WIN = { perfect: 6, good: 16 }, PSTREAK = { n: 0 };
 function parry(o, cb) {
 o = o || {};
-const k = o.k || "heavy", style = o.style || "", n = k === "unleash" ? 3 : 1, dur = k === "unleash" ? 750 : k === "withdraw" ? 1000 : 1100;
-const sk = Math.max(0.5, Math.pow(0.85, PSTREAK.n)), target = Math.round(36 + rnd() * 20);
+const k = o.k || "heavy", style = o.style || "", combo = k === "unleash" ? 3 : k === "withdraw" ? 1 : Math.min(3, 1 + (rnd() < 0.2 + 0.12 * D.diff ? 1 : 0) + (D.diff >= 2 && rnd() < 0.25 ? 1 : 0)), n = combo, dur = (k === "unleash" ? 750 : k === "withdraw" ? 1000 : combo > 1 ? 800 : 1100) * TM();
+const sk = Math.max(0.66, Math.pow(0.88, PSTREAK.n)), target = Math.round(36 + rnd() * 20);
+let red = false;
 const wP = PARRY_WIN.perfect * (o.easy || 1) * sk, wG = PARRY_WIN.good * (o.easy || 1) * Math.max(0.7, sk), from = 150, to = 14;
-const title = (o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one")) +
+const title = (o.title || (k === "unleash" ? "☄ UNLEASH! Parry all 3 rings" : k === "withdraw" ? "💸 WITHDRAWAL! Only a PERFECT parry stops it" : "🛡 PARRY! Tap when the red ring hits the gold one")) + (k === "unleash" || k === "withdraw" ? "" : `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${n > 1 ? "⚡ COMBO: " + n + " rings - " : ""}a <b style="color:#fff;">white-hot</b> ring is unblockable: DON'T tap it</div>`) +
 (PSTREAK.n ? `<div style="font-size:11px;color:#ff9f43;margin-top:4px;">🔥 PERFECT ×${PSTREAK.n} in a row - the window is ${Math.round((1 - sk) * 100)}% smaller</div>` : "");
 const ov = open(`<div class="qte-t">${title}</div>
-<div class="hs-parry ${style}" id="qte-pr"><div class="tgt" style="width:${target}px;height:${target}px;margin:${-target / 2}px 0 0 ${-target / 2}px;"></div><div class="ring fake" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
+<div class="hs-parry ${style}" id="qte-pr"><div class="tgt" style="width:${target}px;height:${target}px;margin:${-target / 2}px 0 0 ${-target / 2}px;"></div><div class="ring" id="qte-fake" style="display:none"></div><div class="ring" id="qte-ring" style="display:none"></div></div>
 <div class="hs-pdots" id="qte-pd">${n > 1 ? Array(n).fill('<span></span>').join("") : ""}</div><div class="qte-res" id="qte-pq">&nbsp;</div>`);
 const res = []; let idx = 0, phase = "wait", t0 = 0, size = from, raf = 0, timer = 0, fakeOn = false, finished = false;
 const ringEl = () => $("qte-ring"), fakeEl = () => $("qte-fake");
@@ -74,8 +262,8 @@ if (finished) return; finished = true; document.removeEventListener("keydown", k
 const best = res.every(r => r === "perfect") ? "perfect" : res.some(r => r !== "none") ? "good" : "none";
 PSTREAK.n = best === "perfect" ? PSTREAK.n + 1 : 0;
 if (PSTREAK.n >= 2) { const pq = $("qte-pq"); if (pq) pq.insertAdjacentHTML("afterend", `<div class="qte-res" style="color:#ff9f43;">🔥 PERFECT STREAK ×${PSTREAK.n}</div>`); }
-const txt = n > 1 ? `${res.filter(r => r !== "none").length}/3 blocked` + (best === "perfect" ? " - FULL PARRY!" : "") : best === "perfect" ? "PARRY! 0 damage + counter" : best === "good" ? "GOOD BLOCK!" : "Normal block";
-finish(ov, txt, best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)", cb, n > 1 ? { rings: res } : { parry: best }, 520);
+const txt = n > 1 ? `${res.filter(r => r !== "none").length}/${n} blocked` + (best === "perfect" ? " - FULL PARRY!" : "") : best === "perfect" ? "PARRY! 0 damage + counter" : best === "good" ? "GOOD BLOCK!" : "Normal block";
+finish(ov, txt, best === "perfect" ? "#ffd700" : best === "good" ? "var(--emerald)" : "var(--text-dim)", cb, k === "unleash" ? { rings: res } : { parry: best }, 520);
 }
 function startRing() {
 if (finished) return;
@@ -91,9 +279,12 @@ function realRing() {
 if (finished) return;
 phase = "ring"; t0 = performance.now(); size = from;
 const r = ringEl(); if (r) r.style.display = "";
-const dk = dur * (0.8 + rnd() * 0.45), ex = 1.25 + rnd() * 0.8;
+red = k !== "withdraw" && n === 1 && rnd() < 0.08 + 0.05 * D.diff; if (r) { r.style.borderColor = red ? "#ffffff" : ""; r.style.boxShadow = red ? "0 0 18px #ff1744, inset 0 0 12px #ff1744" : ""; }
+const dk = dur * (0.8 + rnd() * 0.45), ex = 1.25 + rnd() * 0.8, hes = rnd() < 0.25 + 0.08 * D.diff ? { at: 0.3 + rnd() * 0.35, ms: 160 + rnd() * 260 } : null;
+let paused = 0;
 const fr = (now) => {
-let t = Math.min(1, (now - t0) / dk);
+if (hes && !hes.done) { const tt = (now - t0 - paused) / dk; if (tt >= hes.at) { if (!hes.s) hes.s = now; if (now - hes.s < hes.ms) { raf = requestAnimationFrame(fr); return; } hes.done = 1; paused += now - hes.s; } }
+let t = Math.min(1, (now - t0 - paused) / dk);
 if (style === "lag") t = t < 0.35 ? t : t < 0.55 ? 0.35 : 0.35 + (t - 0.55) * (0.65 / 0.45);
 let e = Math.pow(t, ex); if (style === "steps") e = Math.min(1, Math.floor(e * 8 + 0.5) / 8);
 size = from - (from - to) * e;
@@ -101,40 +292,16 @@ let dx = 0, dy = 0;
 if (style === "wobble") dx = Math.sin(t * 22) * 16 * (1 - t * 0.5);
 if (style === "spiral") { const rr = 22 * (1 - t); dx = Math.cos(t * 16) * rr; dy = Math.sin(t * 16) * rr; }
 place(ringEl(), size, dx, dy);
-if (t >= 1) { mark("none"); return; }
+if (t >= 1) { mark(red ? "good" : "none"); return; }
 raf = requestAnimationFrame(fr);
 };
 raf = requestAnimationFrame(fr);
 }
-function tap() { if (finished) return; if (fakeOn || phase !== "ring") { mark("none"); return; } const d = Math.abs(size - target); mark(d <= wP ? "perfect" : d <= wG ? "good" : "none"); }
+function tap() { if (finished) return; if (fakeOn || phase !== "ring" || red) { mark("none"); return; } const d = Math.abs(size - target); mark(d <= wP ? "perfect" : d <= wG ? "good" : "none"); }
 const key = (e) => { if (e.repeat) return; if (e.key === " " || e.key === "Enter") { e.preventDefault(); tap(); } };
 document.addEventListener("keydown", key, true);
 ov.addEventListener("pointerdown", (e) => { e.preventDefault(); tap(); });
 timer = setTimeout(startRing, 250 + rnd() * 600);
-}
-function dodge(cb, title) {
-const ov = open(`<div class="qte-t">${title || "💨 DODGE! Jump into a SAFE lane"}</div><div class="qte-h">Wait for the red lane(s), then tap a safe one fast · keys 1 2 3 / ← ↓ →</div>
-<div class="qte-lanes" id="qte-lanes">${[0, 1, 2].map(i => `<div class="qte-lane ${i === 1 ? "me" : ""}" data-i="${i}">${i === 1 ? "🧍" : ""}</div>`).join("")}</div><div class="qte-res"></div>`);
-let state = "wait", t0 = 0, danger = [], done = false, timer = 0;
-const lanes = () => [...ov.querySelectorAll(".qte-lane")];
-timer = setTimeout(() => {
-if (done) return;
-const a = Math.floor(rnd() * 3); danger = [a]; if (rnd() < 0.45) danger.push((a + 1 + Math.floor(rnd() * 2)) % 3);
-lanes().forEach((l, i) => l.classList.toggle("danger", danger.indexOf(i) >= 0));
-state = "go"; t0 = performance.now();
-timer = setTimeout(() => end(-1), 900);
-}, 450 + rnd() * 900);
-function end(i) {
-if (done) return; done = true; clearTimeout(timer); document.removeEventListener("keydown", key, true);
-if (state === "wait") { finish(ov, "TOO EARLY! The hit tracked you.", "var(--crimson)", cb, "none", 700); return; }
-const dt = performance.now() - t0, safe = i >= 0 && danger.indexOf(i) < 0;
-lanes().forEach((l, k) => { l.classList.remove("me"); l.textContent = ""; if (k === i) { l.classList.add("me"); l.textContent = "🧍"; } });
-const q = !safe ? "none" : dt < 380 ? "perfect" : "good";
-finish(ov, q === "perfect" ? "PERFECT DODGE! (" + Math.round(dt) + " ms)" : q === "good" ? "Dodged in time (" + Math.round(dt) + " ms)" : i < 0 ? "Too slow!" : "Wrong lane!", q === "perfect" ? "#ffd700" : q === "good" ? "var(--emerald)" : "var(--crimson)", cb, q, 600);
-}
-ov.querySelector("#qte-lanes").addEventListener("pointerdown", (e) => { const l = e.target.closest(".qte-lane"); if (l) { e.preventDefault(); end(Number(l.dataset.i)); } });
-const key = (e) => { const m = { "1": 0, "2": 1, "3": 2, ArrowLeft: 0, ArrowDown: 1, ArrowRight: 2 }; if (m[e.key] != null) { e.preventDefault(); end(m[e.key]); } };
-document.addEventListener("keydown", key, true);
 }
 /** MÁG: 3 příklady (každý těžší), 3 odpovědi. 0 = 75 %, 1 = 100 %, 2 = 110 %, 3 = 125 % */
 function mathProblem(level) {
@@ -173,46 +340,6 @@ next();
 });
 }
 /** WARRIOR: chytej viry 🦠, vyhni se bombám 💣 (bomba = konec) */
-function ultCatch(title, cb) {
-intro(title, "Move the shield (drag / mouse / ← →). Catch 🦠 viruses, NEVER a 💣 bomb - a bomb ends it right away.", (ov, body) => {
-body.innerHTML = `<div class="qte-field" id="qte-f"><div class="qte-paddle" id="qte-p" style="left:50%"></div></div><div class="qte-bar"><div id="qte-tb"></div></div><div class="qte-res" id="qte-sc">0 caught</div>`;
-const F = $("qte-f"), Pd = $("qte-p"), W = () => F.clientWidth, Hh = () => F.clientHeight;
-let px = 0.5, items = [], caught = 0, t0 = performance.now(), last = t0, spawnAt = t0 + 200, over = false, keys = {}, raf = 0;
-const DUR = 6500;
-F.addEventListener("pointermove", (e) => { const r = F.getBoundingClientRect(); px = Math.max(0.06, Math.min(0.94, (e.clientX - r.left) / r.width)); });
-F.addEventListener("pointerdown", (e) => { e.preventDefault(); const r = F.getBoundingClientRect(); px = Math.max(0.06, Math.min(0.94, (e.clientX - r.left) / r.width)); });
-const kd = (e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { keys[e.key] = 1; e.preventDefault(); } }, ku = (e) => { delete keys[e.key]; };
-document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
-function frame(now) {
-if (over) return;
-const dt = Math.min(50, now - last) / 1000; last = now;
-if (keys.ArrowLeft) px = Math.max(0.06, px - dt * 1.4); if (keys.ArrowRight) px = Math.min(0.94, px + dt * 1.4);
-Pd.style.left = (px * 100) + "%";
-const el = now - t0, sp = 0.45 + 0.5 * el / DUR;
-if (now >= spawnAt && el < DUR - 600) {
-const bomb = rnd() < 0.32, d = document.createElement("div"); d.className = "qte-fall"; d.textContent = bomb ? "💣" : "🦠";
-const it = { x: 0.08 + rnd() * 0.84, y: -0.05, v: sp * (0.8 + rnd() * 0.5), bomb: bomb, el: d }; F.appendChild(d); items.push(it);
-spawnAt = now + 260 + rnd() * 260;
-}
-for (const it of items.slice()) {
-it.y += it.v * dt; it.el.style.left = (it.x * 100) + "%"; it.el.style.top = (it.y * Hh()) + "px";
-const py = (Hh() - 16) / Hh();
-if (it.y >= py - 0.02 && it.y <= py + 0.05 && Math.abs(it.x - px) * W() < 46) {
-it.el.remove(); items.splice(items.indexOf(it), 1);
-if (it.bomb) { boom(); return; }
-caught++; const s = $("qte-sc"); if (s) s.textContent = caught + " caught";
-} else if (it.y > 1.05) { it.el.remove(); items.splice(items.indexOf(it), 1); }
-}
-const b = $("qte-tb"); if (b) b.style.width = Math.max(0, 100 - el / DUR * 100) + "%";
-if (el >= DUR) return end("TIME!");
-raf = requestAnimationFrame(frame);
-}
-function boom() { F.style.background = "#3a0b12"; end("💥 BOMB! "); }
-function end(t) { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true);
-const q = qOf(caught, 9); finish(ov, t + caught + " viruses · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
-raf = requestAnimationFrame(frame);
-});
-}
 /** HUNTER (v11.2): zaměřovač vedeš ty (táhni prstem / myší / šipkami), drž = natahuj tětivu (plný nátah = klidná ruka), pusť = výstřel. Terč se pohybuje pokaždé jinak, 3 šípy. */
 function ultBow(title, cb) {
 intro(title, "Drag the crosshair onto the moving target (finger / mouse / arrow keys). HOLD to draw the bow - a full draw steadies your aim - and RELEASE to shoot. 3 arrows.", (ov, body) => {
@@ -289,32 +416,7 @@ G.addEventListener("pointerdown", (e) => { const el = e.target.closest(".qte-nod
 show();
 });
 }
-/** CAFFEINE ABUSER: DOUBLE ESPRESSO - drž a nalévej, pusť na zelené čáře (3 šálky, pokaždé rychleji) */
-function ultBrew(title, cb) {
-intro(title, "HOLD to pour, RELEASE on the green line. Don't overflow! 3 cups, each one pours faster.", (ov, body) => {
-body.innerHTML = `<div class="qte-cup"><div class="zone" id="qte-z"></div><div class="fill" id="qte-fl"></div><div class="line" id="qte-l"></div></div><div class="qte-dots" id="qte-d"><span></span><span></span><span></span></div><div class="qte-res" id="qte-sc">cup 1/3</div>`;
-let cup = 0, pts = 0, level = 0, pouring = false, target = 0, raf = 0, last = 0, over = false, wait = false, idle = 0;
-const speeds = [0.38, 0.55, 0.75];
-function setup() { level = 0; target = 0.55 + rnd() * 0.3; $("qte-l").style.bottom = (target * 100) + "%"; $("qte-z").style.bottom = ((target - 0.05) * 100) + "%"; $("qte-z").style.height = "10%"; $("qte-fl").style.height = "0%"; wait = false; const s = $("qte-sc"); if (s) s.textContent = "cup " + (cup + 1) + "/3"; clearTimeout(idle); idle = setTimeout(() => { if (!over && !wait && !pouring) score(); }, 5000); }
-function frame(now) { if (over) return; const dt = Math.min(50, now - last) / 1000; last = now; if (pouring && !wait) { level += speeds[cup] * dt; $("qte-fl").style.height = Math.min(100, level * 100) + "%"; if (level >= 1) score(); } raf = requestAnimationFrame(frame); }
-function score() {
-if (wait) return; wait = true; pouring = false; clearTimeout(idle);
-const err = Math.abs(level - target), p = level >= 1 ? 0 : err < 0.03 ? 3 : err < 0.07 ? 2 : err < 0.13 ? 1 : 0;
-pts += p; const d = $("qte-d"); if (d && d.children[cup]) d.children[cup].className = p >= 2 ? "ok" : p === 1 ? "mid" : "no";
-const s = $("qte-sc"); if (s) s.textContent = level >= 1 ? "OVERFLOW! ☕💦" : p === 3 ? "PERFECT CUP!" : p ? "Not bad" : "Way off";
-cup++; if (cup >= 3) return setTimeout(end, 500); setTimeout(setup, 650);
-}
-function down(e) { if (e) e.preventDefault(); if (!over && !wait) pouring = true; }
-function up(e) { if (e) e.preventDefault(); if (!over && pouring && !wait) score(); }
-function end() { over = true; cancelAnimationFrame(raf); document.removeEventListener("keydown", kd, true); document.removeEventListener("keyup", ku, true); const q = qOf(pts, 9); finish(ov, pts + "/9 · " + Math.round(q * 100) + "% POWER", qColor(q), cb, { q: q, all: true }, 750); }
-const box = ov.querySelector(".qte-box");
-box.addEventListener("pointerdown", down); box.addEventListener("pointerup", up);
-const kd = (e) => { if (e.key === " " && !e.repeat) down(e); }, ku = (e) => { if (e.key === " ") up(e); };
-document.addEventListener("keydown", kd, true); document.addEventListener("keyup", ku, true);
-setup(); last = performance.now(); raf = requestAnimationFrame(frame);
-});
-}
-const ULT = { engineer: ultMath, sysadmin: ultCatch, hunter: ultBow, cyber: ultSimon, blood: ultBrew };
+const ULT = { engineer: ultMath, sysadmin: ultCatch, hunter: ultBow, cyber: ultRun, blood: ultBrew };
 function ult(cls, skill, cb) { (ULT[cls] || ultCatch)("✨ " + skill, cb); }
 function gamble(f, H, cb, preview) {
 const reels = H.gambleRoll(f), hold = [false, false, false];
@@ -393,7 +495,7 @@ setTimeout(() => { last = performance.now(); t0 = last; raf = requestAnimationFr
 function parry3(cb, title) { parry({ k: "unleash", title: title || "☄ ULTIMATE! Parry all 3 rings" }, o => cb(o.rings)); }
 function dodge3(cb, title) {
 const res = [];
-const go = () => dodge(q => { res.push(q); if (res.length < 3) setTimeout(go, 120); else cb(res); }, (title || "☄ ULTIMATE! Dodge 3 times") + " (" + (res.length + 1) + "/3)");
+const go = () => dodge(q => { res.push(q); if (res.length < 3) setTimeout(go, 120); else cb(res); }, (title || "☄ ULTIMATE! Dodge 3 times") + " (" + (res.length + 1) + "/3)", true);
 go();
 }
 /** opts = [{ k, icon, label, sub }] - tip na další tah soupeře; cb(k nebo null) */
@@ -412,41 +514,6 @@ const iv = setInterval(() => { const el = performance.now() - t0, b = $("qte-gb2
 /** krátká animace ultimátky (2,4 s, ťuknutím přeskočíš) */
 const CINE = {
 engineer: ["#22c55e", (st) => {
-for (let i = 0; i < 26; i++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:${i * 4}%;top:0;color:#22c55e;font:700 14px monospace;writing-mode:vertical-rl;text-shadow:0 0 6px #22c55e;animation:qcRain ${0.9 + rnd() * 0.9}s linear ${rnd() * 0.5}s infinite;`; d.textContent = Array(14).fill(0).map(() => rnd() < 0.5 ? "0" : "1").join(""); st.appendChild(d); }
-const b = document.createElement("div"); b.className = "p"; b.style.cssText = "left:0;right:0;top:52%;height:34px;margin-top:-17px;transform-origin:left;background:linear-gradient(90deg,#fff,#22d3ee 30%,#a855f7);box-shadow:0 0 40px #22d3ee;animation:qcBeam 1.3s ease-out .6s both;"; st.appendChild(b);
-const l = document.createElement("div"); l.className = "p"; l.style.cssText = "left:6%;top:52%;font-size:56px;margin-top:-34px;animation:qcPop .4s ease-out both;"; l.textContent = "💻"; st.appendChild(l);
-}],
-sysadmin: ["#f97316", (st) => {
-for (let row = 0; row < 4; row++) for (let c = 0; c < 6; c++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:calc(50% - 150px + ${c * 50 + (row % 2) * 25}px);bottom:calc(16% + ${row * 29}px);width:46px;height:26px;border-radius:3px;background:linear-gradient(180deg,#ff7849,#9a3412);border:1px solid #fdba74;animation:qcDrop .5s cubic-bezier(.5,0,.8,1) ${(3 - row) * 0.18 + c * 0.04}s both;`; st.appendChild(d); }
-const s = document.createElement("div"); s.className = "p"; s.style.cssText = "left:50%;bottom:calc(16% + 130px);font-size:70px;margin-left:-35px;animation:qcPop .5s ease-out 1s both;filter:drop-shadow(0 0 20px #63c5ff);"; s.textContent = "🛡"; st.appendChild(s);
-st.style.animation = "qcShake .25s linear 1s 3";
-}],
-hunter: ["#facc15", (st) => {
-[0, 1, 2, 3].forEach(i => { const a = document.createElement("div"); a.className = "p"; a.style.cssText = `left:0;top:${38 + i * 7}%;width:170px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#fde68a 40%,#facc15);box-shadow:0 0 12px #facc15;animation:qcArrow 1.4s cubic-bezier(.2,.7,.3,1) ${0.15 + i * 0.22}s both;`; a.innerHTML = '<span style="position:absolute;right:-10px;top:-9px;color:#facc15;font-size:18px;line-height:1;">▶</span>'; st.appendChild(a); });
-const t = document.createElement("div"); t.className = "p"; t.style.cssText = "right:8%;top:42%;font-size:64px;animation:qcPop .4s ease-out both;"; t.textContent = "🎯"; st.appendChild(t);
-}],
-cyber: ["#00ff88", (st) => {
-st.style.animation = "qcGlitch .12s steps(2) infinite";
-for (let i = 0; i < 22; i++) { const v = document.createElement("div"); v.className = "p"; v.style.cssText = `left:${rnd() * 90}%;top:${rnd() * 85}%;font-size:${22 + rnd() * 30}px;animation:qcPop .3s ease-out ${i * 0.07}s both;`; v.textContent = "🦠"; st.appendChild(v); }
-const g = document.createElement("div"); g.className = "p"; g.style.cssText = "left:0;right:0;top:62%;text-align:center;font:900 22px monospace;color:#ff1744;text-shadow:3px 0 #00f0ff,-3px 0 #ff4dff;"; g.textContent = "ACCESS GRANTED"; st.appendChild(g);
-}],
-blood: ["#c8a27a", (st) => {
-const c = document.createElement("div"); c.className = "p"; c.style.cssText = "left:calc(50% - 50px);top:46%;font-size:100px;animation:qcDash 2.2s ease-in both;"; c.textContent = "☕"; st.appendChild(c);
-for (let i = 0; i < 9; i++) { const s = document.createElement("div"); s.className = "p"; s.style.cssText = `left:calc(50% - 20px + ${(i - 4) * 9}px);top:44%;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.55);filter:blur(4px);animation:qcSteam 1.4s ease-out ${i * 0.09}s both;`; st.appendChild(s); }
-}]
-};
-function cine(cls, name, cb) {
-const C0 = CINE[cls] || CINE.engineer, ov = document.createElement("div");
-ov.className = "qcine"; ov.style.setProperty("--qc", C0[0]);
-ov.innerHTML = `<div class="st" style="position:absolute;inset:0;"></div><div class="nm">${name}</div><div class="skip">tap to skip</div>`;
-document.body.appendChild(ov);
-try { C0[1](ov.querySelector(".st")); } catch (e) {}
-let done = false; const end = () => { if (done) return; done = true; ov.remove(); if (cb) cb(); };
-ov.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); end(); });
-setTimeout(end, 2400);
-}
-window.HSQTE = { timing: timing, parry: parry, dodge: dodge, ult: ult, gamble: gamble, mathProblem: mathProblem, ULT: ULT, channel: channel, parry3: parry3, dodge3: dodge3, guess: guess, cine: cine };
-})();
-</script>
+for (let i = 0; i < 26; i++) { const d = document.createElement("div"); d.className = "p"; d.style.cssText = `left:${i * 4}%;top:0;color:#22c55e;font:700 14px monospace;writing-mode:vertical-rl;text-shadow:0 0 6px #22c55e;animation:qcRain ${0.9 + rnd() * 0.9}s linear ${rnd() * 0.5}s infinite;`; d.textContent = Array(14).fill(0).map(() => rnd() < 0.5 ? "0" : "1").join(""); st.appendChild(d); }</script>
 <script>(window.__TT_FILES = window.__TT_FILES || {})["hsqte2"] = 1;</script>
 <!-- END-OF-FILE: hsqte2 -->
