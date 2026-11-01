@@ -303,6 +303,8 @@ body {
   color: var(--amber);
   text-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
 }
+.odds-bar { display:flex; height:8px; border-radius:4px; overflow:hidden; margin:0 0 8px; gap:1px; background:rgba(255,255,255,.05); }
+.odds-bar i { display:block; min-width:2px; }
 .odds-table {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1029,8 +1031,10 @@ body {
           <div class="tab-row">
             <button class="casino-tab-btn active" id="tab-btn-log" onclick="switchBottomLeftTab('log')">📋 SYSTEM LOG</button>
             <button class="casino-tab-btn" id="tab-btn-chat" onclick="switchBottomLeftTab('chat')">💬 CHAT <span class="unread" id="chat-unread"></span></button>
+            <button class="casino-tab-btn" id="tab-btn-inc" onclick="switchBottomLeftTab('inc')">🚨 INCIDENTS <span class="unread" id="inc-unread"></span></button>
           </div>
           <div id="view-system-log"><div id="log" class="log-container"></div></div>
+          <div id="view-incidents" style="display:none;"><div id="inc-messages" class="chat-container"><div class="chat-empty">No incidents yet - duels, card tables and boss kills show up here.</div></div></div>
           <div id="view-office-chat" style="display:none;">
             <div id="chat-messages" class="chat-container"><div class="chat-empty">Loading chat...</div></div>
             <div class="chat-input-row">
@@ -1126,6 +1130,7 @@ body {
             <span class="chest-lvl-tag">LVL <span id="chest-lvl">1</span></span>
           </div>
 
+          <div class="odds-bar" id="odds-bar"></div>
           <div class="odds-table">
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t0);">🗑️ Empty</div><div class="odds-val" id="odd-trash" style="color:var(--rarity-t0);">45.0%</div></div>
             <div class="odds-cell"><div class="odds-name" style="color:var(--rarity-t1);">⚪ Common T1</div><div class="odds-val" id="odd-t1" style="color:var(--rarity-t1);">45.0%</div></div>
@@ -1145,7 +1150,7 @@ body {
           </div>
           <div style="display:flex; gap:6px;">
             <button class="btn btn-gold" id="btn-upgrade-chest" data-hold="chestup" style="flex:1; padding:8px 6px;" onclick="upgradeCompanyChest()">UPGRADE (<span id="chest-upgrade-cost">100</span> GC)</button>
-            <button class="btn btn-cyan" id="btn-token" style="flex:1; padding:8px 6px;" disabled onclick="openTokenPicker(event)">🎟 USE SLOT TOKEN (0)</button>
+            <button class="btn btn-cyan" id="btn-token" style="display:none; flex:1; padding:8px 6px;" disabled onclick="openTokenPicker(event)">⏱ USE OVERTIME HOUR (0)</button>
           </div>
         </div>
 
@@ -1338,10 +1343,10 @@ body {
     </div>
   </div>
 
-  <!-- SLOT TOKEN PICKER -->
+  <!-- OVERTIME HOUR PICKER -->
   <div class="tt-overlay" id="token-overlay">
     <div class="tt-modal">
-      <h2>🎟 SLOT TOKEN</h2>
+      <h2>⏱ OVERTIME HOUR</h2>
       <div style="font-size:13px; color:var(--text-dim);">Pick a body slot. The item you have equipped there gets <b>+1 merge level</b>. If the slot is empty or already maxed, a new item is rolled instead (Rare to Legendary). Use the mouse - the keyboard is disabled here.</div>
       <div class="token-grid" id="token-slots"></div>
       <div style="display:flex; gap:8px;">
@@ -1740,7 +1745,7 @@ const INV_MAX_STACKS = 400;
 const MERGE_COUNT = 3;          // kolik stejných itemů se mergne
 const MERGE_MAX_LVL = 10;
 const MERGE_STAT_STEP = 0.6;    // +60 % základních statů za level (aditivně, ne složeně)
-const TOKEN_CHANCE = 0.003;     // šance na Slot Token za každé otevření bedny
+const TOKEN_CHANCE = 0.003;     // šance na Overtime Hour za každé otevření bedny
 const CLICK_CRIT_CHANCE = 0.05; // 5 % kliků je kritických
 const CLICK_CRIT_MULT = 3;
 const HEAT_CPS = 14;            // nad tímhle CPS se "CPU" začne zahřívat
@@ -1903,12 +1908,29 @@ function setHtml(id, v) {
 }
 
 function switchBottomLeftTab(tab) {
-  const isLog = tab === "log";
+  const isLog = tab === "log", isInc = tab === "inc", isChat = !isLog && !isInc;
+  const vi = document.getElementById("view-incidents"), bi = document.getElementById("tab-btn-inc");
   document.getElementById("view-system-log").style.display = isLog ? "block" : "none";
-  document.getElementById("view-office-chat").style.display = isLog ? "none" : "block";
+  document.getElementById("view-office-chat").style.display = isChat ? "block" : "none";
+  if (vi) vi.style.display = isInc ? "block" : "none";
   document.getElementById("tab-btn-log").classList.toggle("active", isLog);
-  document.getElementById("tab-btn-chat").classList.toggle("active", !isLog);
-  if (!isLog) { scrollChatToBottom(); chatUnread = 0; renderChatUnread(); }
+  document.getElementById("tab-btn-chat").classList.toggle("active", isChat);
+  if (bi) bi.classList.toggle("active", isInc);
+  if (isChat) { scrollChatToBottom(); chatUnread = 0; renderChatUnread(); }
+  if (isInc) { const c = document.getElementById("inc-messages"); if (c) c.scrollTop = c.scrollHeight; incUnread = 0; setTxt("inc-unread", ""); }
+}
+/** v12: systémové zprávy (duely, Prší, dáma, týdenní boss) jdou do záložky INCIDENTS */
+let incUnread = 0, incLastSig = null;
+function isSysMsg(m) { return !/^[A-Za-z0-9._@-]/.test(String(m.user || "")); }
+function renderIncidents(list) {
+  const c = document.getElementById("inc-messages"); if (!c) return;
+  const sig = list.length + "|" + (list.length ? list[list.length - 1].time + list[list.length - 1].text : "");
+  if (incLastSig !== null && sig !== incLastSig) { const vi = document.getElementById("view-incidents"); if (!vi || vi.style.display === "none") { incUnread++; setTxt("inc-unread", "•"); } }
+  if (sig === incLastSig) return; incLastSig = sig;
+  if (!list.length) return;
+  const atBottom = c.scrollHeight - c.clientHeight <= c.scrollTop + 30;
+  c.innerHTML = list.map(m => `<div class="chat-row"><span class="chat-time">${escapeHtml(m.time || "")}</span><span class="chat-author" style="color:var(--amber);">${escapeHtml(m.user)}</span> <span class="chat-text">${escapeHtml(m.text)}</span></div>`).join("");
+  if (atBottom) c.scrollTop = c.scrollHeight;
 }
 
 let chatUnread = 0, chatLastSig = null;
@@ -1924,6 +1946,8 @@ function renderChatUnread() {
 }
 function renderChatMessages(messages) {
   if (!messages) return;
+  renderIncidents(messages.filter(isSysMsg));
+  messages = messages.filter(m => !isSysMsg(m));
   // nepřečtené zprávy od ostatních (když chat není vidět)
   const last = messages[messages.length - 1];
   const sig = messages.length ? messages.length + "|" + (last.time || "") + "|" + last.user + "|" + last.text : "0";
@@ -2287,6 +2311,17 @@ function getPrestigeCost(p) { return Math.floor(200000 * Math.pow(4.2, p)); }
 function lpGainFor(p) { return window.Plant ? Plant.lpGainFor(p) : 2 + Math.floor(p / 2); }   // v8.7: víc LP (dřív 1 + floor(p/3))
 let prestigeArmedUntil = 0;
 
+/** v12: Overtime Hours za prestiž: 5 + 1 za každých 5 prestiží */
+function otForPrestige(p) { return 5 + Math.floor(p / 5); }
+/** v12 migrace: Slot Tokeny -> Overtime Hours. Všem se vynulují a dostanou zpět jen za prestiže a achievementy (jednou). */
+function otMigrate12() {
+  const g = gameState; if (g.ot12) return;
+  let n = 0; for (let p = 1; p <= (g.prestige || 0); p++) n += otForPrestige(p);
+  let ach = 0; try { const d = window.Dungeon && Dungeon.state ? Dungeon.state() : g.hs || {}; ach = Object.keys((d.ach && d.ach.u) || {}).length; } catch (e) {}
+  const old = g.slotTokens || 0; g.slotTokens = n + ach; g.ot12 = 1; g.otChest = Math.floor((g.chestLevel || 0) / 10) * 10;
+  log(`⏱ SLOT TOKENS ARE NOW OVERTIME HOURS: they no longer drop from chests. Your balance was reset to what your ${g.prestige || 0} prestiges and ${ach} achievements are worth: ${g.slotTokens} (before: ${old}). New ones come from chest levels, prestige, High Stakes bosses and the plant.`, "special");
+  TT.saveSoon();
+}
 function performPrestige() {
   const cost = getPrestigeCost(gameState.prestige);
   if (gameState.tickets < cost) {
@@ -2311,6 +2346,7 @@ function performPrestige() {
   }
 
   gameState.prestige += 1;
+  const otGain = otForPrestige(gameState.prestige); gameState.slotTokens = (gameState.slotTokens || 0) + otGain; gameState.otChest = 0;   // v12: Overtime Hours za prestiž
   const lpGain = lpGainFor(gameState.prestige) + Math.floor((gameState.chestLevel || 0) / 10);     // v11.6: +1 LP za každých 10 levelů Company Chest
   gameState.lp += lpGain;
   gameState.tickets = 0;
@@ -2326,7 +2362,7 @@ function performPrestige() {
   gameState.focusAutogenRemaining = 0;
   if (window.Dungeon && Dungeon.onPrestige) try { Dungeon.onPrestige(); } catch (e) { console.error(e); }   // v8.6: HIGH STAKES kampaň + tower reset
 
-  log(`ASCENDED TO PRESTIGE ${gameState.prestige}! +${lpGain} Legacy Points (total ${gameState.lp}). Start bonus: ${gameState.coins.toLocaleString()} GC.${keep.length ? " Heirloom kept " + keep.length + " item(s) at half tier & merge level." : ""}`, "special");
+  log(`ASCENDED TO PRESTIGE ${gameState.prestige}! +${lpGain} Legacy Points (total ${gameState.lp}), +${otGain} ⏱ Overtime Hours. Start bonus: ${gameState.coins.toLocaleString()} GC.${keep.length ? " Heirloom kept " + keep.length + " item(s) at half tier & merge level." : ""}`, "special");
   saveGame();
   updateUI();
 }
@@ -2397,8 +2433,13 @@ function getChestUpgradeCost(lvl) { return Math.floor(75 * Math.pow(lvl, 1.35));
 
 /** Sezóna 2+: od levelu 20 dvojnásob, pak každých 10 levelů ×1.5 (lvl 30 = ×3, lvl 40 = ×4.5 ...) */
 function chestLevelCostFactor(lvl) {
-  return lvl < 20 ? 1 : Math.pow(1.25, 1 + Math.floor((lvl - 20) / 10));   // v8.2: ×1.25 každých 10 levelů od LV20 (dřív 2×1.5^n)
+  if (lvl < 20) return 1;
+  // v12: exponenciální, ale nahoře mírnější: ×1.25 / 10 lvl do LV 100, ×1.12 do LV 300, ×1.08 nad
+  const a = Math.min(lvl, 100), b = Math.max(0, Math.min(lvl, 300) - 100), c = Math.max(0, lvl - 300);
+  return Math.pow(1.25, 1 + Math.floor((a - 20) / 10)) * Math.pow(1.12, Math.floor(b / 10)) * Math.pow(1.08, Math.floor(c / 10));
 }
+function doubleDropChance(l) { return l < 170 ? 0 : Math.min(0.5, (l - 170) * 0.0025); }
+function tripleDropChance(l) { return l < 400 ? 0 : Math.min(0.25, (l - 400) * 0.001); }
 function getChestScrapCost() {
   const base = 100 * Math.pow(1.15, gameState.prestige || 0) * (1 - 0.03 * gameState.lpUp.scrap) * chestLevelCostFactor(gameState.chestLevel) * (window.Meta ? Meta.mult("chest") : 1);
   return Math.max(10, Math.floor(base));
@@ -2411,11 +2452,11 @@ function getChestOdds(lvl) {
   const trash = Math.max(0, 45.0 - (l - 1) * 0.5);
   const t2 = Math.min(50.0, 9.8 + (l - 1) * 0.8);
   const t3 = Math.min(25.0, 0.20 + (l - 1) * 0.15);
-  const t4 = Math.min(10.0, 0.01 + (l - 1) * 0.03);
-  const t5 = l < T5_UNLOCK_LVL ? 0 : Math.min(0.75, 0.025 + (l - T5_UNLOCK_LVL) * 0.003);   // v8.2: poloviční šance na Mythic
+  const t4 = Math.min(10.0, 0.01 + (l - 1) * 0.03) + Math.max(0, l - 334) * 0.002;        // v12: po stropu dál pomalu roste
+  const t5 = l < T5_UNLOCK_LVL ? 0 : Math.min(0.75, 0.025 + (l - T5_UNLOCK_LVL) * 0.003) + Math.max(0, l - 282) * 0.002;   // v8.2: poloviční šance na Mythic
   // Prismatic (T6): jen pro části těla odemčené bossy v HIGH STAKES, od bedny LV 50 (v8.2.2: až po Mythicu a vždy vzácnější než Mythic)
   const t6n = window.Dungeon && Dungeon.t6Slots ? Dungeon.t6Slots().length : 0;
-  const t6 = l < T6_UNLOCK_LVL || !t6n ? 0 : Math.min(0.45, (0.005 + (l - T6_UNLOCK_LVL) * 0.002) * (window.Plant ? Plant.fx("t6") : 1)) * t6n / 6;
+  const t6 = l < T6_UNLOCK_LVL || !t6n ? 0 : (Math.min(0.45, (0.005 + (l - T6_UNLOCK_LVL) * 0.002) * (window.Plant ? Plant.fx("t6") : 1)) + Math.max(0, l - 272) * 0.002) * t6n / 6;
   const t1 = Math.max(0, 100.0 - (trash + t2 + t3 + t4 + t5 + t6));
   return { trash, t1, t2, t3, t4, t5, t6 };
 }
@@ -2443,6 +2484,10 @@ function upgradeCompanyChest() {
   gameState.chestLevel += 1;
   if (gameState.chestLevel > gameState.maxChestLevel) gameState.maxChestLevel = gameState.chestLevel;
   log(`COMPANY CHEST UPGRADED TO LEVEL ${gameState.chestLevel}!`, "special");
+  if (gameState.chestLevel % 10 === 0 && gameState.chestLevel > (gameState.otChest || 0)) {      // v12: +1 Overtime Hour za každých 10 levelů (jednou za prestiž)
+    gameState.otChest = gameState.chestLevel; gameState.slotTokens = (gameState.slotTokens || 0) + 1;
+    log(`⏱ +1 Overtime Hour for chest level ${gameState.chestLevel} (you have ${gameState.slotTokens}).`, "special");
+  }
   updateUI();
   saveGame();
 }
@@ -2457,7 +2502,7 @@ function tierLabel(t) { return "T" + t + " " + rarityOf(t).name; }
 function openCompanyChest(n) {
   n = Math.max(1, n | 0);
   const cost = getChestScrapCost();
-  let opened = 0, trash = 0, sold = 0, soldScrap = 0, tokens = 0, full = false;
+  let opened = 0, trash = 0, sold = 0, soldScrap = 0, tokens = 0, full = false, multi = 0;
   const byTier = {};
   let best = null;
 
@@ -2466,8 +2511,10 @@ function openCompanyChest(n) {
     gameState.scrap -= cost;
     opened++;
 
-    if (Math.random() < TOKEN_CHANCE * (window.Plant ? Plant.fx("token") : 1)) { gameState.slotTokens += 1; tokens++; }
-
+    // v12: z bedny už Overtime Hours nepadají; od LV 170 šance na DOUBLE DROP, od LV 400 na TRIPLE DROP
+    const extra = Math.random() < tripleDropChance(gameState.chestLevel) ? 2 : Math.random() < doubleDropChance(gameState.chestLevel) ? 1 : 0;
+    for (let x = 0; x <= extra; x++) {
+    if (x) multi++;
     const t = rollTier(true);
     if (t === 0) { trash++; continue; }
 
@@ -2488,6 +2535,8 @@ function openCompanyChest(n) {
     invAdd(slot, t, 0, 1);
     byTier[t] = (byTier[t] || 0) + 1;
     if (!best || t > best.tier) best = it;
+    }
+    if (full) break;
   }
 
   if (opened === 0) {
@@ -2499,14 +2548,15 @@ function openCompanyChest(n) {
   Object.keys(byTier).sort((a, b) => b - a).forEach(t => parts.push(`T${t}×${byTier[t]}`));
   if (sold) parts.push(`${sold} auto-scrapped (+${soldScrap})`);
   if (trash) parts.push(`${trash} empty`);
+  if (multi) parts.push(`${multi} bonus drop${multi > 1 ? "s" : ""}`);
   const summary = `Opened ${opened}: ${parts.join(", ") || "nothing"}${best ? " | best: " + itemName(best) : ""}`;
-  setHtml("chest-result", escapeHtml(summary) + (tokens ? ` <b style="color:var(--amber);">🎟 +${tokens} SLOT TOKEN!</b>` : "") + (full ? " (backpack full)" : ""));
+  setHtml("chest-result", escapeHtml(summary) + (tokens ? ` <b style="color:var(--amber);">⏱ +${tokens} OVERTIME HOUR!</b>` : "") + (full ? " (backpack full)" : ""));
   log(`CHEST x${opened}: ${escapeHtml(parts.join(", ") || "nothing")}${best ? " | best " + escapeHtml(itemName(best)) + " (T" + best.tier + ")" : ""}`, best && best.tier >= 4 ? "special" : "success");
-  if (tokens) log(`🎟 SLOT TOKEN found! You now have ${gameState.slotTokens}.`, "special");
+  if (tokens) log(`⏱ OVERTIME HOUR found! You now have ${gameState.slotTokens}.`, "special");
   updateUI();
 }
 
-// ---------- Slot Token (vybereš část těla, losuje se rarita) ----------
+// ---------- Overtime Hour (vybereš část těla, losuje se rarita) ----------
 let tokenPick = { slot: null, armedAt: 0, open: false };
 
 function openTokenPicker(ev) {
@@ -2553,7 +2603,7 @@ function confirmTokenRoll(ev) {
   if (eq && (eq.lvl || 0) < MERGE_MAX_LVL) {        // token = +1 merge level nasazenému itemu
     gameState.slotTokens -= 1;
     eq.lvl = (eq.lvl || 0) + 1;
-    log(`🎟 SLOT TOKEN: ${SLOT_ICONS[slot]} ${itemName(eq)} upgraded to merge +${eq.lvl}!`, "special");
+    log(`⏱ OVERTIME HOUR: ${SLOT_ICONS[slot]} ${itemName(eq)} upgraded to merge +${eq.lvl}!`, "special");
     closeTokenPicker(); updateUI(); TT.saveSoon();
     return;
   }
@@ -2564,7 +2614,7 @@ function confirmTokenRoll(ev) {
   }
   gameState.slotTokens -= 1;
   invAdd(slot, tier, 0, 1);
-  log(`🎟 SLOT TOKEN: ${SLOT_ICONS[slot]} ${slot} -> ${tierLabel(tier)} ${itemName({ slot: slot, tier: tier })}!`, tier >= 4 ? "special" : "success");
+  log(`⏱ OVERTIME HOUR: ${SLOT_ICONS[slot]} ${slot} -> ${tierLabel(tier)} ${itemName({ slot: slot, tier: tier })}!`, tier >= 4 ? "special" : "success");
   closeTokenPicker();
   updateUI();
   TT.saveSoon();
@@ -2984,7 +3034,7 @@ function buffChips() {
   }
   if (window.Meta && Meta.current()) chips.push(Meta.chip());
   if (window.Colleague) { const cc = Colleague.chip(); if (cc) chips.push(cc); }
-  if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">🎟 ${g.slotTokens} token${g.slotTokens > 1 ? "s" : ""}</span>`);
+  if (g.slotTokens > 0) chips.push(`<span class="buff-chip on">⏱ ${g.slotTokens} OT</span>`);
   if (window.Dungeon && Dungeon.netMultBonus() > 1) chips.push(`<span class="buff-chip lp" title="Permanent bonus from HIGH STAKES stars">🎰 STARS ×${Dungeon.netMultBonus().toFixed(2)}</span>`);
   return chips.join("");
 }
@@ -3073,14 +3123,19 @@ function updateHud() {
   setTxt("odd-t6", o.t6 > 0 ? o.t6.toFixed(3) + "%" : (g.chestLevel < T6_UNLOCK_LVL && window.Dungeon && Dungeon.t6Slots && Dungeon.t6Slots().length ? "🔒 LVL " + T6_UNLOCK_LVL : "🔒 BOSS"));
   setTxt("odd-t5", g.chestLevel < T5_UNLOCK_LVL ? "🔒 LVL " + T5_UNLOCK_LVL : o.t5.toFixed(3) + "%");
   const nf = chestLevelCostFactor(g.chestLevel + 1), cf = chestLevelCostFactor(g.chestLevel);
-  setTxt("chest-next-info", (o.trash > 0
-    ? "Next level: -0.5% Empty, +0.8% Rare, +0.15% Epic (0% Empty at level 90)."
-    : "Level 90+: 0% empty drops.") +
-    (nf > cf ? ` ⚠ Next level makes opening ×${(nf / cf).toFixed(2)} more expensive.` : "") +
+  const bar = document.getElementById("odds-bar");
+  if (bar) { const k = ["trash", "t1", "t2", "t3", "t4", "t5", "t6"], sig = k.map(x => o[x].toFixed(3)).join(); if (bar.dataset.s !== sig) { bar.dataset.s = sig; bar.innerHTML = k.filter(x => o[x] > 0).map((x, i) => `<i style="flex:${Math.max(o[x], 0.6)};background:var(--rarity-${x === "trash" ? "t0" : x})" title="${x.toUpperCase()} ${o[x].toFixed(3)}%"></i>`).join(""); } }
+  const on = getChestOdds(g.chestLevel + 1), nl = g.chestLevel + 1, parts = [];
+  [["trash", "Empty"], ["t2", "Rare"], ["t3", "Epic"], ["t4", "Legendary"], ["t5", "Mythic"], ["t6", "Prismatic"]].forEach(([x, nm]) => { const dd = on[x] - o[x]; if (Math.abs(dd) >= 0.0005) parts.push(`${dd > 0 ? "+" : ""}${dd.toFixed(Math.abs(dd) < 0.1 ? 3 : 2)}% ${nm}`); });
+  if (nl % 10 === 0 && nl > (g.otChest || 0)) parts.push("+1 ⏱ Overtime Hour");
+  if (doubleDropChance(nl) > doubleDropChance(g.chestLevel)) parts.push(`double drop ${(doubleDropChance(nl) * 100).toFixed(2)}%`);
+  if (tripleDropChance(nl) > tripleDropChance(g.chestLevel)) parts.push(`triple drop ${(tripleDropChance(nl) * 100).toFixed(1)}%`);
+  setTxt("chest-next-info", `Next level gives: ${parts.length ? parts.join(", ") : "no change"}.` +
+    (nf > cf ? ` ⚠ Opening gets ×${(nf / cf).toFixed(2)} more expensive.` : "") +
     (o.t6 > 0 ? ` 🌌 Prismatic T6: ${o.t6.toFixed(2)}% (${Dungeon.t6Slots().join(", ")}).`
       : " 🌌 Prismatic T6: beat HIGH STAKES chapter bosses to unlock body slots (drops from chest LV 50+)."));
   const btnTok = document.getElementById("btn-token");
-  if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `🎟 USE SLOT TOKEN (${g.slotTokens})`); }
+  if (btnTok) { btnTok.disabled = g.slotTokens < 1; setTxt("btn-token", `⏱ USE OVERTIME HOUR (${g.slotTokens})`); }
 
   setTxt("bp-count", `${g.inventory.length} / ${INV_MAX_STACKS} stacks · ${invItems()} items`);
 
@@ -4021,7 +4076,7 @@ const TUTORIAL_STEPS = [
     <ul><li>From chest <b>level 20</b> opening costs ×2, then ×1.5 every 10 levels</li>
     <li><b>Mythic (T5)</b> only drops from chest level 40</li>
     <li>🌌 <b>Prismatic / Quantum (T6)</b>: every HIGH STAKES <b>chapter boss</b> unlocks T6 for one body slot (Great "I" = HEAD, Pookie = RIG, Ransomware = OS, LLM = AUGMENT, Massi = TOOL, Compliance = RELIC). From then on that slot can drop T6 from the chest (LV 50+, always rarer than Mythic), even after prestige. Beating the boss gives no free T6 item. The 🌌 T6 cell in the odds table shows your chance</li>
-    <li>🎟 <b>Slot Token</b> (rare): +1 merge level to the item equipped in a slot you pick (or a new item if the slot is empty) - or turn it into 4 HIGH STAKES energy</li></ul>` },
+    <li>⏱ <b>Overtime Hour</b> (rare): +1 merge level to the item equipped in a slot you pick (or a new item if the slot is empty) - or turn it into 4 HIGH STAKES energy</li></ul>` },
   { t: "4) GEAR, MERGE & AUTOSELL", b: `
     <p>Equal items <b>stack</b>. <b>Merge 3 identical → +1 level</b> (+60% base stats per level). <b>MERGE ALL</b> merges everything at once.</p>
     <ul><li><b>Autosell</b> (up to T4): new drops at or below the chosen tier become scrap instantly, but <b>upgrades are always kept</b></li>
@@ -4030,7 +4085,7 @@ const TUTORIAL_STEPS = [
     <p>Upgrade the <b>item you have equipped</b> from <b>+1 to +15</b> with GC (shown as ⚒). The upgrade stays <b>on that item</b> - if you swap it out, it keeps its ⚒ level in the backpack.</p>
     <ul><li>Every stage: <b>+8% all stats</b> of the item + a bonus you pick: 🖱 +12% Click, ⚙ +12% Auto or ✨ +0.5% Mult</li>
     <li>⚒1-5 always succeed. ⚒6-10: 90% → 50% chance, a fail only costs GC. ⚒11-15: 45% → 20%, a fail <b>drops the item one stage</b></li>
-    <li>🎟 <b>Slot Tokens</b> can now be bought with GC (price rises with every buy, resets on prestige). 1 token = protection against the drop, 2 tokens = guaranteed success</li>
+    <li>⏱ <b>Overtime Hours</b> can now be bought with GC (price rises with every buy, resets on prestige). 1 token = protection against the drop, 2 tokens = guaranteed success</li>
     <li>Upgraded items can be merged by hand in the Merge Station (your equipped item counts too): the result keeps the best ⚒ minus 1 stage. MERGE ALL skips them. Prestige wipes gear (Heirloom keeps half the ⚒ stages)</li></ul>` },
   { t: "5) AUTOGEN, PRESTIGE & LEGACY", b: `
     <p><b>45M Autogen</b> makes GC from the Auto stat of your gear. <b>Prestige</b> resets your run (tickets, scrap, GC, chest, gear) but raises the multiplier and gives <b>Legacy Points</b>.</p>
@@ -4057,8 +4112,8 @@ const TUTORIAL_STEPS = [
     <li>⚔ <b>DUEL</b>: a live 1v1 with a friend (friendly or for GC, own stats or equal terms). 🏟 <b>ARENA</b>: an AI plays your saved build against your friends' builds for honor + GC. Office prestige never resets High Stakes</li></ul>` },
   { t: "9) 🏆 HALL OF FAME", b: `
     <p>Open it with the <b>🏆 HALL OF FAME</b> button (on mobile: MORE).</p>
-    <ul><li><b>Achievements</b>: ${window.Meta ? Meta.ACH.length : 42} badges, each one gives +1 🎟 Slot Token and shows on your player card</li>
-    <li><b>Weekly boards</b>: Corporate Climb height, best Shift, world boss damage and biggest casino win. Top 3 get 3 / 2 / 1 🎟 every week</li>
+    <ul><li><b>Achievements</b>: ${window.Meta ? Meta.ACH.length : 42} badges, each one gives +1 ⏱ Overtime Hour and shows on your player card</li>
+    <li><b>Weekly boards</b>: Corporate Climb height, best Shift, world boss damage and biggest casino win. Top 3 get 3 / 2 / 1 ⏱ every week</li>
     <li><b>Company events</b>: every hour a 10-minute event for everyone (Payday, Coffee Machine Broke, Audit Week, Supply Drop, Overtime). Watch for the banner</li></ul>` },
   { t: "10) SCORE", b: `
     <p>Score = prestige, lifetime tickets, best chest level and HIGH STAKES missions cleared. It never goes down. Click a player in the Top 10 to see their card.</p>
@@ -4175,7 +4230,7 @@ function buildPayload() {
     loadout: g.loadout, inventory: g.inventory,
     autosellTier: g.autosellTier,
     focusAutogenActive: g.focusAutogenActive, focusAutogenRemaining: g.focusAutogenRemaining,
-    tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy,
+    tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy, ot12: g.ot12 || 0, otChest: g.otChest || 0,
     lp: g.lp, lpUp: window.Plant ? {} : g.lpUp, plant: window.Plant ? Plant.payload() : g.plant,
     autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
     pachinko: g.pachinko, pcPending: g.pcPending, stk: g.stk,
@@ -4345,6 +4400,7 @@ function applyLoaded(l) {
   g.tutorialDone = !!l.tutorialDone;
   g.slotTokens = Math.max(0, Math.floor(nv(l.slotTokens, 0)));
   g.tokBuy = Math.max(0, Math.floor(nv(l.tokBuy, 0)));
+  g.ot12 = l.ot12 ? 1 : 0; g.otChest = Math.max(0, Math.floor(nv(l.otChest, 0)));
 
   // Legacy Points: starý save dostane zpětně LP za dosažené prestiže
   if (l.lp === undefined) {
@@ -4382,6 +4438,7 @@ function finishLoading() {
     try { _loadedCallbacks.shift()(); } catch (e) { console.error(e); }
   }
   if (!gameState.tutorialDone) openTutorial();
+  try { if (typeof otMigrate12 === "function") otMigrate12(); } catch (e) { console.error(e); }
   checkWipeNotice();
   startVersionWatch();
 }
@@ -4631,7 +4688,7 @@ window.__startGame = initGame;
           <button class="casino-tab-btn" id="adv-tab-prsi" onclick="AdvMini.tab('prsi')">♣ PRŠÍ</button>
           <button class="casino-tab-btn" id="adv-tab-checkers" onclick="AdvMini.tab('checkers')">⛀ CHECKERS</button>
           <button class="casino-tab-btn" id="adv-tab-mines" onclick="AdvMini.tab('mines')">🐞 MINES</button>
-          <button class="casino-tab-btn" id="adv-tab-lotto" onclick="AdvMini.tab('lotto')">🎟 LOTTERY</button>
+          <button class="casino-tab-btn" id="adv-tab-lotto" onclick="AdvMini.tab('lotto')">⏱ LOTTERY</button>
           <button class="casino-tab-btn" id="adv-tab-stocks" onclick="AdvMini.tab('stocks')">📈 STOCKS</button>
         </div>
 
@@ -6196,7 +6253,7 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
     basic: { icon: "🎰", name: "BASIC CASINO", games: [["roulette", "🎰 ROULETTE", "c"], ["slots", "🍒 SLOTS", "c"], ["blackjack", "♠ BLACKJACK", "c"]] },
     adv: { icon: "⚡", name: "ADVANCED", games: [["mega", "💰 MEGA 5×5", "c"], ["crash", "🚀 CRASH", "c"], ["chicken", "🐔 CHICKEN", "a"], ["pachinko", "⚪ PACHINKO", "a"], ["mines", "🐞 MINES", "a"]] },
     special: { icon: "👥", name: "SPECIAL", games: [["showdown", "⚔ SHOWDOWN", "a"], ["climb", "🧗 CLIMB", "a"], ["prsi", "♣ PRŠÍ", "a"], ["checkers", "⛀ CHECKERS", "a"]] },
-    money: { icon: "📈", name: "LOTTERY & STOCKS", games: [["lotto", "🎟 LOTTERY", "a"], ["stocks", "📈 STOCKS", "a"]] }
+    money: { icon: "📈", name: "LOTTERY & STOCKS", games: [["lotto", "⏱ LOTTERY", "a"], ["stocks", "📈 STOCKS", "a"]] }
   };
   const ALL = []; Object.keys(SECS).forEach(s => SECS[s].games.forEach(g => ALL.push({ id: g[0], label: g[1], kind: g[2], sec: s })));
   const viewOf = (g) => $(g.kind === "c" ? "view-" + g.id : "adv-view-" + g.id);
@@ -6345,7 +6402,7 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
       SLOTS.map(s => g.loadout[s] ? g.loadout[s].tier + enhOf(g.loadout[s]) : "-").join(",")].join("|");
     if (!force && sig === lastSig) return;
     lastSig = sig;
-    const tk = $("fg-tokens"); if (tk) tk.textContent = "🎟 " + g.slotTokens + " TOKEN" + (g.slotTokens === 1 ? "" : "S");
+    const tk = $("fg-tokens"); if (tk) tk.textContent = "⏱ " + g.slotTokens + " OVERTIME HOUR" + (g.slotTokens === 1 ? "" : "S");
     const slots = SLOTS.map(s => { const x = g.loadout[s];
       return `<button class="btn ${s === sel ? "sel" : ""}" onclick="Forge.slot('${s}')" ${x ? "" : "disabled"}>${SLOT_ICONS[s]} ${s}${x && enhOf(x) ? " ⚒" + enhOf(x).length : ""}</button>`; }).join("");
     let html = `<div class="fg-slots">${slots}</div>`;
@@ -6363,17 +6420,17 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
         html += `<div class="fg-choice">${Object.keys(CH).map(k => `<button class="btn ${k === choice ? "sel" : ""}" onclick="Forge.pick('${k}')">${CH[k][0]} ${CH[k][1]}<br><small>${CH[k][2]}</small></button>`).join("")}</div>`;
         const risk = ch >= 100 ? "always succeeds" : t >= 11 ? `fail = GC lost <b style="color:var(--crimson);">and the item drops to ⚒${E - 1 < 0 ? 0 : E - 1}</b>` : "fail = only the GC is lost";
         html += `<div class="fg-info">Every stage: +8% all stats + your bonus. Cost <b>${short(c)} GC</b> · chance <b>${guarantee ? 100 : ch}%</b> · ${guarantee ? "guaranteed" : risk}</div>`;
-        if (ch < 100) html += `<label class="fg-opt"><input type="checkbox" ${guarantee ? "checked" : ""} onchange="Forge.opt('g',this.checked)"> ✅ Guarantee success (2 🎟)</label>`;
-        if (t >= 11 && !guarantee) html += `<label class="fg-opt"><input type="checkbox" ${protect ? "checked" : ""} onchange="Forge.opt('p',this.checked)"> 🛡 Protect from the drop (1 🎟, only spent if it fails)</label>`;
+        if (ch < 100) html += `<label class="fg-opt"><input type="checkbox" ${guarantee ? "checked" : ""} onchange="Forge.opt('g',this.checked)"> ✅ Guarantee success (2 ⏱)</label>`;
+        if (t >= 11 && !guarantee) html += `<label class="fg-opt"><input type="checkbox" ${protect ? "checked" : ""} onchange="Forge.opt('p',this.checked)"> 🛡 Protect from the drop (1 ⏱, only spent if it fails)</label>`;
         const can = g.coins >= c && (!guarantee || g.slotTokens >= 2);
-        html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} data-hold="forge-go" onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 🎟" : ""})</button>`;
+        html += `<button class="btn btn-gold" style="width:100%;padding:9px;" ${can ? "" : "disabled"} data-hold="forge-go" onclick="Forge.go()">⚒ UPGRADE TO ⚒${t} (${short(c)} GC${guarantee ? " + 2 ⏱" : ""})</button>`;
       }
     }
     html += `<div class="fg-msg" style="color:${msg.c || "var(--text-dim)"};">${msg.t}</div>`;
-    html += `<div class="fg-tok"><span>🎟 Slot Token: <b style="color:var(--amber);">${short(tp)} GC</b></span>
+    html += `<div class="fg-tok"><span>⏱ Overtime Hour: <b style="color:var(--amber);">${short(tp)} GC</b></span>
       <button class="btn btn-cyan" ${g.coins >= tp ? "" : "disabled"} data-hold="forge-buy1" onclick="Forge.buy(1)">BUY 1</button>
       <button class="btn btn-cyan" ${g.coins >= tp * 5 ? "" : "disabled"} onclick="Forge.buy(5)">BUY 5</button>
-      <span style="color:var(--text-dim);font-size:10px;width:100%;">Price +30% per token, resets on prestige. Tokens also give +1 merge level (USE SLOT TOKEN) or HIGH STAKES energy.</span></div>`;
+      <span style="color:var(--text-dim);font-size:10px;width:100%;">Price +30% per Overtime Hour, resets on prestige. Overtime Hours also pay for HIGH STAKES energy, dungeon keys and upgrade guarantees.</span></div>`;
     body.innerHTML = html;
   }
 
@@ -6400,8 +6457,8 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
       if (t >= 13) TT.announce("UPGRADED TO +" + t, name, c, 0);
     } else if (t >= 11 && protect && g.slotTokens >= 1) {
       g.slotTokens -= 1;
-      say(`✖ FAILED - 🛡 token saved ${name} at ⚒${E}`, "var(--amber)");
-      log(`⚒ UPGRADE FAILED on ${name} ⚒${t}, protected by a token.`, "warning");
+      say(`✖ FAILED - 🛡 an Overtime Hour saved ${name} at ⚒${E}`, "var(--amber)");
+      log(`⚒ UPGRADE FAILED on ${name} ⚒${t}, protected by an Overtime Hour.`, "warning");
     } else if (t >= 11) {
       it.e = e.slice(0, -1);
       if (!it.e) delete it.e;
@@ -6422,8 +6479,8 @@ html.m #adv-view-pachinko .adv-row .btn { padding: 8px 2px; }
       g.coins -= p; paid += p; g.slotTokens += 1; g.tokBuy = (g.tokBuy || 0) + 1; got++;
     }
     if (!got) { say("Not enough GC.", "var(--crimson)"); return; }
-    say(`🎟 +${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC`, "var(--amber)");
-    log(`🎟 Bought ${got} Slot Token${got > 1 ? "s" : ""} for ${short(paid)} GC (you have ${g.slotTokens}).`, "success");
+    say(`⏱ +${got} Overtime Hour${got > 1 ? "s" : ""} for ${short(paid)} GC`, "var(--amber)");
+    log(`⏱ Bought ${got} Overtime Hour${got > 1 ? "s" : ""} for ${short(paid)} GC (you have ${g.slotTokens}).`, "success");
     updateUI(); TT.saveSoon();
   }
 
@@ -6528,7 +6585,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     { id: "k_roots", br: "office", row: 4, icon: "🌰", name: "Deep Roots", key: true, req: "o_heir", desc: () => "Keep 10% of your GC on prestige", costs: [5] },
     { id: "c_bet", br: "casino", row: 1, icon: "🎲", name: "High Roller Leaves", desc: l => `max bets ×${Math.pow(1.5, l).toFixed(2)}`, next: "max bet ×1.5", costs: [1, 2, 2] },
     { id: "c_cons", br: "casino", row: 2, icon: "🧑‍💼", name: "Consultant Bark", req: "c_bet", desc: l => `consult costs ${10 * l}% less`, next: "-10% consult", costs: [1, 1, 2] },
-    { id: "c_tok", br: "casino", row: 2, icon: "🎟", name: "Token Blossom", req: "c_bet", desc: l => `Slot Token chance from chests +${50 * l}%`, next: "+50% token chance", costs: [2, 2, 3] },
+    { id: "c_tok", br: "casino", row: 2, icon: "⏱", name: "Overtime Blossom", req: "c_bet", desc: l => `Every fruit has a ${10 * l}% chance for +1 Overtime Hour`, next: "+10% chance per fruit", costs: [2, 2, 3] },
     { id: "k_cherry", br: "casino", row: 4, icon: "🍒", name: "Lucky Cherry", key: true, req: "c_tok", desc: () => "HIGH STAKES gamble: 🍒 counts as a wild symbol", costs: [5] },
     { id: "h_xp", br: "hs", row: 1, icon: "📈", name: "Growth Rings", desc: l => `+${8 * l}% HIGH STAKES XP`, next: "+8% XP", costs: [1, 1, 1, 2] },
     { id: "h_en", br: "hs", row: 2, icon: "⚡", name: "Sap Reserve", req: "h_xp", desc: l => `+${l} max energy`, next: "+1 max energy", costs: [2, 3] },
@@ -6683,8 +6740,8 @@ html.m #pl-screen { height: var(--app-h, 100%); }
     const p = st(), n = fruits(); if (!n) return;
     const s = stage(), got = [];
     for (let i = 0; i < n; i++) {
-      const r = Math.random(), tokP = 0.03 + 0.02 * s;
-      if (r < tokP) { gameState.slotTokens += 1; got.push("🎟 Slot Token"); }
+      const r = Math.random(), tokP = 0.03 + 0.02 * s + 0.1 * lvl("c_tok");
+      if (r < tokP) { gameState.slotTokens += 1; got.push("⏱ Overtime Hour"); }
       else if (r < tokP + 0.17 && window.Dungeon && Dungeon.state && Dungeon.unlocked()) { const d = Dungeon.state(); d.energy = Math.min(d.energy + 2 + (s >= 3 ? 1 : 0), 99); got.push("⚡ +" + (2 + (s >= 3 ? 1 : 0)) + " energy"); }
       else if (r < 0.55) { const gc = Math.round(Math.max(5000, Math.round(calculateAutoGcRate() * 600)) * s * (1 + 0.15 * lvl("r_luck"))); gameState.coins += gc; got.push("💰 +" + short(gc) + " GC"); }
       else { const sc = Math.round(Math.max(500, Math.round(getChestScrapCost() * 4)) * s * (1 + 0.15 * lvl("r_luck"))); gameState.scrap += sc; got.push("⚙ +" + short(sc) + " scrap"); }
@@ -6878,7 +6935,16 @@ html.m #pl-screen { height: var(--app-h, 100%); }
       "📖 <b>SPELLBOOK</b> (HERO tab): every class has 8 abilities unlocked by level - pick 4 for your action bar. STRIKE, HEAVY, GAMBLE, BREATHE and the ultimate are always there. Keys 1-9 work in a fight",
       "✨ New ultimates: CRUNCH TIME, SUMMON THE INTERN, VLOOKUP OF DOOM, TRIPLE SHOT ESPRESSO, CAT DISTRIBUTION SYSTEM",
       "🧮 Gear has a secondary stat (Crit, Haste, Versatility or Mastery - a different bonus for every class) and some pieces belong to a class SET: 2 pieces = a bonus",
-      "⚖ Duels: 3× HP, no single hit can take more than 35% of your max HP (until sudden death), burns don't stack and deal at most 15% max HP per round, BREATHE cleans your oldest burn. Classes re-balanced"
+      "⚖ Duels: 3× HP, no single hit can take more than 35% of your max HP (until sudden death), burns don't stack and deal at most 15% max HP per round, BREATHE cleans your oldest burn. Classes re-balanced",
+      "🌳 <b>TALENTS</b>: every 10 levels pick 1 of 3 talents, the last row is a legendary one. Save up to 3 LOADOUTS (talents, bar and gear)",
+      "🎮 Harder mini-games: dodge comes in waves with feints, parry has combos and white unblockable rings, new CRUNCH TIME, ESPRESSO and INTERN RUN ultimates. On touch screens you get a bit more time",
+      "🏢 The office sits next to High Stakes now: resolve tickets, buy scrap and open chests without leaving the fight screen",
+      "🌙 <b>NIGHT SHIFT</b> (new mode): climb an 11-floor office at night with a deck of cards - open spaces, server rooms, helpdesk incidents, the kitchen, vending machines and the CEO at the top. New cards and relics every floor",
+      "⏱ <b>SLOT TOKENS ARE NOW OVERTIME HOURS</b>: they don't drop from chests any more. You get them for every 10 chest levels, prestige (+5, +1 per 5 prestiges), first win on a campaign boss, every 10th new tower floor, joining the weekly boss, plant fruit (Overtime Blossom now adds +10% per level) and achievements. Your balance was recalculated once",
+      "📦 Company Chest: cost grows more gently at high levels, Legendary/Mythic/Prismatic keep growing slowly past their cap, <b>double drop</b> from LV 170 and <b>triple drop</b> from LV 400. Odds are shown as a coloured bar with a 'next level gives…' preview",
+      "♻ Salvage hopeless only takes pieces that can't beat yours even at your +level plus a margin you choose (keep +0 to +5, default +2)",
+      "🎱 Lottery: a bonus ball - 2 numbers + the bonus = MINI JACKPOT (25% of the pool)",
+      "📜 The log has a third tab, INCIDENTS, with system messages - the chat is just people now"
     ] },
     { v: "11.8", d: "2026-10-30", i: [
       "🏳 FLEE needs a second tap within 3 seconds - no more fleeing by accident",
@@ -7323,7 +7389,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
       ["chest_20", "📦", "Box Opener", "Chest level 20", maxChest, 20],
       ["chest_40", "🎁", "Mythic Hunter", "Chest level 40", maxChest, 40],
       ["chest_75", "🗝", "Chest Whisperer", "Chest level 75", maxChest, 75],
-      ["tokens_10", "🎟", "Token Collector", "Hold 10 Slot Tokens at once", () => gameState.slotTokens || 0, 10]
+      ["tokens_10", "⏱", "Token Collector", "Hold 10 Overtime Hours at once", () => gameState.slotTokens || 0, 10]
     ]],
     ["GEAR", [
       ["gear_mythic", "🟥", "Red Alert", "Equip a Mythic (T5) item", () => eq().some(i => i.tier >= 5) ? 1 : 0, 1],
@@ -7390,14 +7456,14 @@ html.m #mt-screen { height: var(--app-h, 100%); }
     checking = false;
     if (!got.length) return;
     gameState.slotTokens = (gameState.slotTokens || 0) + REWARD_TOKENS * got.length;
-    got.forEach((a, i) => { log(`🏆 ACHIEVEMENT UNLOCKED: ${a.icon} ${a.name} - ${a.desc} (+${REWARD_TOKENS} 🎟)`, "special"); setTimeout(() => toast(a), i * 1600); });
+    got.forEach((a, i) => { log(`🏆 ACHIEVEMENT UNLOCKED: ${a.icon} ${a.name} - ${a.desc} (+${REWARD_TOKENS} ⏱)`, "special"); setTimeout(() => toast(a), i * 1600); });
     TT.saveSoon(); if (typeof updateUI === "function") updateUI();
     if (isOpen) render();
   }
   function toast(a) {
     if (document.hidden) return;
     const el = document.createElement("div"); el.className = "mt-toast";
-    el.innerHTML = `<span class="ic">${a.icon}</span><div><b>ACHIEVEMENT UNLOCKED</b>${esc(a.name)} · +${REWARD_TOKENS} 🎟</div>`;
+    el.innerHTML = `<span class="ic">${a.icon}</span><div><b>ACHIEVEMENT UNLOCKED</b>${esc(a.name)} · +${REWARD_TOKENS} ⏱</div>`;
     el.onclick = () => { el.remove(); open("ach"); };
     const n = document.querySelectorAll(".mt-toast").length;
     if (document.documentElement.classList.contains("m")) { el.style.bottom = "auto"; el.style.top = "calc(" + (58 + n * 58) + "px + env(safe-area-inset-top))"; el.style.left = "8px"; el.style.right = "8px"; }   // v8.8: na mobilu nahoře, ať nepřekrývá tlačítka
@@ -7456,7 +7522,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
       if (isOpen && view === "weekly") render();
     }).withFailureHandler(e => { wkSt.loading = false; wkSt.err = String(e && e.message || e); if (isOpen && view === "weekly") render(); }).weeklyState();
   }
-  /** top 3 minulého týdne: 3 / 2 / 1 Slot Token za každý žebříček */
+  /** top 3 minulého týdne: 3 / 2 / 1 Overtime Hour za každý žebříček */
   function claim() {
     const r = wkSt.data, w = wk(); if (!r || !r.last) return;
     const lw = String(r.week - 1); if (w.claimed[lw]) return;
@@ -7466,7 +7532,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
     Object.keys(CATS).forEach(c => { const i = (r.last[c] || []).findIndex(x => x.nick === gameState.ldap); if (i >= 0 && i < 3) { tok += PRIZE[i]; parts.push(`#${i + 1} ${CATS[c].name}`); } });
     if (tok) {
       gameState.slotTokens = (gameState.slotTokens || 0) + tok; bump("weeklyTop", 1);
-      log(`🏅 WEEKLY BOARDS: last week you finished ${parts.join(", ")} → +${tok} 🎟 Slot Tokens!`, "special");
+      log(`🏅 WEEKLY BOARDS: last week you finished ${parts.join(", ")} → +${tok} ⏱ Overtime Hours!`, "special");
       if (typeof updateUI === "function") updateUI();
       setTimeout(check, 300);
     }
@@ -7490,7 +7556,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
   }
   function achHtml(S, n) {
     return `<div class="mt-card"><div class="mt-h"><span>🏆 ACHIEVEMENTS</span><span>${n}/${ALL.length}</span></div>
-      <div class="mt-dim">Every achievement gives <b>+${REWARD_TOKENS} 🎟 Slot Token</b> and a badge on your player card. Progress never resets (not even on prestige).</div>
+      <div class="mt-dim">Every achievement gives <b>+${REWARD_TOKENS} ⏱ Overtime Hour</b> and a badge on your player card. Progress never resets (not even on prestige).</div>
       <div class="mt-pb" style="height:7px;margin-top:6px;"><div style="width:${n / ALL.length * 100}%"></div></div></div>` +
       ACH.map(g => `<div class="mt-cat">${g[0]}</div><div class="mt-grid">${g[1].map(x => { const a = BY[x[0]], done = !!S.u[a.id], p = done ? 1 : prog(a);
         let cur = 0; try { cur = Number(a.cur()) || 0; } catch (e) {}
@@ -7503,7 +7569,7 @@ html.m #mt-screen { height: var(--app-h, 100%); }
     if (!r) return `<div class="mt-card"><div class="mt-dim">${wkSt.err ? "⚠ " + esc(wkSt.err) : "Loading the weekly boards..."}</div></div>`;
     const me = gameState.ldap;
     return `<div class="mt-card"><div class="mt-h"><span>📅 WEEKLY BOARDS</span><span class="mt-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
-      <div class="mt-dim">Four boards, new every Monday. Top 3 on each board get <b>3 / 2 / 1 🎟 Slot Tokens</b> (collected automatically next week).</div></div>
+      <div class="mt-dim">Four boards, new every Monday. Top 3 on each board get <b>3 / 2 / 1 ⏱ Overtime Hours</b> (collected automatically next week).</div></div>
       <div class="mt-lb">${Object.keys(CATS).map(c => { const C = CATS[c], rows = r.cur[c] || [], last = r.last[c] || [];
         return `<div class="mt-card"><div class="mt-h"><span>${C.icon} ${C.name}</span><span class="mt-dim">you: ${r.mine[c] ? C.unit(r.mine[c]) : "-"}</span></div>
           ${rows.length ? rows.map((x, i) => `<div class="mt-row ${x.nick === me ? "me" : ""}"><span>${i < 3 ? ["🥇", "🥈", "🥉"][i] : (i + 1) + "."} ${esc(x.nick)}</span><span>${C.unit(x.v)}</span></div>`).join("") : `<div class="mt-dim">Nobody yet this week.</div>`}
@@ -7811,7 +7877,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
       while ((m = re.exec(t))) best = Math.max(best, Number(m[1]));
       if (best >= 3) doFlash(COLORS[best]);
       if (best >= 5) doBanner(best >= 6 ? "MYTHIC DROP!" : "LEGENDARY+ DROP!", COLORS[best]);
-      if (/SLOT TOKEN/.test(t)) doBanner("🎟 SLOT TOKEN!", "var(--amber)");
+      if (/OVERTIME HOUR/.test(t)) doBanner("⏱ OVERTIME HOUR!", "var(--amber)");
     }).observe(chest, { childList: true, characterData: true, subtree: true });
   }
 
@@ -11647,7 +11713,7 @@ html.m #dg-open-btn { display: none; }
       el.__built = 1;
       el.innerHTML = `<div class="dk-h"><span>🏢 OFFICE</span><button class="btn" onclick="Dungeon.dock()" title="Hide">◀</button></div>
         <button class="dk-ticket" onclick="handleManualClick(event);Dungeon.dockNow()">🎫 RESOLVE TICKET<small id="dk-tp"></small></button>
-        <div class="dk-res"><span>🎫 <b id="dk-t"></b></span><span>🔩 <b id="dk-s"></b></span><span>💰 <b id="dk-g"></b></span><span>🎟 <b id="dk-ot"></b></span></div>
+        <div class="dk-res"><span>🎫 <b id="dk-t"></b></span><span>🔩 <b id="dk-s"></b></span><span>💰 <b id="dk-g"></b></span><span>⏱ <b id="dk-ot"></b></span></div>
         <div class="dk-row"><button class="btn" onclick="buyScrap(100);Dungeon.dockNow()">+100 scrap<small>1K tickets</small></button><button class="btn btn-gold" onclick="buyMaxScrap();Dungeon.dockNow()">Scrap max</button></div>
         <div class="dk-row"><button class="btn btn-crimson" onclick="openCompanyChest(1);Dungeon.dockNow()">📦 Open ×1<small id="dk-c1"></small></button><button class="btn btn-crimson" onclick="openCompanyChest(10);Dungeon.dockNow()">Open ×10<small id="dk-c10"></small></button></div>
         <div class="dk-h"><span>🎒 INVENTORY</span><span id="dk-n" class="dg-dim"></span></div><div class="dk-inv" id="dk-inv"></div>
@@ -11675,9 +11741,9 @@ html.m #dg-open-btn { display: none; }
     const tb = $("dg-tokbtn");
     if (tb) {
       const show = gameState.slotTokens > 0 && d.energy < EMAX() && !(fight && !fight.over);
-      const t = `🎟→+${TOKEN_ENERGY}⚡ (${gameState.slotTokens})`;
+      const t = `⏱→+${TOKEN_ENERGY}⚡ (${gameState.slotTokens})`;
       tb.style.display = show ? "" : "none"; if (tb.textContent !== t) tb.textContent = t;
-      tb.title = "Turn 1 Slot Token into " + TOKEN_ENERGY + " energy";
+      tb.title = "Turn 1 Overtime Hour into " + TOKEN_ENERGY + " energy";
     }
   }
   function fmtT(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
@@ -11804,7 +11870,7 @@ html.m #dg-open-btn { display: none; }
         <div class="hs-buy"><div class="dg-dim" style="flex:1;min-width:160px;">💰 <b>Buy a stat point</b> (${d.bp} bought). Every point costs 6% more than the last.</div>
           <button class="btn ${bok ? "btn-gold" : ""}" ${bok ? "" : "disabled"} data-hold="hs-bp" onclick="Dungeon.buyPoint()">+1 point · ${fmtShort(bc)} GC</button></div>
         <div class="dg-dim" style="margin-top:6px;">+5 points every level. ★ = your class's main stat. Damage = weapon × (1 + max(yours/2, yours − enemy's/2) / 10): a main stat above the enemy's hits much harder. Green numbers come from your ⚒ gear.</div>
-        <div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 🎟)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmtShort(resetCost())} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${d.frc ? "FREE" : fmtShort(respecCost()) + " GC"})</button></div></div>
+        <div class="dg-row" style="margin-top:8px;"><button class="btn btn-cyan" onclick="Dungeon.tutStart()">🎓 TRAINING${d.tut === 2 ? "" : " (+1 ⏱)"}</button><button class="btn" onclick="Dungeon.resetStats()">RESET STATS (${fmtShort(resetCost())} GC)</button><button class="btn" onclick="Dungeon.respec()">CHANGE CLASS (${d.frc ? "FREE" : fmtShort(respecCost()) + " GC"})</button></div></div>
       <div class="dg-card"><div class="dg-h">HOW TO FIGHT</div>${howHtml(d.cls)}</div></div>`;
   }
   function spellbookHtml(d, h) {
@@ -12318,6 +12384,7 @@ html.m #dg-open-btn { display: none; }
       if ((first && TT.rnd() < 0.5) || (total === 3 && prev < 3) || TT.rnd() < 0.12) dropItem(lines, m.level);
       if (window.Gear && Gear.drop) try { Gear.drop(first && (m.kind === "boss" || m.kind === "secret") ? Object.assign({}, m, { kind: "boss" }) : m, lines); } catch (e) { console.error(e); }
       if (first && (m.kind === "boss" || m.kind === "secret")) {
+        gameState.slotTokens = (gameState.slotTokens || 0) + 1; lines.push("+1 ⏱ Overtime Hour");
         const slot = C.BOSS_SLOT[m.id] || SLOTS[Math.floor(TT.rnd() * SLOTS.length)];
         if (!d.t6[slot]) { d.t6[slot] = true; lines.push(`🔓 Prismatic ${slot} can now drop from chests`); log(`🌌 PRISMATIC UNLOCK: Quantum ${slot} items can now drop from the Company Chest (chest LV 50+).`, "special"); }
         if (m.id === 49) TT.announce(n > 0 ? "BEAT THE BIG MASSI ON HIGH STAKES PRESTIGE " + n : "BEAT THE BIG MASSI", "HIGH STAKES", 0, gc);
@@ -12463,7 +12530,7 @@ html.m #dg-open-btn { display: none; }
         const d = HS(), first = !d.tut, lines = [];
         const done = !!(tut && tut.done);
         d.tut = done ? 2 : (d.tut || 1);
-        if (done && first) { gameState.slotTokens += 1; gainXp(100, lines); lines.unshift("+100 XP", "+1 🎟 Slot Token"); log("🎓 TRAINING COMPLETE: +1 🎟 Slot Token, +100 XP. Good luck out there!", "special"); }
+        if (done && first) { gameState.slotTokens += 1; gainXp(100, lines); lines.unshift("+100 XP", "+1 ⏱ Overtime Hour"); log("🎓 TRAINING COMPLETE: +1 ⏱ Overtime Hour, +100 XP. Good luck out there!", "special"); }
         tut = null;
         return { title: done ? "TRAINING COMPLETE" : "TRAINING SKIPPED", color: done ? "var(--emerald)" : "var(--text-dim)",
           lines: done ? (lines.length ? lines : ["You already got the reward"]) : ["You can replay it any time from the HERO tab"],
@@ -12831,11 +12898,16 @@ html.m #dg-open-btn { display: none; }
     const gc = salvageGc(f.it); g.bag.splice(f.i, 1); gameState.coins += gc;
     log(`♻ Salvaged ${name(f.it.s, f.it)} for +${fmt(gc)} GC.`, "success"); after();
   }
+  /** v12: "beznadějný" = není lepší ani na stejném +levelu jako nasazený kus + tolerance N (nastavení 0-5, default 2) */
+  function keepN() { const v = st().keepN; return v === undefined ? 2 : Math.max(0, Math.min(5, v | 0)); }
+  function hopeAt(cur) { return Math.min(UMAX, ((cur && cur.u) || 0) + keepN()); }
+  function hopeless(it, cur) { return !!cur && score(Object.assign({}, it, { u: Math.max(it.u, hopeAt(cur)) })) <= score(cur); }
+  function setKeep(v) { st().keepN = Math.max(0, Math.min(5, v | 0)); after(); }
   function salvageWorse() {
     const g = st(); let n = 0, gc = 0;
-    g.bag = g.bag.filter(it => { if (score(Object.assign({}, it, { u: UMAX })) <= score(g.eq[it.s])) {   /* v11.3: nerozebírá věci, které by po upgradu byly lepší */ n++; gc += salvageGc(it); return false; } return true; });
+    g.bag = g.bag.filter(it => { if (hopeless(it, g.eq[it.s])) { n++; gc += salvageGc(it); return false; } return true; });
     gameState.coins += gc;
-    log(n ? `♻ Salvaged ${n} weaker item${n === 1 ? "" : "s"} for +${fmt(gc)} GC.` : "Nothing to salvage - every spare piece could beat your gear with upgrades.", n ? "success" : "warning"); after();
+    log(n ? `♻ Salvaged ${n} hopeless item${n === 1 ? "" : "s"} for +${fmt(gc)} GC.` : "Nothing to salvage - every spare piece could still beat your gear.", n ? "success" : "warning"); after();
   }
   function up(id) {
     const f = find(id); if (!f) { TT.holdStop = true; return; }
@@ -12872,10 +12944,11 @@ html.m #dg-open-btn { display: none; }
     if (!cur) return `<span class="gr-up">empty slot</span>`;
     const d = score(it) - score(cur);
     if (d > 0) return `<span class="gr-up">▲ better</span>`;
-    // v11.3: slabší teď, ale po pár upgradech by byl lepší?
+    // v12: stejná logika jako salvage - lepší do +N nad úrovní nasazeného kusu?
+    if (hopeless(it, cur)) return `<span class="gr-dn">▼ hopeless (weaker even at +${Math.max(it.u, hopeAt(cur))})</span>`;
     const x = Object.assign({}, it); let gc = 0;
     while (x.u < UMAX) { gc += upCost(x); x.u++; if (score(x) > score(cur)) return `<span class="gr-dn">▼ weaker now</span> <span class="gr-up">· better at +${x.u} (${fmt(gc)} GC)</span>`; }
-    return `<span class="gr-dn">▼ weaker${it.u < UMAX ? " even at +" + UMAX : ""}</span>`;
+    return `<span class="gr-dn">▼ weaker</span>`;
   }
   function pieceHtml(k) {
     const g = st(), it = g.eq[k], P = PIECES[k];
@@ -12901,12 +12974,12 @@ html.m #dg-open-btn { display: none; }
       <div class="gr-list">${KEYS.map(pieceHtml).join("")}</div>
       <div class="gr-sum"><span>Weapon <b>${m.wpn ? m.wpn.toFixed(1) : "fists"}</b></span><span>Armor <b>${fmt(m.armor)}</b></span><span>Main stat <b>+${m.stats.main}</b></span><span>VIT <b>+${m.stats.vit}</b></span><span>LUCK <b>+${m.stats.luck}</b></span>${m.crit ? `<span>Crit <b>+${(m.crit * 100).toFixed(1)}%</b></span>` : ""}
         ${SECK.map(k => m.sec[k] ? `<span style="color:${SEC[k].c};">${SEC[k].n} <b>+${(m.sec[k] * 100).toFixed(1)}%</b></span>` : "").join("")}${m.set2 ? `<span style="color:var(--amber);">◆ <b>${esc(setName(m.set2))}</b>: ${esc(HSEngine.SETS[m.set2].t)}${m.set2 !== A.HS().cls ? " (other class - no effect)" : ""}</span>` : ""}</div>
-      <div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()"><span class="gr-rc">♻&#xFE0E;</span> Salvage hopeless (weaker even at +10)</button>` : ""}</div>
+      <div class="dg-h" style="margin-top:12px;"><span>🎒 Gear bag (${g.bag.length}/${BAG_MAX})</span>${g.bag.length ? `<button class="btn" style="padding:4px 10px;font-size:12px;" onclick="Gear.salvageWorse()"><span class="gr-rc">♻&#xFE0E;</span> Salvage hopeless</button><select title="Keep pieces that beat yours at up to this many + levels above your equipped piece" style="font-size:11px;margin-left:6px;" onchange="Gear.setKeep(this.value)">${[0, 1, 2, 3, 4, 5].map(v => `<option value="${v}"${v === keepN() ? " selected" : ""}>keep +${v}</option>`).join("")}</select>` : ""}</div>
       ${bagHtml()}
       <div class="dg-dim" style="margin-top:8px;">Items drop at the level of the enemy that dropped them (bosses +2, Pool +3). What colour can drop depends on your <b>High Stakes prestige</b>: now up to <b style="color:${RAR[capOf(hsP())].c};">${RAR[capOf(hsP())].n}</b>, bosses 25% for ${RAR[Math.min(RMAX, capOf(hsP()) + 1)].n}. Upgrades reset to +0 when you prestige High Stakes. Weapon = your damage, armor = less damage taken, every piece gives flat stats. "Main stat" always goes to your class's main stat (STR / AGI / INT). An item above your level + 10 only counts as level + 10 until you catch up. Rarity Common → Mythic ×1 / 1.12 / 1.25 / 1.55 / 1.9 / 2.4, each upgrade +7% (max +${UMAX}). Give spare pieces to your colleague in the COLLEAGUE tab.</div></div>`;
   }
 
-  window.Gear = { st: st, mult: mult, multOf: multOf, vis: vis, up: up, equip: equip, salvage: salvage, salvageWorse: salvageWorse, drop: drop, starter: starter, toCol: toCol, fromCol: fromCol, colGiveHtml: colGiveHtml, card: card, onPrestige: onPrestige, affordable: affordable,
+  window.Gear = { st: st, mult: mult, multOf: multOf, vis: vis, up: up, equip: equip, salvage: salvage, salvageWorse: salvageWorse, setKeep: setKeep, hopeless: hopeless, drop: drop, starter: starter, toCol: toCol, fromCol: fromCol, colGiveHtml: colGiveHtml, card: card, onPrestige: onPrestige, affordable: affordable,
     upCol: upCol, unequip: unequip, equipIds: equipIds, resetUpgrades: resetUpgrades, wipe: wipe, capOf: capOf, upCost: upCost, UMAX: UMAX,
     convert: () => ({}), score: score, fx: fx, name: name, MATS: MATS, RAR: RAR, PIECES: PIECES, POOL_QUANTUM: POOL_QUANTUM, lvFor: lvFor };
   (function boot() {
@@ -13209,7 +13282,9 @@ html.m #dg-open-btn { display: none; }
         const lines = [], dd = A.HS();
         if (fi.win) {
           dd.wins++;
-          dd.tower.best = Math.max(dd.tower.best, rush ? ri : f);
+          const nb = rush ? ri : f, newBest = nb > dd.tower.best;
+          dd.tower.best = Math.max(dd.tower.best, nb);
+          if (newBest && (rush || f % 10 === 0)) { gameState.slotTokens = (gameState.slotTokens || 0) + 1; lines.push("+1 ⏱ Overtime Hour"); }
           if (f === 100) dd.tower.conq = 1; if (rush) dd.tower.rush = 1;
           const gc = towerGc(f, P) * K; gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
           A.gainXp(towerXp(f, P) * K, lines); lines.unshift(`+${fmt(towerXp(f, P) * K)} XP`);
@@ -13447,6 +13522,7 @@ html.m #dg-open-btn { display: none; }
     const l = wb.st && wb.st.last, d = A.HS();
     if (!l || d.wb.claimed === String(l.week)) return;
     d.wb.claimed = String(l.week);
+    if (l.myDmg > 0) { gameState.slotTokens = (gameState.slotTokens || 0) + 1; log("⏱ +1 Overtime Hour for showing up to last week's boss.", "special"); }
     if (l.killed && l.myDmg > 0) {
       const rw = wbReward(l.kills, l.top === gameState.ldap);
       d.wb.buff = rw.buff; d.wb.buffWeek = week();
@@ -13585,6 +13661,342 @@ html.m #dg-open-btn { display: none; }
   // načíst world boss po startu (kvůli odměně z minulého týdne)
   (function wait() { if (typeof gameState === "undefined" || !window.TT || !TT.onLoaded) { setTimeout(wait, 200); return; } TT.onLoaded(() => setTimeout(() => wbLoad(true), 4000)); })();
   setInterval(() => { if (A.isOpen() && A.view() === "boss" && !document.querySelector(".hs-ov")) { const b = document.querySelector('[onclick="HSModes.wbGo()"]'); if (b && b.disabled && wb.st) A.render(); } }, 1000);
+})();
+</script>
+<style>
+/* ===== v12 NIGHT SHIFT - deckbuilder (kancelář v noci: papír, inkoust a sodíkové lampy) ===== */
+.ns { --ns-night: #0f1b2d; --ns-lamp: #f2a541; --ns-paper: #efe6d2; --ns-ink: #2b2b2b; --ns-stamp: #c8372d; --ns-line: rgba(120,170,230,.22);
+  background: var(--ns-night) linear-gradient(var(--ns-line) 1px, transparent 1px) 0 0 / 22px 22px, var(--ns-night) linear-gradient(90deg, var(--ns-line) 1px, transparent 1px) 0 0 / 22px 22px;
+  background-blend-mode: normal; border: 1px solid #22385a; border-radius: 10px; padding: 12px; margin-bottom: 10px; color: #dbe6f5; position: relative; }
+.ns h3 { margin: 0 0 8px; font: 700 14px 'IBM Plex Mono', 'Courier New', monospace; letter-spacing: 2px; color: var(--ns-lamp); text-transform: uppercase; display: flex; justify-content: space-between; gap: 8px; }
+.ns .ns-dim { font: 400 12px 'IBM Plex Mono', 'Courier New', monospace; color: #9fb3cf; line-height: 1.5; }
+.ns .ns-dim b { color: var(--ns-lamp); }
+.ns-btn { font: 700 12px 'IBM Plex Mono', 'Courier New', monospace; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--ns-lamp); background: rgba(242,165,65,.12); color: var(--ns-lamp); cursor: pointer; }
+.ns-btn:disabled { opacity: .35; cursor: default; }
+.ns-btn.red { border-color: var(--ns-stamp); color: #ff8a80; background: rgba(200,55,45,.12); }
+/* mapa = půdorys */
+.ns-map { display: flex; flex-direction: column-reverse; gap: 6px; }
+.ns-fl { display: grid; grid-template-columns: 34px repeat(3, minmax(0, 1fr)); gap: 6px; align-items: center; }
+.ns-fl > span { font: 700 10px 'IBM Plex Mono', monospace; color: #6f86a8; }
+.ns-room { min-height: 40px; border: 1.5px solid #3b5f8f; border-radius: 3px; background: rgba(15,27,45,.85); display: flex; align-items: center; justify-content: center; gap: 6px; font: 700 10px 'IBM Plex Mono', monospace; color: #8fb0d8; letter-spacing: 1px; text-transform: uppercase; padding: 4px; text-align: center; }
+.ns-room i { font-style: normal; font-size: 16px; }
+.ns-room.done { border-color: #2e4b6f; background: rgba(242,165,65,.08); color: #6f86a8; }
+.ns-room.here { border-color: var(--ns-lamp); box-shadow: 0 0 14px rgba(242,165,65,.45); color: var(--ns-lamp); }
+.ns-room.go { border-color: var(--ns-lamp); color: #ffd9a0; cursor: pointer; animation: nsPulse 1.4s ease-in-out infinite; }
+.ns-room.go:hover { background: rgba(242,165,65,.18); }
+.ns-room.far { opacity: .45; }
+@keyframes nsPulse { 50% { box-shadow: 0 0 12px rgba(242,165,65,.55); } }
+.ns-boss { grid-column: 2 / 5; min-height: 46px; border-color: var(--ns-stamp); color: #ff8a80; }
+/* karty = kartotéční lístky */
+.ns-hand { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 6px 0; }
+.ns-card { position: relative; width: 132px; min-height: 150px; padding: 10px 9px 8px; border: none; border-radius: 3px; text-align: left; cursor: pointer;
+  background: var(--ns-paper) repeating-linear-gradient(180deg, transparent 0 17px, rgba(91,138,201,.25) 17px 18px); color: var(--ns-ink);
+  box-shadow: 0 6px 14px rgba(0,0,0,.45), inset 0 0 22px rgba(160,130,80,.18); transform: rotate(var(--rot, 0deg)); transition: transform .12s, box-shadow .12s; font-family: 'Special Elite', 'Courier New', monospace; }
+.ns-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 22px; border-bottom: 2px solid rgba(200,55,45,.55); }
+.ns-card:hover:not(:disabled) { transform: translateY(-6px) rotate(0deg); box-shadow: 0 10px 22px rgba(0,0,0,.55), 0 0 0 2px var(--ns-lamp); }
+.ns-card:disabled { opacity: .45; cursor: default; filter: grayscale(.6); }
+.ns-card .ci { position: absolute; top: 2px; right: 6px; font-size: 18px; }
+.ns-card .cn { display: block; font-size: 13px; font-weight: 700; margin: 0 22px 8px 0; line-height: 1.15; }
+.ns-card .ct { display: block; font: 400 10.5px 'IBM Plex Mono', 'Courier New', monospace; line-height: 1.35; color: #3b3b3b; }
+.ns-card .ck { display: block; margin-top: 6px; font: 700 9.5px 'IBM Plex Mono', monospace; color: #7a5a1e; }
+.ns-card .cu { position: absolute; bottom: 6px; right: 7px; font: 700 12px 'IBM Plex Mono', monospace; color: var(--ns-stamp); }
+.ns-card .clip { position: absolute; top: -7px; left: 14px; width: 9px; height: 22px; border: 2px solid #8a94a6; border-radius: 5px; }
+.ns-card.sm { width: 112px; min-height: 120px; }
+.ns-pile { font: 400 11px 'IBM Plex Mono', monospace; color: #9fb3cf; text-align: center; }
+/* incident = vytištěný ticket */
+.ns-ticket { position: relative; background: var(--ns-paper); color: var(--ns-ink); border-radius: 2px; padding: 16px 16px 12px; font-family: 'Special Elite', 'Courier New', monospace; box-shadow: 0 8px 20px rgba(0,0,0,.5);
+  -webkit-mask: radial-gradient(circle 6px at 6px 50%, transparent 98%, #000) -6px 0 / 100% 18px repeat-y, linear-gradient(#000, #000); }
+.ns-ticket .tno { font: 700 11px 'IBM Plex Mono', monospace; color: #7a5a1e; letter-spacing: 1px; }
+.ns-ticket h4 { margin: 4px 0 6px; font-size: 18px; }
+.ns-ticket p { margin: 0 0 10px; font: 400 12.5px 'IBM Plex Mono', monospace; line-height: 1.5; }
+.ns-stamp { position: absolute; top: 10px; right: 12px; transform: rotate(-12deg); border: 3px solid var(--ns-stamp); color: var(--ns-stamp); font: 900 16px 'IBM Plex Mono', monospace; letter-spacing: 3px; padding: 2px 8px; border-radius: 4px; opacity: .85; }
+.ns-stamp.ok { border-color: #2f8f4e; color: #2f8f4e; }
+.ns-opts { display: flex; flex-direction: column; gap: 6px; }
+.ns-opt { text-align: left; padding: 8px 10px; border: 1.5px dashed #8a7a5a; background: rgba(255,255,255,.35); border-radius: 3px; font: 700 12px 'IBM Plex Mono', monospace; color: var(--ns-ink); cursor: pointer; }
+.ns-opt small { display: block; font-weight: 400; color: #5a4a2a; }
+.ns-opt:hover { background: rgba(242,165,65,.25); }
+.ns-relics { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.ns-relics span { font: 400 11px 'IBM Plex Mono', monospace; padding: 2px 7px; border: 1px solid #3b5f8f; border-radius: 10px; color: #cfe0f5; }
+.ns-hp { height: 8px; background: #08111e; border: 1px solid #22385a; border-radius: 4px; overflow: hidden; margin: 6px 0; }
+.ns-hp div { height: 100%; background: linear-gradient(90deg, #3ddc84, #f2a541); }
+.ns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; justify-items: center; }
+@media (max-width: 600px) { .ns-card { width: 46%; min-height: 128px; } .ns-room { font-size: 8.5px; min-height: 36px; } }
+</style>
+<script>
+/* v12 NIGHT SHIFT: mapa (půdorys budovy), boj kartami z balíčku, relikvie, incidenty, automat a kuchyňka. Nahrazuje On-Call Shift. */
+(function () {
+  "use strict";
+  function boot() {
+    if (!window.HS_API || !window.HSEngine || !window.HSCampaign || !window.HSModes || !window.HS_API.registerMode) { setTimeout(boot, 100); return; }
+    const A = window.HS_API, H = window.HSEngine, C = window.HSCampaign, M = window.HSModes, R = Math.random;
+    const fmt = (n) => Math.floor(n).toLocaleString(), esc = (t) => (typeof escapeHtml === "function" ? escapeHtml(String(t)) : String(t));
+    const COST = 3, FL = 11, ASC_MAX = 10;
+    const ROOM = { fight: ["⚔", "Open space", "A normal incident"], elite: ["☠", "Server room", "An elite: harder, a relic"], incident: ["❓", "Helpdesk", "Something happened"],
+      shop: ["🛒", "Vending", "Buy cards, relics"], kitchen: ["☕", "Kitchen", "Heal or upgrade a card"], boss: ["👑", "CEO office", "The end of the night"] };
+    // ---------- karty
+    const BASIC = { strike: { a: "strike", n: "Strike", i: "⚔", t: "1× hit · +10 stamina" }, heavy: { a: "heavy", n: "Heavy", i: "💥", t: "Timed big hit · 30 stamina" },
+      gamble: { a: "gamble", n: "Gamble", i: "🎰", t: "Slot machine · 20 stamina" }, breathe: { a: "rest", n: "Breathe", i: "😮‍💨", t: "+30 stamina, +15 focus" } };
+    const OFFICE = {
+      overtime: { a: "heavy", n: "Overtime", i: "🌙", xm: 1.3, selfHp: 0.08, t: "HEAVY ×1.3 · costs 8% HP" },
+      coffee: { a: "rest", n: "Coffee Break", i: "☕", sta: 10, draw: 1, t: "BREATHE +10 stamina · draw 1 more card next round" },
+      replyall: { a: "strike", n: "Reply All", i: "📨", xm: 1.25, t: "STRIKE ×1.25" },
+      escalate: { a: "strike", n: "Escalate", i: "📈", xm: 0.5, next: 2, t: "Weak STRIKE · your NEXT card deals ×2" },
+      rootcause: { a: "strike", n: "Root Cause", i: "🔍", brk: 40, t: "STRIKE + 40 BREAK" },
+      freeze: { a: "strike", n: "Code Freeze", i: "🧊", xm: 0.5, stun: 1, ex: 1, t: "Weak STRIKE · the enemy loses its move · EXHAUST" },
+      duck: { a: "strike", n: "Rubber Duck", i: "🦆", xm: 0.7, half: 1, t: "STRIKE ×0.7 · the next hit on you is halved" },
+      pto: { a: "rest", n: "PTO Day", i: "🏖", heal: 0.1, t: "BREATHE + heal 10%" },
+      standup: { a: "strike", n: "Stand-up", i: "🧍", xm: 0.8, foc: 15, t: "STRIKE ×0.8 · +15 focus" },
+      deadline: { a: "heavy", n: "Hard Deadline", i: "⏰", xm: 1.6, selfHp: 0.15, t: "HEAVY ×1.6 · costs 15% HP" },
+      bugfix: { a: "strike", n: "Bugfix", i: "🐞", heal: 0.05, t: "STRIKE + heal 5%" },
+      allin: { a: "gamble", n: "All-hands Bet", i: "🎲", xm: 1.3, t: "GAMBLE ×1.3" },
+      lunch: { a: "rest", n: "Team Lunch", i: "🍕", heal: 0.2, ex: 1, t: "BREATHE + heal 20% · EXHAUST" },
+      merge: { a: "strike", n: "Merge Conflict", i: "⚡", xm: 1.5, selfHp: 0.05, t: "STRIKE ×1.5 · costs 5% HP" },
+      overclock: { a: "rest", n: "Overclock", i: "🔥", sta: 20, next: 1.3, t: "BREATHE +20 stamina · next card ×1.3" },
+      sweep: { a: "strike", n: "Ticket Sweep", i: "🧹", xm: 1.1, brk: 15, t: "STRIKE ×1.1 + 15 BREAK" },
+      deepwork: { a: "rest", n: "Deep Work", i: "🎧", foc: 30, t: "BREATHE + 30 focus" },
+      escall: { a: "heavy", n: "Escalation Call", i: "📞", brk: 30, t: "HEAVY + 30 BREAK" },
+      dnd: { a: "rest", n: "Do Not Disturb", i: "🔕", half: 1, sta: 5, t: "BREATHE · the next hit on you is halved" },
+      reorg: { a: "strike", n: "Re-org", i: "🔀", xm: 0.9, draw: 2, t: "STRIKE ×0.9 · draw 2 more cards next round" }
+    };
+    function def(id) { if (BASIC[id]) return BASIC[id]; if (OFFICE[id]) return OFFICE[id]; const ab = H.AB[id]; if (ab) return { a: id, n: ab.n, i: ab.i, t: ab.t, cls: ab.c }; return BASIC.strike; }
+    function cardOpt(c) {
+      const d = def(c.c), o = {};
+      ["xm", "heal", "sta", "foc", "brk", "selfHp", "half", "stun"].forEach(k => { if (d[k] != null) o[k] = d[k]; });
+      if (c.u) { if (o.xm) o.xm *= 1.25; else if (d.a !== "rest") o.xm = 1.2; ["heal", "sta", "foc", "brk"].forEach(k => { if (o[k]) o[k] *= 1.5; }); if (o.selfHp) o.selfHp *= 0.5; }
+      return o;
+    }
+    function cardHtml(c, i, ok, onclick, small) {
+      const d = def(c.c), rot = ((i * 37) % 7 - 3) * 0.8;
+      return `<button class="ns-card${small ? " sm" : ""}" style="--rot:${rot}deg;" ${ok ? "" : "disabled"} onclick="${onclick}"><span class="clip"></span><span class="ci">${d.i}</span><span class="cn">${esc(d.n)}${c.u ? "+" : ""}</span><span class="ct">${esc(d.t)}${c.u ? " · <b>upgraded</b>" : ""}</span>${d.ex ? `<span class="ck">EXHAUST</span>` : ""}${i != null && i < 9 && !small ? `<span class="cu">${i + 1}</span>` : ""}</button>`;
+    }
+    function starterDeck(cls) { const ab = H.spellbook(cls).slice(0, 2); return ["strike", "strike", "strike", "strike", "heavy", "heavy", "gamble", "breathe"].concat(ab).map(c => ({ c: c, u: 0 })); }
+    function cardPool(r) { const L = A.HS().level, cls = A.HS().cls; return Object.keys(OFFICE).concat(H.unlockedAb(cls, L)); }
+    function offerCards(r, n) { const p = cardPool(r).slice(), out = []; while (out.length < n && p.length) out.push(p.splice(Math.floor(R() * p.length), 1)[0]); return out; }
+    // ---------- relikvie (dřívější perky)
+    const PERKS = M.PERKS;
+    function relicOffer(r, n) { const pool = Object.keys(PERKS).filter(id => PERKS[id].st || !r.relics[id]), out = []; while (out.length < n && pool.length) out.push(pool.splice(Math.floor(R() * pool.length), 1)[0]); return out; }
+    // ---------- mapa
+    function genMap(seed) {
+      const rr = H.rng(seed), map = [];
+      for (let f = 0; f < FL; f++) {
+        const row = [];
+        for (let l = 0; l < 3; l++) {
+          let t = "fight";
+          if (f === 0) t = "fight";
+          else if (f === 6 && l === 1) t = "kitchen";
+          else { const w = [["fight", 44], ["elite", f >= 2 ? 15 : 0], ["incident", 20], ["shop", f >= 2 ? 10 : 0], ["kitchen", f >= 3 ? 11 : 0]]; let x = rr() * w.reduce((a, b) => a + b[1], 0); for (const [k, v] of w) { if (x < v) { t = k; break; } x -= v; } }
+          row.push(t);
+        }
+        map.push(row);
+      }
+      return map;
+    }
+    function run() { const r = A.HS().shift.run; return r && r.v === 2 ? r : null; }
+    function reach(r) { if (r.fl < 0) return [0, 1, 2]; if (r.fl >= FL - 1) return []; return [r.ln - 1, r.ln, r.ln + 1].filter(x => x >= 0 && x <= 2); }
+    function stepGc() { return Math.round(C.gcAt(A.HS().level, "normal") * 0.25 * A.presBonus()); }
+    function rlog(t) { const r = run(); if (r) { r.log.push(t); if (r.log.length > 20) r.log.shift(); } }
+    function heal(p) { const r = run(); r.hp = Math.min(1, r.hp + p); }
+    function hurt(p) { const r = run(); r.hp = Math.max(0.05, r.hp - p); }
+    function hero() { const r = run(), h = A.hero(); M.applyPerks(h, r ? r.relics : {}); return h; }
+    function save() { TT.saveSoon(); A.render(); }
+
+    function start(asc) {
+      const d = A.HS(); if (run()) return;
+      asc = Math.max(0, Math.min(d.shift.asc || 0, asc | 0));
+      if (!A.spendEnergy(COST)) { log(`NIGHT SHIFT costs ⚡${COST}.`, "warning"); A.render(); return; }
+      const seed = Math.floor(R() * 1e6);
+      d.shift.run = { v: 2, asc: asc, fl: -1, ln: 1, map: genMap(seed), hp: 1, coins: 0, relics: {}, deck: starterDeck(d.cls), phase: "map", offer: null, ev: null, seed: seed, log: [], path: [] };
+      d.shift.runs = (d.shift.runs || 0) + 1; save();
+    }
+    function go(ln) {
+      const r = run(); if (!r || r.phase !== "map") return;
+      const boss = r.fl >= FL - 1;
+      if (!boss && reach(r).indexOf(ln) < 0) return;
+      if (boss) return fight("boss");
+      r.fl++; r.ln = ln; r.path.push([r.fl, ln]);
+      const t = r.map[r.fl][ln];
+      if (t === "fight" || t === "elite") return fight(t);
+      if (t === "incident") { r.ev = Math.floor(R() * INC.length); r.phase = "incident"; }
+      if (t === "shop") { r.phase = "shop"; r.shop = { cards: offerCards(r, 3), sold: {} }; }
+      if (t === "kitchen") r.phase = "kitchen";
+      save();
+    }
+    // ---------- boj kartami
+    let st = null;
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+    function drawHand() {
+      if (!st) return;
+      st.disc = st.disc.concat(st.hand); st.hand = [];
+      const n = Math.min(6, 4 + st.extra); st.extra = 0;
+      for (let i = 0; i < n; i++) { if (!st.draw.length) { st.draw = shuffle(st.disc); st.disc = []; } if (!st.draw.length) break; st.hand.push(st.draw.pop()); }
+    }
+    function cardsHtml(f) {
+      if (!st) return "";
+      const hand = st.hand.map((c, i) => cardHtml(c, i, Dungeon.canAct ? Dungeon.canAct(def(c.c).a) : true, `HSShift.play(${i})`)).join("");
+      return `<div class="ns" style="grid-column:1/-1;padding:8px;margin:0;"><div class="ns-hand">${hand || `<span class="ns-pile">no cards left</span>`}</div>
+        <div class="ns-pile">🂠 deck ${st.draw.length} · discard ${st.disc.length}${st.exh.length ? " · exhausted " + st.exh.length : ""}${st.next !== 1 ? ` · <b style="color:#f2a541;">next card ×${st.next}</b>` : ""} · ✨ ULTIMATE: ${f.focus >= 100 ? `<button class="ns-btn" onclick="Dungeon.act('ult')">USE IT</button>` : Math.floor(f.focus) + "/100 focus"} · <button class="ns-btn" onclick="Dungeon.act('rest')" title="No card fits? Skip the attack and catch your breath (+30 stamina)">😮‍💨 PASS</button></div></div>`;
+    }
+    function play(i) {
+      if (!st) return; const c = st.hand[i]; if (!c) return;
+      const d = def(c.c);
+      if (Dungeon.canAct && !Dungeon.canAct(d.a)) { log("You can't play that card right now (stamina, cooldown or resource).", "warning"); return; }
+      const o = cardOpt(c); if (st.next !== 1) { o.xm = (o.xm || 1) * st.next; st.next = 1; }
+      st.hand.splice(i, 1);
+      if (d.ex) st.exh.push(c); else st.disc.push(c);
+      if (d.next) st.next = d.next * (c.u ? 1.15 : 1);
+      if (d.draw) st.extra += d.draw;
+      Dungeon.act(d.a, { card: o });
+    }
+    function fight(node) {
+      const r = run(), d = A.HS(), step = Math.round(Math.max(0, r.fl) * 9 / (FL - 1));
+      const m = C.shiftEnemy(d.level, node, node === "boss" ? 9 : step, r.asc, r.seed + (r.fl + 2) * 31, d.hsp || 0);
+      st = { draw: shuffle(r.deck.map(x => ({ c: x.c, u: x.u }))), hand: [], disc: [], exh: [], next: 1, extra: 0 };
+      drawHand();
+      const abs = Array.from(new Set(r.deck.map(x => x.c).filter(c => H.AB[c])));
+      A.beginFight(m, { mode: "shift",
+        prepHero: function (h) { M.applyPerks(h, r.relics); h.startHp = Math.max(1, r.hp * h.maxHp); h.bar = abs.filter(c => H.AB[c].lv <= h.level); },
+        hud: () => `🌙 Night Shift ${node === "boss" ? "· CEO OFFICE" : "· floor " + (r.fl + 1) + "/" + FL}${r.asc ? " · ASC " + r.asc : ""} · enemy LV ${m.level} · HP carries over`,
+        cardsHtml: cardsHtml, cardKey: (n) => play(n - 1),
+        onStep: function (f) { if (!f.over && f.phase === "atk") drawHand(); },
+        onEnd: function (f) {
+          const lines = []; st = null;
+          if (f.win) {
+            d.wins++;
+            r.hp = Math.max(0.01, f.hp / f.h.maxHp);
+            const coins = node === "boss" ? 0 : node === "elite" ? 50 : 28; r.coins += coins;
+            const gc = Math.round(stepGc() * (node === "elite" ? 1.5 : 1) * (1 + 0.25 * r.asc)); gameState.coins += gc; lines.push(`+${fmt(gc)} GC`);
+            const xp = Math.round(C.xpAt(m.level, node === "boss" ? "boss" : node === "elite" ? "elite" : "normal") * 0.3 * (1 + 0.15 * r.asc));
+            A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`);
+            if (coins) lines.push(`+${coins} 🪙`);
+            rlog(`${ROOM[node][0]} RESOLVED: ${esc(f.e.name)} (${Math.round(r.hp * 100)}% HP left)`);
+            if (node === "boss") return end(true, lines);
+            d.shift.best = Math.max(d.shift.best || 0, r.fl + 1);
+            r.phase = node === "elite" ? "relic" : "card"; r.offer = node === "elite" ? relicOffer(r, 3) : offerCards(r, 3); r.afterRelic = node === "elite";
+            return { title: "✅ RESOLVED", lines: lines, buttons: [{ label: node === "elite" ? "PICK A RELIC ▶" : "PICK A CARD ▶", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+          }
+          d.losses++;
+          return end(false, lines);
+        } });
+    }
+    function end(win, lines) {
+      const d = A.HS(), r = run(), stops = win ? FL + 1 : r.fl + 1;
+      d.shift.best = Math.max(d.shift.best || 0, Math.min(stops, FL));
+      if (win) {
+        d.shift.clears = (d.shift.clears || 0) + 1;
+        const bonus = Math.round(stepGc() * 3.5 * (1 + 0.25 * r.asc)); gameState.coins += bonus; lines.push(`🏆 night shift bonus +${fmt(bonus)} GC`);
+        A.dropItem(lines); A.dropItem(lines);
+        if (r.asc >= (d.shift.asc || 0) && (d.shift.asc || 0) < ASC_MAX) { d.shift.asc = (d.shift.asc || 0) + 1; lines.push(`🔓 Ascension ${d.shift.asc} unlocked`); }
+        log(`🌙 NIGHT SHIFT RESOLVED${r.asc ? " (ASC " + r.asc + ")" : ""}! ${lines.join(", ")}`, "special");
+        if (r.asc >= 5) TT.announce("RESOLVED AN ASCENSION " + r.asc + " NIGHT SHIFT", "HIGH STAKES", 0, bonus);
+      } else log(`🌙 Night shift over on floor ${r.fl + 1}/${FL}.`, "warning");
+      d.shift.last = { win: win, fl: Math.min(stops, FL + 1), asc: r.asc, deck: r.deck.length };
+      d.shift.run = null;
+      if (window.Meta && Meta.onShift) try { Meta.onShift(r.asc, Math.min(10, Math.round(stops * 10 / (FL + 1)))); } catch (e) {}
+      TT.saveSoon();
+      return { title: win ? "🌙 SHIFT RESOLVED" : "🌙 BURNED OUT", sub: win ? "the CEO signed it off" : `floor ${r.fl + 1}/${FL}`, lines: lines.length ? lines : ["Better luck next night."],
+        buttons: [{ label: "◀ NIGHT SHIFT", cls: "btn-gold", fn: () => Dungeon.tab("shift") }] };
+    }
+    function pickCard(i) { const r = run(); if (!r || r.phase !== "card") return; if (i >= 0) { const c = r.offer[i]; if (!c) return; r.deck.push({ c: c, u: 0 }); rlog(`🂠 Added ${esc(def(c).n)} to the deck`); } r.phase = "map"; r.offer = null; save(); }
+    function pickRelic(id) { const r = run(); if (!r || r.phase !== "relic" || r.offer.indexOf(id) < 0) return; r.relics[id] = (r.relics[id] || 0) + 1; rlog(`${PERKS[id].i} Relic: ${esc(PERKS[id].n)}`); r.phase = "card"; r.offer = offerCards(r, 3); save(); }
+    // ---------- incidenty
+    const INC = [
+      { i: "🖨", n: "Printer on fire", t: "The 3rd floor printer is on fire. Again. Everybody is filming it.", o: [["Put it out", "-10% HP, +1 random card upgraded"], ["Film it too", "+20 coins (it goes viral)"], ["Walk away", "nothing"]],
+        f: [() => { hurt(0.1); upRandom(); return "🧯 Fire out. A card got upgraded, -10% HP"; }, () => { run().coins += 20; return "📱 +20 coins"; }, () => "🚶 Not your printer."] },
+      { i: "🎣", n: "Phishing e-mail", t: "\"URGENT: your password expires in 5 minutes. Click here.\"", o: [["Report it to IT", "+1 relic"], ["Click it", "50%: +60 coins / 50%: -20% HP"]],
+        f: [() => { const id = relicOffer(run(), 1)[0]; if (id) { run().relics[id] = (run().relics[id] || 0) + 1; return "🛡 IT is grateful: " + PERKS[id].n; } return "🛡 IT says thanks."; }, () => { if (R() < 0.5) { run().coins += 60; return "🤑 It was a real bonus? +60 coins"; } hurt(0.2); return "💀 Malware. -20% HP"; }] },
+      { i: "🛗", n: "CEO in the elevator", t: "The CEO steps into the elevator. 12 floors. Small talk.", o: [["Pitch your idea", "50%: +1 relic / 50%: -15% HP"], ["Pretend to be on a call", "+15 coins"], ["Take the stairs", "heal 10%"]],
+        f: [() => { if (R() < 0.5) { const id = relicOffer(run(), 1)[0]; if (id) run().relics[id] = (run().relics[id] || 0) + 1; return "🚀 The CEO loves it! " + (id ? PERKS[id].n : ""); } hurt(0.15); return "😬 Awkward. -15% HP"; }, () => { run().coins += 15; return "📞 +15 coins"; }, () => { heal(0.1); return "🚶 Cardio. +10% HP"; }] },
+      { i: "☕", n: "Free coffee", t: "A full coffee on an empty desk. Nobody is looking.", o: [["Drink it", "75%: heal 30%"], ["Leave it", "+15 coins"]],
+        f: [() => { if (R() < 0.75) { heal(0.3); return "☕ +30% HP"; } return "☕ Decaf. Nothing."; }, () => { run().coins += 15; return "😇 +15 coins"; }] },
+      { i: "🍕", n: "Pizza Friday", t: "Leftover pizza in the kitchen. It's 2 AM.", o: [["Eat 3 slices", "heal 40%"], ["Add TEAM LUNCH to the deck", "a new card"]],
+        f: [() => { heal(0.4); return "🍕 +40% HP"; }, () => { run().deck.push({ c: "lunch", u: 0 }); return "🍕 TEAM LUNCH added"; }] },
+      { i: "💾", n: "Mysterious USB stick", t: "A USB stick labelled 'SALARIES 2026' lies on the floor.", o: [["Plug it in", "50%: relic / 50%: -25% HP"], ["Bin it", "remove a STRIKE from your deck"]],
+        f: [() => { if (R() < 0.5) { const id = relicOffer(run(), 1)[0]; if (id) run().relics[id] = (run().relics[id] || 0) + 1; return "💾 Free relic: " + (id ? PERKS[id].n : "-"); } hurt(0.25); return "💾 Malware. -25% HP"; }, () => { const r = run(), i = r.deck.findIndex(c => c.c === "strike"); if (i >= 0 && r.deck.length > 6) r.deck.splice(i, 1); return "🗑 One STRIKE fewer"; }] },
+      { i: "📅", n: "Quick sync?", t: "Your manager wants a 'quick sync'. At 3 AM.", o: [["Accept", "-10% HP, +40 coins"], ["Fake a call", "nothing"]],
+        f: [() => { hurt(0.1); run().coins += 40; return "📅 1 hour later... +40 coins"; }, () => "📞 'Sorry, bad connection!'"] }
+    ];
+    function upRandom() { const r = run(), c = r.deck.filter(x => !x.u); if (c.length) c[Math.floor(R() * c.length)].u = 1; }
+    function incident(i) { const r = run(); if (!r || r.phase !== "incident") return; const e = INC[r.ev]; const msg = e.f[i] ? e.f[i]() : ""; rlog(msg); r.lastInc = { i: r.ev, msg: msg }; r.phase = "map"; save(); }
+    // ---------- automat a kuchyňka
+    const PRICE = { card: 45, remove: 50, relic: 110, heal: 30 };
+    function buy(k, x) {
+      const r = run(); if (!r || r.phase !== "shop") return;
+      const p = PRICE[k]; if (r.coins < p) return;
+      if (k === "card") { const c = r.shop.cards[x]; if (!c || r.shop.sold["c" + x]) return; r.deck.push({ c: c, u: 0 }); r.shop.sold["c" + x] = 1; rlog("🛒 Bought " + def(c).n); }
+      else if (k === "relic") { if (r.shop.sold.relic) return; const id = relicOffer(r, 1)[0]; if (!id) return; r.relics[id] = (r.relics[id] || 0) + 1; r.shop.sold.relic = 1; rlog("🛒 Relic: " + PERKS[id].n); }
+      else if (k === "heal") { if (r.shop.sold.heal) return; heal(0.35); r.shop.sold.heal = 1; }
+      else if (k === "remove") { if (r.shop.sold.remove || r.deck.length <= 6) return; r.phase = "remove"; r.coins -= p; r.shop.sold.remove = 1; save(); return; }
+      r.coins -= p; save();
+    }
+    function removeCard(i) { const r = run(); if (!r || r.phase !== "remove") return; if (i >= 0 && r.deck[i]) { rlog("🗑 Removed " + def(r.deck[i].c).n); r.deck.splice(i, 1); } r.phase = "shop"; save(); }
+    function shopDone() { const r = run(); if (!r) return; r.phase = "map"; save(); }
+    function kitchen(k) { const r = run(); if (!r || r.phase !== "kitchen") return; if (k === 0) { heal(0.3); rlog("☕ Kitchen: +30% HP"); r.phase = "map"; } else r.phase = "upgrade"; save(); }
+    function upgrade(i) { const r = run(); if (!r || r.phase !== "upgrade") return; const c = r.deck[i]; if (!c || c.u) return; c.u = 1; rlog("✏ Upgraded " + def(c.c).n); r.phase = "map"; save(); }
+    function quit() { const r = run(); if (!r) return; if (!confirm("End this night shift? You keep what you earned so far.")) return; A.HS().shift.run = null; save(); }
+
+    // ---------- vykreslení
+    function deckHtml(r, fn, filter) { return `<div class="ns-grid">${r.deck.map((c, i) => filter && !filter(c) ? "" : cardHtml(c, null, true, `${fn}(${i})`, true)).join("")}</div>`; }
+    function html(box) {
+      const d = A.HS(), sh = d.shift; let r = sh.run;
+      if (r && r.v !== 2) { sh.run = null; r = null; }                                              // starý On-Call Shift se zahodí
+      if (!r) {
+        const ascBtns = []; for (let a = 0; a <= Math.min(ASC_MAX, sh.asc || 0); a++) ascBtns.push(`<button class="ns-btn" onclick="HSShift.start(${a})">${a === 0 ? "NORMAL" : "ASC " + a}</button>`);
+        const last = sh.last ? `<div class="ns-ticket" style="margin:10px 0;"><span class="ns-stamp ${sh.last.win ? "ok" : ""}">${sh.last.win ? "RESOLVED" : "ESCALATED"}</span><div class="tno">LAST NIGHT · ${sh.last.asc ? "ASC " + sh.last.asc : "NORMAL"}</div><h4>${sh.last.win ? "The CEO signed it off." : "Burned out on floor " + sh.last.fl + "."}</h4><p>Deck of ${sh.last.deck} cards.</p></div>` : "";
+        box.innerHTML = `<div class="ns"><h3><span>🌙 Night Shift</span><span>⚡${COST}</span></h3>
+          <div class="ns-dim">The office at night. Pick your way through the building <b>floor by floor</b> to the CEO's office. You fight with a <b>deck of cards</b>: every round you draw 4 and play one as your attack - reactions stay the same. <b>HP carries over.</b> Win fights to add cards, beat the server room for <b>relics</b>, upgrade cards in the kitchen, buy and remove cards at the vending machine. Clear it to unlock the next Ascension.</div>
+          ${last}
+          <div class="ns-dim" style="margin:8px 0;">Runs ${sh.runs || 0} · Resolved ${sh.clears || 0} · Ascension ${sh.asc || 0}/${ASC_MAX}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">${ascBtns.join("")}</div></div>`;
+        return;
+      }
+      const hh = hero(), rel = Object.keys(r.relics).map(id => `<span title="${esc(PERKS[id].t)}">${PERKS[id].i} ${esc(PERKS[id].n)}${r.relics[id] > 1 ? " ×" + r.relics[id] : ""}</span>`).join("");
+      const head = `<div class="ns"><h3><span>🌙 Night Shift${r.asc ? " · ASC " + r.asc : ""} · floor ${Math.max(0, r.fl + 1)}/${FL}</span><span>🪙 ${r.coins} · 🂠 ${r.deck.length}</span></h3>
+        <div class="ns-dim">❤ <b>${fmt(Math.ceil(r.hp * hh.maxHp))}</b> / ${fmt(hh.maxHp)}</div><div class="ns-hp"><div style="width:${Math.round(r.hp * 100)}%"></div></div>
+        ${rel ? `<div class="ns-relics">${rel}</div>` : `<div class="ns-dim">no relics yet - beat a ☠ server room</div>`}</div>`;
+      let body = "";
+      if (r.phase === "map") {
+        const rc = reach(r), boss = r.fl >= FL - 1, done = {}; r.path.forEach(p => { done[p[0] + "_" + p[1]] = 1; });
+        const rows = r.map.map((row, f) => `<div class="ns-fl"><span>F${f + 1}</span>${row.map((t, l) => { const here = f === r.fl && l === r.ln, go = !boss && f === r.fl + 1 && rc.indexOf(l) >= 0, past = done[f + "_" + l];
+          return `<div class="ns-room ${here ? "here" : past ? "done" : go ? "go" : f <= r.fl ? "far" : ""}" ${go ? `onclick="HSShift.go(${l})"` : ""} title="${esc(ROOM[t][2])}"><i>${ROOM[t][0]}</i>${esc(ROOM[t][1])}</div>`; }).join("")}</div>`).join("");
+        const bossRow = `<div class="ns-fl"><span>TOP</span><div class="ns-room ns-boss ${boss ? "go" : ""}" ${boss ? `onclick="HSShift.go(1)"` : ""}><i>👑</i>CEO office</div></div>`;
+        const inc = r.lastInc ? `<div class="ns-dim" style="margin-bottom:6px;">${INC[r.lastInc.i].i} ${esc(r.lastInc.msg)}</div>` : "";
+        body = `<div class="ns"><h3><span>📐 Floor plan</span><span class="ns-dim">pick a lit room</span></h3>${inc}<div class="ns-map">${rows}${bossRow}</div>
+          <div style="display:flex;justify-content:space-between;margin-top:10px;gap:8px;flex-wrap:wrap;"><button class="ns-btn" onclick="HSShift.view('deck')">🂠 DECK (${r.deck.length})</button><button class="ns-btn red" onclick="HSShift.quit()">END SHIFT</button></div>
+          ${r.showDeck ? `<div style="margin-top:10px;">${deckHtml(r, "HSShift.noop")}</div>` : ""}</div>`;
+      } else if (r.phase === "card") {
+        body = `<div class="ns"><h3><span>🂠 Add a card to your deck</span></h3><div class="ns-hand">${r.offer.map((c, i) => cardHtml({ c: c, u: 0 }, null, true, `HSShift.pickCard(${i})`)).join("")}</div>
+          <div style="text-align:center;margin-top:6px;"><button class="ns-btn" onclick="HSShift.pickCard(-1)">SKIP (keep the deck thin)</button></div></div>`;
+      } else if (r.phase === "relic") {
+        body = `<div class="ns"><h3><span>🗝 Pick a relic</span></h3><div class="ns-opts">${r.offer.map(id => `<button class="ns-opt" style="color:#efe6d2;border-color:#3b5f8f;background:rgba(15,27,45,.7);" onclick="HSShift.pickRelic('${id}')">${PERKS[id].i} ${esc(PERKS[id].n)}${r.relics[id] ? " (" + (r.relics[id] + 1) + ")" : ""}<small style="color:#9fb3cf;">${esc(PERKS[id].t)}</small></button>`).join("")}</div></div>`;
+      } else if (r.phase === "incident") {
+        const e = INC[r.ev];
+        body = `<div class="ns"><div class="ns-ticket"><span class="ns-stamp">URGENT</span><div class="tno">TICKET #${1000 + ((r.seed + r.fl * 97) % 9000)} · FLOOR ${r.fl + 1}</div><h4>${e.i} ${esc(e.n)}</h4><p>${esc(e.t)}</p>
+          <div class="ns-opts">${e.o.map((o, i) => `<button class="ns-opt" onclick="HSShift.incident(${i})">${esc(o[0])}<small>${esc(o[1])}</small></button>`).join("")}</div></div></div>`;
+      } else if (r.phase === "shop") {
+        const sold = r.shop.sold;
+        body = `<div class="ns"><h3><span>🛒 Vending machine</span><span>🪙 ${r.coins}</span></h3><div class="ns-hand">${r.shop.cards.map((c, i) => `<div style="text-align:center;">${cardHtml({ c: c, u: 0 }, null, !sold["c" + i] && r.coins >= PRICE.card, `HSShift.buy('card',${i})`)}<div class="ns-pile">${sold["c" + i] ? "SOLD" : "🪙 " + PRICE.card}</div></div>`).join("")}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
+            <button class="ns-btn" ${sold.relic || r.coins < PRICE.relic ? "disabled" : ""} onclick="HSShift.buy('relic')">🗝 Random relic · 🪙${PRICE.relic}</button>
+            <button class="ns-btn" ${sold.remove || r.coins < PRICE.remove || r.deck.length <= 6 ? "disabled" : ""} onclick="HSShift.buy('remove')">🗑 Remove a card · 🪙${PRICE.remove}</button>
+            <button class="ns-btn" ${sold.heal || r.coins < PRICE.heal ? "disabled" : ""} onclick="HSShift.buy('heal')">🩹 Heal 35% · 🪙${PRICE.heal}</button>
+            <button class="ns-btn red" onclick="HSShift.shopDone()">CONTINUE ▶</button></div></div>`;
+      } else if (r.phase === "remove") {
+        body = `<div class="ns"><h3><span>🗑 Remove a card</span></h3>${deckHtml(r, "HSShift.removeCard")}<div style="text-align:center;margin-top:8px;"><button class="ns-btn" onclick="HSShift.removeCard(-1)">CANCEL</button></div></div>`;
+      } else if (r.phase === "kitchen") {
+        body = `<div class="ns"><h3><span>☕ Kitchen</span></h3><div class="ns-opts"><button class="ns-opt" style="color:#efe6d2;border-color:#3b5f8f;background:rgba(15,27,45,.7);" onclick="HSShift.kitchen(0)">😴 Power nap<small style="color:#9fb3cf;">heal 30% max HP</small></button>
+          <button class="ns-opt" style="color:#efe6d2;border-color:#3b5f8f;background:rgba(15,27,45,.7);" onclick="HSShift.kitchen(1)">✏ Rewrite a card<small style="color:#9fb3cf;">upgrade one card (stronger for the rest of the run)</small></button></div></div>`;
+      } else if (r.phase === "upgrade") {
+        body = `<div class="ns"><h3><span>✏ Upgrade a card</span></h3>${deckHtml(r, "HSShift.upgrade", c => !c.u)}</div>`;
+      }
+      const logH = r.log.length ? `<div class="ns"><h3><span>📋 Night log</span></h3>${r.log.slice(-6).reverse().map(l => `<div class="ns-dim">${l}</div>`).join("")}</div>` : "";
+      box.innerHTML = head + body + logH;
+    }
+    function view(k) { const r = run(); if (!r) return; if (k === "deck") r.showDeck = !r.showDeck; A.render(); }
+    A.registerMode("shift", { label: "🌙 SHIFT", order: 30, render: html });
+    window.HSShift = { start: start, go: go, play: play, pickCard: pickCard, pickRelic: pickRelic, incident: incident, buy: buy, removeCard: removeCard, shopDone: shopDone,
+      kitchen: kitchen, upgrade: upgrade, quit: quit, view: view, noop: function () {}, CARDS: OFFICE, def: def, cardOpt: cardOpt };
+  }
+  boot();
 })();
 </script>
 <style>
@@ -14067,9 +14479,9 @@ html.m #dg-open-btn { display: none; }
     }
     c.fightAt = from + nf * FIGHT_MS;
     if (rep.w || rep.l) {
-      const line = `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${esc(rep.boss)}: ${rep.w}W ${rep.l}L · +${short(rep.gc)} GC · +${short(rep.scrap)} scrap${rep.tok ? " · +" + rep.tok + " 🎟" : ""}`;
+      const line = `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${esc(rep.boss)}: ${rep.w}W ${rep.l}L · +${short(rep.gc)} GC · +${short(rep.scrap)} scrap${rep.tok ? " · +" + rep.tok + " ⏱" : ""}`;
       c.log.unshift(line); c.log = c.log.slice(0, 12);
-      if (!silent) log(`🧑‍💼 ${esc(c.name)}: ${rep.w ? "beat " + esc(rep.boss) + (rep.w > 1 ? " " + rep.w + "×" : "") : "lost to " + esc(rep.boss)} → +${short(rep.gc)} GC, +${short(rep.scrap)} scrap${rep.tok ? ", +" + rep.tok + " 🎟" : ""}`, rep.w ? "success" : "warning");
+      if (!silent) log(`🧑‍💼 ${esc(c.name)}: ${rep.w ? "beat " + esc(rep.boss) + (rep.w > 1 ? " " + rep.w + "×" : "") : "lost to " + esc(rep.boss)} → +${short(rep.gc)} GC, +${short(rep.scrap)} scrap${rep.tok ? ", +" + rep.tok + " ⏱" : ""}`, rep.w ? "success" : "warning");
       rep.gearTxt.forEach(t => log(`🧑‍💼 ${esc(c.name)} brought you loot: ${t}`, "special"));
     }
     TT.saveSoon();
@@ -14162,7 +14574,7 @@ html.m #dg-open-btn { display: none; }
     const q = c.quip || QUIPS[Math.floor(Math.random() * QUIPS.length)];
     el.innerHTML = `<div class="tt-modal" style="border-color:var(--emerald);"><h2 style="color:var(--emerald);">🧑‍💼 WHILE YOU WERE AWAY</h2>
       <div class="tt-body" style="min-height:0;font-size:13px;line-height:1.6;"><b style="color:var(--emerald);">${esc(c.name)}</b>${rep.boss ? ` fought <b>${esc(rep.boss)}</b> ${rep.w + rep.l}× (${rep.w} won, ${rep.l} lost)` : ""}${rep.boss ? " and" : ""} resolved ${fmt(rep.clicks)} tickets.<br>
-      💰 +${short(rep.gc)} GC · ⚙ +${short(rep.scrap)} scrap · 🎫 +${short(rep.tickets)} tickets${rep.xp ? " · +" + fmt(rep.xp) + " XP" : ""}${rep.tok ? " · 🎟 +" + rep.tok : ""}
+      💰 +${short(rep.gc)} GC · ⚙ +${short(rep.scrap)} scrap · 🎫 +${short(rep.tickets)} tickets${rep.xp ? " · +" + fmt(rep.xp) + " XP" : ""}${rep.tok ? " · ⏱ +" + rep.tok : ""}
       <div class="cl-quip" style="margin-top:8px;">“${esc(q)}”</div></div>
       <div style="margin-top:12px;"><button class="btn btn-gold" style="width:100%;padding:10px;" onclick="this.closest('.tt-overlay').remove()">NICE</button></div></div>`;
     document.body.appendChild(el);
@@ -14456,7 +14868,7 @@ html.m #dg-open-btn { display: none; }
     call("lottoClaim", [], function (r) {
       if (!r || !r.ok || !r.gc) return;
       gameState.coins += r.gc;
-      log(`🎟 LOTTERY: you won ${fmt(r.gc)} GC in the last draw!`, "special");
+      log(`⏱ LOTTERY: you won ${fmt(r.gc)} GC in the last draw!`, "special");
       if (window.TT && TT.announce && r.gc >= 1e6) try { TT.announce("WON THE LOTTERY", "LOTTERY", 0, r.gc); } catch (e) {}
       if (typeof updateUI === "function") updateUI(); TT.saveSoon();
     });
@@ -14615,16 +15027,16 @@ html.m #dg-open-btn { display: none; }
     const cur = LT.rows[LT.act] || [];
     const ready = LT.rows.filter(x => x.length === r.k), cost = ready.length * r.price;
     const mine = (r.mine || []).map(t => `<div>${t.map(n => `<span class="lt-ball">${n}</span>`).join("")}</div>`).join("") || `<span class="dg-dim">No tickets for this draw yet.</span>`;
-    const last = r.last ? `<div class="adv-info" style="margin-top:8px;">Last draw #${r.last.round}: ${r.last.nums.map(n => `<span class="lt-ball">${n}</span>`).join("")} · ${r.last.tickets} tickets from ${r.last.players} players<br>${r.last.winners.length ? r.last.winners.map(w => `${w.kind === 3 ? "🏆 JACKPOT" : "✨ 2 numbers"}: <b>${esc(w.nick)}</b> +${short(w.prize)} GC`).join("<br>") : "Nobody won - the pool rolls over! 🎉"}</div>` : "";
+    const last = r.last ? `<div class="adv-info" style="margin-top:8px;">Last draw #${r.last.round}: ${r.last.nums.map(n => `<span class="lt-ball">${n}</span>`).join("")}${r.last.bonus ? ` + bonus <span class="lt-ball" style="background:#f2a541;color:#1a1406;">${r.last.bonus}</span>` : ""} · ${r.last.tickets} tickets from ${r.last.players} players<br>${r.last.winners.length ? r.last.winners.map(w => `${w.kind === 3 ? "🏆 JACKPOT" : w.kind === 25 ? "💰 MINI JACKPOT (2 + bonus)" : "✨ 2 numbers"}: <b>${esc(w.nick)}</b> +${short(w.prize)} GC`).join("<br>") : "Nobody won - the pool rolls over! 🎉"}</div>` : "";
     const rows = LT.rows.map((t, i) => `<div class="mn-row" style="justify-content:flex-start;padding:4px 6px;border-radius:10px;${i === LT.act ? "background:rgba(255,184,0,.10);outline:1px solid var(--amber);" : ""}" onclick="Extras.ltAct(${i})">
         <b style="width:58px;">Ticket ${i + 1}</b>${Array.from({ length: r.k }, (_, q) => t[q] ? `<span class="lt-ball">${t[q]}</span>` : `<span class="lt-ball dim">?</span>`).join("")}
         <button class="btn" style="padding:2px 8px;margin-left:auto;" onclick="event.stopPropagation();Extras.ltRow(${i},'r')">🎲</button>${LT.rows.length > 1 ? `<button class="btn" style="padding:2px 8px;" onclick="event.stopPropagation();Extras.ltRow(${i},'x')">✕</button>` : ""}</div>`).join("");
-    box.innerHTML = `<div class="adv-info">Pick <b>${r.k}</b> numbers from 1-${r.n} on each ticket. Draw every day at <b>18:00</b>. All <b>${r.k}</b> = JACKPOT (90% of the pool, split between winners) · 2 numbers = ×5 the ticket. 40% of everyone's casino losses and the Prší / Checkers cut go into the pool.</div>
+    box.innerHTML = `<div class="adv-info">Pick <b>${r.k}</b> numbers from 1-${r.n} on each ticket. Draw every day at <b>18:00</b>. All <b>${r.k}</b> = JACKPOT (90% of the pool, split between winners) · 2 numbers + the <b>bonus number</b> = MINI JACKPOT (25% of the pool, split) · 2 numbers = ×5 the ticket. 40% of everyone's casino losses and the Prší / Checkers cut go into the pool.</div>
       <div class="lt-pool">${short(r.pool)} GC</div><div style="text-align:center;" class="dg-dim">Draw #${r.round} in <b>${h} h ${m} min</b> · ${r.players} player${r.players === 1 ? "" : "s"} in · you can buy <b>${ltFree()}</b> more</div>
       <div style="display:grid;gap:4px;margin:8px 0;">${rows}</div>
       <div class="lt-nums">${Array.from({ length: r.n }, (_, i) => i + 1).map(n => `<div class="lt-n ${cur.indexOf(n) >= 0 ? "on" : ""}" onclick="Extras.ltPick(${n})">${n}</div>`).join("")}</div>
       <div class="mn-row"><button class="btn" ${LT.rows.length < ltFree() ? "" : "disabled"} onclick="Extras.ltAdd()">➕ Ticket</button><button class="btn" onclick="Extras.ltQuick()">🎲 Randomize all</button>
-        <button class="btn btn-gold" ${ready.length && gameState.coins >= cost ? "" : "disabled"} onclick="Extras.ltBuy()">🎟 Buy ${ready.length || ""} ticket${ready.length === 1 ? "" : "s"} · ${short(cost || r.price)} GC</button></div>
+        <button class="btn btn-gold" ${ready.length && gameState.coins >= cost ? "" : "disabled"} onclick="Extras.ltBuy()">⏱ Buy ${ready.length || ""} ticket${ready.length === 1 ? "" : "s"} · ${short(cost || r.price)} GC</button></div>
       <div style="margin-top:8px;"><b>Your tickets (${(r.mine || []).length}/${r.max})</b><div style="display:grid;gap:4px;margin-top:4px;">${mine}</div></div>${last}`;
   }
   function ltAct(i) { LT.act = i; ltRender(); }
@@ -14644,7 +15056,7 @@ html.m #dg-open-btn { display: none; }
     call("lottoBuyMany", [list], function (x) {
       const n = x && x.ok ? x.bought : 0, back = (list.length - n) * r.price;
       if (back > 0) gameState.coins += back;
-      if (x && x.ok) { r.mine = x.mine; r.pool = x.pool; LT.rows = [[]]; LT.act = 0; log(`🎟 ${n} lottery ticket${n === 1 ? "" : "s"} bought. Good luck at 18:00!${back ? " (" + short(back) + " GC refunded - ticket limit)" : ""}`, "success"); TT.saveSoon(); }
+      if (x && x.ok) { r.mine = x.mine; r.pool = x.pool; LT.rows = [[]]; LT.act = 0; log(`⏱ ${n} lottery ticket${n === 1 ? "" : "s"} bought. Good luck at 18:00!${back ? " (" + short(back) + " GC refunded - ticket limit)" : ""}`, "success"); TT.saveSoon(); }
       else log("Ticket purchase failed - refunded.", "warning");
       if (typeof updateUI === "function") updateUI(); ltRender();
     }, function () { gameState.coins += cost; log("Ticket purchase failed (server) - refunded.", "warning"); if (typeof updateUI === "function") updateUI(); });
@@ -15439,7 +15851,7 @@ html.v9.m .dg-tabs button { flex: 1 1 22% !important; padding: 8px 4px; font-siz
     ["high stakes", "High Stakes"], ["office royale", "Office Royale"], ["idle royale", "Idle Royale"], ["casino royale", "Casino Royale"], ["hall of fame", "Hall of Fame"],
     ["the office plant", "the Office Plant"], ["office plant", "Office Plant"], ["clear the pool", "Clear the Pool"], ["server tower", "Server Tower"],
     ["quarterly review", "Quarterly Review"], ["on-call shift", "On-Call Shift"], ["the administrator", "the Administrator"], ["google coins", "Google Coins"],
-    ["slot token", "Slot Token"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
+    ["overtime hour", "Overtime Hour"], ["legacy points", "Legacy Points"], ["prší", "Prší"], ["mega 5×5", "Mega 5×5"], ["the great \"i\"", "The Great \"I\""],
     ["big massi", "Big Massi"], ["da polishen", "Da Polishen"], ["italian guy", "Italian Guy"], ["supreme louis", "Supreme Louis"], ["the cobol", "The Cobol"],
     ["company chest", "Company Chest"], ["upgrade station", "Upgrade Station"], ["merge station", "Merge Station"], ["corporate climb", "Corporate Climb"]
   ];

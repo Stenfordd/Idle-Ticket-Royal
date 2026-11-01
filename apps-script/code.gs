@@ -1827,11 +1827,12 @@ function lottoDraw_(s) {
   var nums = [];
   while (nums.length < LOTTO_K) { var x = 1 + Math.floor(Math.random() * LOTTO_N); if (nums.indexOf(x) < 0) nums.push(x); }
   nums.sort(function (a, b) { return a - b; });
-  var pay = m96Get_('ir_lotto_pay', {}), jack = [], small = [];
+  var bonus = 0; while (!bonus) { var y = 1 + Math.floor(Math.random() * LOTTO_N); if (nums.indexOf(y) < 0) bonus = y; }      // v12: bonusové číslo
+  var pay = m96Get_('ir_lotto_pay', {}), jack = [], small = [], mini = [];
   Object.keys(s.t).forEach(function (nick) {
     (s.t[nick] || []).forEach(function (tk) {
       var hit = tk.filter(function (n) { return nums.indexOf(n) >= 0; }).length;
-      if (hit === 3) jack.push(nick); else if (hit === 2) small.push(nick);
+      if (hit === 3) jack.push(nick); else if (hit === 2 && tk.indexOf(bonus) >= 0) mini.push(nick); else if (hit === 2) small.push(nick);
     });
   });
   var winners = [];
@@ -1841,8 +1842,13 @@ function lottoDraw_(s) {
     jack.forEach(function (nick) { pay[nick] = (pay[nick] || 0) + each; winners.push({ nick: nick, prize: each, kind: 3 }); });
     s.pool -= each * jack.length;
   }
+  if (mini.length) {                                                       // v12: 2 čísla + bonus = MINI JACKPOT 25 % poolu (dělí se)
+    var mpot = Math.floor(s.pool * 0.25), meach = Math.floor(mpot / mini.length);
+    mini.forEach(function (nick) { pay[nick] = (pay[nick] || 0) + meach; winners.push({ nick: nick, prize: meach, kind: 25 }); });
+    s.pool -= meach * mini.length;
+  }
   var players = Object.keys(s.t).length, tickets = Object.keys(s.t).reduce(function (a, k) { return a + (s.t[k] || []).length; }, 0);
-  s.last = { round: s.round, nums: nums, winners: winners.slice(0, 30), pool: s.pool, players: players, tickets: tickets, at: s.drawAt };
+  s.last = { round: s.round, nums: nums, bonus: bonus, winners: winners.slice(0, 30), pool: s.pool, players: players, tickets: tickets, at: s.drawAt };
   s.round++; s.t = {}; s.drawAt = lottoNextDraw_(Math.max(Date.now(), s.drawAt + 1000));
   m96Put_('ir_lotto_pay', pay);
 }
