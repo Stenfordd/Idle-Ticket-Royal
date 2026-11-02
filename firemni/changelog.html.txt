@@ -24,6 +24,13 @@
 (function () {
 "use strict";
 const LOG = [
+{ v: "12.2", d: "2026-11-02", i: [
+"👤 Click a player in the leaderboard for a full card: gear, action bar, talents, tower, pool, Night Shift, weekly boss damage, Overtime Hours and recent achievements",
+"📊 Weekly boss: your first attack of the week adds HP to the boss - the fight now includes it, so you no longer 'kill' a boss that still has millions left. A new attendee adds a bit less HP than before",
+"🧑‍💼 Consult: once today's consult budget is used up the buttons lock until midnight (no more burning scrap for 1,000 GC), and you get a warning when it's almost used up",
+"⏱ Overtime Hours now come every 20 chest levels",
+"🏢 Tower: proper roof garden, and the night city behind the page is actually visible now"
+] },
 { v: "12.1", d: "2026-11-01", i: [
 "🏢 <b>THE TOWER</b>: your office is now a night-time skyscraper - every floor is a part of the game (your desk, the casino, the vault, the server room, the break room, the lobby and the roof garden). Hover to light a room up, click to go there; the elevator follows you and the vault flashes in the colour of your best drop. 'Neon: on' switches back to the old room",
 "🌃 Night city skyline behind the whole page; a chest drop now only lights up the Company Chest panel (no more full-screen flash)",
@@ -46,7 +53,7 @@ const LOG = [
 "🎮 Harder mini-games: dodge comes in waves with feints, parry has combos and white unblockable rings, new CRUNCH TIME, ESPRESSO and INTERN RUN ultimates. On touch screens you get a bit more time",
 "🏢 The office sits next to High Stakes now: resolve tickets, buy scrap and open chests without leaving the fight screen",
 "🌙 <b>NIGHT SHIFT</b> (new mode): climb an 11-floor office at night with a deck of cards - open spaces, server rooms, helpdesk incidents, the kitchen, vending machines and the CEO at the top. New cards and relics every floor",
-"⏱ <b>SLOT TOKENS ARE NOW OVERTIME HOURS</b>: they don't drop from chests any more. You get them for every 10 chest levels, prestige (+5, +1 per 5 prestiges), first win on a campaign boss, every 10th new tower floor, joining the weekly boss, plant fruit (Overtime Blossom now adds +10% per level) and achievements. Your balance was recalculated once",
+"⏱ <b>SLOT TOKENS ARE NOW OVERTIME HOURS</b>: they don't drop from chests any more. You get them for chest levels, prestige (+5, +1 per 5 prestiges), first win on a campaign boss, every 10th new tower floor, joining the weekly boss, plant fruit (Overtime Blossom now adds +10% per level) and achievements. Your balance was recalculated once",
 "📦 Company Chest: cost grows more gently at high levels, Legendary/Mythic/Prismatic keep growing slowly past their cap, <b>double drop</b> from LV 170 and <b>triple drop</b> from LV 400. Odds are shown as a coloured bar with a 'next level gives…' preview",
 "♻ Salvage hopeless only takes pieces that can't beat yours even at your +level plus a margin you choose (keep +0 to +5, default +2)",
 "🎱 Lottery: a bonus ball - 2 numbers + the bonus = MINI JACKPOT (25% of the pool)",

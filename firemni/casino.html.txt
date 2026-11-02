@@ -277,6 +277,7 @@ return { zone: zone, outcome: r2 < winT ? "win" : (r2 < 90 ? "loss" : "bug") };
 function consultFast() { return consultAuto; }
 function launchConsultEscalation() {
 if (isConsultActive) return;
+if (consultLocked()) { log("CONSULT: today's consult budget is used up - it resets in " + consultResetIn() + ".", "warning"); if (consultAuto) stopConsultAuto("daily budget used"); return; }
 if (gameState.scrap < consultCost()) {
 log(`Insufficient scrap: consult requires ${consultCost().toLocaleString()} Scrap.`, "warning");
 if (consultAuto) stopConsultAuto("out of scrap");
@@ -383,6 +384,7 @@ alt();
 /** ×5 najednou bez animace. BUG zastaví sérii a pustí normální 50/50 komoru. */
 function consultBulk(n) {
 if (isConsultActive || consultAuto) return;
+if (consultLocked()) { log("CONSULT: today's consult budget is used up - it resets in " + consultResetIn() + ".", "warning"); return; }
 let done = 0, net = 0, wins = 0, losses = 0, bug = null;
 const price = consultCost();                          // v8.7.4: celá dávka za cenu na začátku (tlačítko ukazuje 5× tuhle cenu)
 for (let i = 0; i < n; i++) {
@@ -423,9 +425,16 @@ consultAuto = false;
 if (!silent && consultStats) log(`CONSULT AUTO-ROLL ${reason}: ${consultStats.n} consults, net ${consultStats.gc >= 0 ? "+" : ""}${Math.floor(consultStats.gc).toLocaleString()} GC.`, "warning");
 consultButtons();
 }
+/** v12.1: denní budget výher vyčerpán -> consult zamčený do půlnoci (dřív se pálil scrap za minimální výhru) */
+function consultLocked() { try { return consultDayLeft(calculateAutoGcRate()) <= 0; } catch (e) { return false; } }
+function consultResetIn() { const n = new Date(), m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1) - n; return Math.floor(m / 3600000) + "h " + Math.floor(m % 3600000 / 60000) + "m"; }
 function consultLabel() {
 const b1 = $c("btn-consult-launch"); if (!b1) return;
-const t = "DISPATCH CONSULT (" + consultCost().toLocaleString("en-US") + " SCRAP)";
+const lk = consultLocked(), b5x = $c("btn-consult-bulk"), bax = $c("btn-consult-auto");
+if (lk) { const t = "🔒 DAILY CONSULT BUDGET USED · resets in " + consultResetIn(); if (b1.textContent !== t) b1.textContent = t; b1.disabled = true; if (b5x) { b5x.disabled = true; b5x.textContent = "×5 LOCKED"; } if (bax && !consultAuto) bax.disabled = true; return; }
+if (!isConsultActive && !consultAuto) { b1.disabled = false; if (b5x) b5x.disabled = false; if (bax) bax.disabled = false; }
+let left = 0; try { left = consultDayLeft(calculateAutoGcRate()); } catch (e) {}
+const t = "DISPATCH CONSULT (" + consultCost().toLocaleString("en-US") + " SCRAP)" + (left < calculateAutoGcRate() * 60 * CONSULT_WIN_MAX ? " · ⚠ ~" + Math.floor(left).toLocaleString("en-US") + " GC left today" : "");
 if (b1.textContent !== t) b1.textContent = t;
 const b5 = $c("btn-consult-bulk");
 if (b5) { const t5 = "×5 INSTANT (" + (consultCost() * 5).toLocaleString("en-US") + " SCRAP)"; if (b5.textContent !== t5) b5.textContent = t5; }

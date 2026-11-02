@@ -28,6 +28,7 @@ function onOpen() {
       .addItem('Spustit firemní globální event', 'triggerGlobalEventUi_')
       .addItem('Zobrazit pozvánkový kód', 'showInviteUi_')
       .addItem('Reset PINu hráče', 'resetPlayerUi_')
+      .addItem('Reset weekly boss (tento týden)', 'wbResetUi_')
       .addSeparator()
       .addItem('Wipe season (nová sezóna)', 'adminSeasonWipeUi_')
       .addToUi();
@@ -752,6 +753,7 @@ var API_ALLOWED_ = {
   lottoFeed: function (a) { return lottoFeed(a[0]); },
   lottoClaim: function () { return lottoClaim(); },
   officeView: function (a) { return officeView(a[0]); },
+  playerCard: function (a) { return playerCard(a[0]); },
   officeAct: function (a) { return officeAct(a[0], a[1]); },
   officeInbox: function () { return officeInbox(); },
   dlList: function () { return dlList(); },
@@ -1115,7 +1117,7 @@ function arenaFight(target, stance) {
 var WB_COOLDOWN_MS = 60 * 60 * 1000;
 var WB_COUNT = 16;                 // v11.4: 11 bossů kampaně + 5 týdenních bossů s vlastní třídou
 var WB_BASE_HP = 3000;
-var WB_CONTRIB = 100;
+var WB_CONTRIB = 60;            // v12.1: první účast přidá bossovi útok ×60 HP (dřív ×100)
 var WB_MK_HP = 1.8;            // v8.2: po zabití hned naskočí MK.II, MK.III... (HP ×1.6 za každý MK)
 
 function wbWeek_() { return Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000)); }
@@ -1139,6 +1141,17 @@ function wbFix_(d) {
   if (!d.kills) d.kills = d.killedAt ? [{ mk: 1, killer: d.killer, at: d.killedAt }] : [];
   if (d.killedAt && d.mk === 2 && d.dmg >= d.maxHp) { d.dmg = 0; d.maxHp = Math.round(d.baseHp * WB_MK_HP); }
   return d;
+}
+/** v12.1: admin - boss tohoto týdne začne znova (MK.1, základní HP, bez damage a účastníků). Minulý týden a odměny zůstávají. */
+function wbResetUi_() {
+  var ui = SpreadsheetApp.getUi();
+  if (ui.alert('Reset weekly boss', 'Boss tohoto týdne začne znova jako MK.1 (základní HP, žádný damage ani účastníci). Pokračovat?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  var lock = LockService.getScriptLock(); if (!lock.tryLock(10000)) { ui.alert('Server je zaneprázdněný, zkus to znovu.'); return; }
+  try {
+    var sh = wbSheet_(), w = wbWeek_(), got = wbLoad_(sh, w), json = JSON.stringify(wbFresh_(w));
+    if (got.row) sh.getRange(got.row, 2).setValue(json); else sh.appendRow([w, json]);
+  } finally { lock.releaseLock(); }
+  ui.alert('Weekly boss byl resetován.');
 }
 function wbMkMult_(mk) { return Math.pow(WB_MK_HP, mk - 1); }
 function wbPublic_(d, me) {
@@ -1931,6 +1944,22 @@ function officeView(nick) {
     hs: { cls: hs.cls || '', level: Number(hs.level) || 1, gear: m96Vis_(hs.gear && hs.gear.eq) },
     col: col.unlocked ? { cls: col.cls || 'engineer', name: String(col.name || ''), gear: m96Vis_(col.gear) } : null,
     waiting: ((v.inbox || {})[nick] || []).length, cdLeft: Math.max(0, cdAt + 3600000 - Date.now()) };
+}
+/** v12.1: rozšířená karta hráče z leaderboardu (jen čtení cizího savu) */
+function playerCard(nick) {
+  var s = m96SaveOf_(nick);
+  if (!s) return { ok: false, reason: 'nobody' };
+  var hs = s.hs || {}, g = hs.gear || {}, eq = g.eq || {}, ach = hs.ach && hs.ach.u ? hs.ach.u : {};
+  var gear = {}; ['w', 'a', 'h', 't'].forEach(function (k) { var it = eq[k]; if (it) gear[k] = { r: Number(it.r) || 0, lv: Number(it.lv) || 1, u: Number(it.u) || 0, set: it.set || '', lx: it.lx || '' }; });
+  var recent = Object.keys(ach).sort(function (a, b) { return (ach[b] || 0) - (ach[a] || 0); }).slice(0, 5);
+  var wbDmg = 0; try { var wd = wbLoad_(wbSheet_(), wbWeek_()).data; if (wd && wd.players) { var k = Object.keys(wd.players).filter(function (x) { return x.toLowerCase() === String(nick).toLowerCase(); })[0]; if (k) wbDmg = wd.players[k].dmg || 0; } } catch (e) {}
+  var sh = hs.shift || {}, tw = hs.tower || {}, pool = hs.pool || {};
+  return { ok: true, nick: String(nick), prestige: Number(s.prestige) || 0, chest: Number(s.chestLevel) || 1, maxChest: Math.max(Number(s.maxChestLevel) || 1, Number(s.chestLevel) || 1),
+    life: Number(s.lifetimeTickets) || 0, ot: Number(s.slotTokens) || 0, gambleNet: Number(s.gambleNet) || 0,
+    hs: { cls: hs.cls || '', level: Number(hs.level) || 1, gear: gear, vis: m96Vis_(eq), tal: Array.isArray(hs.tal) ? hs.tal : [], bar: Array.isArray(hs.bar) ? hs.bar.slice(0, 4) : [],
+      wins: Number(hs.wins) || 0, losses: Number(hs.losses) || 0, tower: Number(tw.best) || 0, towerTot: Number(tw.tot) || 0, rush: !!tw.rush, pool: Number(pool.best) || 0,
+      shiftBest: Number(sh.best) || 0, shiftClears: Number(sh.clears) || 0, shiftRuns: Number(sh.runs) || 0, hsp: Number(hs.hsp) || 0 },
+    achN: Object.keys(ach).length, achRecent: recent, wbDmg: wbDmg };
 }
 function officeAct(nick, kind) {
   var me = getUserLdap();

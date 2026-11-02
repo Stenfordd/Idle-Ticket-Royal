@@ -1,17 +1,16 @@
-NÁVOD v7.7 - firemní verze v12.1 (= hra Office Royale v12.1)
+NÁVOD v7.8 - firemní verze v12.2 (= hra Office Royale v12.2)
 
 v12.0: 5 nových tříd (Overtime Berserker, Burnout Specialist, Excel Wizard, Espresso Monk, Headhunter) se spellbookem,
 talenty a loadouty, těžší minihry, NIGHT SHIFT (karetní mód), Overtime Hours místo Slot Tokenů, nové škálování bedny
 (double/triple drop), bonusové číslo v loterii, záložka INCIDENTS v logu, chytřejší "Salvage hopeless" a neonová kancelář.
 
-v12.1: kancelářská věž místo místnosti, noční město, opravy Night Shift karet / talentů / tooltipů, fake kroužky
-u parry žluté, stamina soupeře v duelu jen jako pásmo, nové animace ult, dock v High Stakes s loadoutem a merge,
-Office Plant: rychlejší obnova energie.
+v12.2: karta hráče v leaderboardu (gear, talenty, skilly, tower, weekly boss...), oprava weekly bosse (souboj počítá
+s HP, které přidá tvůj první útok), v menu tabulky nová položka "Reset weekly boss (tento týden)", consult se po vyčerpání
+denního budgetu zamkne, Overtime Hours co 20 levelů bedny, lepší střecha a pozadí věže.
 
-TENTOKRÁT (žádný nový soubor) zkopíruj těchto 18:
-   .gs:   engine
-   HTML:  index, changelog, duel, hs, hs2, hs3, hs4, hsengine, hsengine2, hsengine3, hsqte, hsqte2, hsqte3,
-          meta, office_neon, plant, room3
+TENTOKRÁT (žádný nový soubor) zkopíruj těchto 11:
+   .gs:   code, server2, server3
+   HTML:  index, office, office2, casino, changelog, hs_modes, arena, office_neon
 Pak Ctrl+S, Deploy > Manage deployments > tužka > New version > Deploy a v tabulce Ticket Tycoon > Bump version.
 
 (Pokud ještě nemáš v12.0, udělej nejdřív kroky v12.0 níže - 5 nových souborů - a pak zkopíruj všechno.)

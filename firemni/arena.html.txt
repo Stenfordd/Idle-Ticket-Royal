@@ -164,27 +164,59 @@ if (rp.done) arenaEnd();
 function arenaBack() { clearTimeout(arena.timer); arena.replay = null; arena.data = null; A.render(); }
 function showProfile(u) {
 if (!u) return;
-const dg = u.dungeon || {};
-const cls = dg.cls && H.CLASSES[dg.cls];
+const dg = u.dungeon || {}, cls = dg.cls && H.CLASSES[dg.cls];
 const old = $("dg-profile"); if (old) old.remove();
 const el = document.createElement("div");
 el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
 el.onclick = (e) => { if (e.target === el) el.remove(); };
-el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
-<h2 style="color:var(--cyan);">${escapeHtml(u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
-<div style="display:flex;gap:12px;align-items:center;">
-${cls ? A.classSprite(dg.cls) : '<div style="font-size:48px;">👤</div>'}
-<div class="tt-body" style="min-height:0;font-size:13px;">
-${cls ? `🎰 <b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "Not in HIGH STAKES yet<br>"}
-Missions cleared: <b>${dg.best || 0}/51</b>${dg.camp > 1 ? " · 🔺 Campaign " + dg.camp : ""}${dg.stars ? " · ⭐ " + dg.stars : ""} · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
-Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
-Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
-${u.gear ? `<br>Gear: ${u.gear}` : ""}
-${window.Meta ? Meta.badgesHtml(u.ach) : ""}
-</div></div>
-<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px;">${u.ldap !== gameState.ldap && cls && A.HS().cls && window.HSDuel ? `<button class="btn btn-crimson" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();HSDuel.challenge(n)">⚔ DUEL</button>` : ""}${u.ldap !== gameState.ldap && window.Extras ? `<button class="btn btn-cyan" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();Extras.visit(n)">🏠 VISIT OFFICE</button>` : ""}<button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
+const glow = (cls && window.HSRig && HSRig.CLS && HSRig.CLS[dg.cls] && HSRig.CLS[dg.cls].gc) || "#67e8f9";
+const btns = `${u.ldap !== gameState.ldap && cls && A.HS().cls && window.HSDuel ? `<button class="btn btn-crimson" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();HSDuel.challenge(n)">⚔ Duel</button>` : ""}${u.ldap !== gameState.ldap && window.Extras ? `<button class="btn btn-cyan" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();Extras.visit(n)">🏠 Visit office</button>` : ""}<button class="btn" onclick="this.closest('.tt-overlay').remove()">Close</button>`;
+el.innerHTML = `<div class="tt-modal pc-card" style="border-color:${glow};max-width:620px;width:100%;">
+<h2 style="color:${glow};">${escapeHtml(window.Nick ? Nick.of(u.ldap) : u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
+<div class="pc-top"><div class="pc-fig" id="pc-fig" style="--g:${glow};">${cls ? (window.HSRig ? HSRig.player(dg.cls, null) : A.classSprite(dg.cls)) : '<div style="font-size:64px;">👤</div>'}</div>
+<div class="pc-sum">${cls ? `<b style="color:${glow};">${escapeHtml(cls.name)}</b> · LV ${dg.level || 1}${dg.title ? `<br><span class="dg-dim">${escapeHtml(dg.title)}</span>` : ""}` : "Not in High Stakes yet"}
+<div class="pc-kv"><span>Prestige</span><b>${u.prestige || 0}</b><span>Score</span><b>${fmt(u.score || 0)}</b><span>Arena honor</span><b>${dg.honor || 1000}</b><span>Gambling</span><b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)} GC</b></div></div></div>
+<div id="pc-more" class="dg-dim" style="margin:8px 0;">Loading the full card...</div>
+<div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px;">${btns}</div></div>`;
 document.body.appendChild(el);
+const done = (c) => { const box = $("pc-more"); if (!box) return; if (!c || !c.ok) { box.textContent = "Couldn't load more details."; return; } box.className = ""; box.innerHTML = cardMore(c, u, glow);
+const f = $("pc-fig"); if (f && c.hs.cls && window.HSRig) f.innerHTML = HSRig.player(c.hs.cls, window.Gear ? Gear.vis(c.hs.gear) : c.hs.vis);
+const C0 = c.hs.cls && H.CLASSES[c.hs.cls], sm = document.querySelector("#dg-profile .pc-sum"); if (C0 && sm && !cls) sm.innerHTML = sm.innerHTML.replace("Not in High Stakes yet", `<b style="color:${glow};">${escapeHtml(C0.name)}</b> · LV ${c.hs.level}`); };
+try { google.script.run.withSuccessHandler(done).withFailureHandler(() => done(null)).playerCard(u.ldap); } catch (e) { done(null); }
 }
+function cardMore(c, u, glow) {
+const hs = c.hs, G = window.Gear, sec = (t, body) => `<div class="pc-sec"><div class="pc-h">${t}</div>${body}</div>`;
+const gear = ["w", "a", "h", "t"].map(k => { const it = hs.gear[k], P = G && G.PIECES ? G.PIECES[k] : { i: "▪", n: k };
+if (!it) return `<div class="pc-g empty">${P.i}<small>empty</small></div>`;
+const R = G && G.RAR ? G.RAR[Math.min(G.RAR.length - 1, it.r)] : { c: "#ccc", n: "" };
+return `<div class="pc-g" style="--rc:${R.c};" title="${escapeHtml(R.n + " " + P.n)}">${P.i}<b>LV ${it.lv}</b><small>+${it.u}${it.set ? " ◆" : ""}${it.lx ? " ★" : ""}</small></div>`; }).join("");
+const T = (H.TAL && H.TAL[hs.cls]) || [];
+const tal = hs.tal.map((v, r) => v >= 0 && T[r] && T[r][v] ? `<span class="pc-chip" title="${escapeHtml(T[r][v].t)}">${escapeHtml(T[r][v].n)}</span>` : "").filter(Boolean).join("") || `<span class="dg-dim">none picked</span>`;
+const bar = hs.bar.map(a => H.AB[a] ? `<span class="pc-chip" title="${escapeHtml(H.AB[a].t)}">${H.AB[a].i} ${escapeHtml(H.AB[a].n)}</span>` : "").join("") || `<span class="dg-dim">-</span>`;
+const AL = window.Meta && Meta.ACH ? Meta.ACH : [], achs = c.achRecent.map(id => AL.find(a => a.id === id)).filter(Boolean).map(a => `<span class="pc-chip" title="${escapeHtml(a.desc)}">${a.icon} ${escapeHtml(a.name)}</span>`).join("");
+const kv = (rows) => `<div class="pc-kv">${rows.map(r => `<span>${r[0]}</span><b>${r[1]}</b>`).join("")}</div>`;
+return sec("🏢 Office", kv([["Chest", "LV " + c.chest + (c.maxChest > c.chest ? " (max " + c.maxChest + ")" : "")], ["Tickets all-time", fmt(c.life)], ["Overtime Hours", "⏱ " + c.ot], ["Peak CPS", Number(u.peakCps || 0).toFixed(1)]])) +
+(hs.cls ? sec("🎰 High Stakes", kv([["W / L", hs.wins + " / " + hs.losses], ["Tower", (hs.rush ? "Boss Rush " : "floor ") + hs.tower + (hs.towerTot ? " · " + fmt(hs.towerTot) + " total" : "")], ["Pool depth", hs.pool], ["HS prestige", hs.hsp]]) +
+`<div class="pc-gear">${gear}</div><div class="pc-row"><span class="pc-lb">Action bar</span>${bar}</div><div class="pc-row"><span class="pc-lb">Talents</span>${tal}</div>`) : "") +
+sec("📅 This week", kv([["Weekly boss damage", fmt(c.wbDmg)], ["Night Shift best", hs.shiftBest ? "floor " + hs.shiftBest : "-"], ["Shifts cleared", hs.shiftClears + " / " + hs.shiftRuns]])) +
+sec(`🏆 Achievements · ${c.achN}${AL.length ? "/" + AL.length : ""}`, achs ? `<div class="pc-row">${achs}</div>` : `<span class="dg-dim">none yet</span>`);
+}
+(function () { const st = document.createElement("style"); st.textContent = `
+.pc-card .pc-top { display: flex; gap: 14px; align-items: center; }
+.pc-fig { width: 120px; height: 140px; flex: none; filter: drop-shadow(0 0 10px var(--g)); }
+.pc-fig .rig, .pc-fig svg { width: 100%; height: 100%; }
+.pc-sum { flex: 1; min-width: 0; font-size: 13px; }
+.pc-kv { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 3px 10px; margin-top: 6px; font-size: 12px; align-items: baseline; }
+.pc-kv span { color: var(--text-dim); } .pc-kv b { font-weight: 600; color: var(--text-main); }
+.pc-sec { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.07); }
+.pc-h { font-weight: 700; font-size: 12px; margin-bottom: 4px; color: var(--text-main); }
+.pc-gear { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+.pc-g { display: flex; flex-direction: column; align-items: center; padding: 6px 0; border-radius: 8px; background: #0f1218; border: 1px solid var(--rc, #333); box-shadow: 0 0 8px color-mix(in srgb, var(--rc, #333) 35%, transparent); font-size: 18px; line-height: 1.2; }
+.pc-g b { font-size: 10px; color: var(--rc); } .pc-g small { font-size: 10px; color: #94a3b8; } .pc-g.empty { opacity: .4; }
+.pc-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
+.pc-lb { font-size: 11px; color: var(--text-dim); width: 72px; flex: none; }
+.pc-chip { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); }
+@media (max-width: 520px) { .pc-kv { grid-template-columns: auto 1fr; } .pc-fig { width: 84px; height: 100px; } }`; document.head.appendChild(st); })();
 A.registerMode("arena", { label: "🏟 ARENA", order: 90,
 render: function (box) { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); },
 busy: function () { return arena.busy || !!(arena.replay && !arena.replay.done); } });

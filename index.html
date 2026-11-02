@@ -2484,7 +2484,7 @@ function upgradeCompanyChest() {
   gameState.chestLevel += 1;
   if (gameState.chestLevel > gameState.maxChestLevel) gameState.maxChestLevel = gameState.chestLevel;
   log(`COMPANY CHEST UPGRADED TO LEVEL ${gameState.chestLevel}!`, "special");
-  if (gameState.chestLevel % 10 === 0 && gameState.chestLevel > (gameState.otChest || 0)) {      // v12: +1 Overtime Hour za každých 10 levelů (jednou za prestiž)
+  if (gameState.chestLevel % 20 === 0 && gameState.chestLevel > (gameState.otChest || 0)) {      // v12.1: +1 Overtime Hour za každých 20 levelů (jednou za prestiž)
     gameState.otChest = gameState.chestLevel; gameState.slotTokens = (gameState.slotTokens || 0) + 1;
     log(`⏱ +1 Overtime Hour for chest level ${gameState.chestLevel} (you have ${gameState.slotTokens}).`, "special");
   }
@@ -3127,7 +3127,7 @@ function updateHud() {
   if (bar) { const k = ["trash", "t1", "t2", "t3", "t4", "t5", "t6"], sig = k.map(x => o[x].toFixed(3)).join(); if (bar.dataset.s !== sig) { bar.dataset.s = sig; bar.innerHTML = k.filter(x => o[x] > 0).map((x, i) => `<i style="flex:${Math.max(o[x], 0.6)};background:var(--rarity-${x === "trash" ? "t0" : x})" title="${x.toUpperCase()} ${o[x].toFixed(3)}%"></i>`).join(""); } }
   const on = getChestOdds(g.chestLevel + 1), nl = g.chestLevel + 1, parts = [];
   [["trash", "Empty"], ["t2", "Rare"], ["t3", "Epic"], ["t4", "Legendary"], ["t5", "Mythic"], ["t6", "Prismatic"]].forEach(([x, nm]) => { const dd = on[x] - o[x]; if (Math.abs(dd) >= 0.0005) parts.push(`${dd > 0 ? "+" : ""}${dd.toFixed(Math.abs(dd) < 0.1 ? 3 : 2)}% ${nm}`); });
-  if (nl % 10 === 0 && nl > (g.otChest || 0)) parts.push("+1 ⏱ Overtime Hour");
+  if (nl % 20 === 0 && nl > (g.otChest || 0)) parts.push("+1 ⏱ Overtime Hour");
   if (doubleDropChance(nl) > doubleDropChance(g.chestLevel)) parts.push(`double drop ${(doubleDropChance(nl) * 100).toFixed(2)}%`);
   if (tripleDropChance(nl) > tripleDropChance(g.chestLevel)) parts.push(`triple drop ${(tripleDropChance(nl) * 100).toFixed(1)}%`);
   setTxt("chest-next-info", `Next level gives: ${parts.length ? parts.join(", ") : "no change"}.` +
@@ -3512,6 +3512,7 @@ function consultFast() { return consultAuto; }
 
 function launchConsultEscalation() {
   if (isConsultActive) return;
+  if (consultLocked()) { log("CONSULT: today's consult budget is used up - it resets in " + consultResetIn() + ".", "warning"); if (consultAuto) stopConsultAuto("daily budget used"); return; }
   if (gameState.scrap < consultCost()) {
     log(`Insufficient scrap: consult requires ${consultCost().toLocaleString()} Scrap.`, "warning");
     if (consultAuto) stopConsultAuto("out of scrap");
@@ -3627,6 +3628,7 @@ function startBugChamber() {
 /** ×5 najednou bez animace. BUG zastaví sérii a pustí normální 50/50 komoru. */
 function consultBulk(n) {
   if (isConsultActive || consultAuto) return;
+  if (consultLocked()) { log("CONSULT: today's consult budget is used up - it resets in " + consultResetIn() + ".", "warning"); return; }
   let done = 0, net = 0, wins = 0, losses = 0, bug = null;
   const price = consultCost();                          // v8.7.4: celá dávka za cenu na začátku (tlačítko ukazuje 5× tuhle cenu)
   for (let i = 0; i < n; i++) {
@@ -3670,9 +3672,16 @@ function stopConsultAuto(reason, silent) {
   consultButtons();
 }
 
+/** v12.1: denní budget výher vyčerpán -> consult zamčený do půlnoci (dřív se pálil scrap za minimální výhru) */
+function consultLocked() { try { return consultDayLeft(calculateAutoGcRate()) <= 0; } catch (e) { return false; } }
+function consultResetIn() { const n = new Date(), m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1) - n; return Math.floor(m / 3600000) + "h " + Math.floor(m % 3600000 / 60000) + "m"; }
 function consultLabel() {
   const b1 = $c("btn-consult-launch"); if (!b1) return;
-  const t = "DISPATCH CONSULT (" + consultCost().toLocaleString("en-US") + " SCRAP)";
+  const lk = consultLocked(), b5x = $c("btn-consult-bulk"), bax = $c("btn-consult-auto");
+  if (lk) { const t = "🔒 DAILY CONSULT BUDGET USED · resets in " + consultResetIn(); if (b1.textContent !== t) b1.textContent = t; b1.disabled = true; if (b5x) { b5x.disabled = true; b5x.textContent = "×5 LOCKED"; } if (bax && !consultAuto) bax.disabled = true; return; }
+  if (!isConsultActive && !consultAuto) { b1.disabled = false; if (b5x) b5x.disabled = false; if (bax) bax.disabled = false; }
+  let left = 0; try { left = consultDayLeft(calculateAutoGcRate()); } catch (e) {}
+  const t = "DISPATCH CONSULT (" + consultCost().toLocaleString("en-US") + " SCRAP)" + (left < calculateAutoGcRate() * 60 * CONSULT_WIN_MAX ? " · ⚠ ~" + Math.floor(left).toLocaleString("en-US") + " GC left today" : "");
   if (b1.textContent !== t) b1.textContent = t;
   const b5 = $c("btn-consult-bulk");
   if (b5) { const t5 = "×5 INSTANT (" + (consultCost() * 5).toLocaleString("en-US") + " SCRAP)"; if (b5.textContent !== t5) b5.textContent = t5; }
@@ -6931,6 +6940,13 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "12.2", d: "2026-11-02", i: [
+      "👤 Click a player in the leaderboard for a full card: gear, action bar, talents, tower, pool, Night Shift, weekly boss damage, Overtime Hours and recent achievements",
+      "📊 Weekly boss: your first attack of the week adds HP to the boss - the fight now includes it, so you no longer 'kill' a boss that still has millions left. A new attendee adds a bit less HP than before",
+      "🧑‍💼 Consult: once today's consult budget is used up the buttons lock until midnight (no more burning scrap for 1,000 GC), and you get a warning when it's almost used up",
+      "⏱ Overtime Hours now come every 20 chest levels",
+      "🏢 Tower: proper roof garden, and the night city behind the page is actually visible now"
+    ] },
     { v: "12.1", d: "2026-11-01", i: [
       "🏢 <b>THE TOWER</b>: your office is now a night-time skyscraper - every floor is a part of the game (your desk, the casino, the vault, the server room, the break room, the lobby and the roof garden). Hover to light a room up, click to go there; the elevator follows you and the vault flashes in the colour of your best drop. 'Neon: on' switches back to the old room",
       "🌃 Night city skyline behind the whole page; a chest drop now only lights up the Company Chest panel (no more full-screen flash)",
@@ -6953,7 +6969,7 @@ html.m #pl-screen { height: var(--app-h, 100%); }
       "🎮 Harder mini-games: dodge comes in waves with feints, parry has combos and white unblockable rings, new CRUNCH TIME, ESPRESSO and INTERN RUN ultimates. On touch screens you get a bit more time",
       "🏢 The office sits next to High Stakes now: resolve tickets, buy scrap and open chests without leaving the fight screen",
       "🌙 <b>NIGHT SHIFT</b> (new mode): climb an 11-floor office at night with a deck of cards - open spaces, server rooms, helpdesk incidents, the kitchen, vending machines and the CEO at the top. New cards and relics every floor",
-      "⏱ <b>SLOT TOKENS ARE NOW OVERTIME HOURS</b>: they don't drop from chests any more. You get them for every 10 chest levels, prestige (+5, +1 per 5 prestiges), first win on a campaign boss, every 10th new tower floor, joining the weekly boss, plant fruit (Overtime Blossom now adds +10% per level) and achievements. Your balance was recalculated once",
+      "⏱ <b>SLOT TOKENS ARE NOW OVERTIME HOURS</b>: they don't drop from chests any more. You get them for chest levels, prestige (+5, +1 per 5 prestiges), first win on a campaign boss, every 10th new tower floor, joining the weekly boss, plant fruit (Overtime Blossom now adds +10% per level) and achievements. Your balance was recalculated once",
       "📦 Company Chest: cost grows more gently at high levels, Legendary/Mythic/Prismatic keep growing slowly past their cap, <b>double drop</b> from LV 170 and <b>triple drop</b> from LV 400. Odds are shown as a coloured bar with a 'next level gives…' preview",
       "♻ Salvage hopeless only takes pieces that can't beat yours even at your +level plus a margin you choose (keep +0 to +5, default +2)",
       "🎱 Lottery: a bonus ball - 2 numbers + the bonus = MINI JACKPOT (25% of the pool)",
@@ -13232,31 +13248,62 @@ html.m #dg-open-btn { display: none; }
 
 
 
-  // ------------------------------------------------------------------ PROFIL HRÁČE (leaderboard)
+  // ------------------------------------------------------------------ PROFIL HRÁČE (leaderboard) - v12.1 rozšířená karta, detaily dotáhne playerCard
   function showProfile(u) {
     if (!u) return;
-    const dg = u.dungeon || {};
-    const cls = dg.cls && H.CLASSES[dg.cls];
+    const dg = u.dungeon || {}, cls = dg.cls && H.CLASSES[dg.cls];
     const old = $("dg-profile"); if (old) old.remove();
     const el = document.createElement("div");
     el.id = "dg-profile"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
     el.onclick = (e) => { if (e.target === el) el.remove(); };
-    el.innerHTML = `<div class="tt-modal" style="border-color:var(--cyan);">
-      <h2 style="color:var(--cyan);">${escapeHtml(u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
-      <div style="display:flex;gap:12px;align-items:center;">
-        ${cls ? A.classSprite(dg.cls) : '<div style="font-size:48px;">👤</div>'}
-        <div class="tt-body" style="min-height:0;font-size:13px;">
-          ${cls ? `🎰 <b>${escapeHtml(dg.title || cls.name)}</b> · ${cls.name} LV ${dg.level || 1}<br>` : "Not in HIGH STAKES yet<br>"}
-          Missions cleared: <b>${dg.best || 0}/51</b>${dg.camp > 1 ? " · 🔺 Campaign " + dg.camp : ""}${dg.stars ? " · ⭐ " + dg.stars : ""} · Wins ${dg.wins || 0} / Losses ${dg.losses || 0} · 🏅 Arena honor <b>${dg.honor || 1000}</b><br>
-          Prestige <b>${u.prestige || 0}</b> · Chest LV <b>${u.chestLvl || 1}</b> · Peak CPS <b>${Number(u.peakCps || 0).toFixed(1)}</b><br>
-          Score <b>${fmt(u.score || 0)}</b> · Gambling <b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)}</b> GC
-          ${u.gear ? `<br>Gear: ${u.gear}` : ""}
-          ${window.Meta ? Meta.badgesHtml(u.ach) : ""}
-        </div></div>
-      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px;">${u.ldap !== gameState.ldap && cls && A.HS().cls && window.HSDuel ? `<button class="btn btn-crimson" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();HSDuel.challenge(n)">⚔ DUEL</button>` : ""}${u.ldap !== gameState.ldap && window.Extras ? `<button class="btn btn-cyan" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();Extras.visit(n)">🏠 VISIT OFFICE</button>` : ""}<button class="btn" onclick="this.closest('.tt-overlay').remove()">CLOSE</button></div></div>`;
+    const glow = (cls && window.HSRig && HSRig.CLS && HSRig.CLS[dg.cls] && HSRig.CLS[dg.cls].gc) || "#67e8f9";
+    const btns = `${u.ldap !== gameState.ldap && cls && A.HS().cls && window.HSDuel ? `<button class="btn btn-crimson" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();HSDuel.challenge(n)">⚔ Duel</button>` : ""}${u.ldap !== gameState.ldap && window.Extras ? `<button class="btn btn-cyan" data-nick="${escapeHtml(u.ldap)}" onclick="const n=this.dataset.nick;this.closest('.tt-overlay').remove();Extras.visit(n)">🏠 Visit office</button>` : ""}<button class="btn" onclick="this.closest('.tt-overlay').remove()">Close</button>`;
+    el.innerHTML = `<div class="tt-modal pc-card" style="border-color:${glow};max-width:620px;width:100%;">
+      <h2 style="color:${glow};">${escapeHtml(window.Nick ? Nick.of(u.ldap) : u.ldap)} <span style="font:400 12px sans-serif;color:var(--text-dim);letter-spacing:0;">${typeof presenceText === "function" ? presenceText(u) : ""}</span></h2>
+      <div class="pc-top"><div class="pc-fig" id="pc-fig" style="--g:${glow};">${cls ? (window.HSRig ? HSRig.player(dg.cls, null) : A.classSprite(dg.cls)) : '<div style="font-size:64px;">👤</div>'}</div>
+        <div class="pc-sum">${cls ? `<b style="color:${glow};">${escapeHtml(cls.name)}</b> · LV ${dg.level || 1}${dg.title ? `<br><span class="dg-dim">${escapeHtml(dg.title)}</span>` : ""}` : "Not in High Stakes yet"}
+          <div class="pc-kv"><span>Prestige</span><b>${u.prestige || 0}</b><span>Score</span><b>${fmt(u.score || 0)}</b><span>Arena honor</span><b>${dg.honor || 1000}</b><span>Gambling</span><b style="color:${(u.gambleNet || 0) >= 0 ? "var(--emerald)" : "var(--crimson)"};">${(u.gambleNet || 0) >= 0 ? "+" : ""}${fmt(u.gambleNet || 0)} GC</b></div></div></div>
+      <div id="pc-more" class="dg-dim" style="margin:8px 0;">Loading the full card...</div>
+      <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px;">${btns}</div></div>`;
     document.body.appendChild(el);
+    const done = (c) => { const box = $("pc-more"); if (!box) return; if (!c || !c.ok) { box.textContent = "Couldn't load more details."; return; } box.className = ""; box.innerHTML = cardMore(c, u, glow);
+      const f = $("pc-fig"); if (f && c.hs.cls && window.HSRig) f.innerHTML = HSRig.player(c.hs.cls, window.Gear ? Gear.vis(c.hs.gear) : c.hs.vis);
+      const C0 = c.hs.cls && H.CLASSES[c.hs.cls], sm = document.querySelector("#dg-profile .pc-sum"); if (C0 && sm && !cls) sm.innerHTML = sm.innerHTML.replace("Not in High Stakes yet", `<b style="color:${glow};">${escapeHtml(C0.name)}</b> · LV ${c.hs.level}`); };
+    try { google.script.run.withSuccessHandler(done).withFailureHandler(() => done(null)).playerCard(u.ldap); } catch (e) { done(null); }
   }
-
+  function cardMore(c, u, glow) {
+    const hs = c.hs, G = window.Gear, sec = (t, body) => `<div class="pc-sec"><div class="pc-h">${t}</div>${body}</div>`;
+    const gear = ["w", "a", "h", "t"].map(k => { const it = hs.gear[k], P = G && G.PIECES ? G.PIECES[k] : { i: "▪", n: k };
+      if (!it) return `<div class="pc-g empty">${P.i}<small>empty</small></div>`;
+      const R = G && G.RAR ? G.RAR[Math.min(G.RAR.length - 1, it.r)] : { c: "#ccc", n: "" };
+      return `<div class="pc-g" style="--rc:${R.c};" title="${escapeHtml(R.n + " " + P.n)}">${P.i}<b>LV ${it.lv}</b><small>+${it.u}${it.set ? " ◆" : ""}${it.lx ? " ★" : ""}</small></div>`; }).join("");
+    const T = (H.TAL && H.TAL[hs.cls]) || [];
+    const tal = hs.tal.map((v, r) => v >= 0 && T[r] && T[r][v] ? `<span class="pc-chip" title="${escapeHtml(T[r][v].t)}">${escapeHtml(T[r][v].n)}</span>` : "").filter(Boolean).join("") || `<span class="dg-dim">none picked</span>`;
+    const bar = hs.bar.map(a => H.AB[a] ? `<span class="pc-chip" title="${escapeHtml(H.AB[a].t)}">${H.AB[a].i} ${escapeHtml(H.AB[a].n)}</span>` : "").join("") || `<span class="dg-dim">-</span>`;
+    const AL = window.Meta && Meta.ACH ? Meta.ACH : [], achs = c.achRecent.map(id => AL.find(a => a.id === id)).filter(Boolean).map(a => `<span class="pc-chip" title="${escapeHtml(a.desc)}">${a.icon} ${escapeHtml(a.name)}</span>`).join("");
+    const kv = (rows) => `<div class="pc-kv">${rows.map(r => `<span>${r[0]}</span><b>${r[1]}</b>`).join("")}</div>`;
+    return sec("🏢 Office", kv([["Chest", "LV " + c.chest + (c.maxChest > c.chest ? " (max " + c.maxChest + ")" : "")], ["Tickets all-time", fmt(c.life)], ["Overtime Hours", "⏱ " + c.ot], ["Peak CPS", Number(u.peakCps || 0).toFixed(1)]])) +
+      (hs.cls ? sec("🎰 High Stakes", kv([["W / L", hs.wins + " / " + hs.losses], ["Tower", (hs.rush ? "Boss Rush " : "floor ") + hs.tower + (hs.towerTot ? " · " + fmt(hs.towerTot) + " total" : "")], ["Pool depth", hs.pool], ["HS prestige", hs.hsp]]) +
+        `<div class="pc-gear">${gear}</div><div class="pc-row"><span class="pc-lb">Action bar</span>${bar}</div><div class="pc-row"><span class="pc-lb">Talents</span>${tal}</div>`) : "") +
+      sec("📅 This week", kv([["Weekly boss damage", fmt(c.wbDmg)], ["Night Shift best", hs.shiftBest ? "floor " + hs.shiftBest : "-"], ["Shifts cleared", hs.shiftClears + " / " + hs.shiftRuns]])) +
+      sec(`🏆 Achievements · ${c.achN}${AL.length ? "/" + AL.length : ""}`, achs ? `<div class="pc-row">${achs}</div>` : `<span class="dg-dim">none yet</span>`);
+  }
+  (function () { const st = document.createElement("style"); st.textContent = `
+    .pc-card .pc-top { display: flex; gap: 14px; align-items: center; }
+    .pc-fig { width: 120px; height: 140px; flex: none; filter: drop-shadow(0 0 10px var(--g)); }
+    .pc-fig .rig, .pc-fig svg { width: 100%; height: 100%; }
+    .pc-sum { flex: 1; min-width: 0; font-size: 13px; }
+    .pc-kv { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 3px 10px; margin-top: 6px; font-size: 12px; align-items: baseline; }
+    .pc-kv span { color: var(--text-dim); } .pc-kv b { font-weight: 600; color: var(--text-main); }
+    .pc-sec { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.07); }
+    .pc-h { font-weight: 700; font-size: 12px; margin-bottom: 4px; color: var(--text-main); }
+    .pc-gear { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+    .pc-g { display: flex; flex-direction: column; align-items: center; padding: 6px 0; border-radius: 8px; background: #0f1218; border: 1px solid var(--rc, #333); box-shadow: 0 0 8px color-mix(in srgb, var(--rc, #333) 35%, transparent); font-size: 18px; line-height: 1.2; }
+    .pc-g b { font-size: 10px; color: var(--rc); } .pc-g small { font-size: 10px; color: #94a3b8; } .pc-g.empty { opacity: .4; }
+    .pc-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
+    .pc-lb { font-size: 11px; color: var(--text-dim); width: 72px; flex: none; }
+    .pc-chip { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); }
+    @media (max-width: 520px) { .pc-kv { grid-template-columns: auto 1fr; } .pc-fig { width: 84px; height: 100px; } }`; document.head.appendChild(st); })();
 
   A.registerMode("arena", { label: "🏟 ARENA", order: 90,
     render: function (box) { box.innerHTML = arenaHtml(); if (!arena.replay) arenaLoad(); else arenaRestore(); },
@@ -13602,14 +13649,14 @@ html.m #dg-open-btn { display: none; }
     wbLoad(false);
     const s = wb.st;
     if (!s) { box.innerHTML = `<div class="dg-card"><div class="dg-dim">${wb.err ? "⚠ " + esc(wb.err) : "Loading the Quarterly Review..."}</div></div>`; return; }
-    const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
+    const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, jh = wbJoinHp(c), m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg + jh), mk), pct = Math.max(0, 1 - c.dmg / (c.maxHp + jh)) * 100;
     const wait = Math.max(0, c.me.wait - (Date.now() - wb.at)), dead = false, rw = wbReward(kills, false), rwN = wbReward(kills + 1, false);
     const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
     const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(window.Nick ? Nick.of(p.nick) : p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
     const l = s.last;
     box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
       <div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
-        <div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
+        <div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg + jh) + " / " + fmt(c.maxHp + jh)}</span></div>${jh ? `<div class="dg-dim" style="font-size:11px;">Includes +${fmt(jh)} HP your first attendance adds this week.</div>` : ""}
         <div class="dg-dim">Everyone in the company hits the same boss (always your level). 1 attack per hour, no round limit (it gets +10% stronger every round and your healing / shields weaker - nobody survives forever), no energy needed. HP grows with every new attendee.
         When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.8 HP, +25% ATK).<br>${C.WB[c.idx % C.WB.length].cls ? `<b style="color:var(--amber);">⚙ ${esc(C.WB[c.idx % C.WB.length].cls)}</b><br>` : ""}
         ${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
@@ -13620,11 +13667,13 @@ html.m #dg-open-btn { display: none; }
       <div class="dg-card"><div class="dg-h">LAST WEEK</div><div class="dg-dim">${l ? `${esc(C.WB[l.idx % C.WB.length].e)} - ${l.killed ? "<b style='color:var(--emerald);'>DEFEATED" + (l.kills > 1 ? " " + l.kills + "× (" + C.mkName(l.kills) + ")" : "") + "</b>" : "<b style='color:var(--crimson);'>SURVIVED</b>"} · ${l.participants} attendees<br>
         ${l.top ? `🏅 Employee of the Week: <b>${esc(l.top)}</b><br>` : ""}Your damage: ${fmt(l.myDmg)}` : "No meeting last week."}</div></div></div>`;
   }
+  /** v12.1: první útok v týdnu přidá bossovi HP podle tvého útoku - souboj s tím musí počítat (dřív jsi "zabil" bosse, který měl na serveru ještě miliony) */
+  function wbJoinHp(c) { if (!c || (c.me && c.me.n)) return 0; let atk = 1; try { atk = A.hero().atk || 1; } catch (e) {} return Math.round(Math.round(atk * 60) * Math.pow(1.8, (c.mk || 1) - 1)); }
   function wbGo() {
     const s = wb.st; if (!s || wb.busy) return;
     const c = s.cur;
     if (c.me.wait - (Date.now() - wb.at) > 0) return;
-    const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1);
+    const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg + wbJoinHp(c)), c.mk || 1);
     let atkUsed = 0;
     A.beginFight(m, { mode: "boss", prepHero: (h) => { atkUsed = h.atk; },
       hud: (f) => `📊 Quarterly Review · round ${f.turn + 1} · boss ×${Math.pow(1.1, f.turn).toFixed(1)} · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,
@@ -16777,9 +16826,9 @@ html:not(.neon-on) #tw { display: none !important; }
 .tw-moon { position: absolute; right: 7%; top: 6%; width: 22px; height: 22px; border-radius: 50%; background: #f8f3dc; box-shadow: 0 0 18px rgba(248,243,220,.5), -6px -3px 0 0 #0a0f24 inset; }
 .tw-city { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; pointer-events: none; }
 .tw-b { position: absolute; left: 13%; right: 13%; top: 13%; bottom: 4%; display: flex; flex-direction: column; background: #0b0f1c; border: 2px solid #1e293b; border-bottom: 0; box-shadow: 0 0 0 1px #000, 0 0 30px rgba(0,0,0,.6); z-index: 2; }
-.tw-roof { position: absolute; left: 13%; right: 13%; top: 2%; height: 11%; z-index: 3; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; gap: 6px; border-bottom: 2px solid #1e293b; }
-.tw-roof .tw-ant { position: absolute; left: 14%; bottom: 100%; width: 2px; height: 22px; background: #334155; }
-.tw-roof .tw-ant::after { content: ""; position: absolute; top: -3px; left: -2px; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: twBlink 1.6s steps(2) infinite; }
+.tw-roof { position: absolute; left: 15%; right: 15%; top: 4%; height: 9%; z-index: 3; cursor: pointer; overflow: hidden; background: linear-gradient(180deg, #0d1a12, #0b0f1c); border: 2px solid #1e293b; border-bottom: 0; border-radius: 3px 3px 0 0; box-shadow: inset 0 3px 0 -1px #334155; }
+.tw-roof .tw-ant { position: absolute; left: 6%; bottom: 0; width: 2px; height: 75%; background: #334155; }
+.tw-roof .tw-ant::after { content: ""; position: absolute; top: 0; left: -2px; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: twBlink 1.6s steps(2) infinite; }
 @keyframes twBlink { 50% { opacity: .1; } }
 .tw-fl { flex: 1; display: grid; grid-template-columns: 1fr 12px 1fr; border-top: 2px solid #1e293b; min-height: 0; }
 .tw-shaft { background: repeating-linear-gradient(0deg, #0f172a 0 4px, #111827 4px 8px); border-left: 1px solid #1e293b; border-right: 1px solid #1e293b; }
@@ -16807,7 +16856,7 @@ html:not(.neon-on) #tw { display: none !important; }
 @media (prefers-reduced-motion: reduce) { .tw *, .tw { animation: none !important; transition: none !important; } }
 /* noční město na pozadí stránky */
 html.neon-on body::before { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 38vh; z-index: -1; pointer-events: none; opacity: .5;
-  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'><g fill='%230b1020'><rect x='0' y='150' width='70' height='150'/><rect x='60' y='90' width='60' height='210'/><rect x='130' y='170' width='90' height='130'/><rect x='210' y='60' width='50' height='240'/><rect x='270' y='130' width='80' height='170'/><rect x='360' y='40' width='70' height='260'/><rect x='440' y='160' width='60' height='140'/><rect x='510' y='100' width='90' height='200'/><rect x='610' y='180' width='50' height='120'/><rect x='670' y='70' width='70' height='230'/><rect x='750' y='140' width='80' height='160'/><rect x='840' y='30' width='60' height='270'/><rect x='910' y='120' width='90' height='180'/><rect x='1010' y='80' width='60' height='220'/><rect x='1080' y='160' width='120' height='140'/></g><g fill='%23f5b942' opacity='.55'><rect x='75' y='110' width='6' height='4'/><rect x='95' y='150' width='6' height='4'/><rect x='220' y='90' width='5' height='4'/><rect x='380' y='70' width='6' height='4'/><rect x='400' y='130' width='6' height='4'/><rect x='530' y='130' width='6' height='4'/><rect x='690' y='100' width='6' height='4'/><rect x='860' y='60' width='5' height='4'/><rect x='870' y='140' width='5' height='4'/><rect x='1030' y='120' width='6' height='4'/></g><g fill='%2367e8f9' opacity='.4'><rect x='290' y='160' width='6' height='4'/><rect x='560' y='170' width='6' height='4'/><rect x='770' y='170' width='6' height='4'/><rect x='940' y='150' width='6' height='4'/></g></svg>") bottom / 100% 100% no-repeat; }
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'><g fill='%23162036' stroke='%23263556' stroke-width='2'><rect x='0' y='150' width='70' height='150'/><rect x='60' y='90' width='60' height='210'/><rect x='130' y='170' width='90' height='130'/><rect x='210' y='60' width='50' height='240'/><rect x='270' y='130' width='80' height='170'/><rect x='360' y='40' width='70' height='260'/><rect x='440' y='160' width='60' height='140'/><rect x='510' y='100' width='90' height='200'/><rect x='610' y='180' width='50' height='120'/><rect x='670' y='70' width='70' height='230'/><rect x='750' y='140' width='80' height='160'/><rect x='840' y='30' width='60' height='270'/><rect x='910' y='120' width='90' height='180'/><rect x='1010' y='80' width='60' height='220'/><rect x='1080' y='160' width='120' height='140'/></g><g fill='%23f5b942' opacity='.55'><rect x='75' y='110' width='6' height='4'/><rect x='95' y='150' width='6' height='4'/><rect x='220' y='90' width='5' height='4'/><rect x='380' y='70' width='6' height='4'/><rect x='400' y='130' width='6' height='4'/><rect x='530' y='130' width='6' height='4'/><rect x='690' y='100' width='6' height='4'/><rect x='860' y='60' width='5' height='4'/><rect x='870' y='140' width='5' height='4'/><rect x='1030' y='120' width='6' height='4'/></g><g fill='%2367e8f9' opacity='.4'><rect x='290' y='160' width='6' height='4'/><rect x='560' y='170' width='6' height='4'/><rect x='770' y='170' width='6' height='4'/><rect x='940' y='150' width='6' height='4'/></g></svg>") bottom / 100% 100% no-repeat; opacity: .7; }
 </style>
 <script>
 (function () {
@@ -16840,7 +16889,7 @@ html.neon-on body::before { content: ""; position: fixed; left: 0; right: 0; bot
   function meGear() { var d = hsd(); return window.Gear && d.cls ? Gear.st() : null; }
   function city() {
     var h = "", x = 0, i = 0;
-    while (x < 100) { var w = 5 + ((i * 37) % 9), ht = 30 + ((i * 53) % 55); h += '<div style="position:absolute;bottom:0;left:' + x + '%;width:' + w + '%;height:' + ht + '%;background:#0a0f1e;box-shadow:inset 0 0 0 1px #0f172a;">' + (i % 2 ? '<i style="position:absolute;left:30%;top:20%;width:2px;height:2px;background:#f5b942;opacity:.6;box-shadow:0 6px 0 #f5b942,4px 12px 0 #67e8f9;"></i>' : "") + "</div>"; x += w + 1; i++; }
+    while (x < 100) { var w = 5 + ((i * 37) % 9), ht = 30 + ((i * 53) % 55); h += '<div style="position:absolute;bottom:0;left:' + x + '%;width:' + w + '%;height:' + ht + '%;background:#121a30;box-shadow:inset 0 0 0 1px #1e2a47, inset 0 2px 0 #24345a;">' + (i % 2 ? '<i style="position:absolute;left:30%;top:20%;width:2px;height:2px;background:#f5b942;opacity:.6;box-shadow:0 6px 0 #f5b942,4px 12px 0 #67e8f9;"></i>' : "") + "</div>"; x += w + 1; i++; }
     return h;
   }
   function stars() { var h = ""; for (var i = 0; i < 26; i++) h += '<i style="left:' + ((i * 37) % 100) + '%;top:' + ((i * 23) % 40) + '%;animation-delay:' + (i % 7) * 0.4 + 's"></i>'; return h; }
@@ -16856,7 +16905,7 @@ html.neon-on body::before { content: ""; position: fixed; left: 0; right: 0; bot
     var lkP = lockOf("plant");
     var h = '<div class="tw-sky">' + stars() + '</div><div class="tw-moon"></div><div class="tw-city">' + city() + "</div>" +
       '<div class="tw-name">🏢 Office Royale HQ · Prestige ' + P() + "</div>" +
-      '<div class="tw-roof tw-r' + (lkP ? " lock" : "") + (here === "plant" ? " here" : "") + '" data-o="plant" role="button" tabindex="0" aria-label="Roof garden · Office Plant" style="--c:#4ade80;--bg:linear-gradient(180deg,transparent,#0a1f12)"><div class="tw-in" style="filter:none;background:none;"><span class="tw-p" style="left:44%;font-size:clamp(13px,4vw,20px)">' + ["🪴", "🌱", "🌿", "🌳", "🌳"][Math.max(0, Math.min(4, plant))] + '</span></div><span class="tw-lb" style="left:auto;right:4px">Roof · Office Plant</span><div class="tw-ant"></div></div>' +
+      '<div class="tw-roof tw-r' + (lkP ? " lock" : "") + (here === "plant" ? " here" : "") + '" data-o="plant" role="button" tabindex="0" aria-label="Roof garden · Office Plant" style="--c:#4ade80;--bg:linear-gradient(180deg,transparent,#0a1f12)"><div class="tw-in" style="filter:none;background:none;"><span class="tw-p" style="left:46%;bottom:1px;font-size:clamp(10px,2.8vw,14px)">' + ["🪴", "🌱", "🌿", "🌳", "🌳"][Math.max(0, Math.min(4, plant))] + '</span></div><span class="tw-lb" style="left:auto;right:4px">Roof · Office Plant</span><div class="tw-ant"></div></div>' +
       '<div class="tw-b">' + FLOORS.map(function (f) { return '<div class="tw-fl">' + roomHtml(f[0]) + '<div class="tw-shaft"></div>' + roomHtml(f[1]) + "</div>"; }).join("") + "</div>" +
       '<div class="tw-lift" id="tw-lift"><div class="tw-cab"></div></div><div class="tw-tip" id="tw-tip"></div><button type="button" class="tw-tg" id="tw-tg">Neon: on</button>';
     root.innerHTML = h;

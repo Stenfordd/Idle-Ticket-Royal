@@ -680,7 +680,7 @@ gameState.coins -= cost;
 gameState.chestLevel += 1;
 if (gameState.chestLevel > gameState.maxChestLevel) gameState.maxChestLevel = gameState.chestLevel;
 log(`COMPANY CHEST UPGRADED TO LEVEL ${gameState.chestLevel}!`, "special");
-if (gameState.chestLevel % 10 === 0 && gameState.chestLevel > (gameState.otChest || 0)) {      // v12: +1 Overtime Hour za každých 10 levelů (jednou za prestiž)
+if (gameState.chestLevel % 20 === 0 && gameState.chestLevel > (gameState.otChest || 0)) {      // v12.1: +1 Overtime Hour za každých 20 levelů (jednou za prestiž)
 gameState.otChest = gameState.chestLevel; gameState.slotTokens = (gameState.slotTokens || 0) + 1;
 log(`⏱ +1 Overtime Hour for chest level ${gameState.chestLevel} (you have ${gameState.slotTokens}).`, "special");
 }

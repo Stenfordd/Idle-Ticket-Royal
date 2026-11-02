@@ -765,7 +765,7 @@ lock.releaseLock();
 var WB_COOLDOWN_MS = 60 * 60 * 1000;
 var WB_COUNT = 16;                 // v11.4: 11 bossů kampaně + 5 týdenních bossů s vlastní třídou
 var WB_BASE_HP = 3000;
-var WB_CONTRIB = 100;
+var WB_CONTRIB = 60;            // v12.1: první účast přidá bossovi útok ×60 HP (dřív ×100)
 var WB_MK_HP = 1.8;            // v8.2: po zabití hned naskočí MK.II, MK.III... (HP ×1.6 za každý MK)
 function wbWeek_() { return Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 86400000)); }
 function wbSheet_() {
@@ -788,6 +788,17 @@ if (!d.baseHp) d.baseHp = d.maxHp;
 if (!d.kills) d.kills = d.killedAt ? [{ mk: 1, killer: d.killer, at: d.killedAt }] : [];
 if (d.killedAt && d.mk === 2 && d.dmg >= d.maxHp) { d.dmg = 0; d.maxHp = Math.round(d.baseHp * WB_MK_HP); }
 return d;
+}
+/** v12.1: admin - boss tohoto týdne začne znova (MK.1, základní HP, bez damage a účastníků). Minulý týden a odměny zůstávají. */
+function wbResetUi_() {
+var ui = SpreadsheetApp.getUi();
+if (ui.alert('Reset weekly boss', 'Boss tohoto týdne začne znova jako MK.1 (základní HP, žádný damage ani účastníci). Pokračovat?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+var lock = LockService.getScriptLock(); if (!lock.tryLock(10000)) { ui.alert('Server je zaneprázdněný, zkus to znovu.'); return; }
+try {
+var sh = wbSheet_(), w = wbWeek_(), got = wbLoad_(sh, w), json = JSON.stringify(wbFresh_(w));
+if (got.row) sh.getRange(got.row, 2).setValue(json); else sh.appendRow([w, json]);
+} finally { lock.releaseLock(); }
+ui.alert('Weekly boss byl resetován.');
 }
 function wbMkMult_(mk) { return Math.pow(WB_MK_HP, mk - 1); }
 function wbPublic_(d, me) {

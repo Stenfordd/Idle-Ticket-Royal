@@ -327,14 +327,14 @@ function wbHtml(box) {
 wbLoad(false);
 const s = wb.st;
 if (!s) { box.innerHTML = `<div class="dg-card"><div class="dg-dim">${wb.err ? "⚠ " + esc(wb.err) : "Loading the Quarterly Review..."}</div></div>`; return; }
-const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), mk), pct = Math.max(0, 1 - c.dmg / c.maxHp) * 100;
+const c = s.cur, mk = c.mk || 1, kills = mk - 1, L = A.HS().level, jh = wbJoinHp(c), m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg + jh), mk), pct = Math.max(0, 1 - c.dmg / (c.maxHp + jh)) * 100;
 const wait = Math.max(0, c.me.wait - (Date.now() - wb.at)), dead = false, rw = wbReward(kills, false), rwN = wbReward(kills + 1, false);
 const nextReset = 7 * 86400000 - ((Date.now() - Date.UTC(2024, 0, 1)) % (7 * 86400000));
 const lb = c.players.length ? c.players.map((p, i) => `<div><span>${i === 0 ? "👑" : (i + 1) + "."} ${esc(window.Nick ? Nick.of(p.nick) : p.nick)}${p.nick === gameState.ldap ? " (you)" : ""}</span><span>${fmt(p.dmg)} dmg · ${p.n}×</span></div>`).join("") : `<div class="dg-dim">Nobody has attacked yet. Be the first!</div>`;
 const l = s.last;
 box.innerHTML = `<div class="dg-card"><div class="dg-h"><span>📊 QUARTERLY REVIEW</span><span class="dg-dim">resets in ${Math.floor(nextReset / 86400000)}d ${Math.floor(nextReset % 86400000 / 3600000)}h</span></div>
 <div class="hm-row">${A.enemySprite(m)}<div style="flex:1;min-width:0;"><b style="color:var(--crimson);font-family:Orbitron,monospace;font-size:12px;">${m.enemy.icon} ${esc(m.enemy.name)}</b>
-<div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg) + " / " + fmt(c.maxHp)}</span></div>
+<div class="wb-bar"><div style="width:${pct}%"></div><span>${dead ? "DEFEATED" : fmt(c.maxHp - c.dmg + jh) + " / " + fmt(c.maxHp + jh)}</span></div>${jh ? `<div class="dg-dim" style="font-size:11px;">Includes +${fmt(jh)} HP your first attendance adds this week.</div>` : ""}
 <div class="dg-dim">Everyone in the company hits the same boss (always your level). 1 attack per hour, no round limit (it gets +10% stronger every round and your healing / shields weaker - nobody survives forever), no energy needed. HP grows with every new attendee.
 When it dies, a stronger version walks in right away (MK.II, MK.III...: ×1.8 HP, +25% ATK).<br>${C.WB[c.idx % C.WB.length].cls ? `<b style="color:var(--amber);">⚙ ${esc(C.WB[c.idx % C.WB.length].cls)}</b><br>` : ""}
 ${kills ? `<b style="color:var(--emerald);">Killed ${kills}× this week</b> (${(c.kills || []).map(k => esc(k.killer)).join(", ")}). Reward now: <b>×${(1 + rw.buff).toFixed(2)}</b> office income next week + ${Math.round((rw.gcMul - 1) * 100)}% GC bonus.` : "Kill it this week: everyone who attacked gets <b>×1.10 office income next week</b> (top damage +5%)."}
@@ -345,11 +345,13 @@ ${dead ? "" : `<button class="btn ${wait > 0 ? "" : "btn-crimson"}" style="width
 <div class="dg-card"><div class="dg-h">LAST WEEK</div><div class="dg-dim">${l ? `${esc(C.WB[l.idx % C.WB.length].e)} - ${l.killed ? "<b style='color:var(--emerald);'>DEFEATED" + (l.kills > 1 ? " " + l.kills + "× (" + C.mkName(l.kills) + ")" : "") + "</b>" : "<b style='color:var(--crimson);'>SURVIVED</b>"} · ${l.participants} attendees<br>
 ${l.top ? `🏅 Employee of the Week: <b>${esc(l.top)}</b><br>` : ""}Your damage: ${fmt(l.myDmg)}` : "No meeting last week."}</div></div></div>`;
 }
+/** v12.1: první útok v týdnu přidá bossovi HP podle tvého útoku - souboj s tím musí počítat (dřív jsi "zabil" bosse, který měl na serveru ještě miliony) */
+function wbJoinHp(c) { if (!c || (c.me && c.me.n)) return 0; let atk = 1; try { atk = A.hero().atk || 1; } catch (e) {} return Math.round(Math.round(atk * 60) * Math.pow(1.8, (c.mk || 1) - 1)); }
 function wbGo() {
 const s = wb.st; if (!s || wb.busy) return;
 const c = s.cur;
 if (c.me.wait - (Date.now() - wb.at) > 0) return;
-const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg), c.mk || 1);
+const L = A.HS().level, m = C.worldBoss(c.idx, L, Math.max(1, c.maxHp - c.dmg + wbJoinHp(c)), c.mk || 1);
 let atkUsed = 0;
 A.beginFight(m, { mode: "boss", prepHero: (h) => { atkUsed = h.atk; },
 hud: (f) => `📊 Quarterly Review · round ${f.turn + 1} · boss ×${Math.pow(1.1, f.turn).toFixed(1)} · damage dealt: <b style="color:var(--amber);">${fmt(Math.max(0, f.emax - Math.max(0, f.ehp)))}</b>`,

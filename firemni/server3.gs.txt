@@ -1,4 +1,16 @@
 /** server3 = 3. část serveru */
+function dlLeave(id) {
+var me = getUserLdap(), lock = prsLock_();
+try {
+var t = dlGet_(id); if (!t) return { ok: true };
+if (t.status === 'wait' && t.host === me) { dlPay_(me, t.stake, 'REFUND', t.id); dlDel_(id); dlSetIndex_(dlIndex_().filter(function (x) { return x !== id; })); return { ok: true }; }
+if (t.status === 'play' && (t.host === me || t.guest === me)) { dlEnd_(t, me === t.host ? t.guest : t.host, me + ' fled'); t.rev++; }
+t.seen = t.seen || {}; t.seen[me] = 1; dlPut_(t);
+return { ok: true };
+} finally { lock.releaseLock(); }
+}
+/** v11.1: 6 náhodných čísel na gamble válce v tomto půlkole (klient je ukáže, server z nich spočítá stejné válce) */
+function dlRolls_(t) { var d = t.ds, R = HSEngine.rng(((t.seed || 1) + (d ? d.half : 0) * 104729 + 77) >>> 0), a = []; for (var k = 0; k < 6; k++) a.push(Math.round(R() * 1e6) / 1e6); return a; }
 function dlView_(t, me) {
 var you = t.host === me ? 0 : t.guest === me ? 1 : -1, d = t.ds || null;
 var role = '', picked = false, oppPicked = false;

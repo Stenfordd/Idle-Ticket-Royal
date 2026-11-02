@@ -471,6 +471,22 @@ hs: { cls: hs.cls || '', level: Number(hs.level) || 1, gear: m96Vis_(hs.gear && 
 col: col.unlocked ? { cls: col.cls || 'engineer', name: String(col.name || ''), gear: m96Vis_(col.gear) } : null,
 waiting: ((v.inbox || {})[nick] || []).length, cdLeft: Math.max(0, cdAt + 3600000 - Date.now()) };
 }
+/** v12.1: rozšířená karta hráče z leaderboardu (jen čtení cizího savu) */
+function playerCard(nick) {
+var s = m96SaveOf_(nick);
+if (!s) return { ok: false, reason: 'nobody' };
+var hs = s.hs || {}, g = hs.gear || {}, eq = g.eq || {}, ach = hs.ach && hs.ach.u ? hs.ach.u : {};
+var gear = {}; ['w', 'a', 'h', 't'].forEach(function (k) { var it = eq[k]; if (it) gear[k] = { r: Number(it.r) || 0, lv: Number(it.lv) || 1, u: Number(it.u) || 0, set: it.set || '', lx: it.lx || '' }; });
+var recent = Object.keys(ach).sort(function (a, b) { return (ach[b] || 0) - (ach[a] || 0); }).slice(0, 5);
+var wbDmg = 0; try { var wd = wbLoad_(wbSheet_(), wbWeek_()).data; if (wd && wd.players) { var k = Object.keys(wd.players).filter(function (x) { return x.toLowerCase() === String(nick).toLowerCase(); })[0]; if (k) wbDmg = wd.players[k].dmg || 0; } } catch (e) {}
+var sh = hs.shift || {}, tw = hs.tower || {}, pool = hs.pool || {};
+return { ok: true, nick: String(nick), prestige: Number(s.prestige) || 0, chest: Number(s.chestLevel) || 1, maxChest: Math.max(Number(s.maxChestLevel) || 1, Number(s.chestLevel) || 1),
+life: Number(s.lifetimeTickets) || 0, ot: Number(s.slotTokens) || 0, gambleNet: Number(s.gambleNet) || 0,
+hs: { cls: hs.cls || '', level: Number(hs.level) || 1, gear: gear, vis: m96Vis_(eq), tal: Array.isArray(hs.tal) ? hs.tal : [], bar: Array.isArray(hs.bar) ? hs.bar.slice(0, 4) : [],
+wins: Number(hs.wins) || 0, losses: Number(hs.losses) || 0, tower: Number(tw.best) || 0, towerTot: Number(tw.tot) || 0, rush: !!tw.rush, pool: Number(pool.best) || 0,
+shiftBest: Number(sh.best) || 0, shiftClears: Number(sh.clears) || 0, shiftRuns: Number(sh.runs) || 0, hsp: Number(hs.hsp) || 0 },
+achN: Object.keys(ach).length, achRecent: recent, wbDmg: wbDmg };
+}
 function officeAct(nick, kind) {
 var me = getUserLdap();
 if (kind !== 'coffee' && kind !== 'prank') return { ok: false, reason: 'kind' };
@@ -700,17 +716,5 @@ dlPut_(t);
 return { ok: true, id: t.id, stake: t.stake };
 } finally { lock.releaseLock(); }
 }
-function dlLeave(id) {
-var me = getUserLdap(), lock = prsLock_();
-try {
-var t = dlGet_(id); if (!t) return { ok: true };
-if (t.status === 'wait' && t.host === me) { dlPay_(me, t.stake, 'REFUND', t.id); dlDel_(id); dlSetIndex_(dlIndex_().filter(function (x) { return x !== id; })); return { ok: true }; }
-if (t.status === 'play' && (t.host === me || t.guest === me)) { dlEnd_(t, me === t.host ? t.guest : t.host, me + ' fled'); t.rev++; }
-t.seen = t.seen || {}; t.seen[me] = 1; dlPut_(t);
-return { ok: true };
-} finally { lock.releaseLock(); }
-}
-/** v11.1: 6 náhodných čísel na gamble válce v tomto půlkole (klient je ukáže, server z nich spočítá stejné válce) */
-function dlRolls_(t) { var d = t.ds, R = HSEngine.rng(((t.seed || 1) + (d ? d.half : 0) * 104729 + 77) >>> 0), a = []; for (var k = 0; k < 6; k++) a.push(Math.round(R() * 1e6) / 1e6); return a; }
 
 // END-OF-FILE: server2 (continues in server3)
