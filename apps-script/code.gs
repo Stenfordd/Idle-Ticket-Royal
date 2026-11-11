@@ -761,6 +761,14 @@ var API_ALLOWED_ = {
   dlJoin: function (a) { return dlJoin(a[0]); },
   dlLeave: function (a) { return dlLeave(a[0]); },
   dlPoll: function (a) { return dlPoll(a[0], a[1]); },
+  rdList: function () { return rdList(); },
+  rdCreate: function (a) { return rdCreate(a[0], a[1], a[2], a[3]); },
+  rdJoin: function (a) { return rdJoin(a[0], a[1]); },
+  rdSet: function (a) { return rdSet(a[0], a[1], a[2], a[3]); },
+  rdStart: function (a) { return rdStart(a[0]); },
+  rdPoll: function (a) { return rdPoll(a[0], a[1]); },
+  rdMove: function (a) { return rdMove(a[0], a[1], a[2]); },
+  rdLeave: function (a) { return rdLeave(a[0]); },
   dlMove: function (a) { return dlMove(a[0], a[1], a[2]); },
   dlStats: function (a) { return dlStats(a[0], a[1]); },
   nickList: function () { return nickList(); },
@@ -2309,6 +2317,202 @@ function setNick(nick) {
   } finally { lock.releaseLock(); }
 }
 
+// ============================================================================
+// v13 WAR ROOM - co-op raid (1-4 hráči + boti do 4), logika v RaidEngine (src/raid_engine.js, přilepí build.py)
+// Stůl žije v cache + ScriptProperties jako duel. Všichni volí akci naráz (30 s), pak se kolo vyhodnotí.
+// ============================================================================
+var RD_MAX_TABLES = 4, RD_TURN_MS = 30000, RD_LOBBY_MS = 15 * 60000, RD_IDLE_MS = 15 * 60000;
+var RD_BOTS = ['Intern Kevin', 'Temp Dana', 'Contractor Bob', 'Trainee Mia', 'Consultant Raj', 'Agency Tom'];
+function rdGet_(id) { var raw = CacheService.getScriptCache().get('rd_' + id); if (!raw) raw = prsProps_().getProperty('rd_' + id); return raw ? JSON.parse(raw) : null; }
+function rdPut_(t) { while (t.log.length > 24) t.log.shift(); var j = JSON.stringify(t); if (j.length > 8600) { t.log = t.log.slice(-8); t.lastEv = (t.lastEv || []).slice(-30); j = JSON.stringify(t); } CacheService.getScriptCache().put('rd_' + t.id, j, 21600); prsProps_().setProperty('rd_' + t.id, j); }
+function rdDel_(id) { CacheService.getScriptCache().remove('rd_' + id); prsProps_().deleteProperty('rd_' + id); }
+function rdIndex_() { try { return JSON.parse(prsProps_().getProperty('rd_index') || '[]'); } catch (e) { return []; } }
+function rdSetIndex_(a) { prsProps_().setProperty('rd_index', JSON.stringify(a)); }
+function rdLog_(t, txt) { t.log.push(txt); }
+function rdPay_(nick, o) { var p = prsProps_(), m = {}; try { m = JSON.parse(p.getProperty('rd_pay') || '{}'); } catch (e) {} (m[nick] = m[nick] || []).push(o); p.setProperty('rd_pay', JSON.stringify(m)); }
+function rdTakePay_(nick) { var p = prsProps_(), raw = p.getProperty('rd_pay'); if (!raw || raw.indexOf('"' + nick + '"') < 0) return []; var m = {}; try { m = JSON.parse(raw); } catch (e) {} var out = m[nick] || []; delete m[nick]; p.setProperty('rd_pay', JSON.stringify(m)); return out; }
+function rdWeek_() { var p = prsProps_(), w = wbWeek_(), o = null; try { o = JSON.parse(p.getProperty('rd_wk') || 'null'); } catch (e) {} if (!o || o.w !== w) o = { w: w, m: {} }; return o; }
+function rdSeatOf_(t, nick) { for (var i = 0; i < t.seats.length; i++) if (!t.seats[i].bot && t.seats[i].n === nick) return i; return -1; }
+function rdHumans_(t) { return t.seats.filter(function (s) { return !s.bot; }); }
+function rdRole_(r) { return RaidEngine.ROLES[r] ? r : 'dps'; }
+function rdHero_(nick) { var c = dlCardOf_(nick), h = c ? HSEngine.fromCard(c) : null; return h ? { cls: h.cls, lv: h.level } : null; }
+function rdEvTxt_(t, e) {
+  var S = t.S, nm = function (i) { return S.P[i] ? S.P[i].n : '?'; }, E = RaidEngine, bn = E.BOSSES[S.boss].n;
+  switch (e.k) {
+    case 'act': var a = E.AB[e.ab]; return e.ab === 'brace' ? null : nm(e.by) + ' uses ' + a.i + ' ' + a.n + (a.tgt === 'ally' || a.tgt === 'dead' ? ' on ' + nm(e.tgt) : '');
+    case 'interrupt': return '✋ ' + nm(e.by) + ' INTERRUPTS the cast! ' + bn + ' is staggered.';
+    case 'boss': return e.it === 'charge' ? '⚡ ' + bn + ' is CHARGING a Meltdown!' : e.it === 'stagger' ? null : E.INTENT[e.it].i + ' ' + bn + ': ' + E.INTENT[e.it].n;
+    case 'hurt': return '   ' + nm(e.to) + ' takes ' + e.d + (e.cover >= 0 ? ' (covering ' + nm(e.cover) + ')' : '');
+    case 'down': return '💀 ' + nm(e.to) + ' is down!';
+    case 'revive': return '☕ ' + nm(e.to) + ' is back up!';
+    case 'adds': return '👥 ' + e.n + ' add' + (e.n > 1 ? 's' : '') + ' joined the fight.';
+    case 'phase': return '🔥 ' + bn + ' enters PHASE ' + (e.p + 1) + '!';
+    case 'enrage': return '😡 ' + bn + ' ENRAGES - damage grows every round!';
+    case 'frenzy': return '🩸 Unprotected hit - ' + bn + ' smells blood (Frenzy ×' + e.n + ').';
+    case 'win': return '🏆 ' + bn + ' is DEFEATED!';
+    case 'wipe': return e.why === 'time' ? '⏰ The meeting ran over. Wipe.' : '☠ The whole team is down. Wipe.';
+  }
+  return null;
+}
+function rdResolve_(t) {
+  var S = t.S, picks = S.P.map(function (p, i) { if (p.dead) return null; if (t.seats[i].bot) return RaidEngine.raidBot(S, i); var pk = t.picks[i]; if (pk) { t.miss[i] = 0; return pk; } t.miss[i] = (t.miss[i] || 0) + 1; return RaidEngine.raidBot(S, i); });
+  var round = S.round, ev = RaidEngine.raidResolve(S, picks);
+  rdLog_(t, '— Round ' + round + ' —');
+  ev.forEach(function (e) { var x = rdEvTxt_(t, e); if (x) rdLog_(t, x); });
+  t.lastEv = ev.slice(0, 60); t.evSeq = (t.evSeq || 0) + 1; t.picks = {}; t.moved = Date.now();
+  t.seats.forEach(function (s, i) { if (!s.bot && (t.miss[i] || 0) >= 2) { s.bot = true; s.afk = s.n; S.P[i].bot = true; rdLog_(t, '💤 ' + s.n + ' is AFK - a temp takes over.'); } });
+  if (S.over) rdEnd_(t);
+  else if (!rdHumans_(t).length) { t.status = 'done'; t.res = 'abandoned'; t.doneAt = Date.now(); }
+  else t.deadline = Date.now() + RD_TURN_MS + 2500;
+  t.rev++;
+}
+function rdEnd_(t) {
+  var S = t.S; t.status = 'done'; t.res = S.over; t.doneAt = Date.now(); t.deadline = 0;
+  var wk = rdWeek_(), top = 0; S.P.forEach(function (p, i) { if (p.dmg > S.P[top].dmg) top = i; });
+  t.seats.forEach(function (s, i) {
+    if (s.bot) return;
+    var m = wk.m[s.n] = wk.m[s.n] || {}, first = S.over === 'win' && !m[S.diff + ':' + S.boss];
+    if (S.over === 'win') m[S.diff + ':' + S.boss] = 1;
+    rdPay_(s.n, { why: S.over === 'win' ? 'WIN' : 'WIPE', boss: S.boss, diff: S.diff, first: first, rounds: S.round, mvp: top === i, humans: rdHumans_(t).length, pct: Math.round(100 * (1 - S.B.hp / S.B.mhp)) });
+  });
+  prsProps_().setProperty('rd_wk', JSON.stringify(wk));
+  if (S.over === 'win') { try { getDb_().chat.appendRow([new Date(), '🏆 WAR ROOM', rdHumans_(t).map(function (s) { return s.n; }).join(', ') + ' defeated ' + RaidEngine.BOSSES[S.boss].n + ' (' + RaidEngine.DIFF[S.diff].n + ') in ' + S.round + ' rounds!']); } catch (e) {} }
+}
+function rdTick_(t) {
+  var now = Date.now();
+  if (t.status === 'lobby' && now - t.created > RD_LOBBY_MS) { t.status = 'gone'; return true; }
+  if (t.status === 'done' && now - t.doneAt > 240000) { t.status = 'gone'; return true; }
+  if (t.status === 'play' && now - t.moved > RD_IDLE_MS) { t.status = 'gone'; return true; }
+  if (t.status === 'play' && t.deadline && now > t.deadline) { rdResolve_(t); return true; }
+  return false;
+}
+function rdLoadAll_() {
+  var ids = rdIndex_(), out = [], keep = [], dirty = false;
+  ids.forEach(function (id) { var t = rdGet_(id); if (!t) { dirty = true; return; } if (rdTick_(t)) { dirty = true; if (t.status === 'gone') { rdDel_(id); return; } rdPut_(t); } keep.push(id); out.push(t); });
+  if (dirty) rdSetIndex_(keep);
+  return out;
+}
+function rdMine_(ts, me) { for (var i = 0; i < ts.length; i++) { var t = ts[i]; if ((t.status === 'lobby' || t.status === 'play' || t.status === 'done') && !(t.seen && t.seen[me]) && (rdSeatOf_(t, me) >= 0)) return t.id; } return ''; }
+function rdList() {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var ts = rdLoadAll_(), wk = rdWeek_();
+    return { ok: true, mine: rdMine_(ts, me), max: RD_MAX_TABLES, pay: rdTakePay_(me), week: wk.m[me] || {},
+      tables: ts.filter(function (t) { return t.status === 'lobby' && (!t.priv || rdSeatOf_(t, me) >= 0); }).map(function (t) { return { id: t.id, host: t.host, boss: t.boss, diff: t.diff, seats: t.seats.map(function (s) { return { n: s.n, role: s.role, cls: s.cls, lv: s.lv }; }) }; }) };
+  } finally { lock.releaseLock(); }
+}
+function rdCreate(boss, diff, role, priv) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    boss = RaidEngine.BOSSES[boss] ? String(boss) : 'reorg'; diff = RaidEngine.DIFF[diff] ? String(diff) : 'normal';
+    var h = rdHero_(me); if (!h) return { ok: false, reason: 'noclass' };
+    if (h.lv < RaidEngine.DIFF[diff].lvl) return { ok: false, reason: 'level' };
+    var ts = rdLoadAll_();
+    if (rdMine_(ts, me)) return { ok: false, reason: 'already' };
+    if (ts.filter(function (t) { return t.status === 'lobby' || t.status === 'play'; }).length >= RD_MAX_TABLES) return { ok: false, reason: 'full' };
+    var t = { id: Utilities.getUuid().slice(0, 8), host: me, boss: boss, diff: diff, priv: !!priv, status: 'lobby', created: Date.now(), moved: Date.now(), rev: 1, log: [], picks: {}, miss: {}, seen: {},
+      seats: [{ n: me, role: rdRole_(role), cls: h.cls, lv: h.lv, bot: false }] };
+    rdPut_(t); var idx = rdIndex_(); idx.push(t.id); rdSetIndex_(idx);
+    if (!priv) { try { getDb_().chat.appendRow([new Date(), '🚨 WAR ROOM', me + ' is gathering a team against ' + RaidEngine.BOSSES[boss].n + ' (' + RaidEngine.DIFF[diff].n + '). Join in HIGH STAKES > WAR ROOM!']); } catch (e) {} }
+    return { ok: true, id: t.id };
+  } finally { lock.releaseLock(); }
+}
+function rdJoin(id, role) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var ts = rdLoadAll_(), t = ts.filter(function (x) { return x.id === id; })[0];
+    if (!t || t.status !== 'lobby') return { ok: false, reason: 'gone' };
+    if (rdSeatOf_(t, me) >= 0) return { ok: true, id: id };
+    if (rdMine_(ts, me)) return { ok: false, reason: 'already' };
+    if (t.seats.length >= RaidEngine.PARTY) return { ok: false, reason: 'full' };
+    var h = rdHero_(me); if (!h) return { ok: false, reason: 'noclass' };
+    if (h.lv < RaidEngine.DIFF[t.diff].lvl) return { ok: false, reason: 'level' };
+    t.seats.push({ n: me, role: rdRole_(role), cls: h.cls, lv: h.lv, bot: false }); t.rev++; t.moved = Date.now();
+    rdPut_(t); return { ok: true, id: id };
+  } finally { lock.releaseLock(); }
+}
+/** v lobby: změna role (kdokoli sobě), boss/obtížnost (jen host) */
+function rdSet(id, role, boss, diff) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = rdGet_(id); if (!t || t.status !== 'lobby') return { ok: false, reason: 'gone' };
+    var i = rdSeatOf_(t, me); if (i < 0) return { ok: false, reason: 'seat' };
+    if (role) t.seats[i].role = rdRole_(role);
+    if (t.host === me) { if (boss && RaidEngine.BOSSES[boss]) t.boss = String(boss); if (diff && RaidEngine.DIFF[diff] && t.seats.every(function (s) { return s.lv >= RaidEngine.DIFF[diff].lvl; })) t.diff = String(diff); }
+    t.rev++; rdPut_(t); return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+function rdStart(id) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = rdGet_(id); if (!t || t.status !== 'lobby') return { ok: false, reason: 'gone' };
+    if (t.host !== me) return { ok: false, reason: 'host' };
+    var need = RaidEngine.PARTY - t.seats.length, roles = RaidEngine.fillRoles(t.seats.map(function (s) { return s.role; }), need), cls = ['sysadmin', 'cyber', 'engineer', 'blood', 'hunter'];
+    var names = RD_BOTS.slice().sort(function () { return Math.random() - 0.5; });
+    roles.forEach(function (r, k) { t.seats.push({ n: names[k], role: r, cls: cls[Math.floor(Math.random() * cls.length)], lv: 0, bot: true }); });
+    t.S = RaidEngine.raidNew(t.seats.map(function (s) { return { n: s.n, role: s.role, cls: s.cls, bot: s.bot }; }), t.boss, t.diff, Math.floor(Math.random() * 2147483646) + 1);
+    t.status = 'play'; t.picks = {}; t.miss = {}; t.moved = Date.now(); t.deadline = Date.now() + RD_TURN_MS + 4000; t.rev++; t.evSeq = 0; t.lastEv = [];
+    rdLog_(t, '🚨 ' + RaidEngine.BOSSES[t.boss].n + ' (' + RaidEngine.DIFF[t.diff].n + ') - the war room is live.');
+    rdPut_(t); return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+function rdView_(t, me) {
+  var i = rdSeatOf_(t, me), locked = {}; for (var k in (t.picks || {})) locked[k] = 1;
+  return { id: t.id, rev: t.rev, status: t.status, host: t.host, boss: t.boss, diff: t.diff, priv: !!t.priv, you: i, seats: t.seats.map(function (s) { return { n: s.n, role: s.role, cls: s.cls, lv: s.lv, bot: !!s.bot, afk: s.afk || '' }; }),
+    S: t.S || null, locked: locked, pick: i >= 0 && t.picks ? (t.picks[i] || null) : null, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0, turnMs: RD_TURN_MS,
+    last: t.lastEv || [], evSeq: t.evSeq || 0, log: t.log.slice(-24), res: t.res || '' };
+}
+function rdPoll(id, rev) {
+  var me = getUserLdap(), t = rdGet_(id), pay = [];
+  if (t) {
+    var now = Date.now(), due = (t.status === 'play' && t.deadline && now > t.deadline) || (t.status === 'lobby' && now - t.created > RD_LOBBY_MS) || (t.status === 'done' && now - t.doneAt > 240000);
+    if (due) { var lock = prsLock_(); try { t = rdGet_(id); if (t && rdTick_(t)) { if (t.status === 'gone') { rdDel_(id); rdSetIndex_(rdIndex_().filter(function (x) { return x !== id; })); t = null; } else rdPut_(t); } } finally { lock.releaseLock(); } }
+  }
+  var raw = prsProps_().getProperty('rd_pay');
+  if (raw && raw.indexOf('"' + me + '"') >= 0) { var l2 = prsLock_(); try { pay = rdTakePay_(me); } finally { l2.releaseLock(); } }
+  if (!t || (t.seen && t.seen[me]) || (rdSeatOf_(t, me) < 0 && !(t.seats || []).some(function (s) { return s.afk === me; }))) return { ok: true, gone: true, pay: pay };
+  if (Number(rev) === t.rev && !pay.length) return { ok: true, same: true, rev: t.rev, left: t.deadline ? Math.max(0, t.deadline - Date.now()) : 0 };
+  return { ok: true, view: rdView_(t, me), pay: pay };
+}
+function rdMove(id, ab, tgt) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = rdGet_(id); if (!t || t.status !== 'play') return { ok: false, reason: 'gone' };
+    rdTick_(t);
+    if (t.status !== 'play') { rdPut_(t); return { ok: false, reason: 'over', view: rdView_(t, me) }; }
+    var i = rdSeatOf_(t, me); if (i < 0) return { ok: false, reason: 'seat' };
+    var S = t.S; ab = String(ab || ''); tgt = Math.floor(Number(tgt)); if (isNaN(tgt)) tgt = -1;
+    if (S.P[i].dead) return { ok: false, reason: 'dead', view: rdView_(t, me) };
+    if (!RaidEngine.AB[ab]) return { ok: false, reason: 'choice' };
+    if (RaidEngine.AB[ab].tgt === 'none') tgt = -1;
+    var why = RaidEngine.canUse(S, i, ab, tgt); if (why) return { ok: false, reason: why, view: rdView_(t, me) };
+    t.picks[i] = { ab: ab, tgt: tgt }; t.rev++;
+    var all = S.P.every(function (p, k) { return p.dead || t.seats[k].bot || t.picks[k]; });
+    if (all) rdResolve_(t);
+    rdPut_(t);
+    return { ok: true, view: rdView_(t, me) };
+  } finally { lock.releaseLock(); }
+}
+function rdLeave(id) {
+  var me = getUserLdap(), lock = prsLock_();
+  try {
+    var t = rdGet_(id); if (!t) return { ok: true };
+    var i = rdSeatOf_(t, me);
+    if (t.status === 'lobby') {
+      if (t.host === me) { rdDel_(id); rdSetIndex_(rdIndex_().filter(function (x) { return x !== id; })); return { ok: true }; }
+      if (i >= 0) { t.seats.splice(i, 1); t.rev++; rdPut_(t); } return { ok: true };
+    }
+    if (t.status === 'play' && i >= 0) {
+      t.seats[i].bot = true; t.seats[i].afk = ''; t.seats[i].n = t.seats[i].n + ' (left)'; t.S.P[i].bot = true; t.S.P[i].n = t.seats[i].n; delete t.picks[i]; rdLog_(t, '🚪 ' + me + ' left - a temp takes over.'); t.rev++;
+      if (!rdHumans_(t).length) { t.status = 'done'; t.res = 'abandoned'; t.doneAt = Date.now(); }
+      else if (t.S.P.every(function (p, k) { return p.dead || t.seats[k].bot || t.picks[k]; })) rdResolve_(t);
+      rdPut_(t); return { ok: true };
+    }
+    t.seen = t.seen || {}; t.seen[me] = 1; rdPut_(t);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
 
 // ===================== HIGH STAKES ENGINE (vygenerováno build.py ze src/hs_engine.js - neupravovat ručně) =====================
 /**
@@ -2351,7 +2555,7 @@ function setNick(nick) {
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 3, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 1.03, cyber: 0.91, engineer: 0.86, blood: 1.39, hunter: 1.07 } };   // v12: laděno simem (duel ~11 kol, třídy ~50 %)
+  const PVP = { hp: 3, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 1.045, cyber: 0.905, engineer: 0.86, blood: 1.385, hunter: 1.085 } };   // v12: laděno simem (duel ~11 kol, třídy ~50 %)
   /** v12: síla tříd v kampani (PvE), laděno simem */
   const PVE = { sysadmin: 1.1, cyber: 1.24, engineer: 1.4, blood: 1.95, hunter: 1.39 };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
@@ -3830,4 +4034,270 @@ function setNick(nick) {
     chanVal: chanVal, GUESS_FX: GUESS_FX, GUESS_PVE: GUESS_PVE, guessCat: guessCat, card: card, fromCard: fromCard, PVP: PVP, ATK_KEYS: ATK_KEYS, ECLS: ECLS, dodgeRoll: dodgeRoll, okReels: okReels, duelReels: duelReels, stdHero: stdHero, okAlloc: okAlloc, power: power, duelNew: duelNew, duelHalf: duelHalf, duelAI: duelAI, duelAiAtk: duelAiAtk, duelAiReact: duelAiReact, duelAtkOk: duelAtkOk, duelReactOk: duelReactOk, PVP_ATK: PVP_ATK };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSEngine = api;
+})(typeof window !== "undefined" ? window : this);
+
+
+// ===================== WAR ROOM ENGINE (src/raid_engine.js) =====================
+/**
+ * WAR ROOM (v13) - co-op raid engine. Čistý JS: běží na serveru (autorita), v klientu (popisky, náhled) a v simulaci (balanc).
+ * Parta má vždy 4 místa: 1-4 hráči, zbytek doplní boti, role TANK / DPS / HEALER, všichni volí akci naráz, pak se kolo vyhodnotí:
+ *   akce hráčů -> telegrafovaný tah bosse -> přisluhovači -> DoTy -> energie, cooldowny, další záměr bosse.
+ * Postavy jsou normalizované (stejné základy pro všechny) - rozhoduje souhra, ne gear. Třída z High Stakes dává 1 podpisovou schopnost.
+ */
+(function (root) {
+  "use strict";
+  function rng(seed) { let a = (seed >>> 0) || 1; return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+  const ROLES = {
+    tank: { n: "Tank", i: "🛡", hp: 170, t: "Soaks the hits. Holds the boss's attention.", kit: ["slam", "guard", "taunt", "cover", "brace"] },
+    dps: { n: "DPS", i: "⚔", hp: 105, t: "Kills the boss. Interrupts the big cast. Clears adds.", kit: ["strike", "burst", "interrupt", "sweep", "brace"] },
+    heal: { n: "Healer", i: "💚", hp: 100, t: "Keeps everyone standing. Cleanses, revives once.", kit: ["smite", "heal", "gheal", "cleanse", "revive", "brace"] }
+  };
+  const EN_MAX = 10, EN_START = 5, EN_ROUND = 3, ROUND_CAP = 18, ENRAGE_AT = 12;
+  // tgt: enemy = boss nebo přisluhovač, ally = živý spoluhráč (i já), dead = mrtvý spoluhráč, none = bez cíle
+  const AB = {
+    brace: { n: "Brace", i: "🧱", cost: 0, cd: 0, tgt: "none", t: "Take 40% less damage this round and gain +1 extra energy." },
+    // tank
+    slam: { n: "Stapler Slam", i: "🔨", cost: 1, cd: 0, tgt: "enemy", t: "12 damage and a lot of threat." },
+    guard: { n: "Shield Wall", i: "🛡", cost: 3, cd: 0, tgt: "none", t: "Take 60% less damage this round. Builds threat." },
+    taunt: { n: "Taunt", i: "📣", cost: 2, cd: 3, tgt: "none", t: "The boss's single-target attacks hit YOU for 2 rounds." },
+    cover: { n: "Take the Blame", i: "🫡", cost: 2, cd: 2, tgt: "ally", t: "This round you take the damage meant for one ally (reduced by 30%)." },
+    // dps
+    strike: { n: "Strike", i: "🗡", cost: 1, cd: 0, tgt: "enemy", t: "14 damage." },
+    burst: { n: "Burst", i: "💥", cost: 5, cd: 0, tgt: "enemy", t: "38 damage." },
+    interrupt: { n: "Escalate", i: "✋", cost: 2, cd: 3, tgt: "none", t: "7 damage. If the boss is CHARGING, the cast is cancelled and the boss is staggered (+25% damage taken next round)." },
+    sweep: { n: "Sweep", i: "🌀", cost: 3, cd: 0, tgt: "none", t: "10 damage to the boss and 16 to every add." },
+    // healer
+    smite: { n: "Smite", i: "✨", cost: 0, cd: 0, tgt: "enemy", t: "7 damage. Free." },
+    heal: { n: "Patch Up", i: "💚", cost: 2, cd: 0, tgt: "ally", t: "Heal one ally for 40." },
+    gheal: { n: "Team Lunch", i: "🥗", cost: 4, cd: 0, tgt: "none", t: "Heal everyone for 20." },
+    cleanse: { n: "Cleanse", i: "🧼", cost: 1, cd: 0, tgt: "ally", t: "Remove every debuff from an ally and heal 12." },
+    revive: { n: "Second Coffee", i: "☕", cost: 5, cd: 0, tgt: "dead", once: true, t: "Once per raid: bring a fallen ally back with 45% HP." },
+    // podpisové schopnosti tříd (cd 5)
+    sig_sysadmin: { n: "Crunch Time", i: "⏰", cost: 2, cd: 5, tgt: "none", sig: "sysadmin", t: "You deal +50% damage and threat this round and the next two." },
+    sig_cyber: { n: "Set It On Fire", i: "🔥", cost: 2, cd: 5, tgt: "none", sig: "cyber", t: "The boss burns for 9 damage a round for 4 rounds." },
+    sig_engineer: { n: "Pivot Table", i: "📊", cost: 1, cd: 5, tgt: "none", sig: "engineer", t: "Everyone else gains +3 energy." },
+    sig_blood: { n: "Espresso Round", i: "☕", cost: 2, cd: 5, tgt: "none", sig: "blood", t: "Everyone heals 14 and gains +1 energy." },
+    sig_hunter: { n: "Mark the Target", i: "🎯", cost: 2, cd: 5, tgt: "none", sig: "hunter", t: "The boss takes +20% damage from everyone for 3 rounds." }
+  };
+  const DIFF = { normal: { n: "Normal", hp: 1, dmg: 1, lvl: 1 }, heroic: { n: "Heroic", hp: 1.25, dmg: 1.2, lvl: 30 }, mythic: { n: "Mythic", hp: 1.5, dmg: 1.4, lvl: 60 } };
+  /** tahy bosse: hit = jeden cíl (nejvyšší threat / taunt), cleave = všichni, charge -> nuke (jde přerušit jen v kole CHARGE),
+   *  debuff = DoT na 1-2 hráče, adds = přisluhovači, mark = těžká rána do ne-tanka */
+  const BOSSES = {
+    reorg: { n: "The Reorg", i: "🧨", hp: 640, t: "Floods the room with interns. Clear the adds or drown.", p: [
+      { hit: 5, adds: 3, cleave: 2 }, { hit: 4, adds: 3, cleave: 3, charge: 2 }, { hit: 3, adds: 3, cleave: 3, charge: 2, mark: 2 }] },
+    monolith: { n: "Legacy Monolith", i: "🗿", hp: 700, t: "Charges catastrophic casts. Interrupt them - or brace.", p: [
+      { hit: 5, charge: 3, cleave: 2 }, { hit: 4, charge: 4, cleave: 2, debuff: 2 }, { hit: 3, charge: 4, cleave: 3, mark: 2 }] },
+    hydra: { n: "Audit Hydra", i: "🐍", hp: 730, t: "Poisons the team with findings. Cleanse them fast.", p: [
+      { hit: 5, debuff: 4, cleave: 1 }, { hit: 4, debuff: 4, cleave: 2, mark: 2 }, { hit: 3, debuff: 4, cleave: 3, charge: 2, adds: 1 }] }
+  };
+  const INTENT = {
+    hit: { n: "Heavy swing", i: "👊", t: "Hits whoever has its attention." },
+    cleave: { n: "Reply-All", i: "📧", t: "Hits everyone." },
+    charge: { n: "CHARGING", i: "⚡", t: "Winding up a catastrophic cast. INTERRUPT it this round!" },
+    nuke: { n: "Meltdown", i: "☢", t: "Massive damage to everyone. Brace!" },
+    debuff: { n: "Findings", i: "☣", t: "Poisons 1-2 of you. Cleanse it." },
+    adds: { n: "Calls for backup", i: "👥", t: "Summons adds that chip at the team every round." },
+    mark: { n: "Performance Review", i: "🎯", t: "A brutal hit on one of the squishier players." },
+    stagger: { n: "Staggered", i: "💫", t: "Interrupted! Does nothing and takes +25% damage." }
+  };
+  const DMG = { hit: 44, cleave: 17, nuke: 56, debuff: 8, dot: 9, add: 7, mark: 50 }, TANK_MIT = 0.62, PARTY = 4, FRENZY = 0.2;
+
+  function kitOf(role, cls) { const k = (ROLES[role] || ROLES.dps).kit.slice(); const s = "sig_" + cls; if (AB[s]) k.splice(k.length - 1, 0, s); return k; }
+  /** role pro boty: doplní, co partě chybí (tank, healer, pak dps) */
+  function fillRoles(have, n) { const out = [], c = { tank: 0, heal: 0, dps: 0 }; have.forEach(r => { c[r] = (c[r] || 0) + 1; }); for (let k = 0; k < n; k++) { const r = !c.tank ? "tank" : !c.heal ? "heal" : "dps"; c[r]++; out.push(r); } return out; }
+  function alive(S) { return S.P.filter(p => !p.dead); }
+  function bossHp(boss, diff) { return Math.round(BOSSES[boss].hp * DIFF[diff].hp); }
+
+  /** players: [{ n, role, cls, bot }] */
+  function raidNew(players, boss, diff, seed) {
+    boss = BOSSES[boss] ? boss : "reorg"; diff = DIFF[diff] ? diff : "normal";
+    const n = players.length, S = { v: 1, boss: boss, diff: diff, seed: (seed >>> 0) || 1, round: 1, over: "", adds: [], addSeq: 0,
+      P: players.map(p => { const role = ROLES[p.role] ? p.role : "dps", hp = ROLES[role].hp; return { n: String(p.n), bot: !!p.bot, role: role, cls: String(p.cls || ""), hp: hp, mhp: hp, en: EN_START, cd: {}, dead: false, thr: role === "tank" ? 20 : 0, dots: 0, rage: 0, rev: false, dmg: 0, healed: 0 }; }),
+      B: { hp: 0, mhp: 0, phase: 0, intent: "hit", tgt: -1, mark: 0, burn: 0, stag: 0 }, taunt: { i: -1, t: 0 } };
+    S.B.mhp = S.B.hp = bossHp(boss, diff);
+    pickIntent(S, rng(S.seed + 17));
+    return S;
+  }
+  function phaseOf(S) { const f = S.B.hp / S.B.mhp; return f > 0.66 ? 0 : f > 0.33 ? 1 : 2; }
+  function topThreat(S, skipTank) {
+    let best = -1, bv = -1;
+    S.P.forEach((p, i) => { if (p.dead) return; if (skipTank && p.role === "tank") return; if (p.thr > bv) { bv = p.thr; best = i; } });
+    return best;
+  }
+  function pickIntent(S, R) {
+    const B = S.B;
+    if (B.next) { B.intent = B.next; B.next = ""; B.tgt = -1; return; }
+    const W = Object.assign({}, BOSSES[S.boss].p[B.phase]);
+    if (S.adds.length >= 2) delete W.adds;
+    if (B.intent === "charge" || B.intent === "nuke" || B.last === "charge") delete W.charge;
+    if (B.intent && W[B.intent] && B.intent !== "hit") W[B.intent] = Math.max(1, W[B.intent] - 2);      // méně opakování
+    if (alive(S).filter(p => p.role !== "tank").length === 0) delete W.mark;
+    let tot = 0; for (const k in W) tot += W[k];
+    let x = R() * tot, pick = "hit"; for (const k in W) { x -= W[k]; if (x <= 0) { pick = k; break; } }
+    B.intent = pick; B.tgt = -1;
+    if (pick === "hit") B.tgt = S.taunt.t > 0 && S.P[S.taunt.i] && !S.P[S.taunt.i].dead ? S.taunt.i : topThreat(S, false);
+    if (pick === "mark") { const c = S.P.map((p, i) => i).filter(i => !S.P[i].dead && S.P[i].role !== "tank"); B.tgt = c.length ? c[Math.floor(R() * c.length)] : topThreat(S, false); }
+  }
+  /** může hráč i použít ab na cíl tgt? vrací "" nebo důvod */
+  function canUse(S, i, ab, tgt) {
+    const p = S.P[i], a = AB[ab]; if (!p || !a) return "unknown";
+    if (S.over) return "over"; if (p.dead) return "dead";
+    if (kitOf(p.role, p.cls).indexOf(ab) < 0) return "kit";
+    if (p.en < a.cost) return "energy";
+    if ((p.cd[ab] || 0) > 0) return "cooldown";
+    if (a.once && p.rev) return "used";
+    if (a.tgt === "ally") { const t = S.P[tgt]; if (!t || t.dead) return "target"; if (ab === "cover" && tgt === i) return "target"; }
+    if (a.tgt === "dead") { const t = S.P[tgt]; if (!t || !t.dead) return "target"; }
+    if (a.tgt === "enemy") { if (tgt !== -1 && !S.adds.some(x => x.id === tgt)) return "target"; }
+    return "";
+  }
+  function defTarget(S, i, ab) {
+    const a = AB[ab];
+    if (a.tgt === "enemy") return -1;
+    if (a.tgt === "dead") return S.P.findIndex(p => p.dead);
+    if (a.tgt === "ally") {
+      let best = -1, bv = 9;
+      S.P.forEach((p, k) => { if (p.dead || (ab === "cover" && k === i)) return; const f = ab === "cleanse" ? (p.dots > 0 ? -1 : 1) + p.hp / p.mhp : p.hp / p.mhp; if (f < bv) { bv = f; best = k; } });
+      if (ab === "cover" && S.B.tgt >= 0 && S.B.tgt !== i && S.P[S.B.tgt] && !S.P[S.B.tgt].dead) return S.B.tgt;
+      return best;
+    }
+    return -1;
+  }
+
+  /** picks: [{ ab, tgt }] pro každého hráče (null = brace). Vrací události pro log/animaci. Mění S. */
+  function raidResolve(S, picks) {
+    if (S.over) return [];
+    const R = rng((S.seed + S.round * 7919) >>> 0), ev = [], B = S.B, D = DIFF[S.diff];
+    const E = (o) => { ev.push(o); };
+    const flags = S.P.map(() => ({ brace: false, guard: false, cover: -1 }));
+    const acts = S.P.map((p, i) => {
+      if (p.dead) return null;
+      let a = picks[i] && AB[picks[i].ab] ? { ab: picks[i].ab, tgt: picks[i].tgt } : { ab: "brace", tgt: -1 };
+      if (a.tgt === undefined || a.tgt === null) a.tgt = defTarget(S, i, a.ab);
+      if (canUse(S, i, a.ab, a.tgt)) a = { ab: "brace", tgt: -1 };
+      return a;
+    });
+    const dmgMul = (p) => (p.rage > 0 ? 1.5 : 1);
+    const hitEnemy = (i, tgt, base, thrMul) => {
+      const p = S.P[i]; let d = Math.round(base * dmgMul(p) * (0.92 + R() * 0.16));
+      if (tgt !== -1) { const ad = S.adds.find(x => x.id === tgt); if (ad) { ad.hp -= d; p.dmg += d; p.thr += d * 0.5; E({ k: "add", by: i, id: ad.id, d: d, dead: ad.hp <= 0 }); return; } }
+      d = Math.round(d * (B.mark > 0 ? 1.2 : 1) * (B.stag > 0 ? 1.25 : 1));
+      B.hp -= d; p.dmg += d; p.thr += d * (thrMul || 1) * (p.role === "tank" ? 3 : 1) * dmgMul(p);
+      E({ k: "dmg", by: i, d: d });
+    };
+    const healP = (by, k, amt) => { const t = S.P[k]; if (!t || t.dead) return; const h = Math.min(t.mhp - t.hp, amt); t.hp += h; S.P[by].healed += h; S.P[by].thr += h * 0.4; if (h > 0) E({ k: "heal", by: by, to: k, h: h }); };
+    // --- 1) akce hráčů (pořadí: obrana, tank, dps, healer)
+    const order = S.P.map((p, i) => i).filter(i => acts[i]).sort((a, b) => ({ tank: 0, dps: 1, heal: 2 }[S.P[a].role] - { tank: 0, dps: 1, heal: 2 }[S.P[b].role]));
+    order.forEach(i => {
+      const p = S.P[i], a = acts[i], A = AB[a.ab];
+      p.en -= A.cost; if (A.cd) p.cd[a.ab] = A.cd + 1; if (A.once) p.rev = true;
+      E({ k: "act", by: i, ab: a.ab, tgt: a.tgt });
+      switch (a.ab) {
+        case "brace": flags[i].brace = true; p.en = Math.min(EN_MAX, p.en + 1); break;
+        case "guard": flags[i].guard = true; p.thr += 18; break;
+        case "taunt": S.taunt = { i: i, t: 2 }; p.thr = Math.max(p.thr, Math.max.apply(null, S.P.map(x => x.thr)) + 25); if (B.intent === "hit" || B.intent === "mark") B.tgt = i; break;
+        case "cover": flags[i].cover = a.tgt; p.thr += 10; break;
+        case "slam": hitEnemy(i, a.tgt, 12, 2.2); break;
+        case "strike": hitEnemy(i, a.tgt, 14); break;
+        case "burst": hitEnemy(i, a.tgt, 38); break;
+        case "smite": hitEnemy(i, a.tgt, 7); break;
+        case "interrupt": hitEnemy(i, -1, 7); if (B.intent === "charge") { B.intent = "stagger"; B.next = ""; B.stag = 2; E({ k: "interrupt", by: i }); } break;
+        case "sweep": hitEnemy(i, -1, 10); S.adds.slice().forEach(ad => hitEnemy(i, ad.id, 16)); break;
+        case "heal": healP(i, a.tgt, 40); break;
+        case "gheal": S.P.forEach((t, k) => healP(i, k, 20)); break;
+        case "cleanse": { const t = S.P[a.tgt]; if (t.dots > 0) { t.dots = 0; E({ k: "cleanse", by: i, to: a.tgt }); } healP(i, a.tgt, 12); break; }
+        case "revive": { const t = S.P[a.tgt]; t.dead = false; t.hp = Math.round(t.mhp * 0.45); t.dots = 0; t.en = Math.max(t.en, 3); E({ k: "revive", by: i, to: a.tgt }); break; }
+        case "sig_sysadmin": p.rage = 3; break;
+        case "sig_cyber": B.burn = 4; break;
+        case "sig_engineer": S.P.forEach((t, k) => { if (k !== i && !t.dead) t.en = Math.min(EN_MAX, t.en + 3); }); break;
+        case "sig_blood": S.P.forEach((t, k) => { healP(i, k, 14); if (!t.dead) t.en = Math.min(EN_MAX, t.en + 1); }); break;
+        case "sig_hunter": B.mark = 4; break;
+      }
+    });
+    S.adds = S.adds.filter(a => a.hp > 0);
+    if (B.hp <= 0) { B.hp = 0; S.over = "win"; E({ k: "win" }); return ev; }
+    // --- 2) tah bosse
+    const enr = S.round >= ENRAGE_AT ? 1 + 0.18 * (S.round - ENRAGE_AT + 1) : 1; let M = D.dmg * enr * (1 + 0.1 * B.phase) * (1 + FRENZY * (B.fz || 0));
+    const hurt = (k, base, why) => {
+      let t = S.P[k]; if (!t || t.dead) return;
+      let d = base * M * (0.92 + R() * 0.16), to = k;
+      const cv = flags.findIndex((f, j) => f.cover === k && !S.P[j].dead && j !== k);
+      if (cv >= 0) { to = cv; t = S.P[cv]; d *= 0.7; }
+      if (flags[to].guard) d *= 0.4; else if (flags[to].brace) d *= 0.6;
+      if (t.role === "tank") d *= TANK_MIT;
+      d = Math.round(d); t.hp -= d;
+      E({ k: "hurt", to: to, d: d, why: why, cover: cv >= 0 ? k : -1 });
+      // v13: rána do ne-tanka, kterou nikdo nekryl a necítil ji štít = boss cítí krev (trvale silnější)
+      if ((why === "hit" || why === "mark") && t.role !== "tank" && !flags[to].guard && !flags[to].brace) { B.fz = (B.fz || 0) + 1; M *= (1 + FRENZY * B.fz) / (1 + FRENZY * (B.fz - 1)); E({ k: "frenzy", n: B.fz }); }
+      if (t.hp <= 0) { t.hp = 0; t.dead = true; t.dots = 0; t.thr = 0; E({ k: "down", to: to }); if (S.taunt.i === to) S.taunt.t = 0; }
+    };
+    const it = B.intent; E({ k: "boss", it: it, tgt: B.tgt });
+    if (it === "hit") { let t = B.tgt; if (t < 0 || !S.P[t] || S.P[t].dead) t = topThreat(S, false); hurt(t, DMG.hit, "hit"); }
+    else if (it === "mark") { let t = S.taunt.t > 0 && S.P[S.taunt.i] && !S.P[S.taunt.i].dead ? S.taunt.i : B.tgt; if (t < 0 || !S.P[t] || S.P[t].dead) t = topThreat(S, false); hurt(t, DMG.mark, "mark"); }
+    else if (it === "cleave") S.P.forEach((p, k) => hurt(k, DMG.cleave, "cleave"));
+    else if (it === "nuke") S.P.forEach((p, k) => hurt(k, DMG.nuke, "nuke"));
+    else if (it === "charge") B.next = "nuke";
+    else if (it === "debuff") { const c = S.P.map((p, i) => i).filter(i => !S.P[i].dead); const n = Math.min(c.length, 1 + (R() < 0.55 ? 1 : 0)); for (let q = 0; q < n; q++) { const k = c.splice(Math.floor(R() * c.length), 1)[0]; hurt(k, DMG.debuff, "debuff"); if (!S.P[k].dead) { S.P[k].dots = 4; E({ k: "dot", to: k }); } } }
+    else if (it === "adds") { const n = Math.min(3 - S.adds.length, 2); for (let q = 0; q < n; q++) { const hp = Math.round(26 * D.hp); S.adds.push({ id: ++S.addSeq, hp: hp, mhp: hp }); } E({ k: "adds", n: n }); }
+    // --- 3) přisluhovači + DoTy + hoření bosse
+    S.adds.forEach(ad => { const c = S.P.map((p, i) => i).filter(i => !S.P[i].dead); if (c.length) hurt(c[Math.floor(R() * c.length)], DMG.add, "add"); });
+    S.P.forEach((p, k) => { if (!p.dead && p.dots > 0) { const d = Math.round(DMG.dot * D.dmg); p.hp -= d; p.dots--; E({ k: "tick", to: k, d: d }); if (p.hp <= 0) { p.hp = 0; p.dead = true; p.dots = 0; p.thr = 0; E({ k: "down", to: k }); } } });
+    if (B.burn > 0) { const d = Math.round(9 * (B.mark > 0 ? 1.2 : 1)); B.hp -= d; B.burn--; E({ k: "burn", d: d }); const src = S.P.find(p => p.cls === "cyber"); if (src) src.dmg += d; }
+    if (B.hp <= 0) { B.hp = 0; S.over = "win"; E({ k: "win" }); return ev; }
+    if (!alive(S).length) { S.over = "wipe"; E({ k: "wipe" }); return ev; }
+    // --- 4) konec kola
+    S.P.forEach(p => { if (p.dead) return; p.en = Math.min(EN_MAX, p.en + EN_ROUND); for (const k in p.cd) if (p.cd[k] > 0) p.cd[k]--; if (p.rage > 0) p.rage--; p.thr *= 0.9; });
+    if (B.mark > 0) B.mark--; if (B.stag > 0) B.stag--; if (S.taunt.t > 0) S.taunt.t--;
+    const ph = phaseOf(S); if (ph > B.phase) { B.phase = ph; E({ k: "phase", p: ph }); }
+    B.last = it; S.round++;
+    if (S.round > ROUND_CAP) { S.over = "wipe"; E({ k: "wipe", why: "time" }); return ev; }
+    if (S.round === ENRAGE_AT) E({ k: "enrage" });
+    pickIntent(S, R);
+    return ev;
+  }
+
+  /** jednoduchá AI pro boty a pro hráče, kteří nestihli zvolit */
+  function raidBot(S, i) {
+    const p = S.P[i], B = S.B; if (!p || p.dead) return null;
+    const ok = (ab, tgt) => !canUse(S, i, ab, tgt === undefined ? defTarget(S, i, ab) : tgt);
+    const use = (ab, tgt) => ({ ab: ab, tgt: tgt === undefined ? defTarget(S, i, ab) : tgt });
+    const sig = "sig_" + p.cls, weak = S.adds.length ? S.adds.slice().sort((a, b) => a.hp - b.hp)[0].id : -1;
+    const hurtP = S.P.filter(x => !x.dead && x.hp / x.mhp < 0.55).length, low = S.P.map((x, k) => k).filter(k => !S.P[k].dead).sort((a, b) => S.P[a].hp / S.P[a].mhp - S.P[b].hp / S.P[b].mhp)[0];
+    if (B.intent === "nuke" && p.role !== "heal") return ok("guard") ? use("guard") : use("brace");
+    if (p.role === "tank") {
+      if (S.taunt.t <= 0 && ok("taunt")) return use("taunt");
+      if (B.intent === "mark" && B.tgt !== i && S.taunt.i !== i && ok("cover", B.tgt)) return use("cover", B.tgt);
+      if ((B.intent === "hit" || B.intent === "mark") && ok("guard") && p.hp / p.mhp < 0.75) return use("guard");
+      if (ok(sig) && B.intent !== "hit") return use(sig);
+      return ok("slam", -1) ? use("slam", -1) : use("brace");
+    }
+    if (p.role === "dps") {
+      if (B.intent === "charge" && ok("interrupt")) return use("interrupt");
+      if (B.intent === "mark" && B.tgt === i && S.taunt.t <= 0 && p.hp / p.mhp < 0.7) return use("brace");
+      if (ok(sig) && B.intent !== "charge") return use(sig);
+      if (S.adds.length >= 2 && ok("sweep")) return use("sweep");
+      if (S.adds.length === 1 && ok("strike", weak)) return use("strike", weak);
+      if (B.intent === "stagger" && ok("burst", -1)) return use("burst", -1);
+      if (p.en >= 7 && ok("burst", -1)) return use("burst", -1);
+      return ok("strike", -1) ? use("strike", -1) : use("brace");
+    }
+    // healer
+    const dead = S.P.findIndex(x => x.dead);
+    if (dead >= 0 && ok("revive", dead)) return use("revive", dead);
+    if (B.intent === "nuke") return hurtP >= 1 && ok("gheal") ? use("gheal") : use("brace");
+    const dot = S.P.findIndex(x => !x.dead && x.dots > 0);
+    if (S.P.filter(x => !x.dead && x.hp / x.mhp < 0.7).length >= 2 && ok("gheal")) return use("gheal");
+    if (low !== undefined && S.P[low].hp / S.P[low].mhp < 0.6 && ok("heal", low)) return use("heal", low);
+    if (dot >= 0 && ok("cleanse", dot)) return use("cleanse", dot);
+    if (ok(sig) && (p.cls !== "blood" || hurtP >= 1)) return use(sig);
+    if (B.intent === "cleave" && p.hp / p.mhp < 0.5) return use("brace");
+    return use("smite", weak >= 0 && S.adds.length >= 2 ? weak : -1);
+  }
+
+  const api = { ROLES: ROLES, AB: AB, DIFF: DIFF, BOSSES: BOSSES, INTENT: INTENT, DMG: DMG, FRENZY: FRENZY, EN_MAX: EN_MAX, ROUND_CAP: ROUND_CAP, ENRAGE_AT: ENRAGE_AT,
+    PARTY: PARTY, fillRoles: fillRoles, kitOf: kitOf, raidNew: raidNew, raidResolve: raidResolve, raidBot: raidBot, canUse: canUse, defTarget: defTarget, bossHp: bossHp, rng: rng };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.RaidEngine = api;
 })(typeof window !== "undefined" ? window : this);

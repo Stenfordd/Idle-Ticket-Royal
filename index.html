@@ -4239,7 +4239,7 @@ function buildPayload() {
     loadout: g.loadout, inventory: g.inventory,
     autosellTier: g.autosellTier,
     focusAutogenActive: g.focusAutogenActive, focusAutogenRemaining: g.focusAutogenRemaining,
-    tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy, ot12: g.ot12 || 0, otChest: g.otChest || 0,
+    tutorialDone: g.tutorialDone, slotTokens: g.slotTokens, tokBuy: g.tokBuy, ot12: g.ot12 || 0, otChest: g.otChest || 0, daily: g.daily || null,
     lp: g.lp, lpUp: window.Plant ? {} : g.lpUp, plant: window.Plant ? Plant.payload() : g.plant,
     autoclicker: { charge: ac.charge, avgCps: ac.avgCps, running: ac.running },
     pachinko: g.pachinko, pcPending: g.pcPending, stk: g.stk,
@@ -4410,6 +4410,7 @@ function applyLoaded(l) {
   g.slotTokens = Math.max(0, Math.floor(nv(l.slotTokens, 0)));
   g.tokBuy = Math.max(0, Math.floor(nv(l.tokBuy, 0)));
   g.ot12 = l.ot12 ? 1 : 0; g.otChest = Math.max(0, Math.floor(nv(l.otChest, 0)));
+  g.daily = l.daily && typeof l.daily === "object" && Array.isArray(l.daily.ids) ? l.daily : null;      // v13 daily stand-up
 
   // Legacy Points: starý save dostane zpětně LP za dosažené prestiže
   if (l.lp === undefined) {
@@ -6940,6 +6941,15 @@ html.m #pl-screen { height: var(--app-h, 100%); }
 (function () {
   "use strict";
   const LOG = [
+    { v: "13.0", d: "2026-11-11", i: [
+      "🚨 <b>WAR ROOM - CO-OP RAIDS</b> (High Stakes → War room): 1-4 players against one raid boss, empty seats are filled by temps so you can also go alone. Everybody picks an action at the same time, then the round plays out",
+      "🛡⚔💚 Pick a role each raid: <b>Tank</b> (holds the boss, takes hits for others), <b>DPS</b> (damage, interrupts the big cast, clears adds) or <b>Healer</b> (heals, cleanses, one revive). Your High Stakes class adds one signature ability. Everyone has the same base stats - teamwork wins, not gear",
+      "👹 Three bosses with three phases each: <b>The Reorg</b> (waves of interns), <b>Legacy Monolith</b> (catastrophic casts you must interrupt or brace) and <b>Audit Hydra</b> (poison you have to cleanse). The boss shows what it will do next round, and enrages if you take too long",
+      "🏆 Normal, Heroic (hero LV 30) and Mythic (hero LV 60): XP, GC and a weekly first-clear bonus per boss and difficulty, plus 6 new achievements. Open rooms show up in the War room tab so friends can join",
+      "📋 <b>DAILY STAND-UP</b> (button in the top bar): three small tasks a day for GC, all three give +1 ⏱ Overtime Hour. Keep a streak for up to +100% GC, every 7th day gives +2 extra ⏱",
+      "⚖ Duel and arena balance pass: every class now wins 48-51% against the field (10,000s of simulated duels), healing in PvP is a bit weaker and the Berserker blocks less",
+      "👆 Hold a button to repeat it: opening chests, upgrading the chest, buying scrap and gear upgrades"
+    ] },
     { v: "12.2", d: "2026-11-02", i: [
       "👤 Click a player in the leaderboard for a full card: gear, action bar, talents, tower, pool, Night Shift, weekly boss damage, Overtime Hours and recent achievements",
       "📊 Weekly boss: your first attack of the week adds HP to the boss - the fight now includes it, so you no longer 'kill' a boss that still has millions left. A new attendee adds a bit less HP than before",
@@ -7450,6 +7460,12 @@ html.m #mt-screen { height: var(--app-h, 100%); }
       ["hs_asc2", "🔺", "Ascended", "Prestige High Stakes once", () => Math.max((hs().hsp || 0) + 1, (hs().camp || {}).top || 1) - 1, 1],
       ["hs_asc3", "🔱", "Higher Stakes", "Reach High Stakes prestige 2", () => Math.max((hs().hsp || 0) + 1, (hs().camp || {}).top || 1) - 1, 2],
       ["hs_duel", "⚔", "Duelist", "Win a live duel against a friend", () => cnt("duelWins"), 1],
+      ["rd_first", "🚨", "War Room Regular", "Win a War Room raid", () => cnt("raidWins"), 1],
+      ["rd_ten", "🎖", "Incident Commander", "Win 10 War Room raids", () => cnt("raidWins"), 10],
+      ["rd_heroic", "🔥", "Heroic Response", "Win a Heroic raid", () => cnt("raidHeroic"), 1],
+      ["rd_mythic", "👑", "Mythic Response", "Win a Mythic raid", () => cnt("raidMythic"), 1],
+      ["rd_squad", "🤝", "Actual Teamwork", "Win a raid with at least 3 real players", () => cnt("raidSquad"), 1],
+      ["rd_mvp", "⭐", "Carried", "Be the top damage dealer in a won raid", () => cnt("raidMvp"), 1],
       ["hs_onehit", "👊", "One Punch", "Win a fight in a single turn", () => cnt("oneTurn"), 1],
       ["hs_jackpot", "7️⃣", "Triple Seven", "Hit a 777 jackpot in a fight", () => cnt("jackpots"), 1],
       ["hs_parry", "🛡", "Parry God", "Land 25 parries", () => cnt("parries"), 25],
@@ -8440,7 +8456,7 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
   };
   const CLASS_IDS = ["sysadmin", "cyber", "engineer", "blood", "hunter"];
   /** PvP (aréna, duel): delší boje (HP ×2) a vyrovnání tříd mezi sebou (laděno simulací, každá třída ~50 % proti ostatním) */
-  const PVP = { hp: 3, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 1.03, cyber: 0.91, engineer: 0.86, blood: 1.39, hunter: 1.07 } };   // v12: laděno simem (duel ~11 kol, třídy ~50 %)
+  const PVP = { hp: 3, heal: 0.65, revive: 0.15, wound: 0.5, hpc: {}, blk: { sysadmin: 0.45 }, ctr: 0.5, dmg: { sysadmin: 1.045, cyber: 0.905, engineer: 0.86, blood: 1.385, hunter: 1.085 } };   // v12: laděno simem (duel ~11 kol, třídy ~50 %)
   /** v12: síla tříd v kampani (PvE), laděno simem */
   const PVE = { sysadmin: 1.1, cyber: 1.24, engineer: 1.4, blood: 1.95, hunter: 1.39 };
   const HPK = 0.28, ENEMY_HPM = 6, ENEMY_DMG = 0.82, BASE = 10;
@@ -10152,6 +10168,270 @@ html.fx-off .fx-pop, html.fx-off .fx-win, html.fx-off .fx-loss, html.fx-off .fx-
     WB: WB, worldBoss: worldBoss, mkName: mkName, REF: REF, deceiveOf: deceiveOf };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HSCampaign = api;
+})(typeof window !== "undefined" ? window : this);
+
+/**
+ * WAR ROOM (v13) - co-op raid engine. Čistý JS: běží na serveru (autorita), v klientu (popisky, náhled) a v simulaci (balanc).
+ * Parta má vždy 4 místa: 1-4 hráči, zbytek doplní boti, role TANK / DPS / HEALER, všichni volí akci naráz, pak se kolo vyhodnotí:
+ *   akce hráčů -> telegrafovaný tah bosse -> přisluhovači -> DoTy -> energie, cooldowny, další záměr bosse.
+ * Postavy jsou normalizované (stejné základy pro všechny) - rozhoduje souhra, ne gear. Třída z High Stakes dává 1 podpisovou schopnost.
+ */
+(function (root) {
+  "use strict";
+  function rng(seed) { let a = (seed >>> 0) || 1; return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+  const ROLES = {
+    tank: { n: "Tank", i: "🛡", hp: 170, t: "Soaks the hits. Holds the boss's attention.", kit: ["slam", "guard", "taunt", "cover", "brace"] },
+    dps: { n: "DPS", i: "⚔", hp: 105, t: "Kills the boss. Interrupts the big cast. Clears adds.", kit: ["strike", "burst", "interrupt", "sweep", "brace"] },
+    heal: { n: "Healer", i: "💚", hp: 100, t: "Keeps everyone standing. Cleanses, revives once.", kit: ["smite", "heal", "gheal", "cleanse", "revive", "brace"] }
+  };
+  const EN_MAX = 10, EN_START = 5, EN_ROUND = 3, ROUND_CAP = 18, ENRAGE_AT = 12;
+  // tgt: enemy = boss nebo přisluhovač, ally = živý spoluhráč (i já), dead = mrtvý spoluhráč, none = bez cíle
+  const AB = {
+    brace: { n: "Brace", i: "🧱", cost: 0, cd: 0, tgt: "none", t: "Take 40% less damage this round and gain +1 extra energy." },
+    // tank
+    slam: { n: "Stapler Slam", i: "🔨", cost: 1, cd: 0, tgt: "enemy", t: "12 damage and a lot of threat." },
+    guard: { n: "Shield Wall", i: "🛡", cost: 3, cd: 0, tgt: "none", t: "Take 60% less damage this round. Builds threat." },
+    taunt: { n: "Taunt", i: "📣", cost: 2, cd: 3, tgt: "none", t: "The boss's single-target attacks hit YOU for 2 rounds." },
+    cover: { n: "Take the Blame", i: "🫡", cost: 2, cd: 2, tgt: "ally", t: "This round you take the damage meant for one ally (reduced by 30%)." },
+    // dps
+    strike: { n: "Strike", i: "🗡", cost: 1, cd: 0, tgt: "enemy", t: "14 damage." },
+    burst: { n: "Burst", i: "💥", cost: 5, cd: 0, tgt: "enemy", t: "38 damage." },
+    interrupt: { n: "Escalate", i: "✋", cost: 2, cd: 3, tgt: "none", t: "7 damage. If the boss is CHARGING, the cast is cancelled and the boss is staggered (+25% damage taken next round)." },
+    sweep: { n: "Sweep", i: "🌀", cost: 3, cd: 0, tgt: "none", t: "10 damage to the boss and 16 to every add." },
+    // healer
+    smite: { n: "Smite", i: "✨", cost: 0, cd: 0, tgt: "enemy", t: "7 damage. Free." },
+    heal: { n: "Patch Up", i: "💚", cost: 2, cd: 0, tgt: "ally", t: "Heal one ally for 40." },
+    gheal: { n: "Team Lunch", i: "🥗", cost: 4, cd: 0, tgt: "none", t: "Heal everyone for 20." },
+    cleanse: { n: "Cleanse", i: "🧼", cost: 1, cd: 0, tgt: "ally", t: "Remove every debuff from an ally and heal 12." },
+    revive: { n: "Second Coffee", i: "☕", cost: 5, cd: 0, tgt: "dead", once: true, t: "Once per raid: bring a fallen ally back with 45% HP." },
+    // podpisové schopnosti tříd (cd 5)
+    sig_sysadmin: { n: "Crunch Time", i: "⏰", cost: 2, cd: 5, tgt: "none", sig: "sysadmin", t: "You deal +50% damage and threat this round and the next two." },
+    sig_cyber: { n: "Set It On Fire", i: "🔥", cost: 2, cd: 5, tgt: "none", sig: "cyber", t: "The boss burns for 9 damage a round for 4 rounds." },
+    sig_engineer: { n: "Pivot Table", i: "📊", cost: 1, cd: 5, tgt: "none", sig: "engineer", t: "Everyone else gains +3 energy." },
+    sig_blood: { n: "Espresso Round", i: "☕", cost: 2, cd: 5, tgt: "none", sig: "blood", t: "Everyone heals 14 and gains +1 energy." },
+    sig_hunter: { n: "Mark the Target", i: "🎯", cost: 2, cd: 5, tgt: "none", sig: "hunter", t: "The boss takes +20% damage from everyone for 3 rounds." }
+  };
+  const DIFF = { normal: { n: "Normal", hp: 1, dmg: 1, lvl: 1 }, heroic: { n: "Heroic", hp: 1.25, dmg: 1.2, lvl: 30 }, mythic: { n: "Mythic", hp: 1.5, dmg: 1.4, lvl: 60 } };
+  /** tahy bosse: hit = jeden cíl (nejvyšší threat / taunt), cleave = všichni, charge -> nuke (jde přerušit jen v kole CHARGE),
+   *  debuff = DoT na 1-2 hráče, adds = přisluhovači, mark = těžká rána do ne-tanka */
+  const BOSSES = {
+    reorg: { n: "The Reorg", i: "🧨", hp: 640, t: "Floods the room with interns. Clear the adds or drown.", p: [
+      { hit: 5, adds: 3, cleave: 2 }, { hit: 4, adds: 3, cleave: 3, charge: 2 }, { hit: 3, adds: 3, cleave: 3, charge: 2, mark: 2 }] },
+    monolith: { n: "Legacy Monolith", i: "🗿", hp: 700, t: "Charges catastrophic casts. Interrupt them - or brace.", p: [
+      { hit: 5, charge: 3, cleave: 2 }, { hit: 4, charge: 4, cleave: 2, debuff: 2 }, { hit: 3, charge: 4, cleave: 3, mark: 2 }] },
+    hydra: { n: "Audit Hydra", i: "🐍", hp: 730, t: "Poisons the team with findings. Cleanse them fast.", p: [
+      { hit: 5, debuff: 4, cleave: 1 }, { hit: 4, debuff: 4, cleave: 2, mark: 2 }, { hit: 3, debuff: 4, cleave: 3, charge: 2, adds: 1 }] }
+  };
+  const INTENT = {
+    hit: { n: "Heavy swing", i: "👊", t: "Hits whoever has its attention." },
+    cleave: { n: "Reply-All", i: "📧", t: "Hits everyone." },
+    charge: { n: "CHARGING", i: "⚡", t: "Winding up a catastrophic cast. INTERRUPT it this round!" },
+    nuke: { n: "Meltdown", i: "☢", t: "Massive damage to everyone. Brace!" },
+    debuff: { n: "Findings", i: "☣", t: "Poisons 1-2 of you. Cleanse it." },
+    adds: { n: "Calls for backup", i: "👥", t: "Summons adds that chip at the team every round." },
+    mark: { n: "Performance Review", i: "🎯", t: "A brutal hit on one of the squishier players." },
+    stagger: { n: "Staggered", i: "💫", t: "Interrupted! Does nothing and takes +25% damage." }
+  };
+  const DMG = { hit: 44, cleave: 17, nuke: 56, debuff: 8, dot: 9, add: 7, mark: 50 }, TANK_MIT = 0.62, PARTY = 4, FRENZY = 0.2;
+
+  function kitOf(role, cls) { const k = (ROLES[role] || ROLES.dps).kit.slice(); const s = "sig_" + cls; if (AB[s]) k.splice(k.length - 1, 0, s); return k; }
+  /** role pro boty: doplní, co partě chybí (tank, healer, pak dps) */
+  function fillRoles(have, n) { const out = [], c = { tank: 0, heal: 0, dps: 0 }; have.forEach(r => { c[r] = (c[r] || 0) + 1; }); for (let k = 0; k < n; k++) { const r = !c.tank ? "tank" : !c.heal ? "heal" : "dps"; c[r]++; out.push(r); } return out; }
+  function alive(S) { return S.P.filter(p => !p.dead); }
+  function bossHp(boss, diff) { return Math.round(BOSSES[boss].hp * DIFF[diff].hp); }
+
+  /** players: [{ n, role, cls, bot }] */
+  function raidNew(players, boss, diff, seed) {
+    boss = BOSSES[boss] ? boss : "reorg"; diff = DIFF[diff] ? diff : "normal";
+    const n = players.length, S = { v: 1, boss: boss, diff: diff, seed: (seed >>> 0) || 1, round: 1, over: "", adds: [], addSeq: 0,
+      P: players.map(p => { const role = ROLES[p.role] ? p.role : "dps", hp = ROLES[role].hp; return { n: String(p.n), bot: !!p.bot, role: role, cls: String(p.cls || ""), hp: hp, mhp: hp, en: EN_START, cd: {}, dead: false, thr: role === "tank" ? 20 : 0, dots: 0, rage: 0, rev: false, dmg: 0, healed: 0 }; }),
+      B: { hp: 0, mhp: 0, phase: 0, intent: "hit", tgt: -1, mark: 0, burn: 0, stag: 0 }, taunt: { i: -1, t: 0 } };
+    S.B.mhp = S.B.hp = bossHp(boss, diff);
+    pickIntent(S, rng(S.seed + 17));
+    return S;
+  }
+  function phaseOf(S) { const f = S.B.hp / S.B.mhp; return f > 0.66 ? 0 : f > 0.33 ? 1 : 2; }
+  function topThreat(S, skipTank) {
+    let best = -1, bv = -1;
+    S.P.forEach((p, i) => { if (p.dead) return; if (skipTank && p.role === "tank") return; if (p.thr > bv) { bv = p.thr; best = i; } });
+    return best;
+  }
+  function pickIntent(S, R) {
+    const B = S.B;
+    if (B.next) { B.intent = B.next; B.next = ""; B.tgt = -1; return; }
+    const W = Object.assign({}, BOSSES[S.boss].p[B.phase]);
+    if (S.adds.length >= 2) delete W.adds;
+    if (B.intent === "charge" || B.intent === "nuke" || B.last === "charge") delete W.charge;
+    if (B.intent && W[B.intent] && B.intent !== "hit") W[B.intent] = Math.max(1, W[B.intent] - 2);      // méně opakování
+    if (alive(S).filter(p => p.role !== "tank").length === 0) delete W.mark;
+    let tot = 0; for (const k in W) tot += W[k];
+    let x = R() * tot, pick = "hit"; for (const k in W) { x -= W[k]; if (x <= 0) { pick = k; break; } }
+    B.intent = pick; B.tgt = -1;
+    if (pick === "hit") B.tgt = S.taunt.t > 0 && S.P[S.taunt.i] && !S.P[S.taunt.i].dead ? S.taunt.i : topThreat(S, false);
+    if (pick === "mark") { const c = S.P.map((p, i) => i).filter(i => !S.P[i].dead && S.P[i].role !== "tank"); B.tgt = c.length ? c[Math.floor(R() * c.length)] : topThreat(S, false); }
+  }
+  /** může hráč i použít ab na cíl tgt? vrací "" nebo důvod */
+  function canUse(S, i, ab, tgt) {
+    const p = S.P[i], a = AB[ab]; if (!p || !a) return "unknown";
+    if (S.over) return "over"; if (p.dead) return "dead";
+    if (kitOf(p.role, p.cls).indexOf(ab) < 0) return "kit";
+    if (p.en < a.cost) return "energy";
+    if ((p.cd[ab] || 0) > 0) return "cooldown";
+    if (a.once && p.rev) return "used";
+    if (a.tgt === "ally") { const t = S.P[tgt]; if (!t || t.dead) return "target"; if (ab === "cover" && tgt === i) return "target"; }
+    if (a.tgt === "dead") { const t = S.P[tgt]; if (!t || !t.dead) return "target"; }
+    if (a.tgt === "enemy") { if (tgt !== -1 && !S.adds.some(x => x.id === tgt)) return "target"; }
+    return "";
+  }
+  function defTarget(S, i, ab) {
+    const a = AB[ab];
+    if (a.tgt === "enemy") return -1;
+    if (a.tgt === "dead") return S.P.findIndex(p => p.dead);
+    if (a.tgt === "ally") {
+      let best = -1, bv = 9;
+      S.P.forEach((p, k) => { if (p.dead || (ab === "cover" && k === i)) return; const f = ab === "cleanse" ? (p.dots > 0 ? -1 : 1) + p.hp / p.mhp : p.hp / p.mhp; if (f < bv) { bv = f; best = k; } });
+      if (ab === "cover" && S.B.tgt >= 0 && S.B.tgt !== i && S.P[S.B.tgt] && !S.P[S.B.tgt].dead) return S.B.tgt;
+      return best;
+    }
+    return -1;
+  }
+
+  /** picks: [{ ab, tgt }] pro každého hráče (null = brace). Vrací události pro log/animaci. Mění S. */
+  function raidResolve(S, picks) {
+    if (S.over) return [];
+    const R = rng((S.seed + S.round * 7919) >>> 0), ev = [], B = S.B, D = DIFF[S.diff];
+    const E = (o) => { ev.push(o); };
+    const flags = S.P.map(() => ({ brace: false, guard: false, cover: -1 }));
+    const acts = S.P.map((p, i) => {
+      if (p.dead) return null;
+      let a = picks[i] && AB[picks[i].ab] ? { ab: picks[i].ab, tgt: picks[i].tgt } : { ab: "brace", tgt: -1 };
+      if (a.tgt === undefined || a.tgt === null) a.tgt = defTarget(S, i, a.ab);
+      if (canUse(S, i, a.ab, a.tgt)) a = { ab: "brace", tgt: -1 };
+      return a;
+    });
+    const dmgMul = (p) => (p.rage > 0 ? 1.5 : 1);
+    const hitEnemy = (i, tgt, base, thrMul) => {
+      const p = S.P[i]; let d = Math.round(base * dmgMul(p) * (0.92 + R() * 0.16));
+      if (tgt !== -1) { const ad = S.adds.find(x => x.id === tgt); if (ad) { ad.hp -= d; p.dmg += d; p.thr += d * 0.5; E({ k: "add", by: i, id: ad.id, d: d, dead: ad.hp <= 0 }); return; } }
+      d = Math.round(d * (B.mark > 0 ? 1.2 : 1) * (B.stag > 0 ? 1.25 : 1));
+      B.hp -= d; p.dmg += d; p.thr += d * (thrMul || 1) * (p.role === "tank" ? 3 : 1) * dmgMul(p);
+      E({ k: "dmg", by: i, d: d });
+    };
+    const healP = (by, k, amt) => { const t = S.P[k]; if (!t || t.dead) return; const h = Math.min(t.mhp - t.hp, amt); t.hp += h; S.P[by].healed += h; S.P[by].thr += h * 0.4; if (h > 0) E({ k: "heal", by: by, to: k, h: h }); };
+    // --- 1) akce hráčů (pořadí: obrana, tank, dps, healer)
+    const order = S.P.map((p, i) => i).filter(i => acts[i]).sort((a, b) => ({ tank: 0, dps: 1, heal: 2 }[S.P[a].role] - { tank: 0, dps: 1, heal: 2 }[S.P[b].role]));
+    order.forEach(i => {
+      const p = S.P[i], a = acts[i], A = AB[a.ab];
+      p.en -= A.cost; if (A.cd) p.cd[a.ab] = A.cd + 1; if (A.once) p.rev = true;
+      E({ k: "act", by: i, ab: a.ab, tgt: a.tgt });
+      switch (a.ab) {
+        case "brace": flags[i].brace = true; p.en = Math.min(EN_MAX, p.en + 1); break;
+        case "guard": flags[i].guard = true; p.thr += 18; break;
+        case "taunt": S.taunt = { i: i, t: 2 }; p.thr = Math.max(p.thr, Math.max.apply(null, S.P.map(x => x.thr)) + 25); if (B.intent === "hit" || B.intent === "mark") B.tgt = i; break;
+        case "cover": flags[i].cover = a.tgt; p.thr += 10; break;
+        case "slam": hitEnemy(i, a.tgt, 12, 2.2); break;
+        case "strike": hitEnemy(i, a.tgt, 14); break;
+        case "burst": hitEnemy(i, a.tgt, 38); break;
+        case "smite": hitEnemy(i, a.tgt, 7); break;
+        case "interrupt": hitEnemy(i, -1, 7); if (B.intent === "charge") { B.intent = "stagger"; B.next = ""; B.stag = 2; E({ k: "interrupt", by: i }); } break;
+        case "sweep": hitEnemy(i, -1, 10); S.adds.slice().forEach(ad => hitEnemy(i, ad.id, 16)); break;
+        case "heal": healP(i, a.tgt, 40); break;
+        case "gheal": S.P.forEach((t, k) => healP(i, k, 20)); break;
+        case "cleanse": { const t = S.P[a.tgt]; if (t.dots > 0) { t.dots = 0; E({ k: "cleanse", by: i, to: a.tgt }); } healP(i, a.tgt, 12); break; }
+        case "revive": { const t = S.P[a.tgt]; t.dead = false; t.hp = Math.round(t.mhp * 0.45); t.dots = 0; t.en = Math.max(t.en, 3); E({ k: "revive", by: i, to: a.tgt }); break; }
+        case "sig_sysadmin": p.rage = 3; break;
+        case "sig_cyber": B.burn = 4; break;
+        case "sig_engineer": S.P.forEach((t, k) => { if (k !== i && !t.dead) t.en = Math.min(EN_MAX, t.en + 3); }); break;
+        case "sig_blood": S.P.forEach((t, k) => { healP(i, k, 14); if (!t.dead) t.en = Math.min(EN_MAX, t.en + 1); }); break;
+        case "sig_hunter": B.mark = 4; break;
+      }
+    });
+    S.adds = S.adds.filter(a => a.hp > 0);
+    if (B.hp <= 0) { B.hp = 0; S.over = "win"; E({ k: "win" }); return ev; }
+    // --- 2) tah bosse
+    const enr = S.round >= ENRAGE_AT ? 1 + 0.18 * (S.round - ENRAGE_AT + 1) : 1; let M = D.dmg * enr * (1 + 0.1 * B.phase) * (1 + FRENZY * (B.fz || 0));
+    const hurt = (k, base, why) => {
+      let t = S.P[k]; if (!t || t.dead) return;
+      let d = base * M * (0.92 + R() * 0.16), to = k;
+      const cv = flags.findIndex((f, j) => f.cover === k && !S.P[j].dead && j !== k);
+      if (cv >= 0) { to = cv; t = S.P[cv]; d *= 0.7; }
+      if (flags[to].guard) d *= 0.4; else if (flags[to].brace) d *= 0.6;
+      if (t.role === "tank") d *= TANK_MIT;
+      d = Math.round(d); t.hp -= d;
+      E({ k: "hurt", to: to, d: d, why: why, cover: cv >= 0 ? k : -1 });
+      // v13: rána do ne-tanka, kterou nikdo nekryl a necítil ji štít = boss cítí krev (trvale silnější)
+      if ((why === "hit" || why === "mark") && t.role !== "tank" && !flags[to].guard && !flags[to].brace) { B.fz = (B.fz || 0) + 1; M *= (1 + FRENZY * B.fz) / (1 + FRENZY * (B.fz - 1)); E({ k: "frenzy", n: B.fz }); }
+      if (t.hp <= 0) { t.hp = 0; t.dead = true; t.dots = 0; t.thr = 0; E({ k: "down", to: to }); if (S.taunt.i === to) S.taunt.t = 0; }
+    };
+    const it = B.intent; E({ k: "boss", it: it, tgt: B.tgt });
+    if (it === "hit") { let t = B.tgt; if (t < 0 || !S.P[t] || S.P[t].dead) t = topThreat(S, false); hurt(t, DMG.hit, "hit"); }
+    else if (it === "mark") { let t = S.taunt.t > 0 && S.P[S.taunt.i] && !S.P[S.taunt.i].dead ? S.taunt.i : B.tgt; if (t < 0 || !S.P[t] || S.P[t].dead) t = topThreat(S, false); hurt(t, DMG.mark, "mark"); }
+    else if (it === "cleave") S.P.forEach((p, k) => hurt(k, DMG.cleave, "cleave"));
+    else if (it === "nuke") S.P.forEach((p, k) => hurt(k, DMG.nuke, "nuke"));
+    else if (it === "charge") B.next = "nuke";
+    else if (it === "debuff") { const c = S.P.map((p, i) => i).filter(i => !S.P[i].dead); const n = Math.min(c.length, 1 + (R() < 0.55 ? 1 : 0)); for (let q = 0; q < n; q++) { const k = c.splice(Math.floor(R() * c.length), 1)[0]; hurt(k, DMG.debuff, "debuff"); if (!S.P[k].dead) { S.P[k].dots = 4; E({ k: "dot", to: k }); } } }
+    else if (it === "adds") { const n = Math.min(3 - S.adds.length, 2); for (let q = 0; q < n; q++) { const hp = Math.round(26 * D.hp); S.adds.push({ id: ++S.addSeq, hp: hp, mhp: hp }); } E({ k: "adds", n: n }); }
+    // --- 3) přisluhovači + DoTy + hoření bosse
+    S.adds.forEach(ad => { const c = S.P.map((p, i) => i).filter(i => !S.P[i].dead); if (c.length) hurt(c[Math.floor(R() * c.length)], DMG.add, "add"); });
+    S.P.forEach((p, k) => { if (!p.dead && p.dots > 0) { const d = Math.round(DMG.dot * D.dmg); p.hp -= d; p.dots--; E({ k: "tick", to: k, d: d }); if (p.hp <= 0) { p.hp = 0; p.dead = true; p.dots = 0; p.thr = 0; E({ k: "down", to: k }); } } });
+    if (B.burn > 0) { const d = Math.round(9 * (B.mark > 0 ? 1.2 : 1)); B.hp -= d; B.burn--; E({ k: "burn", d: d }); const src = S.P.find(p => p.cls === "cyber"); if (src) src.dmg += d; }
+    if (B.hp <= 0) { B.hp = 0; S.over = "win"; E({ k: "win" }); return ev; }
+    if (!alive(S).length) { S.over = "wipe"; E({ k: "wipe" }); return ev; }
+    // --- 4) konec kola
+    S.P.forEach(p => { if (p.dead) return; p.en = Math.min(EN_MAX, p.en + EN_ROUND); for (const k in p.cd) if (p.cd[k] > 0) p.cd[k]--; if (p.rage > 0) p.rage--; p.thr *= 0.9; });
+    if (B.mark > 0) B.mark--; if (B.stag > 0) B.stag--; if (S.taunt.t > 0) S.taunt.t--;
+    const ph = phaseOf(S); if (ph > B.phase) { B.phase = ph; E({ k: "phase", p: ph }); }
+    B.last = it; S.round++;
+    if (S.round > ROUND_CAP) { S.over = "wipe"; E({ k: "wipe", why: "time" }); return ev; }
+    if (S.round === ENRAGE_AT) E({ k: "enrage" });
+    pickIntent(S, R);
+    return ev;
+  }
+
+  /** jednoduchá AI pro boty a pro hráče, kteří nestihli zvolit */
+  function raidBot(S, i) {
+    const p = S.P[i], B = S.B; if (!p || p.dead) return null;
+    const ok = (ab, tgt) => !canUse(S, i, ab, tgt === undefined ? defTarget(S, i, ab) : tgt);
+    const use = (ab, tgt) => ({ ab: ab, tgt: tgt === undefined ? defTarget(S, i, ab) : tgt });
+    const sig = "sig_" + p.cls, weak = S.adds.length ? S.adds.slice().sort((a, b) => a.hp - b.hp)[0].id : -1;
+    const hurtP = S.P.filter(x => !x.dead && x.hp / x.mhp < 0.55).length, low = S.P.map((x, k) => k).filter(k => !S.P[k].dead).sort((a, b) => S.P[a].hp / S.P[a].mhp - S.P[b].hp / S.P[b].mhp)[0];
+    if (B.intent === "nuke" && p.role !== "heal") return ok("guard") ? use("guard") : use("brace");
+    if (p.role === "tank") {
+      if (S.taunt.t <= 0 && ok("taunt")) return use("taunt");
+      if (B.intent === "mark" && B.tgt !== i && S.taunt.i !== i && ok("cover", B.tgt)) return use("cover", B.tgt);
+      if ((B.intent === "hit" || B.intent === "mark") && ok("guard") && p.hp / p.mhp < 0.75) return use("guard");
+      if (ok(sig) && B.intent !== "hit") return use(sig);
+      return ok("slam", -1) ? use("slam", -1) : use("brace");
+    }
+    if (p.role === "dps") {
+      if (B.intent === "charge" && ok("interrupt")) return use("interrupt");
+      if (B.intent === "mark" && B.tgt === i && S.taunt.t <= 0 && p.hp / p.mhp < 0.7) return use("brace");
+      if (ok(sig) && B.intent !== "charge") return use(sig);
+      if (S.adds.length >= 2 && ok("sweep")) return use("sweep");
+      if (S.adds.length === 1 && ok("strike", weak)) return use("strike", weak);
+      if (B.intent === "stagger" && ok("burst", -1)) return use("burst", -1);
+      if (p.en >= 7 && ok("burst", -1)) return use("burst", -1);
+      return ok("strike", -1) ? use("strike", -1) : use("brace");
+    }
+    // healer
+    const dead = S.P.findIndex(x => x.dead);
+    if (dead >= 0 && ok("revive", dead)) return use("revive", dead);
+    if (B.intent === "nuke") return hurtP >= 1 && ok("gheal") ? use("gheal") : use("brace");
+    const dot = S.P.findIndex(x => !x.dead && x.dots > 0);
+    if (S.P.filter(x => !x.dead && x.hp / x.mhp < 0.7).length >= 2 && ok("gheal")) return use("gheal");
+    if (low !== undefined && S.P[low].hp / S.P[low].mhp < 0.6 && ok("heal", low)) return use("heal", low);
+    if (dot >= 0 && ok("cleanse", dot)) return use("cleanse", dot);
+    if (ok(sig) && (p.cls !== "blood" || hurtP >= 1)) return use(sig);
+    if (B.intent === "cleave" && p.hp / p.mhp < 0.5) return use("brace");
+    return use("smite", weak >= 0 && S.adds.length >= 2 ? weak : -1);
+  }
+
+  const api = { ROLES: ROLES, AB: AB, DIFF: DIFF, BOSSES: BOSSES, INTENT: INTENT, DMG: DMG, FRENZY: FRENZY, EN_MAX: EN_MAX, ROUND_CAP: ROUND_CAP, ENRAGE_AT: ENRAGE_AT,
+    PARTY: PARTY, fillRoles: fillRoles, kitOf: kitOf, raidNew: raidNew, raidResolve: raidResolve, raidBot: raidBot, canUse: canUse, defTarget: defTarget, bossHp: bossHp, rng: rng };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.RaidEngine = api;
 })(typeof window !== "undefined" ? window : this);
 
 </script>
@@ -14442,6 +14722,275 @@ html.m #dg-open-btn { display: none; }
 })();
 </script>
 <style>
+/* ===== v13 WAR ROOM - co-op raid ===== */
+.rd { --rd-red: #ff4d6d; --rd-amber: #fbbf24; --rd-cy: #67e8f9; --rd-green: #4ade80; font-family: 'Space Grotesk', system-ui, sans-serif; }
+.rd h3 { margin: 0 0 4px; font-size: 16px; }
+.rd-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
+.rd-pick { text-align: left; padding: 10px; border-radius: 10px; background: #0f1218; border: 1px solid rgba(255,255,255,.1); color: var(--text-main); cursor: pointer; font: inherit; }
+.rd-pick b { display: block; font-size: 14px; } .rd-pick small { display: block; font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.35; }
+.rd-pick.on { border-color: var(--rd-cy); box-shadow: inset 0 0 0 1px var(--rd-cy), 0 0 14px -4px var(--rd-cy); }
+.rd-pick:disabled { opacity: .4; cursor: not-allowed; }
+.rd-pick:focus-visible, .rd-ab:focus-visible, .rd-p:focus-visible { outline: 2px solid var(--rd-cy); outline-offset: 2px; }
+.rd-seats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.rd-seat { padding: 10px; border-radius: 10px; background: #0f1218; border: 1px dashed rgba(255,255,255,.14); min-height: 78px; font-size: 12px; }
+.rd-seat.full { border-style: solid; } .rd-seat b { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-seat .r { color: var(--rd-cy); font-weight: 600; } .rd-seat.bot { opacity: .6; }
+.rd-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+/* boss */
+.rd-boss { position: relative; padding: 12px 14px; border-radius: 14px; background: radial-gradient(120% 160% at 50% 0%, #2a0d16 0%, #0d0a10 70%); border: 1px solid rgba(255,77,109,.35); overflow: hidden; }
+.rd-boss.p1 { border-color: rgba(251,191,36,.5); } .rd-boss.p2 { border-color: #ff1744; box-shadow: 0 0 26px -6px #ff1744; }
+.rd-bh { display: flex; align-items: center; gap: 10px; }
+.rd-bi { font-size: 40px; line-height: 1; filter: drop-shadow(0 0 10px rgba(255,77,109,.6)); }
+.rd-boss.hit .rd-bi { animation: rdShake .3s; } @keyframes rdShake { 25% { transform: translateX(-5px) rotate(-6deg); } 75% { transform: translateX(5px) rotate(6deg); } }
+.rd-bn { flex: 1; min-width: 0; } .rd-bn b { font-size: 17px; } .rd-bn small { display: block; font-size: 11px; color: var(--text-dim); }
+.rd-hp { position: relative; height: 16px; border-radius: 8px; background: #000; overflow: hidden; margin-top: 8px; }
+.rd-hp > i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #7f1d1d, var(--rd-red)); transition: width .5s cubic-bezier(.2,.8,.2,1); }
+.rd-hp > u { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,.55); }
+.rd-hp > span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px #000; }
+.rd-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; min-height: 20px; }
+.rd-tag { font-size: 10.5px; padding: 2px 7px; border-radius: 99px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); white-space: nowrap; }
+.rd-tag.bad { border-color: var(--rd-red); color: #fecdd3; } .rd-tag.good { border-color: var(--rd-green); color: #bbf7d0; }
+.rd-add { cursor: default; } .rd-add.tg { cursor: pointer; border-color: var(--rd-amber); box-shadow: 0 0 10px -2px var(--rd-amber); }
+.rd-intent { margin-top: 10px; display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,.45); border-left: 4px solid var(--rd-amber); }
+.rd-intent.charge { border-left-color: #fff; animation: rdPulse .7s ease-in-out infinite alternate; } .rd-intent.nuke { border-left-color: #ff1744; }
+@keyframes rdPulse { from { box-shadow: 0 0 0 0 rgba(255,255,255,.0); } to { box-shadow: 0 0 22px -2px rgba(255,255,255,.55); } }
+.rd-intent .ii { font-size: 26px; } .rd-intent b { font-size: 13px; } .rd-intent small { display: block; font-size: 11.5px; color: var(--text-dim); }
+.rd-intent .lbl { font-size: 10px; color: var(--rd-amber); font-weight: 700; }
+.rd-boss.tg { cursor: pointer; box-shadow: 0 0 0 2px var(--rd-amber), 0 0 20px -4px var(--rd-amber); }
+/* parta */
+.rd-party { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.rd-p { position: relative; padding: 8px; border-radius: 12px; background: #0f1218; border: 1px solid rgba(255,255,255,.1); text-align: left; color: var(--text-main); font: inherit; min-width: 0; }
+.rd-p.me { border-color: rgba(103,232,249,.55); } .rd-p.dead { opacity: .45; filter: grayscale(1); }
+.rd-p.tg { cursor: pointer; box-shadow: 0 0 0 2px var(--rd-green), 0 0 16px -4px var(--rd-green); }
+.rd-p.aim { box-shadow: 0 0 0 2px var(--rd-red); }
+.rd-p.flash { animation: rdFlash .35s; } @keyframes rdFlash { 0% { background: #3b0d17; } 100% { background: #0f1218; } }
+.rd-p.glow { animation: rdGlow .5s; } @keyframes rdGlow { 0% { background: #0d3320; } 100% { background: #0f1218; } }
+.rd-pn { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; } .rd-pn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.rd-pn em { font-style: normal; margin-left: auto; font-size: 12px; }
+.rd-fig { height: 64px; display: flex; justify-content: center; } .rd-fig .rig, .rd-fig svg { height: 100%; width: auto; }
+.rd-bar { height: 8px; border-radius: 4px; background: #000; overflow: hidden; margin-top: 5px; } .rd-bar i { display: block; height: 100%; background: linear-gradient(90deg, #15803d, var(--rd-green)); transition: width .45s; }
+.rd-bar.low i { background: linear-gradient(90deg, #991b1b, var(--rd-red)); }
+.rd-en { display: flex; gap: 2px; margin-top: 4px; } .rd-en i { flex: 1; height: 4px; border-radius: 2px; background: #1e293b; } .rd-en i.on { background: var(--rd-cy); }
+.rd-sub { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-dim); margin-top: 3px; }
+.rd-fl { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-weight: 800; font-size: 16px; pointer-events: none; animation: rdUp .9s ease-out forwards; text-shadow: 0 1px 3px #000; z-index: 3; white-space: nowrap; }
+@keyframes rdUp { to { transform: translate(-50%, -34px); opacity: 0; } }
+/* akce */
+.rd-turn { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; margin-top: 6px; }
+.rd-timer { height: 5px; background: #000; border-radius: 3px; overflow: hidden; margin: 4px 0 8px; } .rd-timer div { height: 100%; background: linear-gradient(90deg, var(--rd-red), var(--rd-amber)); transition: width .25s linear; }
+.rd-abs { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 6px; }
+.rd-ab { position: relative; padding: 8px 8px 7px; border-radius: 10px; background: #131824; border: 1px solid rgba(255,255,255,.12); color: var(--text-main); font: inherit; text-align: left; cursor: pointer; }
+.rd-ab b { display: block; font-size: 12.5px; } .rd-ab small { font-size: 10.5px; color: var(--text-dim); }
+.rd-ab.sel { border-color: var(--rd-amber); box-shadow: 0 0 12px -3px var(--rd-amber); } .rd-ab.locked { border-color: var(--rd-green); box-shadow: inset 0 0 0 1px var(--rd-green); }
+.rd-ab.sig { background: linear-gradient(180deg, #1c1630, #131824); } .rd-ab:disabled { opacity: .38; cursor: not-allowed; }
+.rd-hint { font-size: 12px; color: var(--rd-amber); min-height: 18px; margin-top: 6px; }
+.rd-log { margin-top: 10px; max-height: 150px; overflow: auto; font: 11.5px/1.5 'IBM Plex Mono', ui-monospace, monospace; background: rgba(0,0,0,.35); border-radius: 8px; padding: 8px; color: #cbd5e1; white-space: pre-wrap; }
+.rd-end { text-align: center; padding: 18px 10px; } .rd-end h2 { font-size: 26px; margin: 0 0 6px; }
+.rd-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 10px 0; } .rd-table td, .rd-table th { padding: 4px 6px; text-align: right; border-bottom: 1px solid rgba(255,255,255,.07); } .rd-table td:first-child, .rd-table th:first-child { text-align: left; }
+@media (max-width: 640px) { .rd-grid { grid-template-columns: 1fr; } .rd-seats, .rd-party { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rd-fig { height: 48px; } }
+@media (prefers-reduced-motion: reduce) { .rd * { animation: none !important; transition: none !important; } }
+</style>
+<script>
+(function () {
+  "use strict";
+  const A = window.HS_API, E = window.RaidEngine, C = window.HSCampaign, H = window.HSEngine;
+  if (!A || !E) return;
+  const $ = (id) => document.getElementById(id), esc = (t) => escapeHtml(String(t == null ? "" : t)), fmt = (n) => Math.floor(n).toLocaleString();
+  const K = { id: "", rev: -1, view: null, list: null, listAt: 0, pollT: 0, recvAt: 0, seq: 0, sel: "", msg: "", boss: "reorg", diff: "normal", role: "dps", priv: false, busy: false, sig: "" };
+  const me = () => gameState.ldap, onTab = () => A.isOpen() && A.view() === "raid";
+  function run(fn, args) { return new Promise((ok, bad) => { google.script.run.withSuccessHandler(ok).withFailureHandler(bad)[fn].apply(null, args || []); }); }
+  function say(t) { K.msg = t || ""; draw(true); }
+  const WHY = { noclass: "Pick a class in High Stakes first.", level: "Your level is too low for this difficulty.", already: "You're already in a war room.", full: "No room left.", gone: "That war room is gone.", host: "Only the host can do that.",
+    energy: "Not enough energy.", cooldown: "Still on cooldown.", target: "Pick a valid target.", used: "Already used this raid.", dead: "You're down - wait for a revive." };
+
+  // ---------------------------------------------------------------- odměny
+  const DM = { normal: 2, heroic: 4, mythic: 8 }, OT = { normal: 1, heroic: 2, mythic: 3 };
+  function takePay(pay) {
+    (pay || []).forEach(p => {
+      const L = A.HS().level || 1, lines = [], B = E.BOSSES[p.boss] || { n: "the boss" }, D = E.DIFF[p.diff] || E.DIFF.normal;
+      if (p.why === "WIN") {
+        const k = DM[p.diff] || 2, f = p.first ? 1 : 0.3, gc = Math.round(C.gcAt(L, "boss") * k * f * (p.mvp ? 1.1 : 1)), xp = Math.round(C.xpAt(L, "boss") * k * 0.5 * f);
+        gameState.coins += gc; lines.push(`+${fmt(gc)} GC`); A.gainXp(xp, lines); lines.unshift(`+${fmt(xp)} XP`);
+        if (p.first) { const ot = OT[p.diff] || 1; gameState.slotTokens = (gameState.slotTokens || 0) + ot; lines.push(`+${ot} ⏱ Overtime Hour${ot > 1 ? "s" : ""}`); for (let i = 0; i < (OT[p.diff] || 1); i++) A.dropItem(lines, L + 2 * i); }
+        if (p.mvp) lines.push("⭐ top damage");
+        if (window.Meta && Meta.count) { Meta.count("raidWins", 1); if (p.diff === "heroic") Meta.count("raidHeroic", 1); if (p.diff === "mythic") Meta.count("raidMythic", 1); if (p.humans >= 3) Meta.count("raidSquad", 1); if (p.mvp) Meta.count("raidMvp", 1); }
+        log(`🏆 WAR ROOM: ${esc(B.n)} (${D.n}) down in ${p.rounds} rounds - ${lines.join(", ")}${p.first ? "" : " (weekly bonus already claimed)"}`, "special");
+        K.loot = { win: true, lines: lines, first: p.first };
+      } else {
+        const xp = Math.round(C.xpAt(L, "boss") * 0.25 * (p.pct || 0) / 100); if (xp) A.gainXp(xp, lines);
+        log(`☠ WAR ROOM: wiped on ${esc(B.n)} at ${100 - (p.pct || 0)}% HP${xp ? " - +" + fmt(xp) + " XP for the effort" : ""}`, "warning");
+        K.loot = { win: false, lines: xp ? [`+${fmt(xp)} XP for the effort`] : [] };
+      }
+    });
+    if (pay && pay.length) { updateUI(); TT.saveSoon(); if (onTab()) draw(true); }
+  }
+
+  // ---------------------------------------------------------------- síť
+  async function loadList() {
+    if (K.listBusy) return; K.listBusy = true;
+    try { const r = await run("rdList", []); K.listAt = Date.now(); if (r && r.ok) { K.list = r; takePay(r.pay); if (r.mine && !K.id) { K.id = r.mine; K.rev = -1; poll(); } } }
+    catch (e) { K.list = K.list || { tables: [], week: {} }; }
+    finally { K.listBusy = false; }
+    if (onTab()) draw();
+  }
+  async function poll() {
+    clearTimeout(K.pollT); if (!K.id) return;
+    try {
+      const r = await run("rdPoll", [K.id, K.rev]);
+      if (r && r.ok) { takePay(r.pay);
+        if (r.gone) { K.id = ""; K.view = null; K.rev = -1; K.sel = ""; loadList(); if (onTab()) draw(true); return; }
+        if (r.view) apply(r.view); else if (r.same && K.view) { K.view.left = r.left; K.recvAt = Date.now(); } }
+    } catch (e) {}
+    if (K.id) K.pollT = setTimeout(poll, onTab() ? (K.view && K.view.status === "play" ? 1100 : 2000) : 5000);
+  }
+  function apply(v) {
+    const prev = K.view; K.view = v; K.rev = v.rev; K.recvAt = Date.now();
+    if (prev && prev.S && v.S && prev.S.round !== v.S.round) K.sel = "";
+    if (v.status === "play" && v.you >= 0 && !v.pick && v.S && !v.S.P[v.you].dead && !onTab() && K.ping !== v.S.round) { K.ping = v.S.round; log("🚨 WAR ROOM: round " + v.S.round + " - your team is waiting for you!", "special"); }
+    if (onTab()) { draw(true); if (v.evSeq !== K.seq && prev) { K.seq = v.evSeq; play(v); } else K.seq = v.evSeq; } else K.seq = v.evSeq;
+  }
+  async function act(fn, args, quiet) {
+    if (K.busy) return null; K.busy = true;
+    try { const r = await run(fn, args); if (r && r.view) apply(r.view); if (r && !r.ok && !quiet) say(WHY[r.reason] || "That didn't work (" + r.reason + ")."); return r; }
+    catch (e) { say("Server is busy - try again."); return null; }
+    finally { K.busy = false; }
+  }
+  async function create(solo) { const r = await act("rdCreate", [K.boss, K.diff, K.role, solo || K.priv]); if (r && r.ok) { K.id = r.id; K.rev = -1; K.msg = ""; if (solo) await act("rdStart", [K.id]); poll(); } }
+  async function join(id) { const r = await act("rdJoin", [id, K.role]); if (r && r.ok) { K.id = id; K.rev = -1; K.msg = ""; poll(); } }
+  async function start() { const r = await act("rdStart", [K.id]); if (r && r.ok) poll(); }
+  async function setRole(role) { K.role = role; if (K.id && K.view && K.view.status === "lobby") { await act("rdSet", [K.id, role, "", ""]); poll(); } else draw(true); }
+  async function setBoss(b) { K.boss = b; if (K.id && K.view && K.view.status === "lobby" && K.view.host === me()) { await act("rdSet", [K.id, "", b, ""]); poll(); } else draw(true); }
+  async function setDiff(d) { K.diff = d; if (K.id && K.view && K.view.status === "lobby" && K.view.host === me()) { await act("rdSet", [K.id, "", "", d]); poll(); } else draw(true); }
+  async function leave() {
+    const v = K.view; if (v && v.status === "play" && !confirm("Leave the raid? A temp will take your seat and you get no reward.")) return;
+    const id = K.id; K.id = ""; K.view = null; K.rev = -1; K.sel = ""; K.loot = null; clearTimeout(K.pollT);
+    try { await run("rdLeave", [id]); } catch (e) {}
+    K.list = null; loadList(); draw(true);
+  }
+  // ---------------------------------------------------------------- volba akce
+  function ab(id) {
+    const v = K.view; if (!v || v.status !== "play" || v.you < 0) return;
+    const a = E.AB[id], S = v.S; if (!a) return;
+    if (a.tgt === "none") return send(id, -1);
+    if (a.tgt === "enemy" && !S.adds.length) return send(id, -1);
+    if (a.tgt === "dead") { const d = S.P.map((p, i) => i).filter(i => S.P[i].dead); if (d.length === 1) return send(id, d[0]); }
+    K.sel = K.sel === id ? "" : id; draw(true);
+  }
+  function tgt(i) { if (!K.sel) return; const id = K.sel; K.sel = ""; send(id, i); }
+  async function send(id, t) { K.sel = ""; const r = await act("rdMove", [K.id, id, t]); if (r && r.ok) K.msg = ""; poll(); }
+
+  // ---------------------------------------------------------------- kreslení
+  function fig(cls) { try { return window.HSRig ? HSRig.player(cls, null) : A.classSprite(cls); } catch (e) { return ""; } }
+  function pickers(v) {
+    const lob = v && v.status === "lobby", host = !lob || v.host === me(), L = A.HS().level || 1, boss = lob ? v.boss : K.boss, diff = lob ? v.diff : K.diff;
+    const myRole = lob && v.you >= 0 ? v.seats[v.you].role : K.role, wk = (K.list && K.list.week) || {};
+    return `<div class="dg-dim" style="font-size:11px;margin-top:8px;">YOUR ROLE</div><div class="rd-grid">${Object.keys(E.ROLES).map(r => `<button class="rd-pick ${myRole === r ? "on" : ""}" onclick="HSRaid.role('${r}')"><b>${E.ROLES[r].i} ${E.ROLES[r].n}</b><small>${E.ROLES[r].t}</small></button>`).join("")}</div>
+      <div class="dg-dim" style="font-size:11px;">BOSS${host ? "" : " (host picks)"}</div><div class="rd-grid">${Object.keys(E.BOSSES).map(b => `<button class="rd-pick ${boss === b ? "on" : ""}" ${host ? "" : "disabled"} onclick="HSRaid.boss('${b}')"><b>${E.BOSSES[b].i} ${E.BOSSES[b].n}</b><small>${E.BOSSES[b].t}</small></button>`).join("")}</div>
+      <div class="dg-dim" style="font-size:11px;">DIFFICULTY</div><div class="rd-grid">${Object.keys(E.DIFF).map(d => { const D = E.DIFF[d], lk = L < D.lvl, done = wk[d + ":" + boss]; return `<button class="rd-pick ${diff === d ? "on" : ""}" ${host && !lk ? "" : "disabled"} onclick="HSRaid.diff('${d}')"><b>${D.n}${lk ? " 🔒" : ""}</b><small>${lk ? "Needs hero level " + D.lvl : `Loot ×${DM[d]} · first clear this week: +${OT[d]} ⏱ and ${OT[d]} gear drop${OT[d] > 1 ? "s" : ""}${done ? " ✅ claimed" : ""}`}</small></button>`; }).join("")}</div>`;
+  }
+  function lobbyHtml(v) {
+    const fill = E.fillRoles(v.seats.map(s => s.role), E.PARTY - v.seats.length), host = v.host === me();
+    const seats = v.seats.map(s => `<div class="rd-seat full"><b>${esc(window.Nick ? Nick.of(s.n) : s.n)}${s.n === v.host ? " 👑" : ""}</b><span class="r">${E.ROLES[s.role].i} ${E.ROLES[s.role].n}</span><br><span class="dg-dim">${esc((H.CLASSES[s.cls] || {}).name || "")} · LV ${s.lv}</span></div>`)
+      .concat(fill.map(r => `<div class="rd-seat bot"><b>🤖 Open seat</b><span class="r">${E.ROLES[r].i} ${E.ROLES[r].n}</span><br><span class="dg-dim">a temp fills in if nobody joins</span></div>`)).join("");
+    return `<h3>🚨 War room - ${esc(E.BOSSES[v.boss].n)} · ${E.DIFF[v.diff].n}</h3><div class="dg-dim">${v.priv ? "Private room." : "Open room - friends can join from this tab."} Empty seats are filled by temps when the host starts.</div>
+      <div class="rd-seats">${seats}</div>${pickers(v)}
+      <div class="rd-row">${host ? `<button class="btn btn-gold" onclick="HSRaid.start()">▶ START THE RAID</button>` : `<span class="dg-dim">Waiting for ${esc(v.host)} to start...</span>`}<button class="btn" onclick="HSRaid.leave()">${host ? "Close room" : "Leave"}</button></div>`;
+  }
+  function listHtml() {
+    const L = K.list, ts = (L && L.tables) || [];
+    return `<h3>🚨 War Room - co-op raid</h3><div class="dg-dim" style="font-size:12.5px;line-height:1.5;">Four seats, one boss. Everyone picks an action at the same time, then the round plays out. The boss always shows what it's about to do - <b>interrupt</b> its charge, <b>taunt</b> its swings onto the tank, <b>cleanse</b> the poison, <b>brace</b> for what you can't stop. Heroes are equalised here: teamwork wins, not gear. Seats nobody takes are filled by temps, so you can raid alone too.</div>
+      ${ts.length ? `<div class="dg-dim" style="font-size:11px;margin-top:10px;">OPEN ROOMS</div>` + ts.map(t => `<div class="rd-row" style="padding:8px 10px;border-radius:10px;background:#0f1218;border:1px solid rgba(103,232,249,.3);"><span style="flex:1;min-width:0;"><b>${E.BOSSES[t.boss].i} ${esc(E.BOSSES[t.boss].n)}</b> · ${E.DIFF[t.diff].n} · host ${esc(t.host)}<br><span class="dg-dim">${t.seats.map(s => E.ROLES[s.role].i + " " + esc(s.n)).join(" · ")} · ${t.seats.length}/${E.PARTY}</span></span><button class="btn btn-cyan" onclick="HSRaid.join('${t.id}')">Join as ${E.ROLES[K.role].n}</button></div>`).join("") : ""}
+      ${pickers(null)}
+      <div class="rd-row"><button class="btn btn-gold" onclick="HSRaid.create(false)">Open a room for friends</button><button class="btn btn-cyan" onclick="HSRaid.create(true)">▶ Start now with temps</button><button class="btn" onclick="HSRaid.refresh()">↻</button></div>`;
+  }
+  function tags(S) {
+    const B = S.B, t = [];
+    if (B.stag > 0) t.push(`<span class="rd-tag good">💫 Staggered +25% dmg</span>`);
+    if (B.mark > 0) t.push(`<span class="rd-tag good">🎯 Marked +20% (${B.mark})</span>`);
+    if (B.burn > 0) t.push(`<span class="rd-tag good">🔥 Burning (${B.burn})</span>`);
+    if (B.fz > 0) t.push(`<span class="rd-tag bad" title="Every unprotected hit on a non-tank makes the boss stronger for good">🩸 Frenzy ×${B.fz} (+${Math.round(B.fz * E.FRENZY * 100)}% dmg)</span>`);
+    if (S.round >= E.ENRAGE_AT) t.push(`<span class="rd-tag bad">😡 Enraged</span>`);
+    else t.push(`<span class="rd-tag">Enrage in ${E.ENRAGE_AT - S.round} round${E.ENRAGE_AT - S.round === 1 ? "" : "s"}</span>`);
+    if (S.taunt.t > 0 && S.P[S.taunt.i]) t.push(`<span class="rd-tag">📣 Taunted by ${esc(S.P[S.taunt.i].n)} (${S.taunt.t})</span>`);
+    return t.join("");
+  }
+  function playHtml(v) {
+    const S = v.S, B = S.B, bo = E.BOSSES[S.boss], it = E.INTENT[B.intent] || E.INTENT.hit, you = v.you, mine = you >= 0 ? S.P[you] : null, sel = K.sel ? E.AB[K.sel] : null;
+    const tgN = B.tgt >= 0 && S.P[B.tgt] ? S.P[B.tgt].n : "";
+    const adds = S.adds.map(a => `<span class="rd-tag rd-add ${sel && sel.tgt === "enemy" ? "tg" : ""}" ${sel && sel.tgt === "enemy" ? `onclick="HSRaid.tgt(${a.id})" role="button" tabindex="0"` : ""}>👤 Add ${a.id} · ${a.hp}/${a.mhp}</span>`).join("");
+    const party = S.P.map((p, i) => {
+      const can = sel && ((sel.tgt === "ally" && !p.dead && !(K.sel === "cover" && i === you)) || (sel.tgt === "dead" && p.dead)), f = p.hp / p.mhp;
+      return `<button class="rd-p ${i === you ? "me" : ""} ${p.dead ? "dead" : ""} ${can ? "tg" : ""} ${B.tgt === i && (B.intent === "hit" || B.intent === "mark") ? "aim" : ""}" id="rd-p${i}" ${can ? `onclick="HSRaid.tgt(${i})"` : "tabindex=\"-1\""}>
+        <div class="rd-pn"><span>${E.ROLES[p.role].i} ${esc(p.bot ? p.n : (window.Nick ? Nick.of(p.n) : p.n))}</span><em>${p.dead ? "💀" : v.locked[i] || p.bot ? "✅" : "⏳"}</em></div>
+        <div class="rd-fig">${fig(p.cls)}</div>
+        <div class="rd-bar ${f < 0.35 ? "low" : ""}"><i style="width:${Math.max(0, f * 100)}%"></i></div>
+        <div class="rd-sub"><span>${p.hp}/${p.mhp}</span><span>${p.dots > 0 ? "☣" + p.dots + " " : ""}${p.rage > 0 ? "⏰" + p.rage + " " : ""}${B.tgt === i && (B.intent === "hit" || B.intent === "mark") ? "🎯" : ""}</span></div>
+        <div class="rd-en">${Array.from({ length: E.EN_MAX }, (x, k) => `<i class="${k < p.en ? "on" : ""}"></i>`).join("")}</div></button>`; }).join("");
+    let bar = "";
+    if (mine && !mine.dead) {
+      bar = `<div class="rd-abs">${E.kitOf(mine.role, mine.cls).map(id => { const a = E.AB[id], why = E.canUse(S, you, id, a.tgt === "none" || a.tgt === "enemy" ? -1 : E.defTarget(S, you, id)), cd = mine.cd[id] || 0;
+        return `<button class="rd-ab ${a.sig ? "sig" : ""} ${K.sel === id ? "sel" : ""} ${v.pick && v.pick.ab === id ? "locked" : ""}" ${why ? "disabled" : ""} data-tip="${esc(a.t)}" onclick="HSRaid.ab('${id}')"><b>${a.i} ${esc(a.n)}</b><small>${cd > 0 ? "⏳ " + cd + " rd" : a.once && mine.rev ? "used" : a.cost ? a.cost + " ⚡" : "free"}${a.cd ? " · cd " + a.cd : ""}</small></button>`; }).join("")}</div>
+        <div class="rd-hint">${K.msg ? esc(K.msg) : sel ? "Pick a target for " + esc(sel.n) + (sel.tgt === "enemy" ? " - click the boss or an add." : " - click a teammate.") : v.pick ? "✅ Locked in: " + esc(E.AB[v.pick.ab].n) + ". You can still change it until everyone is ready." : "Choose your action. Hover an ability to see what it does."}</div>`;
+    } else if (mine) bar = `<div class="rd-hint">💀 You're down. A healer can bring you back once per raid - cheer them on.</div>`;
+    const ready = S.P.filter((p, i) => p.dead || p.bot || v.locked[i]).length;
+    return `<div class="rd-boss p${B.phase} ${sel && sel.tgt === "enemy" ? "tg" : ""}" id="rd-boss" ${sel && sel.tgt === "enemy" ? `onclick="if(!event.target.closest('.rd-add'))HSRaid.tgt(-1)"` : ""}>
+        <div class="rd-bh"><div class="rd-bi">${bo.i}</div><div class="rd-bn"><b>${esc(bo.n)}</b><small>${E.DIFF[S.diff].n} · Phase ${B.phase + 1}/3 · Round ${S.round}/${E.ROUND_CAP}</small></div><button class="btn" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();HSRaid.leave()">Leave</button></div>
+        <div class="rd-hp"><i style="width:${Math.max(0, B.hp / B.mhp * 100)}%"></i><u style="left:33%"></u><u style="left:66%"></u><span>${fmt(B.hp)} / ${fmt(B.mhp)}</span></div>
+        <div class="rd-tags">${tags(S)}${adds}</div>
+        <div class="rd-intent ${B.intent}"><div class="ii">${it.i}</div><div><span class="lbl">THIS ROUND THE BOSS WILL</span><br><b>${esc(it.n)}${tgN && (B.intent === "hit" || B.intent === "mark") ? " → " + esc(tgN) : ""}</b><small>${esc(it.t)}</small></div></div></div>
+      <div class="rd-party">${party}</div>
+      <div class="rd-turn"><span>${ready}/${S.P.length} ready</span><span class="dg-dim">auto-pilot plays for you if the timer runs out</span></div><div class="rd-timer"><div id="rd-tbar" style="width:100%"></div></div>
+      ${bar}<div class="rd-log" id="rd-log">${v.log.map(esc).join("\n")}</div>`;
+  }
+  function endHtml(v) {
+    const S = v.S, win = v.res === "win", lo = K.loot;
+    const rows = S ? S.P.map(p => `<tr><td>${E.ROLES[p.role].i} ${esc(p.n)}</td><td>${fmt(p.dmg)}</td><td>${fmt(p.healed)}</td><td>${p.dead ? "💀" : p.hp + "/" + p.mhp}</td></tr>`).join("") : "";
+    return `<div class="rd-end"><h2 style="color:${win ? "var(--rd-amber)" : "var(--rd-red)"};">${win ? "🏆 BOSS DOWN" : v.res === "abandoned" ? "Raid abandoned" : "☠ WIPE"}</h2>
+      <div class="dg-dim">${S ? esc(E.BOSSES[S.boss].n) + " · " + E.DIFF[S.diff].n + " · " + (win ? "cleared in " + S.round + " rounds" : "boss left at " + Math.round(S.B.hp / S.B.mhp * 100) + "% HP") : ""}</div>
+      ${lo && lo.lines.length ? `<div style="margin-top:10px;font-size:14px;">${lo.lines.map(esc).join(" · ")}</div>${lo.win && !lo.first ? `<div class="dg-dim" style="font-size:11px;">Weekly first-clear bonus for this boss and difficulty is already claimed.</div>` : ""}` : ""}
+      ${rows ? `<table class="rd-table"><tr><th>Team</th><th>Damage</th><th>Healing</th><th>HP</th></tr>${rows}</table>` : ""}
+      <div class="rd-row" style="justify-content:center;"><button class="btn btn-gold" onclick="HSRaid.leave()">Back to the war room</button></div></div>
+      <div class="rd-log">${v.log.map(esc).join("\n")}</div>`;
+  }
+  function draw(force) {
+    if (!onTab()) return; const el = $("dg-inner"); if (!el) return; if (!el.querySelector(".rd")) force = true;
+    const v = K.view;
+    const h = `<div class="rd">${!A.HS().cls ? `<div class="dg-dim">Pick a class in the HERO tab first.</div>` : v && v.status === "lobby" ? lobbyHtml(v) : v && v.status === "play" && v.S ? playHtml(v) : v && v.status === "done" ? endHtml(v) : listHtml()}${K.msg && !(v && v.status === "play") ? `<div class="rd-hint">${esc(K.msg)}</div>` : ""}</div>`;
+    if (!force && h === K.sig) return; K.sig = h;
+    const lg0 = $("rd-log"), keep = lg0 ? lg0.scrollTop : -1; el.innerHTML = h;
+    const lg = $("rd-log"); if (lg) lg.scrollTop = lg.scrollHeight;
+  }
+  // ---------------------------------------------------------------- přehrání kola
+  function fl(elId, txt, color) { const el = $(elId); if (!el) return; const f = document.createElement("div"); f.className = "rd-fl"; f.style.color = color; f.textContent = txt; el.appendChild(f); setTimeout(() => f.remove(), 950); }
+  function cls(elId, c, ms) { const el = $(elId); if (!el) return; el.classList.remove(c); void el.offsetWidth; el.classList.add(c); setTimeout(() => el.classList.remove(c), ms || 400); }
+  function play(v) {
+    const evs = (v.last || []).filter(e => ["dmg", "hurt", "heal", "tick", "burn", "down", "revive", "interrupt", "frenzy", "phase"].indexOf(e.k) >= 0);
+    evs.forEach((e, k) => setTimeout(() => {
+      if (!onTab()) return;
+      if (e.k === "dmg") { fl("rd-boss", "-" + e.d, "#fff"); cls("rd-boss", "hit", 320); }
+      else if (e.k === "burn") fl("rd-boss", "🔥 -" + e.d, "#fb923c");
+      else if (e.k === "interrupt") fl("rd-boss", "✋ INTERRUPTED", "#fbbf24");
+      else if (e.k === "frenzy") fl("rd-boss", "🩸 FRENZY", "#ff4d6d");
+      else if (e.k === "phase") fl("rd-boss", "PHASE " + (e.p + 1), "#fbbf24");
+      else if (e.k === "hurt") { fl("rd-p" + e.to, "-" + e.d, "#ff4d6d"); cls("rd-p" + e.to, "flash"); }
+      else if (e.k === "tick") fl("rd-p" + e.to, "☣ -" + e.d, "#a3e635");
+      else if (e.k === "heal") { fl("rd-p" + e.to, "+" + e.h, "#4ade80"); cls("rd-p" + e.to, "glow", 520); }
+      else if (e.k === "down") fl("rd-p" + e.to, "💀 DOWN", "#fff");
+      else if (e.k === "revive") fl("rd-p" + e.to, "☕ BACK UP", "#fbbf24");
+    }, Math.min(k * 170, 2600)));
+  }
+  setInterval(() => { if (onTab() && K.view && K.view.status === "play") { const b = $("rd-tbar"); if (b) b.style.width = Math.max(0, (K.view.left || 0) - (Date.now() - K.recvAt)) / (K.view.turnMs || 30000) * 100 + "%"; } }, 250);
+
+  A.registerMode("raid", { label: "🚨 WAR ROOM", order: 93, render: function () { draw(); if (!K.list || Date.now() - K.listAt > 8000) loadList(); if (K.id) poll(); },
+    dot: function () { const v = K.view; return !!(v && v.status === "play" && v.you >= 0 && !v.pick && v.S && !v.S.P[v.you].dead) || !!(K.list && K.list.tables && K.list.tables.length && !K.id); } });
+  window.HSRaid = { create: create, join: join, start: start, leave: leave, role: setRole, boss: setBoss, diff: setDiff, ab: ab, tgt: tgt, refresh: function () { K.list = null; loadList(); }, _k: K };
+  (function boot() {
+    if (!window.TT || typeof gameState === "undefined" || !TT.onLoaded || typeof google === "undefined") { setTimeout(boot, 300); return; }
+    TT.onLoaded(() => setTimeout(loadList, 9000));
+    setInterval(() => { if (!K.id && (onTab() || Date.now() - K.listAt > 90000)) loadList(); }, 25000);
+  })();
+})();
+</script>
+<style>
 /* ===== v8.8 THE COLLEAGUE: pomocník, který farmí poražené bosse a kliká za tebe ===== */
 .cl-row { display: flex; gap: 10px; align-items: center; }
 .cl-row .dg-sprite { width: 72px; height: 72px; margin: 0; flex: none; }
@@ -16981,6 +17530,135 @@ html.neon-on body::before { content: ""; position: fixed; left: 0; right: 0; bot
   setInterval(function () { try { tick(); hookPostits(); } catch (e) { console.error(e); } }, 900);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tick); else tick();
   window.OfficeTower = { render: render, go: go, pulse: pulse };
+})();
+</script>
+<style>
+/* ===== v13 DAILY STAND-UP (3 úkoly denně + série) a držení tlačítek ===== */
+#ds-pill { position: relative; white-space: nowrap; }
+#ds-pill.ready { border-color: #fbbf24; box-shadow: 0 0 14px -3px #fbbf24; }
+#ds-pill.done { opacity: .7; }
+.ds-task { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; margin-top: 8px; border-radius: 12px; background: #0f1218; border: 1px solid rgba(255,255,255,.09); }
+.ds-task.ok { border-color: rgba(74,222,128,.5); }
+.ds-task.paid { opacity: .55; }
+.ds-task .ic { font-size: 24px; text-align: center; }
+.ds-task b { display: block; font-size: 14px; }
+.ds-task small { display: block; font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.ds-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); margin-top: 6px; overflow: hidden; }
+.ds-bar i { display: block; height: 100%; background: linear-gradient(90deg, #22d3ee, #4ade80); transition: width .3s; }
+.ds-streak { display: flex; gap: 4px; margin: 10px 0 2px; }
+.ds-streak i { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.08); }
+.ds-streak i.on { background: linear-gradient(90deg, #f59e0b, #fbbf24); box-shadow: 0 0 8px -1px #fbbf24; }
+.ds-foot { font-size: 12px; color: var(--text-dim); margin-top: 8px; line-height: 1.45; }
+</style>
+<script>
+(function () {
+  "use strict";
+  // id: [ikona, název(goal), cíl, potřebuje High Stakes?]
+  var POOL = {
+    click: ["🖱", function (n) { return "Resolve " + n + " tickets by hand"; }, 150, 0],
+    chest: ["📦", function (n) { return "Open " + n + " Company Chests"; }, 25, 0],
+    up: ["⬆", function (n) { return "Upgrade the Company Chest " + n + " times"; }, 3, 0],
+    merge: ["⚗", function (n) { return "Merge gear " + n + " times"; }, 5, 0],
+    bet: ["🎰", function (n) { return "Settle " + n + " casino bets"; }, 5, 0],
+    fight: ["⚔", function (n) { return "Win " + n + " High Stakes fights"; }, 3, 1],
+    raid: ["🚨", function (n) { return "Win a War Room raid"; }, 1, 1]
+  };
+  function G() { return typeof gameState !== "undefined" ? gameState : null; }
+  function dayKey(d) { d = d || new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
+  function seedRng(s) { var a = s >>> 0 || 1; return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function raidWins() { var g = G(); try { return Number(g.hs.meta.c.raidWins) || 0; } catch (e) { return 0; } }
+  function hasHS() { var g = G(); return !!(g && g.hs && g.hs.cls); }
+  /** stav dne; nový den = nové 3 úkoly (stejné pro stejného hráče a den), série drží jen když byl včerejšek celý splněný */
+  function st() {
+    var g = G(); if (!g) return null;
+    var k = dayKey(), d = g.daily;
+    if (!d || d.day !== k || !Array.isArray(d.ids)) {
+      var y = new Date(); y.setDate(y.getDate() - 1);
+      var streak = d && d.full === dayKey(y) ? (Number(d.streak) || 0) : (d && d.full === k ? Number(d.streak) || 0 : 0);
+      var r = seedRng(hash(String(g.ldap || "") + ":" + k)), ids = Object.keys(POOL).filter(function (id) { return !POOL[id][3] || hasHS(); });
+      for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
+      d = g.daily = { day: k, ids: ids.slice(0, 3), p: {}, paid: {}, streak: streak, full: d ? d.full || 0 : 0, base: { raid: raidWins() }, bonus: 0 };
+    }
+    d.p = d.p || {}; d.paid = d.paid || {}; d.base = d.base || { raid: raidWins() };
+    return d;
+  }
+  function prog(d, id) { var goal = POOL[id][2]; var v = id === "raid" ? raidWins() - (Number(d.base.raid) || 0) : Number(d.p[id]) || 0; return Math.max(0, Math.min(goal, v)); }
+  function add(id, n) { var d = st(); if (!d || d.ids.indexOf(id) < 0 || !n) return; d.p[id] = (Number(d.p[id]) || 0) + n; pill(); if (document.getElementById("ds-modal")) draw(); }
+  function gcFor(d) { var rate = 0; try { rate = calculateAutoGcRate(); } catch (e) {} return Math.floor(Math.max(2500, rate * 900) * (1 + 0.1 * Math.min(10, d.streak || 0))); }
+  function claim(id) {
+    var g = G(), d = st(); if (!d || d.paid[id] || prog(d, id) < POOL[id][2]) return;
+    var gc = gcFor(d); d.paid[id] = 1; g.coins += gc;
+    log("📋 Stand-up task done: +" + gc.toLocaleString("en-US") + " GC.", "success");
+    if (d.ids.every(function (x) { return d.paid[x]; }) && !d.bonus) {
+      d.bonus = 1; d.streak = (Number(d.streak) || 0) + 1; d.full = d.day;
+      var ot = 1 + (d.streak % 7 === 0 ? 2 : 0); g.slotTokens = (g.slotTokens || 0) + ot;
+      log("📋 All three stand-up tasks done: +" + ot + " ⏱ Overtime Hour" + (ot > 1 ? "s" : "") + ". Streak: " + d.streak + " day" + (d.streak === 1 ? "" : "s") + ".", "special");
+    }
+    try { if (typeof updateUI === "function") updateUI(); if (typeof saveGame === "function") saveGame(true); } catch (e) {}
+    pill(); draw();
+  }
+  function resetIn() { var n = new Date(), m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1) - n; return Math.floor(m / 3600000) + "h " + Math.floor(m % 3600000 / 60000) + "m"; }
+  function draw() {
+    var d = st(), box = document.getElementById("ds-body"); if (!d || !box) return;
+    var gc = gcFor(d), s7 = (d.streak || 0) % 7, h = "";
+    d.ids.forEach(function (id) {
+      var P = POOL[id], v = prog(d, id), ok = v >= P[2], paid = !!d.paid[id];
+      h += '<div class="ds-task' + (ok ? " ok" : "") + (paid ? " paid" : "") + '"><div class="ic">' + P[0] + "</div><div><b>" + P[1](P[2]) + "</b><small>" + v + " / " + P[2] + " · reward " + gc.toLocaleString("en-US") + ' GC</small><div class="ds-bar"><i style="width:' + (v / P[2] * 100) + '%"></i></div></div>' +
+        (paid ? '<span style="color:#4ade80;font-weight:700;">✓ paid</span>' : '<button class="btn btn-gold"' + (ok ? "" : " disabled") + ' onclick="Daily.claim(\'' + id + "')\">Claim</button>") + "</div>";
+    });
+    var bars = ""; for (var i = 0; i < 7; i++) bars += '<i class="' + (i < (d.bonus && s7 === 0 && d.streak ? 7 : s7) ? "on" : "") + '"></i>';
+    box.innerHTML = h + '<div class="ds-streak" title="7-day streak">' + bars + '</div><div class="ds-foot">Finish all three for <b>+1 ⏱ Overtime Hour</b>' + (d.bonus ? " (done today ✓)" : "") + ". Streak: <b>" + (d.streak || 0) + " day" + (d.streak === 1 ? "" : "s") + "</b> · every streak day adds +10% GC (up to +100%), every 7th day gives +2 extra ⏱.<br>New tasks in " + resetIn() + ".</div>";
+  }
+  function open() {
+    var old = document.getElementById("ds-modal"); if (old) old.remove();
+    var el = document.createElement("div"); el.id = "ds-modal"; el.className = "tt-overlay open"; el.style.zIndex = 10000;
+    el.onclick = function (e) { if (e.target === el) el.remove(); };
+    el.innerHTML = '<div class="tt-modal" style="max-width:460px;width:100%;"><h2>📋 Daily stand-up</h2><div id="ds-body"></div><div style="display:flex;justify-content:flex-end;margin-top:12px;"><button class="btn" onclick="this.closest(\'.tt-overlay\').remove()">Close</button></div></div>';
+    document.body.appendChild(el); draw();
+  }
+  function pill() {
+    var d = st(); if (!d) return;
+    var b = document.getElementById("ds-pill");
+    if (!b) { var help = document.querySelector(".top-bar .btn-help"); if (!help) return; b = document.createElement("button"); b.id = "ds-pill"; b.type = "button"; b.className = "btn"; b.onclick = open; help.parentNode.insertBefore(b, help); }
+    var done = d.ids.filter(function (id) { return d.paid[id]; }).length, ready = d.ids.some(function (id) { return !d.paid[id] && prog(d, id) >= POOL[id][2]; });
+    var t = "📋 " + done + "/3" + (ready ? " · claim!" : "");
+    if (b.textContent !== t) b.textContent = t;
+    b.classList.toggle("ready", ready); b.classList.toggle("done", done === 3);
+    b.title = "Daily stand-up: three small tasks a day";
+  }
+
+  // ---- počítání událostí (obalení existujících funkcí; hra o tomhle souboru neví)
+  function wrap(name, after) {
+    var f = window[name]; if (typeof f !== "function" || f.__ds) return;
+    var w = function () { var g = G(), before = g ? { scrap: g.scrap, lvl: g.chestLevel, coins: g.coins } : null, out = f.apply(this, arguments); try { after(arguments, before, G()); } catch (e) {} return out; };
+    w.__ds = 1; for (var k in f) w[k] = f[k]; window[name] = w;
+  }
+  function hook() {
+    wrap("openCompanyChest", function (a, b, g) { if (b && g.scrap < b.scrap) add("chest", Math.max(1, Number(a[0]) || 1)); });
+    wrap("upgradeCompanyChest", function (a, b, g) { if (b && g.chestLevel > b.lvl) add("up", g.chestLevel - b.lvl); });
+    wrap("performSmartMerge", function (a) { add("merge", Math.max(1, Number(a[1]) || 1)); });
+    if (window.Meta && Meta.onFight && !Meta.onFight.__ds) { var of = Meta.onFight; Meta.onFight = function (f) { try { if (f && f.win) add("fight", 1); } catch (e) {} return of.apply(this, arguments); }; Meta.onFight.__ds = 1; }
+  }
+  document.addEventListener("pointerdown", function (e) { if (e.isTrusted !== false && e.target.closest && e.target.closest("#btn-click")) add("click", 1); }, true);
+  var lastNet = null;
+  setInterval(function () {
+    var g = G(); if (!g) return;
+    try { hook(); if (lastNet !== null && g.gambleNet !== lastNet) add("bet", 1); lastNet = g.gambleNet; pill(); } catch (e) { console.error(e); }
+  }, 1000);
+  window.Daily = { open: open, claim: claim, state: st };
+
+  // ================================================================== DRŽENÍ TLAČÍTKA = OPAKOVÁNÍ (nákupy, bedny, upgrade)
+  var HOLD = /^(openCompanyChest|upgradeCompanyChest|buyScrap|Gear\.up|Forge\.|Plant\.buy)/, hold = null;
+  function stopHold() { if (hold) { clearTimeout(hold.t); clearInterval(hold.i); hold = null; } }
+  document.addEventListener("pointerdown", function (e) {
+    var b = e.target.closest && e.target.closest("button[onclick]"); if (!b || e.button > 0) return;
+    if (!HOLD.test(b.getAttribute("onclick") || "")) return;
+    stopHold();
+    hold = { t: setTimeout(function () { var n = 0; hold.i = setInterval(function () { if (!document.body.contains(b) || b.disabled) { stopHold(); return; } b.click(); if (++n > 400) stopHold(); }, 110); }, 450) };
+  }, true);
+  ["pointerup", "pointercancel", "contextmenu"].forEach(function (ev) { window.addEventListener(ev, stopHold, true); });
+  document.addEventListener("visibilitychange", stopHold);
 })();
 </script>
 
